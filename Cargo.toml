@@ -5,15 +5,12 @@ edition = "2021"
 
 [dependencies]
 camino = "1.1.9"
-fs_extra = "1.3.0"
-gleam-core = { git = "https://github.com/gleam-lang/gleam.git", tag = "v1.4.1" }
-gleam = { git = "https://github.com/gleam-lang/gleam.git", tag = "v1.4.1" }
+gleam-core = { git = "https://github.com/gleam-lang/gleam.git", tag = "v1.5.0" }
 im = "15.1.0"
-tracing = "0.1.40"
-walkdir = "2.5.0"
 tar = "0.4.41"
 rquickjs = { version = "0.6.2", features = ["loader"] }
 termcolor = "1"
+clap = { version = "4", features = ["derive"] }
 
 [profile.release]
 opt-level = "z"

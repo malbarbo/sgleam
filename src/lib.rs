@@ -15,8 +15,16 @@ impl Reporter {
 }
 
 impl Telemetry for Reporter {
+    fn compiled_package(&self, duration: Duration) {
+        print_compiled(duration);
+    }
+
     fn compiling_package(&self, name: &str) {
         print_compiling(name);
+    }
+
+    fn checked_package(&self, duration: Duration) {
+        print_checked(duration);
     }
 
     fn checking_package(&self, name: &str) {
@@ -33,6 +41,10 @@ impl Telemetry for Reporter {
 
     fn resolving_package_versions(&self) {
         print_resolving_versions()
+    }
+
+    fn running(&self, name: &str) {
+        print_running(name);
     }
 
     fn waiting_for_build_directory_lock(&self) {
@@ -74,6 +86,18 @@ fn print_compiling(text: &str) {
 
 pub(crate) fn print_checking(text: &str) {
     print_colourful_prefix("Checking", text)
+}
+
+pub(crate) fn print_compiled(duration: Duration) {
+    print_colourful_prefix("Compiled", &format!("in {}", seconds(duration)))
+}
+
+pub(crate) fn print_checked(duration: Duration) {
+    print_colourful_prefix("Checked", &format!("in {}", seconds(duration)))
+}
+
+pub(crate) fn print_running(text: &str) {
+    print_colourful_prefix("Running", text)
 }
 
 fn print_packages_downloaded(start: Instant, count: usize) {
@@ -129,6 +153,7 @@ fn color_choice() -> ColorChoice {
         ColorChoice::Never
     }
 }
+
 #[derive(Debug, Clone, Copy)]
 pub struct ConsoleWarningEmitter;
 
