@@ -1,5 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use clap::{arg, command, Parser};
+use clap::{arg, builder::{styling, Styles}, command, Parser};
 use gleam_core::{
     build::{
         Mode, NullTelemetry, PackageCompiler, StaleTracker, Target, TargetCodegenConfiguration,
@@ -31,21 +31,41 @@ const GLEAM_STDLIB: &[u8] = include_bytes!("../gleam-stdlib.tar");
 const SGLEAM_JS: &str = include_str!("../sgleam.mjs");
 const SGLEAM_GLEAM: &str = include_str!("../sgleam.gleam");
 
+const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
+const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
+const GLEAM_STDLIB_VERSION: &str = "0.40.0";
+
+/// The student version of gleam.
 #[derive(Parser)]
-#[command(version, about, long_about = None)]
+#[command(
+    about,
+    styles = Styles::styled()
+        .header(styling::AnsiColor::Yellow.on_default())
+        .usage(styling::AnsiColor::Yellow.on_default())
+        .literal(styling::AnsiColor::Green.on_default())
+)]
 struct Cli {
-    #[arg(short)]
     /// Run tests.
-    test: bool,
     #[arg(short)]
+    test: bool,
     /// Iterative mode.
+    #[arg(short)]
     interative: bool,
+    /// Print version.
+    #[arg(short, long)]
+    version: bool,
     /// The program file.
+    // TODO: allow multiple files
     path: Option<PathBuf>,
 }
 
 fn main() {
     let cli = Cli::parse();
+
+    if cli.version {
+        println!("sgleam {SGLEAM_VERSION} (gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION})");
+        return;
+    }
 
     let path = if let Some(path) = cli.path {
         path
