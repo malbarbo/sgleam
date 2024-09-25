@@ -155,10 +155,28 @@ fn color_choice() -> ColorChoice {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct ConsoleWarningEmitter;
+pub struct ConsoleWarningEmitter {
+    repl: bool,
+}
+
+impl ConsoleWarningEmitter {
+    pub fn with_repl(repl: bool) -> ConsoleWarningEmitter {
+        ConsoleWarningEmitter { repl }
+    }
+}
 
 impl WarningEmitterIO for ConsoleWarningEmitter {
     fn emit_warning(&self, warning: Warning) {
+        if self.repl {
+            if let Warning::Type { warning, .. } = &warning {
+                match warning {
+                    gleam_core::type_::Warning::UnusedImportedValue { .. }
+                    | gleam_core::type_::Warning::UnusedImportedModule { .. }
+                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. } => return,
+                    _ => {}
+                }
+            }
+        }
         let buffer_writer = stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         warning.pretty(&mut buffer);

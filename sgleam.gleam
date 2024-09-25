@@ -1,2 +1,2 @@
-@external(javascript, "sgleam.js", "check_equal")
+@external(javascript, "./sgleam_ffi.mjs", "check_equal")
 pub fn check_equal(a: x, b: x) -> Bool

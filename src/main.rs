@@ -1,11 +1,15 @@
 use camino::{Utf8Path, Utf8PathBuf};
-use clap::{arg, builder::{styling, Styles}, command, Parser};
+use clap::{
+    arg,
+    builder::{styling, Styles},
+    command, Parser,
+};
 use gleam_core::{
     build::{
         Mode, NullTelemetry, PackageCompiler, StaleTracker, Target, TargetCodegenConfiguration,
     },
     config::PackageConfig,
-    io::{memory::InMemoryFileSystem, CommandExecutor, FileSystemReader, FileSystemWriter},
+    io::{memory::InMemoryFileSystem, FileSystemReader, FileSystemWriter},
     javascript::PRELUDE,
     uid::UniqueIdGenerator,
     warning::WarningEmitter,
@@ -17,6 +21,7 @@ use rquickjs::{
     qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
     Context, Ctx, Function, Module, Object, Promise, Runtime, Value,
 };
+use rustyline::{error::ReadlineError, DefaultEditor};
 use sgleam::{stderr_buffer_writer, ConsoleWarningEmitter};
 use std::{
     collections::HashSet,
@@ -28,9 +33,8 @@ use std::{
 use tar::Archive;
 
 const GLEAM_STDLIB: &[u8] = include_bytes!("../gleam-stdlib.tar");
-const SGLEAM_JS: &str = include_str!("../sgleam.mjs");
 const SGLEAM_GLEAM: &str = include_str!("../sgleam.gleam");
-
+const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
 const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 const GLEAM_STDLIB_VERSION: &str = "0.40.0";
@@ -62,16 +66,17 @@ struct Cli {
 fn main() {
     let cli = Cli::parse();
 
+    // TODO: include quickjs version
     if cli.version {
-        println!("sgleam {SGLEAM_VERSION} (gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION})");
+        println!("{}", version());
         return;
     }
 
     let path = if let Some(path) = cli.path {
         path
     } else {
-        eprintln!("Interative mode not implemented!");
-        exit(1);
+        repl();
+        return;
     };
 
     let input = Utf8Path::from_path(&path).unwrap();
@@ -85,11 +90,65 @@ fn main() {
         exit(1);
     }
 
-    let mut fs = InMemoryFileSystem::new();
+    let mut project = Project::new();
 
-    match build(&mut fs, input, cli.test) {
+    match build(&mut project, input, cli.test) {
         Err(err) => show_gleam_error(err),
-        Ok(file) => run(fs, &file),
+        Ok(_) => run_js(project.fs),
+    }
+}
+
+struct Project {
+    fs: InMemoryFileSystem,
+}
+
+impl Project {
+    fn new() -> Project {
+        let mut project = Project {
+            fs: InMemoryFileSystem::new(),
+        };
+        extract_tar(
+            &mut project.fs,
+            Archive::new(GLEAM_STDLIB),
+            Project::source(),
+        )
+        .expect("Extracting gleam-stdlib.tar");
+        project.write_source("sgleam.gleam", SGLEAM_GLEAM);
+        project.write_source("sgleam_ffi.mjs", SGLEAM_FFI_MJS);
+        project.write_out("prelude.mjs", PRELUDE);
+        project
+    }
+
+    fn root() -> &'static Utf8Path {
+        "/".into()
+    }
+
+    fn source() -> &'static Utf8Path {
+        "/src".into()
+    }
+
+    fn out() -> &'static Utf8Path {
+        "/build".into()
+    }
+
+    fn main() -> &'static Utf8Path {
+        "/build/main.mjs".into()
+    }
+
+    fn prelude() -> &'static Utf8Path {
+        "/build/prelude.mjs".into()
+    }
+
+    fn write_source(&mut self, name: &str, content: &str) {
+        self.fs
+            .write(&Project::source().join(name), content)
+            .expect(&format!("Writing {name}"));
+    }
+
+    fn write_out(&mut self, name: &str, content: &str) {
+        self.fs
+            .write(&Project::out().join(name), content)
+            .expect(&format!("Writing {name}"));
     }
 }
 
@@ -102,19 +161,90 @@ fn show_gleam_error(err: Error) {
         .expect("Writing warning to stderr");
 }
 
-fn run(fs: InMemoryFileSystem, path: &Utf8Path) {
+fn version() -> String {
+    format!("sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})")
+}
+
+fn repl() {
+    println!("Welcome to {}.", version());
+    println!("Type \"quit\" to exit.");
+    let mut rl = DefaultEditor::new().unwrap();
+    loop {
+        let readline = rl.readline("> ");
+        match readline {
+            Ok(input) if input.trim() == "quit" => {
+                return;
+            }
+            Ok(input) => {
+                run_gleam_str(&input);
+            }
+            Err(ReadlineError::Interrupted) => {}
+            Err(ReadlineError::Eof) => {
+                break;
+            }
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break;
+            }
+        }
+    }
+}
+
+fn run_gleam_str(code: &str) {
+    let mut project = Project::new();
+    project.write_source(
+        "repl.gleam",
+        &format!(
+            "
+import gleam/bit_array
+import gleam/bool
+import gleam/bytes_builder
+import gleam/dict
+import gleam/dynamic
+import gleam/float
+import gleam/function
+import gleam/int
+import gleam/io
+import gleam/iterator
+import gleam/list
+import gleam/option
+import gleam/order
+import gleam/pair
+import gleam/queue
+import gleam/regex
+import gleam/result
+import gleam/set
+import gleam/string
+import gleam/string_builder
+import gleam/uri
+pub fn main() {{
+    io.debug({{
+{code}
+    }})
+}}
+"
+        ),
+    );
+
+    match compile(&mut project, "repl", true, false) {
+        Err(err) => show_gleam_error(err),
+        Ok(_) => run_js(project.fs),
+    }
+}
+
+fn run_js(fs: InMemoryFileSystem) {
     let rt = Runtime::new().unwrap();
     let ctx = Context::full(&rt).unwrap();
     let resolver = FileResolver {
-        base: path.as_std_path().parent().unwrap().to_path_buf(),
-        num: 0,
+        base: Project::out().as_std_path().to_path_buf(),
+        first: false,
     };
     rt.set_loader(resolver, ScriptLoader { fs: fs.clone() });
     ctx.with(|ctx| {
         add_console_log(&ctx);
         let mut options = EvalOptions::default();
         options.global = false;
-        match ctx.eval_with_options::<Promise, _>(fs.read(path).unwrap(), options) {
+        match ctx.eval_with_options::<Promise, _>(fs.read(Project::main()).unwrap(), options) {
             Err(err) => show_js_error(&ctx, err),
             Ok(v) => {
                 if let Err(err) = v.finish::<Value>() {
@@ -134,30 +264,22 @@ fn show_js_error(ctx: &Ctx, err: rquickjs::Error) {
     std::process::exit(1);
 }
 
-fn build(
-    project: &mut InMemoryFileSystem,
-    input: &Utf8Path,
-    test: bool,
-) -> Result<Utf8PathBuf, Error> {
-    let root = Utf8Path::new("/");
-    let src = root.join("src");
-    extract_tar(project, Archive::new(GLEAM_STDLIB), &src)?;
+fn build(project: &mut Project, input: &Utf8Path, test: bool) -> Result<(), Error> {
     copy_file(
-        project,
+        &mut project.fs,
         input,
-        &src.join(input.file_name().expect("A file name")),
+        &Project::source().join(input.file_name().expect("A file name")),
     );
-    project.write(&src.join("sgleam.gleam"), SGLEAM_GLEAM)?;
     compile(
         project,
-        root,
         input.file_stem().expect("A file steam"),
+        false,
         test,
     )
 }
 
-fn extract_tar<T: FileSystemWriter>(
-    fs: &mut T,
+fn extract_tar(
+    fs: &mut InMemoryFileSystem,
     mut arch: Archive<&[u8]>,
     to: &Utf8Path,
 ) -> Result<(), Error> {
@@ -183,28 +305,17 @@ fn copy_file<T: FileSystemWriter>(fs: &mut T, from: &Utf8Path, to: &Utf8Path) {
     fs.write_bytes(to, &std::fs::read(from).unwrap()).unwrap()
 }
 
-fn compile<IO>(
-    project: &mut IO,
-    root: &Utf8Path,
-    name: &str,
-    test: bool,
-) -> Result<Utf8PathBuf, Error>
-where
-    IO: FileSystemReader + FileSystemWriter + CommandExecutor + Clone,
-{
+fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<(), Error> {
     let config = PackageConfig {
         target: Target::JavaScript,
         ..Default::default()
     };
 
-    let out = root.join("build");
-    let prelude = out.join("prelude.mjs");
-    let sgleam = out.join("sgleam.mjs");
-    let main = out.join("main.mjs");
+    // TODO: simplify?
     let main_content = if !test {
         &format!(
             "
-        import {{ try_main }} from \"./sgleam.mjs\";
+        import {{ try_main }} from \"./sgleam_ffi.mjs\";
         import {{ main }} from \"./{name}.mjs\";
         try_main(main);
         "
@@ -212,33 +323,35 @@ where
     } else {
         &format!(
             "
-        import {{ run_tests }} from \"./sgleam.mjs\";
+        import {{ run_tests }} from \"./sgleam_ffi.mjs\";
         import * as {name} from \"./{name}.mjs\";
         run_tests({name});
         "
         )
     };
 
+    project.write_out("main.mjs", main_content);
+
     let target = TargetCodegenConfiguration::JavaScript {
         emit_typescript_definitions: false,
-        prelude_location: prelude.clone(),
+        prelude_location: Project::prelude().into(),
     };
 
     let mut compiler = PackageCompiler::new(
         &config,
         Mode::Dev,
-        root,
-        &out,
-        &out,
+        Project::root(),
+        Project::out(),
+        Project::out(),
         &target,
         UniqueIdGenerator::new(),
-        project.clone(),
+        project.fs.clone(),
     );
     compiler.write_metadata = false;
 
     compiler
         .compile(
-            &WarningEmitter::new(Rc::new(ConsoleWarningEmitter)),
+            &WarningEmitter::new(Rc::new(ConsoleWarningEmitter::with_repl(repl))),
             &mut im::HashMap::new(),
             &mut im::HashMap::new(),
             &mut StaleTracker::default(),
@@ -246,10 +359,7 @@ where
             &NullTelemetry,
         )
         .into_result()
-        .and_then(|_| project.write(&prelude, PRELUDE))
-        .and_then(|_| project.write(&sgleam, SGLEAM_JS))
-        .and_then(|_| project.write(&main, main_content))
-        .map(|_| main)
+        .map(|_| ())
 }
 
 fn to_error_stdio(err: std::io::Error) -> Error {
@@ -301,16 +411,17 @@ fn log(value: Value) {
 #[derive(Debug)]
 struct FileResolver {
     base: PathBuf,
-    num: u32,
+    first: bool,
 }
 
 impl Resolver for FileResolver {
     fn resolve(&mut self, _ctx: &Ctx, base: &str, name: &str) -> rquickjs::Result<String> {
-        let result = if self.num == 0 {
-            self.num += 1;
+        let result = if self.first {
+            // FIXME: remove this first hack
+            self.first = false;
             self.base.join(name)
         } else if base == "eval_script" {
-            Path::new("/build/").join(name)
+            Project::out().as_std_path().join(name)
         } else {
             let basep = Path::new(base).parent().unwrap();
             if let Some(name) = name.strip_prefix("./") {
