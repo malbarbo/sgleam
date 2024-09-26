@@ -146,15 +146,17 @@ impl Project {
     }
 
     fn write_source(&mut self, name: &str, content: &str) {
+        let msg = format!("Writing {name}");
         self.fs
             .write(&Project::source().join(name), content)
-            .expect(&format!("Writing {name}"));
+            .expect(&msg);
     }
 
     fn write_out(&mut self, name: &str, content: &str) {
+        let msg = format!("Writing {name}");
         self.fs
             .write(&Project::out().join(name), content)
-            .expect(&format!("Writing {name}"));
+            .expect(&msg);
     }
 }
 
@@ -168,13 +170,21 @@ fn show_gleam_error(err: Error) {
 }
 
 fn version() -> String {
-    format!("sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})")
+    format!(
+        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})"
+    )
 }
 
 fn repl(project: &mut Project, user_module: Option<&str>) {
+    let history = dirs::home_dir().map(|p| p.join(".sgleam_history"));
+
+    let mut rl = DefaultEditor::new().unwrap();
+    if let Some(history) = &history {
+        let _ = rl.load_history(history);
+    }
+
     println!("Welcome to {}.", version());
     println!("Type \"quit\" to exit.");
-    let mut rl = DefaultEditor::new().unwrap();
     loop {
         let readline = rl.readline("> ");
         match readline {
@@ -182,6 +192,7 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
                 return;
             }
             Ok(input) => {
+                let _ = rl.add_history_entry(&input);
                 run_gleam_str(project, &input, user_module);
             }
             Err(ReadlineError::Interrupted) => {}
@@ -193,6 +204,10 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
                 break;
             }
         }
+    }
+
+    if let Some(history) = &history {
+        let _ = rl.save_history(history);
     }
 }
 
@@ -317,11 +332,6 @@ fn copy_file<T: FileSystemWriter>(fs: &mut T, from: &Utf8Path, to: &Utf8Path) {
 }
 
 fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<(), Error> {
-    let config = PackageConfig {
-        target: Target::JavaScript,
-        ..Default::default()
-    };
-
     // TODO: simplify?
     let main_content = if !test {
         &format!(
@@ -340,15 +350,19 @@ fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<
         "
         )
     };
-
     project.write_out("main.mjs", main_content);
+
+    let config = PackageConfig {
+        target: Target::JavaScript,
+        ..Default::default()
+    };
 
     let target = TargetCodegenConfiguration::JavaScript {
         emit_typescript_definitions: false,
         prelude_location: Project::prelude().into(),
     };
 
-    let mut compiler = PackageCompiler::new(
+    let compiler = PackageCompiler::new(
         &config,
         Mode::Dev,
         Project::root(),
@@ -358,7 +372,6 @@ fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<
         UniqueIdGenerator::new(),
         project.fs.clone(),
     );
-    compiler.write_metadata = false;
 
     compiler
         .compile(

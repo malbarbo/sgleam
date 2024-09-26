@@ -168,13 +168,15 @@ impl ConsoleWarningEmitter {
 impl WarningEmitterIO for ConsoleWarningEmitter {
     fn emit_warning(&self, warning: Warning) {
         if self.repl {
-            if let Warning::Type { warning, .. } = &warning {
-                match warning {
+            if let Warning::Type {
+                warning:
                     gleam_core::type_::Warning::UnusedImportedValue { .. }
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
-                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. } => return,
-                    _ => {}
-                }
+                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. },
+                ..
+            } = warning
+            {
+                return;
             }
         }
         let buffer_writer = stderr_buffer_writer();
