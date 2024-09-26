@@ -75,7 +75,7 @@ fn main() {
     let path = if let Some(path) = cli.path {
         path
     } else {
-        repl();
+        repl(&mut Project::new(), None);
         return;
     };
 
@@ -94,7 +94,13 @@ fn main() {
 
     match build(&mut project, input, cli.test) {
         Err(err) => show_gleam_error(err),
-        Ok(_) => run_js(project.fs),
+        Ok(_) => {
+            if cli.interative {
+                repl(&mut project, Some(input.file_stem().unwrap()));
+            } else {
+                run_js(project.fs)
+            }
+        }
     }
 }
 
@@ -165,7 +171,7 @@ fn version() -> String {
     format!("sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})")
 }
 
-fn repl() {
+fn repl(project: &mut Project, user_module: Option<&str>) {
     println!("Welcome to {}.", version());
     println!("Type \"quit\" to exit.");
     let mut rl = DefaultEditor::new().unwrap();
@@ -176,7 +182,7 @@ fn repl() {
                 return;
             }
             Ok(input) => {
-                run_gleam_str(&input);
+                run_gleam_str(project, &input, user_module);
             }
             Err(ReadlineError::Interrupted) => {}
             Err(ReadlineError::Eof) => {
@@ -190,12 +196,17 @@ fn repl() {
     }
 }
 
-fn run_gleam_str(code: &str) {
-    let mut project = Project::new();
+fn run_gleam_str(project: &mut Project, code: &str, user_module: Option<&str>) {
+    let user_module = if let Some(module) = user_module {
+        format!("import {module}")
+    } else {
+        "".into()
+    };
     project.write_source(
         "repl.gleam",
         &format!(
             "
+{user_module}
 import gleam/bit_array
 import gleam/bool
 import gleam/bytes_builder
@@ -226,9 +237,9 @@ pub fn main() {{
         ),
     );
 
-    match compile(&mut project, "repl", true, false) {
+    match compile(project, "repl", true, false) {
         Err(err) => show_gleam_error(err),
-        Ok(_) => run_js(project.fs),
+        Ok(_) => run_js(project.fs.clone()),
     }
 }
 
