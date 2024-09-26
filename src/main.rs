@@ -362,7 +362,7 @@ fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<
         prelude_location: Project::prelude().into(),
     };
 
-    let compiler = PackageCompiler::new(
+    let mut compiler = PackageCompiler::new(
         &config,
         Mode::Dev,
         Project::root(),
@@ -372,6 +372,8 @@ fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<
         UniqueIdGenerator::new(),
         project.fs.clone(),
     );
+
+    compiler.write_metadata = false;
 
     compiler
         .compile(
