@@ -32,7 +32,7 @@ use std::{
 };
 use tar::Archive;
 
-const GLEAM_STDLIB: &[u8] = include_bytes!("../gleam-stdlib.tar");
+const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 const SGLEAM_GLEAM: &str = include_str!("../sgleam.gleam");
 const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
 const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
