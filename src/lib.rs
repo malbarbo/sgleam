@@ -5,6 +5,8 @@ use std::{
 };
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
+pub mod format;
+
 #[derive(Debug, Default, Clone)]
 pub struct Reporter;
 

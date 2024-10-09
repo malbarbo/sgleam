@@ -49,12 +49,15 @@ const GLEAM_STDLIB_VERSION: &str = "0.40.0";
         .literal(styling::AnsiColor::Green.on_default())
 )]
 struct Cli {
-    /// Run tests.
-    #[arg(short)]
-    test: bool,
-    /// Iterative mode.
-    #[arg(short)]
+    /// Go to iterative mode.
+    #[arg(short, group="cmd")]
     interative: bool,
+    /// Run tests.
+    #[arg(short, group="cmd")]
+    test: bool,
+    /// Format source code.
+    #[arg(short, group="cmd")]
+    format: bool,
     /// Print version.
     #[arg(short, long)]
     version: bool,
@@ -88,6 +91,14 @@ fn main() {
     if input.extension() != Some("gleam") {
         eprintln!("{input}: is not a gleam file.");
         exit(1);
+    }
+
+    if cli.format {
+        if let Err(err) = sgleam::format::run(false, false, vec![input.as_str().into()]) {
+            show_gleam_error(err);
+            exit(1)
+        }
+        return;
     }
 
     let mut project = Project::new();
