@@ -21,23 +21,16 @@ use rquickjs::{
     qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
     Context, Ctx, Function, Module, Object, Promise, Runtime, Value,
 };
-use rustyline::{error::ReadlineError, DefaultEditor};
-use sgleam::{stderr_buffer_writer, ConsoleWarningEmitter};
+use sgleam::{repl::ReplReader, stderr_buffer_writer, ConsoleWarningEmitter};
 use std::{
     collections::HashSet,
     io::{Read, Write},
     path::{Path, PathBuf},
     process::exit,
     rc::Rc,
+    time::SystemTime,
 };
 use tar::Archive;
-
-const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
-const SGLEAM_GLEAM: &str = include_str!("../sgleam.gleam");
-const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
-const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
-const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
-const GLEAM_STDLIB_VERSION: &str = "0.40.0";
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -50,13 +43,13 @@ const GLEAM_STDLIB_VERSION: &str = "0.40.0";
 )]
 struct Cli {
     /// Go to iterative mode.
-    #[arg(short, group="cmd")]
+    #[arg(short, group = "cmd")]
     interative: bool,
     /// Run tests.
-    #[arg(short, group="cmd")]
+    #[arg(short, group = "cmd")]
     test: bool,
     /// Format source code.
-    #[arg(short, group="cmd")]
+    #[arg(short, group = "cmd")]
     format: bool,
     /// Print version.
     #[arg(short, long)]
@@ -71,7 +64,7 @@ fn main() {
 
     // TODO: include quickjs version
     if cli.version {
-        println!("{}", version());
+        println!("{}", sgleam::version());
         return;
     }
 
@@ -109,7 +102,8 @@ fn main() {
             if cli.interative {
                 repl(&mut project, Some(input.file_stem().unwrap()));
             } else {
-                run_js(project.fs)
+                let source = project.fs.read(&Project::main()).unwrap();
+                run_js(&create_js_context(project.fs.clone()), source)
             }
         }
     }
@@ -126,12 +120,12 @@ impl Project {
         };
         extract_tar(
             &mut project.fs,
-            Archive::new(GLEAM_STDLIB),
+            Archive::new(sgleam::GLEAM_STDLIB),
             Project::source(),
         )
         .expect("Extracting gleam-stdlib.tar");
-        project.write_source("sgleam.gleam", SGLEAM_GLEAM);
-        project.write_source("sgleam_ffi.mjs", SGLEAM_FFI_MJS);
+        project.write_source("sgleam.gleam", sgleam::SGLEAM_GLEAM);
+        project.write_source("sgleam_ffi.mjs", sgleam::SGLEAM_FFI_MJS);
         project.write_out("prelude.mjs", PRELUDE);
         project
     }
@@ -157,10 +151,13 @@ impl Project {
     }
 
     fn write_source(&mut self, name: &str, content: &str) {
-        let msg = format!("Writing {name}");
+        let path = Project::source().join(name);
         self.fs
-            .write(&Project::source().join(name), content)
-            .expect(&msg);
+            .write(&path, content)
+            .expect(&format!("Write {path}"));
+        self.fs
+            .try_set_modification_time(&path, SystemTime::now())
+            .expect(&format!("Set modification time {path}"))
     }
 
     fn write_out(&mut self, name: &str, content: &str) {
@@ -180,56 +177,34 @@ fn show_gleam_error(err: Error) {
         .expect("Writing warning to stderr");
 }
 
-fn version() -> String {
-    format!(
-        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})"
-    )
-}
-
 fn repl(project: &mut Project, user_module: Option<&str>) {
-    let history = dirs::home_dir().map(|p| p.join(".sgleam_history"));
-
-    let mut rl = DefaultEditor::new().unwrap();
-    if let Some(history) = &history {
-        let _ = rl.load_history(history);
-    }
-
-    println!("Welcome to {}.", version());
-    println!("Type \"quit\" to exit.");
-    loop {
-        let readline = rl.readline("> ");
-        match readline {
-            Ok(input) if input.trim() == "quit" => {
-                return;
-            }
-            Ok(input) => {
-                let _ = rl.add_history_entry(&input);
-                run_gleam_str(project, &input, user_module);
-            }
-            Err(ReadlineError::Interrupted) => {}
-            Err(ReadlineError::Eof) => {
-                break;
-            }
-            Err(err) => {
-                println!("Error: {:?}", err);
-                break;
+    let editor = ReplReader::new().unwrap();
+    let context = create_js_context(project.fs.clone());
+    for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
+        let file = format!("repl{n}.gleam");
+        write_repl_source(project, &file, &code, user_module);
+        match compile(project, &format!("repl{n}"), true, false) {
+            Err(err) => show_gleam_error(err),
+            Ok(_) => {
+                let source = project.fs.read(Project::main()).unwrap();
+                run_js(&context, source);
             }
         }
-    }
-
-    if let Some(history) = &history {
-        let _ = rl.save_history(history);
+        project
+            .fs
+            .delete_file(&Project::source().join(file))
+            .unwrap();
     }
 }
 
-fn run_gleam_str(project: &mut Project, code: &str, user_module: Option<&str>) {
+fn write_repl_source(project: &mut Project, file: &str, code: &str, user_module: Option<&str>) {
     let user_module = if let Some(module) = user_module {
         format!("import {module}")
     } else {
         "".into()
     };
     project.write_source(
-        "repl.gleam",
+        file,
         &format!(
             "
 {user_module}
@@ -262,26 +237,27 @@ pub fn main() {{
 "
         ),
     );
-
-    match compile(project, "repl", true, false) {
-        Err(err) => show_gleam_error(err),
-        Ok(_) => run_js(project.fs.clone()),
-    }
 }
 
-fn run_js(fs: InMemoryFileSystem) {
-    let rt = Runtime::new().unwrap();
-    let ctx = Context::full(&rt).unwrap();
+fn create_js_context(fs: InMemoryFileSystem) -> Context {
+    let runtime = Runtime::new().unwrap();
+    let context = Context::full(&runtime).unwrap();
     let resolver = FileResolver {
         base: Project::out().as_std_path().to_path_buf(),
         first: false,
     };
-    rt.set_loader(resolver, ScriptLoader { fs: fs.clone() });
-    ctx.with(|ctx| {
+    runtime.set_loader(resolver, ScriptLoader { fs: fs.clone() });
+    context.with(|ctx| {
         add_console_log(&ctx);
+    });
+    context
+}
+
+fn run_js(context: &Context, source: String) {
+    context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
-        match ctx.eval_with_options::<Promise, _>(fs.read(Project::main()).unwrap(), options) {
+        match ctx.eval_with_options::<Promise, _>(source, options) {
             Err(err) => show_js_error(&ctx, err),
             Ok(v) => {
                 if let Err(err) = v.finish::<Value>() {
@@ -342,6 +318,7 @@ fn copy_file<T: FileSystemWriter>(fs: &mut T, from: &Utf8Path, to: &Utf8Path) {
     fs.write_bytes(to, &std::fs::read(from).unwrap()).unwrap()
 }
 
+// FIXME: split compilation from generating main.mjs
 fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<(), Error> {
     // TODO: simplify?
     let main_content = if !test {
@@ -384,7 +361,7 @@ fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<
         project.fs.clone(),
     );
 
-    compiler.write_metadata = false;
+    compiler.write_metadata = true;
 
     compiler
         .compile(
@@ -458,7 +435,9 @@ impl Resolver for FileResolver {
             self.first = false;
             self.base.join(name)
         } else if base == "eval_script" {
-            Project::out().as_std_path().join(name)
+            Project::out()
+                .as_std_path()
+                .join(name.strip_prefix("./").unwrap_or(name))
         } else {
             let basep = Path::new(base).parent().unwrap();
             if let Some(name) = name.strip_prefix("./") {
@@ -483,6 +462,7 @@ impl Loader for ScriptLoader {
         ctx: &Ctx<'js>,
         path: &str,
     ) -> rquickjs::Result<rquickjs::Module<'js, rquickjs::module::Declared>> {
+        // TODO: add tracing
         Module::declare(
             ctx.clone(),
             path,

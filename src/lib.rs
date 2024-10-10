@@ -6,6 +6,20 @@ use std::{
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
 pub mod format;
+pub mod repl;
+
+pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
+pub const SGLEAM_GLEAM: &str = include_str!("../sgleam.gleam");
+pub const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
+pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
+pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
+pub const GLEAM_STDLIB_VERSION: &str = "0.39.0";
+
+pub fn version() -> String {
+    format!(
+        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})"
+    )
+}
 
 #[derive(Debug, Default, Clone)]
 pub struct Reporter;
@@ -124,13 +138,13 @@ pub fn print_colourful_prefix(prefix: &str, text: &str) {
                 .set_intense(true)
                 .set_fg(Some(Color::Magenta)),
         )
-        .expect("print_green_prefix");
-    write!(buffer, "{prefix: >11}").expect("print_green_prefix");
+        .expect("print_colourful_prefix");
+    write!(buffer, "{prefix: >11}").expect("print_colourful_prefix");
     buffer
         .set_color(&ColorSpec::new())
-        .expect("print_green_prefix");
-    writeln!(buffer, " {text}").expect("print_green_prefix");
-    buffer_writer.print(&buffer).expect("print_green_prefix");
+        .expect("print_colourful_prefix");
+    writeln!(buffer, " {text}").expect("print_colourful_prefix");
+    buffer_writer.print(&buffer).expect("print_colourful_prefix");
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {
