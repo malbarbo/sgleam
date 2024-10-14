@@ -36,7 +36,7 @@ impl Project {
             Project::source(),
         )
         .expect("Extracting gleam-stdlib.tar");
-        project.write_source("sgleam.gleam", crate::SGLEAM_GLEAM);
+        project.write_source("sgleam/check.gleam", crate::SGLEAM_CHECK);
         project.write_source("sgleam_ffi.mjs", crate::SGLEAM_FFI_MJS);
         project.write_out("prelude.mjs", PRELUDE);
         project

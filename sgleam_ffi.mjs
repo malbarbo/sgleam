@@ -38,8 +38,22 @@ export function check_equal(a, b) {
         return true;
     } else {
         console.log("Failure")
-        console.log(`  Expected: ${inspect(b)}`)
         console.log(`  Actual  : ${inspect(a)}`)
+        console.log(`  Expected: ${inspect(b)}`)        
+        globalThis.failures += 1;
+        return false;
+    }
+}
+
+export function check_approx(a, b, tolerance) {
+    if (Math.abs(a - b) <= tolerance) {
+        globalThis.successes += 1;
+        return true;
+    } else {
+        console.log("Failure")
+        console.log(`  Actual   : ${inspect(a)}`)
+        console.log(`  Expected : ${inspect(b)}`)
+        console.log(`  Tolerance: ${inspect(tolerance)}`)
         globalThis.failures += 1;
         return false;
     }
