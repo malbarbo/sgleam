@@ -28,7 +28,7 @@ use std::{
     path::{Path, PathBuf},
     process::exit,
     rc::Rc,
-    time::SystemTime,
+    time::{Instant, SystemTime},
 };
 use tar::Archive;
 
@@ -181,6 +181,7 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
     let editor = ReplReader::new().unwrap();
     let context = create_js_context(project.fs.clone());
     for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
+        let start = Instant::now();
         let file = format!("repl{n}.gleam");
         write_repl_source(project, &file, &code, user_module);
         match compile(project, &format!("repl{n}"), true, false) {
@@ -194,6 +195,8 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
             .fs
             .delete_file(&Project::source().join(file))
             .unwrap();
+        let duration = start.elapsed();
+        println!("Time elapsed: {:?}", duration);
     }
 }
 

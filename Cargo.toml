@@ -10,11 +10,11 @@ dirs = "5"
 gleam-core = { git = "https://github.com/gleam-lang/gleam.git", tag = "v1.5.0" }
 im = "15.1.0"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = ["loader"] }
-rustyline = "14"
+rustyline = { version = "14", features = ["derive"] }
 tar = "0.4.41"
 termcolor = "1"
 
 [profile.release]
-opt-level = "z"
+opt-level = 2
 lto = true
 codegen-units = 1
