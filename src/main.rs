@@ -9,8 +9,9 @@ use sgleam::{
     gleam::{build, compile, show_gleam_error, Project},
     javascript::{create_js_context, run_js},
     repl::ReplReader,
+    STACK_SIZE,
 };
-use std::{path::PathBuf, process::exit, time::Instant};
+use std::{path::PathBuf, process::exit, thread, time::Instant};
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -40,6 +41,15 @@ struct Cli {
 }
 
 fn main() {
+    thread::Builder::new()
+        .stack_size(STACK_SIZE)
+        .spawn(main2)
+        .unwrap()
+        .join()
+        .unwrap();
+}
+
+fn main2() {
     let cli = Cli::parse();
 
     // TODO: include quickjs version

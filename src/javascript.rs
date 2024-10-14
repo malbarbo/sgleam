@@ -8,15 +8,14 @@ use std::{
 };
 
 use rquickjs::{
-    context::EvalOptions,
-    loader::{Loader, Resolver},
-    module::Declared,
-    qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
-    Context, Ctx, Function, Module, Object, Promise, Result, Runtime, Value,
+    context::EvalOptions, loader::{Loader, Resolver}, module::Declared, qjs::{JSValue, JS_FreeCString, JS_ToCStringLen}, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object, Promise, Result, Runtime, Value
 };
+
+use crate::STACK_SIZE;
 
 pub fn create_js_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
     let runtime = Runtime::new().unwrap();
+    runtime.set_max_stack_size(STACK_SIZE);
     let context = Context::full(&runtime).unwrap();
     runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
     context.with(|ctx| {
@@ -29,23 +28,19 @@ pub fn run_js(context: &Context, source: String) {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
-        match ctx.eval_with_options::<Promise, _>(source, options) {
-            Err(err) => show_js_error(&ctx, err),
+        match ctx.eval_with_options::<Promise, _>(source, options).catch(&ctx) {
+            Err(err) => show_js_error(err),
             Ok(v) => {
-                if let Err(err) = v.finish::<Value>() {
-                    show_js_error(&ctx, err)
+                if let Err(err) = v.finish::<Value>().catch(&ctx) {
+                    show_js_error(err)
                 }
             }
         }
     });
 }
 
-fn show_js_error(ctx: &Ctx, err: rquickjs::Error) {
-    if let rquickjs::Error::Exception = err {
-        eprintln!("{:?}", ctx.catch().as_exception());
-    } else {
-        eprintln!("{}", err);
-    }
+fn show_js_error(err: CaughtError) {
+    eprintln!("{}", err);
     std::process::exit(1);
 }
 
