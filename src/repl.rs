@@ -90,10 +90,6 @@ impl Validator for BracketsStringValidador {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult> {
         Ok(validade_brackets_and_string(ctx.input()))
     }
-
-    fn validate_while_typing(&self) -> bool {
-        true
-    }
 }
 
 fn validade_brackets_and_string(string: &str) -> ValidationResult {

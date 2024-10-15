@@ -11,7 +11,7 @@ use sgleam::{
     repl::ReplReader,
     STACK_SIZE,
 };
-use std::{path::PathBuf, process::exit, thread, time::Instant};
+use std::{path::PathBuf, process::exit, thread};
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -92,7 +92,7 @@ fn main2() {
             if cli.interative {
                 repl(&mut project, Some(input.file_stem().unwrap()));
             } else {
-                let source = project.fs.read(&Project::main()).unwrap();
+                let source = project.fs.read(Project::main()).unwrap();
                 run_js(
                     &create_js_context(
                         project.fs.clone(),
@@ -112,7 +112,9 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
         Project::out().as_std_path().to_path_buf(),
     );
     for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
-        let start = Instant::now();
+        #[cfg(debug_assertions)]
+        let start = std::time::Instant::now();
+
         let file = format!("repl{n}.gleam");
         write_repl_source(project, &file, &code, user_module);
         match compile(project, &format!("repl{n}"), true, false) {
@@ -126,8 +128,9 @@ fn repl(project: &mut Project, user_module: Option<&str>) {
             .fs
             .delete_file(&Project::source().join(file))
             .unwrap();
-        let duration = start.elapsed();
-        println!("Time elapsed: {:?}", duration);
+
+        #[cfg(debug_assertions)]
+        println!("Time elapsed: {:?}", start.elapsed());
     }
 }
 
