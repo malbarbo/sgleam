@@ -666,8 +666,8 @@ dependencies = [
 
 [[package]]
 name = "gleam-core"
-version = "1.5.0"
-source = "git+https://github.com/gleam-lang/gleam.git?tag=v1.5.0#38dbf3323a874d5997c45bc00183d6191c0976ec"
+version = "1.5.1"
+source = "git+https://github.com/malbarbo/gleam.git?branch=javascript-bigint#82813f6c0da557b19185b98aad37f6cc4cf1d20d"
 dependencies = [
  "askama",
  "async-trait",

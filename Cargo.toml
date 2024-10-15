@@ -7,7 +7,7 @@ edition = "2021"
 camino = "1.1.9"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
-gleam-core = { git = "https://github.com/gleam-lang/gleam.git", tag = "v1.5.0" }
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "javascript-bigint" }
 im = "15.1.0"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = ["loader"] }
 rustyline = { version = "14", features = ["derive"] }
