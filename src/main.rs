@@ -4,13 +4,12 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::{
-    build::Target,
-    io::{FileSystemReader, FileSystemWriter},
-    Error,
-};
+use gleam_core::{io::FileSystemWriter, Error};
 use sgleam::{
-    gleam::{build, compile, show_gleam_error, to_error_nonutf8_path, Project},
+    format,
+    gleam::{
+        compile, get_main_function, get_module, show_gleam_error, to_error_nonutf8_path, Project,
+    },
     javascript::{create_js_context, run_js},
     repl::ReplReader,
     STACK_SIZE,
@@ -47,17 +46,18 @@ struct Cli {
 fn main() {
     thread::Builder::new()
         .stack_size(STACK_SIZE)
+        .name("run".into())
         .spawn(|| {
-            if let Err(err) = main2() {
+            if let Err(err) = run() {
                 show_gleam_error(err);
             }
         })
-        .unwrap()
+        .expect("Create the run thread")
         .join()
-        .unwrap();
+        .expect("Join the run thread");
 }
 
-fn main2() -> Result<(), Error> {
+fn run() -> Result<(), Error> {
     let cli = Cli::parse();
 
     // TODO: include quickjs version
@@ -79,59 +79,55 @@ fn main2() -> Result<(), Error> {
         exit(1);
     }
 
-    if input.extension() != Some("gleam") {
-        eprintln!("{input}: is not a gleam file.");
+    let main_module = input.file_stem().unwrap_or("");
+    if input.extension() != Some("gleam") || main_module.is_empty() {
+        eprintln!("{input}: is not a valid gleam file.");
         exit(1);
     }
 
     if cli.format {
-        sgleam::format::run(false, false, vec![input.as_str().into()])?;
+        format::run(false, false, vec![input.into()])?;
         return Ok(());
     }
 
     let mut project = Project::default();
+    project.copy_to_source(&input)?;
 
-    let module = build(&mut project, &input, cli.test)?;
+    let modules = compile(&mut project, cli.interative)?;
+
     if cli.interative {
-        repl(&mut project, Some(input.file_stem().unwrap()));
+        repl(&mut project, Some(main_module));
+    } else if let Some(module) = get_module(modules, main_module) {
+        let _mainf = get_main_function(&module)?;
+        let context = &create_js_context(project.fs.clone(), Project::out().into());
+        let source = main_js_script(main_module, cli.test);
+        run_js(context, source);
     } else {
-        module
-            .ast
-            .type_info
-            .get_main_function(Target::JavaScript)
-            .map(|_| ())?;
-        let source = project.fs.read(Project::main()).unwrap();
-        run_js(
-            &create_js_context(project.fs.clone(), Project::out().into()),
-            source,
-        );
+        // The gleam compile ignored the file because of the file name.
     }
+
     Ok(())
 }
 
-fn repl(project: &mut Project, user_module: Option<&str>) {
-    let editor = ReplReader::new().unwrap();
-    let context = create_js_context(
-        project.fs.clone(),
-        Project::out().as_std_path().to_path_buf(),
-    );
+fn repl(project: &mut Project, module: Option<&str>) {
+    let editor = ReplReader::new().expect("Create the reader for repl");
+    let context = create_js_context(project.fs.clone(), Project::out().into());
     for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
         #[cfg(debug_assertions)]
         let start = std::time::Instant::now();
 
         let file = format!("repl{n}.gleam");
-        write_repl_source(project, &file, &code, user_module);
-        match compile(project, &format!("repl{n}"), true, false) {
+        write_repl_source(project, &file, &code, module);
+        match compile(project, true) {
             Err(err) => show_gleam_error(err),
             Ok(_) => {
-                let source = project.fs.read(Project::main()).unwrap();
-                run_js(&context, source);
+                run_js(&context, main_js_script(&format!("repl{n}"), false));
             }
         }
         project
             .fs
             .delete_file(&Project::source().join(file))
-            .unwrap();
+            .expect("Delete repl file");
 
         #[cfg(debug_assertions)]
         println!("Time elapsed: {:?}", start.elapsed());
@@ -178,4 +174,24 @@ pub fn main() {{
 "
         ),
     );
+}
+
+fn main_js_script(module: &str, test: bool) -> String {
+    if !test {
+        format!(
+            "
+            import {{ try_main }} from \"./sgleam_ffi.mjs\";
+            import {{ main }} from \"./{module}.mjs\";
+            try_main(main);
+            "
+        )
+    } else {
+        format!(
+            "
+            import {{ run_tests }} from \"./sgleam_ffi.mjs\";
+            import * as {module} from \"./{module}.mjs\";
+            run_tests({module});
+            "
+        )
+    }
 }

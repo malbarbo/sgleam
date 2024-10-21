@@ -8,7 +8,12 @@ use std::{
 };
 
 use rquickjs::{
-    context::EvalOptions, loader::{Loader, Resolver}, module::Declared, qjs::{JSValue, JS_FreeCString, JS_ToCStringLen}, CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object, Promise, Result, Runtime, Value
+    context::EvalOptions,
+    loader::{Loader, Resolver},
+    module::Declared,
+    qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
+    CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object, Promise, Result, Runtime,
+    Value,
 };
 
 use crate::STACK_SIZE;
@@ -28,7 +33,10 @@ pub fn run_js(context: &Context, source: String) {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
-        match ctx.eval_with_options::<Promise, _>(source, options).catch(&ctx) {
+        match ctx
+            .eval_with_options::<Promise, _>(source, options)
+            .catch(&ctx)
+        {
             Err(err) => show_js_error(err),
             Ok(v) => {
                 if let Err(err) = v.finish::<Value>().catch(&ctx) {

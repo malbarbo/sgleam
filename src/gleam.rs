@@ -5,8 +5,10 @@ use gleam_core::{
         TargetCodegenConfiguration, Telemetry,
     },
     config::PackageConfig,
+    error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
     javascript::PRELUDE,
+    type_::ModuleFunction,
     uid::UniqueIdGenerator,
     warning::{WarningEmitter, WarningEmitterIO},
     Error, Warning,
@@ -35,7 +37,7 @@ impl Default for Project {
             Archive::new(crate::GLEAM_STDLIB),
             Project::source(),
         )
-        .expect("Extracting gleam-stdlib.tar");
+        .expect("Extract gleam-stdlib.tar");
         project.write_source("sgleam/check.gleam", crate::SGLEAM_CHECK);
         project.write_source("sgleam_ffi.mjs", crate::SGLEAM_FFI_MJS);
         project.write_out("prelude.mjs", PRELUDE);
@@ -56,10 +58,6 @@ impl Project {
         "/build".into()
     }
 
-    pub fn main() -> &'static Utf8Path {
-        "/build/main.mjs".into()
-    }
-
     pub fn prelude() -> &'static Utf8Path {
         "/build/prelude.mjs".into()
     }
@@ -68,17 +66,29 @@ impl Project {
         let path = Project::source().join(name);
         self.fs
             .write(&path, content)
-            .expect(&format!("Write {path}"));
+            .expect("Write a file in memory");
         self.fs
             .try_set_modification_time(&path, SystemTime::now())
-            .expect(&format!("Set modification time {path}"))
+            .expect("Set modification time of a file in memory")
+    }
+
+    pub fn copy_to_source(&mut self, input: &Utf8Path) -> Result<(), Error> {
+        let content = std::fs::read_to_string(input).map_err(|err| Error::FileIo {
+            kind: FileKind::File,
+            action: FileIoAction::Read,
+            path: input.into(),
+            err: Some(err.to_string()),
+        })?;
+        let to = input.file_name().expect("Extract file name");
+        self.write_source(to, &content);
+        Ok(())
     }
 
     pub fn write_out(&mut self, name: &str, content: &str) {
-        let msg = format!("Writing {name}");
+        let path = Project::out().join(name);
         self.fs
-            .write(&Project::out().join(name), content)
-            .expect(&msg);
+            .write(&path, content)
+            .expect("Write a file in memory");
     }
 }
 
@@ -88,50 +98,18 @@ pub fn show_gleam_error(err: Error) {
     err.pretty(&mut buffer);
     buffer_writer
         .print(&buffer)
-        .expect("Writing warning to stderr");
+        .expect("Write warning to stderr");
 }
 
-pub fn build(project: &mut Project, input: &Utf8Path, test: bool) -> Result<Module, Error> {
-    copy_file(
-        &mut project.fs,
-        input,
-        &Project::source().join(input.file_name().expect("A file name")),
-    );
-    compile(
-        project,
-        input.file_stem().expect("A file steam"),
-        false,
-        test,
-    )
+pub fn get_module(modules: Vec<Module>, name: &str) -> Option<Module> {
+    modules.into_iter().find(|m| m.name == name)
 }
 
-// FIXME: split compilation from generating main.mjs
-pub fn compile(
-    project: &mut Project,
-    module: &str,
-    repl: bool,
-    test: bool,
-) -> Result<Module, Error> {
-    // TODO: simplify?
-    let main_content = if !test {
-        &format!(
-            "
-        import {{ try_main }} from \"./sgleam_ffi.mjs\";
-        import {{ main }} from \"./{module}.mjs\";
-        try_main(main);
-        "
-        )
-    } else {
-        &format!(
-            "
-        import {{ run_tests }} from \"./sgleam_ffi.mjs\";
-        import * as {module} from \"./{module}.mjs\";
-        run_tests({module});
-        "
-        )
-    };
-    project.write_out("main.mjs", main_content);
+pub fn get_main_function(module: &Module) -> Result<ModuleFunction, Error> {
+    module.ast.type_info.get_main_function(Target::JavaScript)
+}
 
+pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> {
     let config = PackageConfig {
         target: Target::JavaScript,
         ..Default::default()
@@ -165,7 +143,6 @@ pub fn compile(
             &NullTelemetry,
         )
         .into_result()
-        .map(|modules| modules.into_iter().find(|m| m.name == module).unwrap())
 }
 
 fn extract_tar(
@@ -189,10 +166,6 @@ fn extract_tar(
         }
     }
     Ok(())
-}
-
-fn copy_file<T: FileSystemWriter>(fs: &mut T, from: &Utf8Path, to: &Utf8Path) {
-    fs.write_bytes(to, &std::fs::read(from).unwrap()).unwrap()
 }
 
 fn to_error_stdio(err: std::io::Error) -> Error {
@@ -389,6 +362,6 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
         warning.pretty(&mut buffer);
         buffer_writer
             .print(&buffer)
-            .expect("Writing warning to stderr");
+            .expect("Write warning to stderr");
     }
 }
