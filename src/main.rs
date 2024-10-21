@@ -1,12 +1,16 @@
-use camino::Utf8Path;
+use camino::Utf8PathBuf;
 use clap::{
     arg,
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::io::{FileSystemReader, FileSystemWriter};
+use gleam_core::{
+    build::Target,
+    io::{FileSystemReader, FileSystemWriter},
+    Error,
+};
 use sgleam::{
-    gleam::{build, compile, show_gleam_error, Project},
+    gleam::{build, compile, show_gleam_error, to_error_nonutf8_path, Project},
     javascript::{create_js_context, run_js},
     repl::ReplReader,
     STACK_SIZE,
@@ -43,29 +47,33 @@ struct Cli {
 fn main() {
     thread::Builder::new()
         .stack_size(STACK_SIZE)
-        .spawn(main2)
+        .spawn(|| {
+            if let Err(err) = main2() {
+                show_gleam_error(err);
+            }
+        })
         .unwrap()
         .join()
         .unwrap();
 }
 
-fn main2() {
+fn main2() -> Result<(), Error> {
     let cli = Cli::parse();
 
     // TODO: include quickjs version
     if cli.version {
         println!("{}", sgleam::version());
-        return;
+        return Ok(());
     }
 
     let path = if let Some(path) = cli.path {
         path
     } else {
-        repl(&mut Project::new(), None);
-        return;
+        repl(&mut Project::default(), None);
+        return Ok(());
     };
 
-    let input = Utf8Path::from_path(&path).unwrap();
+    let input = Utf8PathBuf::from_path_buf(path).map_err(to_error_nonutf8_path)?;
     if !input.is_file() {
         eprintln!("{input}: does not exist or is not a file.");
         exit(1);
@@ -77,32 +85,28 @@ fn main2() {
     }
 
     if cli.format {
-        if let Err(err) = sgleam::format::run(false, false, vec![input.as_str().into()]) {
-            show_gleam_error(err);
-            exit(1)
-        }
-        return;
+        sgleam::format::run(false, false, vec![input.as_str().into()])?;
+        return Ok(());
     }
 
-    let mut project = Project::new();
+    let mut project = Project::default();
 
-    match build(&mut project, input, cli.test) {
-        Err(err) => show_gleam_error(err),
-        Ok(_) => {
-            if cli.interative {
-                repl(&mut project, Some(input.file_stem().unwrap()));
-            } else {
-                let source = project.fs.read(Project::main()).unwrap();
-                run_js(
-                    &create_js_context(
-                        project.fs.clone(),
-                        Project::out().as_std_path().to_path_buf(),
-                    ),
-                    source,
-                )
-            }
-        }
+    let module = build(&mut project, &input, cli.test)?;
+    if cli.interative {
+        repl(&mut project, Some(input.file_stem().unwrap()));
+    } else {
+        module
+            .ast
+            .type_info
+            .get_main_function(Target::JavaScript)
+            .map(|_| ())?;
+        let source = project.fs.read(Project::main()).unwrap();
+        run_js(
+            &create_js_context(project.fs.clone(), Project::out().into()),
+            source,
+        );
     }
+    Ok(())
 }
 
 fn repl(project: &mut Project, user_module: Option<&str>) {

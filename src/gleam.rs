@@ -1,8 +1,8 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use gleam_core::{
     build::{
-        Mode, NullTelemetry, PackageCompiler, StaleTracker, Target, TargetCodegenConfiguration,
-        Telemetry,
+        Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
+        TargetCodegenConfiguration, Telemetry,
     },
     config::PackageConfig,
     io::{memory::InMemoryFileSystem, FileSystemWriter},
@@ -25,8 +25,8 @@ pub struct Project {
     pub fs: InMemoryFileSystem,
 }
 
-impl Project {
-    pub fn new() -> Project {
+impl Default for Project {
+    fn default() -> Project {
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
         };
@@ -41,7 +41,9 @@ impl Project {
         project.write_out("prelude.mjs", PRELUDE);
         project
     }
+}
 
+impl Project {
     pub fn root() -> &'static Utf8Path {
         "/".into()
     }
@@ -89,7 +91,7 @@ pub fn show_gleam_error(err: Error) {
         .expect("Writing warning to stderr");
 }
 
-pub fn build(project: &mut Project, input: &Utf8Path, test: bool) -> Result<(), Error> {
+pub fn build(project: &mut Project, input: &Utf8Path, test: bool) -> Result<Module, Error> {
     copy_file(
         &mut project.fs,
         input,
@@ -104,13 +106,18 @@ pub fn build(project: &mut Project, input: &Utf8Path, test: bool) -> Result<(), 
 }
 
 // FIXME: split compilation from generating main.mjs
-pub fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Result<(), Error> {
+pub fn compile(
+    project: &mut Project,
+    module: &str,
+    repl: bool,
+    test: bool,
+) -> Result<Module, Error> {
     // TODO: simplify?
     let main_content = if !test {
         &format!(
             "
         import {{ try_main }} from \"./sgleam_ffi.mjs\";
-        import {{ main }} from \"./{name}.mjs\";
+        import {{ main }} from \"./{module}.mjs\";
         try_main(main);
         "
         )
@@ -118,8 +125,8 @@ pub fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Res
         &format!(
             "
         import {{ run_tests }} from \"./sgleam_ffi.mjs\";
-        import * as {name} from \"./{name}.mjs\";
-        run_tests({name});
+        import * as {module} from \"./{module}.mjs\";
+        run_tests({module});
         "
         )
     };
@@ -158,7 +165,7 @@ pub fn compile(project: &mut Project, name: &str, repl: bool, test: bool) -> Res
             &NullTelemetry,
         )
         .into_result()
-        .map(|_| ())
+        .map(|modules| modules.into_iter().find(|m| m.name == module).unwrap())
 }
 
 fn extract_tar(
@@ -195,7 +202,7 @@ fn to_error_stdio(err: std::io::Error) -> Error {
     }
 }
 
-fn to_error_nonutf8_path(path: PathBuf) -> Error {
+pub fn to_error_nonutf8_path(path: PathBuf) -> Error {
     Error::NonUtf8Path { path }
 }
 
