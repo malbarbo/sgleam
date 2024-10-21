@@ -1,6 +1,8 @@
 pub mod format;
 pub mod gleam;
 pub mod javascript;
+pub mod logger;
+pub mod panic;
 pub mod repl;
 
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));

@@ -11,6 +11,7 @@ use sgleam::{
         compile, get_main_function, get_module, show_gleam_error, to_error_nonutf8_path, Project,
     },
     javascript::{create_js_context, run_js},
+    logger, panic,
     repl::ReplReader,
     STACK_SIZE,
 };
@@ -44,6 +45,8 @@ struct Cli {
 }
 
 fn main() {
+    panic::add_handler();
+    logger::initialise_logger();
     thread::Builder::new()
         .stack_size(STACK_SIZE)
         .name("run".into())

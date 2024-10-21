@@ -122,7 +122,7 @@ struct ScriptLoader {
 
 impl Loader for ScriptLoader {
     fn load<'js>(&mut self, ctx: &Ctx<'js>, path: &str) -> Result<Module<'js, Declared>> {
-        // TODO: add tracing
+        tracing::debug!("Loading {path}");
         Module::declare(
             ctx.clone(),
             path,

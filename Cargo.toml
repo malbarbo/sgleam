@@ -13,6 +13,8 @@ rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-s
 rustyline = { version = "14", features = ["derive"] }
 tar = "0.4.41"
 termcolor = "1"
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 
 [profile.release]
 opt-level = 2
