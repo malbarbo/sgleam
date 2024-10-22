@@ -4,7 +4,7 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::{io::FileSystemWriter, type_, Error};
+use gleam_core::{build::Module, io::FileSystemWriter, type_, Error};
 use sgleam::{
     format,
     gleam::{
@@ -109,13 +109,15 @@ fn run() -> Result<(), Error> {
 
     let modules = compile(&mut project, cli.interative)?;
 
-    if cli.interative {
-        repl(&mut project, Some(main_module));
-    } else if let Some(module) = get_module(modules, main_module) {
-        let _mainf = get_main_function(&module)?;
-        let context = &create_js_context(project.fs.clone(), Project::out().into());
-        let source = main_js_script(main_module, cli.test);
-        run_js(context, source);
+    if let Some(module) = get_module(modules, main_module) {
+        if cli.interative {
+            repl(&mut project, Some(&module));
+        } else {
+            let _mainf = get_main_function(&module)?;
+            let context = &create_js_context(project.fs.clone(), Project::out().into());
+            let source = main_js_script(main_module, cli.test);
+            run_js(context, source);
+        }
     } else {
         // The gleam compile ignored the file because of the file name.
     }
@@ -123,7 +125,23 @@ fn run() -> Result<(), Error> {
     Ok(())
 }
 
-fn repl(project: &mut Project, module: Option<&str>) {
+fn repl(project: &mut Project, module: Option<&Module>) {
+    let user_import = module.map(|module| {
+        let mut imp = String::from("import ");
+        imp.push_str(&module.name);
+        imp.push_str(".{");
+        for t in module.ast.type_info.public_type_names() {
+            imp.push_str("type ");
+            imp.push_str(&t);
+            imp.push_str(", ");
+        }
+        for value in module.ast.type_info.public_value_names() {
+            imp.push_str(&value);
+            imp.push_str(", ");
+        }
+        imp.push_str("}");
+        imp
+    });
     let editor = ReplReader::new().expect("Create the reader for repl");
     let context = create_js_context(project.fs.clone(), Project::out().into());
     for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
@@ -131,7 +149,7 @@ fn repl(project: &mut Project, module: Option<&str>) {
         let start = std::time::Instant::now();
 
         let file = format!("repl{n}.gleam");
-        write_repl_source(project, &file, &code, module);
+        write_repl_source(project, &file, &code, user_import.as_deref());
         match compile(project, true) {
             Err(err) => show_gleam_error(err),
             Ok(_) => {
@@ -148,17 +166,13 @@ fn repl(project: &mut Project, module: Option<&str>) {
     }
 }
 
-fn write_repl_source(project: &mut Project, file: &str, code: &str, user_module: Option<&str>) {
-    let user_module = if let Some(module) = user_module {
-        format!("import {module}")
-    } else {
-        "".into()
-    };
+fn write_repl_source(project: &mut Project, file: &str, code: &str, user_import: Option<&str>) {
+    let user_import = user_import.unwrap_or("");
     project.write_source(
         file,
         &format!(
             "
-{user_module}
+{user_import}
 import gleam/bit_array
 import gleam/bool
 import gleam/bytes_builder

@@ -349,6 +349,8 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
             if let Warning::Type {
                 warning:
                     gleam_core::type_::Warning::UnusedImportedValue { .. }
+                    | gleam_core::type_::Warning::UnusedConstructor { .. }
+                    | gleam_core::type_::Warning::UnusedType { .. }
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
                     | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. },
                 ..
