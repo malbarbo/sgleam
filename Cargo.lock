@@ -1508,6 +1508,7 @@ dependencies = [
  "termcolor",
  "tracing",
  "tracing-subscriber",
+ "vec1",
 ]
 
 [[package]]

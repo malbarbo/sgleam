@@ -4,7 +4,7 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::{io::FileSystemWriter, Error};
+use gleam_core::{io::FileSystemWriter, type_, Error};
 use sgleam::{
     format,
     gleam::{
@@ -16,6 +16,7 @@ use sgleam::{
     STACK_SIZE,
 };
 use std::{path::PathBuf, process::exit, thread};
+use vec1::vec1;
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -86,6 +87,16 @@ fn run() -> Result<(), Error> {
     if input.extension() != Some("gleam") || main_module.is_empty() {
         eprintln!("{input}: is not a valid gleam file.");
         exit(1);
+    }
+
+    if main_module == "sgleam" {
+        return Err(Error::Type {
+            path: input,
+            src: "".into(),
+            errors: vec1![type_::Error::ReservedModuleName {
+                name: "sgleam".into(),
+            }],
+        });
     }
 
     if cli.format {
