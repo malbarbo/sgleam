@@ -144,7 +144,10 @@ fn repl(project: &mut Project, module: Option<&Module>) {
     });
     let editor = ReplReader::new().expect("Create the reader for repl");
     let context = create_js_context(project.fs.clone(), Project::out().into());
-    for (n, code) in editor.filter(|s| !s.is_empty()).enumerate() {
+    for (n, code) in editor
+        .filter(|s| !s.is_empty() && !s.trim().starts_with("//"))
+        .enumerate()
+    {
         #[cfg(debug_assertions)]
         let start = std::time::Instant::now();
 
