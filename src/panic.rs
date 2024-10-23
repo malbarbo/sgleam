@@ -1,21 +1,21 @@
 // This file is from gleam project.
 
 #![allow(clippy::unwrap_used)]
-use std::panic::PanicInfo;
+use std::panic::PanicHookInfo;
 
 use crate::gleam::stderr_buffer_writer;
 use std::io::Write;
 use termcolor::{Color, ColorSpec, WriteColor};
 
 pub fn add_handler() {
-    std::panic::set_hook(Box::new(move |info: &PanicInfo<'_>| {
+    std::panic::set_hook(Box::new(move |info: &PanicHookInfo<'_>| {
         if print_compiler_bug_message(info).is_err() {
             println!("Faile to print compiler bug message.");
         }
     }));
 }
 
-fn print_compiler_bug_message(info: &PanicInfo<'_>) -> std::io::Result<()> {
+fn print_compiler_bug_message(info: &PanicHookInfo<'_>) -> std::io::Result<()> {
     let message = match (
         info.payload().downcast_ref::<&str>(),
         info.payload().downcast_ref::<String>(),
