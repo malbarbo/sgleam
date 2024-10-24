@@ -23,6 +23,7 @@ use std::{
 use tar::Archive;
 use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
 
+#[derive(Clone)]
 pub struct Project {
     pub fs: InMemoryFileSystem,
 }
@@ -101,8 +102,8 @@ pub fn show_gleam_error(err: Error) {
         .expect("Write warning to stderr");
 }
 
-pub fn get_module(modules: Vec<Module>, name: &str) -> Option<Module> {
-    modules.into_iter().find(|m| m.name == name)
+pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
+    modules.iter().find(|m| m.name == name)
 }
 
 pub fn get_main_function(module: &Module) -> Result<ModuleFunction, Error> {
@@ -350,7 +351,10 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
                 warning:
                     gleam_core::type_::Warning::UnusedImportedValue { .. }
                     | gleam_core::type_::Warning::UnusedConstructor { .. }
+                    | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
+                    | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
                     | gleam_core::type_::Warning::UnusedType { .. }
+                    | gleam_core::type_::Warning::UnusedVariable { .. }
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
                     | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. },
                 ..
