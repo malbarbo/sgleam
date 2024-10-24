@@ -3,7 +3,7 @@ import { inspect } from './gleam/string.mjs';
 
 export function try_main(main) {
     try {
-        main();
+        return main();
     } catch (err) {
         if (!show_gleam_error(err)) {
             throw err;
@@ -31,7 +31,7 @@ export function run_tests(module) {
         }
     }
 
-    const {successes, failures, errors} = globalThis;
+    const { successes, failures, errors } = globalThis;
     const total = successes + failures + errors;
     console.log(`${total} tests, ${successes} success(es), ${failures} failure(s) and ${errors} errors.`);
 }
@@ -77,4 +77,8 @@ export function show_gleam_error(err) {
     } else {
         return false;
     }
+}
+
+export function get_global(name) {
+    return globalThis[name]
 }
