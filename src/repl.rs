@@ -8,7 +8,7 @@ use rustyline::{
 };
 
 const PROMPT: &str = "> ";
-const QUIT: &str = "quit";
+const QUIT: &str = ":quit";
 const HISTORY_FILE: &str = ".sgleam_history";
 
 // TODO: add auto ident
