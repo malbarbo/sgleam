@@ -11,6 +11,8 @@ const PROMPT: &str = "> ";
 const QUIT: &str = "quit";
 const HISTORY_FILE: &str = ".sgleam_history";
 
+// TODO: add auto ident
+// TODO: add completation
 pub struct ReplReader {
     editor: Option<Editor<InputValidator, FileHistory>>,
 }
@@ -37,6 +39,7 @@ impl ReplReader {
     }
 }
 
+// FIXME: this is not needed, Editor has an iter method...
 impl Iterator for ReplReader {
     type Item = String;
 
@@ -115,6 +118,7 @@ fn validade_brackets_and_string(string: &str) -> ValidationResult {
             '(' | '[' | '{' => stack.push(c),
 
             ')' | ']' | '}' => {
+                // FIXME: can we stop the prompt?
                 if !bracket_match(stack.pop().unwrap_or(' '), c) {
                     return ValidationResult::Invalid(None);
                 }
