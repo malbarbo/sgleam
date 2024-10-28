@@ -122,7 +122,9 @@ fn run() -> Result<(), Error> {
         if cli.interative {
             Repl::new(project, Some(module)).run();
         } else {
-            let _mainf = get_main_function(module)?;
+            if !cli.test {
+                let _mainf = get_main_function(module)?;
+            }
             let context = create_js_context(project.fs.clone(), Project::out().into());
             let source = main_js_script(main_module, cli.test);
             run_js(&context, source);
