@@ -12,10 +12,15 @@ pub fn main() {
     if !stdlib.exists() {
         assert!(Command::new("git")
             .arg("clone")
-            .arg("-b")
-            .arg("bigint")
             .arg("https://github.com/malbarbo/gleam-stdlib")
             .arg(stdlib)
+            .status()
+            .unwrap()
+            .success());
+        env::set_current_dir(stdlib).unwrap();
+        assert!(Command::new("git")
+            .arg("checkout")
+            .arg("61a0ffa6ea34f194a290a6085f6d8cc84d135ef6")
             .status()
             .unwrap()
             .success());
