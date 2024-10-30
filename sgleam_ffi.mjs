@@ -11,23 +11,27 @@ export function try_main(main) {
     }
 }
 
-export function run_tests(module) {
+export function run_tests(modules, names) {
     globalThis.successes = 0;
     globalThis.failures = 0;
     globalThis.errors = 0;
     console.log('Running tests...');
-    for (const fn_name of Object.keys(module)) {
-        if (!fn_name.endsWith('_examples')) {
-            continue;
-        }
-
-        try {
-            module[fn_name]();
-        } catch (err) {
-            if (!show_gleam_error(err)) {
-                throw err
+    for (let i = 0; i < modules.length; i++) {
+        globalThis.module = names[i];
+        const module = modules[i]
+        for (const fn_name of Object.keys(module)) {
+            if (!fn_name.endsWith('_examples')) {
+                continue;
             }
-            globalThis.errors += 1;
+
+            try {
+                module[fn_name]();
+            } catch (err) {
+                if (!show_gleam_error(err)) {
+                    throw err
+                }
+                globalThis.errors += 1;
+            }
         }
     }
 
@@ -42,6 +46,7 @@ export function check_equal(a, b) {
         return true;
     } else {
         console.log('Failure');
+        console.log(`  File    : ${globalThis.module}.gleam`);
         console.log(`  Actual  : ${inspect(a)}`);
         console.log(`  Expected: ${inspect(b)}`);
         globalThis.failures += 1;

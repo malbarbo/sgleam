@@ -1,4 +1,4 @@
-use camino::Utf8PathBuf;
+use camino::Utf8Path;
 use clap::{
     arg,
     builder::{styling, Styles},
@@ -7,23 +7,20 @@ use clap::{
 use gleam_core::{
     build::Module,
     io::FileSystemWriter,
-    type_::{self, Type, TypeVar},
+    type_::{Type, TypeVar},
     Error,
 };
 use im::HashMap;
 use rquickjs::{Context, Value};
 use sgleam::{
     format,
-    gleam::{
-        compile, get_main_function, get_module, show_gleam_error, to_error_nonutf8_path, Project,
-    },
+    gleam::{compile, get_main_function, get_module, show_gleam_error, Project},
     javascript::{create_js_context, run_js},
     logger, panic,
     repl::ReplReader,
     STACK_SIZE,
 };
-use std::{fmt::Write, path::PathBuf, process::exit, sync::Arc, thread};
-use vec1::vec1;
+use std::{fmt::Write, process::exit, sync::Arc, thread};
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -35,7 +32,7 @@ use vec1::vec1;
         .literal(styling::AnsiColor::Green.on_default())
 )]
 struct Cli {
-    /// Go to iterative mode.
+    /// Enter iterative mode.
     #[arg(short, group = "cmd")]
     interative: bool,
     /// Run tests.
@@ -47,9 +44,8 @@ struct Cli {
     /// Print version.
     #[arg(short, long)]
     version: bool,
-    /// The program file.
-    // TODO: allow multiple files
-    path: Option<PathBuf>,
+    /// Input files.
+    paths: Vec<String>,
 }
 
 fn main() {
@@ -77,63 +73,115 @@ fn run() -> Result<(), Error> {
         return Ok(());
     }
 
-    let path = if let Some(path) = cli.path {
-        path
-    } else {
-        Repl::new(Project::default(), None).run();
-        return Ok(());
-    };
-
-    // TODO: create a method validade_input
-    let input = Utf8PathBuf::from_path_buf(path).map_err(to_error_nonutf8_path)?;
-    if !input.is_file() {
-        eprintln!("{input}: does not exist or is not a file.");
-        exit(1);
-    }
-
-    let main_module = input.file_stem().unwrap_or("");
-    if input.extension() != Some("gleam") || main_module.is_empty() {
-        eprintln!("{input}: is not a valid gleam file.");
-        exit(1);
-    }
-
-    if main_module == "sgleam" {
-        return Err(Error::Type {
-            path: input,
-            src: "".into(),
-            errors: vec1![type_::Error::ReservedModuleName {
-                name: "sgleam".into(),
-            }],
-        });
-    }
-
     if cli.format {
-        // TODO: allow read the file from stdin
-        format::run(false, false, vec![input.into()])?;
-        return Ok(());
+        return format::run(cli.paths.is_empty(), false, cli.paths);
+    }
+
+    if cli.interative {
+        if cli.paths.len() > 1 {
+            eprintln!("Specify at most one file to enter interative mode.");
+            exit(1);
+        }
+        return run_interative(cli.paths.first());
+    }
+
+    if cli.test {
+        return run_tests(&cli.paths);
+    }
+
+    if cli.paths.len() != 1 {
+        eprintln!("Specify only one file to run.");
+        exit(1);
+    }
+
+    run_main(&cli.paths[0])
+}
+
+fn run_interative(path: Option<&String>) -> Result<(), Error> {
+    let mut project = Project::default();
+
+    let input = path.map(Utf8Path::new);
+    if let Some(input) = input {
+        if !validade_path(input) {
+            exit(1);
+        }
+        project.copy_to_source(input)?;
+    }
+
+    let modules = compile(&mut project, false)?;
+    let module = input
+        .and_then(|input| input.file_stem())
+        .and_then(|module_name| get_module(&modules, module_name));
+
+    Repl::new(project, module).run();
+
+    Ok(())
+}
+
+fn run_main(path: &str) -> Result<(), Error> {
+    let path = Utf8Path::new(path);
+    if !validade_path(path) {
+        exit(1);
     }
 
     let mut project = Project::default();
-    project.copy_to_source(&input)?;
+    project.copy_to_source(path)?;
 
     let modules = compile(&mut project, false)?;
 
-    if let Some(module) = get_module(&modules, main_module) {
-        if cli.interative {
-            Repl::new(project, Some(module)).run();
-        } else {
-            if !cli.test {
-                let _mainf = get_main_function(module)?;
-            }
-            let context = create_js_context(project.fs.clone(), Project::out().into());
-            let source = main_js_script(main_module, cli.test);
-            run_js(&context, source);
-        }
+    if let Some(module) = path.file_stem().and_then(|name| get_module(&modules, name)) {
+        let _mainf = get_main_function(module)?;
+        run_js(
+            &create_js_context(project.fs.clone(), Project::out().into()),
+            js_main(&module.name),
+        );
     } else {
         // The compiler ignored the file because of the name and printed an warning.
     }
 
     Ok(())
+}
+
+fn run_tests(paths: &[String]) -> Result<(), Error> {
+    let mut project = Project::default();
+
+    for path in paths.iter().map(Utf8Path::new).filter(|p| validade_path(p)) {
+        project.copy_to_source(path)?;
+    }
+
+    let modules = compile(&mut project, false)?;
+    let modules: Vec<_> = modules
+        .iter()
+        .map(|m| m.name.as_str())
+        .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
+        .collect();
+
+    run_js(
+        &create_js_context(project.fs.clone(), Project::out().into()),
+        js_main_test(&modules),
+    );
+
+    Ok(())
+}
+
+fn validade_path(path: &Utf8Path) -> bool {
+    if !path.is_file() {
+        eprintln!("{path}: does not exist or is not a file.");
+        return false;
+    }
+
+    let steam = path.file_stem().unwrap_or("");
+    if path.extension() != Some("gleam") || steam.is_empty() {
+        eprintln!("{path}: is not a valid gleam file.");
+        return false;
+    }
+
+    if steam == "gleam" || steam == "sgleam" {
+        eprintln!("{steam}: is a reserved module name.");
+        return false;
+    }
+
+    true
 }
 
 const GLEAM_MODULES_NAMES: &[&str] = &[
@@ -260,7 +308,7 @@ impl Repl {
 pub fn main() {{
 {lets}
   io.debug({{
-    {expr}
+{expr}
   }})
 }}
 "
@@ -282,7 +330,7 @@ pub fn main() {{
 
         if let Ok(modules) = &result {
             if let EntryKind::Let(expr) = kind {
-                run_js(&self.context, main_let(&module_name, iter));
+                run_js(&self.context, js_main_let(&module_name, iter));
                 if self.has_var(iter) {
                     let name = expr
                         .trim()
@@ -297,7 +345,7 @@ pub fn main() {{
                     );
                 }
             } else {
-                run_js(&self.context, main_js_script(&module_name, false));
+                run_js(&self.context, js_main(&module_name));
             }
         }
 
@@ -481,37 +529,41 @@ fn import_public_types_and_values(module: &Module) -> String {
     let name = &module.name;
     let _ = write!(&mut import, "import {name}.{{");
     for type_ in module.ast.type_info.public_type_names() {
-        let _ = write!(&mut import, "type {type_},");
+        let _ = write!(&mut import, "type {type_}, ");
     }
     for value in module.ast.type_info.public_value_names() {
-        let _ = write!(&mut import, "{value},");
+        let _ = write!(&mut import, "{value}, ");
     }
     import.push('}');
     import
 }
 
-fn main_js_script(module: &str, test: bool) -> String {
-    if !test {
-        // FIXME: use indoc crate (formatdoc macro) to write these strings
-        format!(
-            r#"
+fn js_main(module: &str) -> String {
+    // FIXME: use indoc crate (formatdoc macro) to write these strings
+    format!(
+        r#"
 import {{ try_main }} from "./sgleam_ffi.mjs";
 import {{ main }} from "./{module}.mjs";
 try_main(main);
 "#
-        )
-    } else {
-        format!(
-            r#"
-import {{ run_tests }} from "./sgleam_ffi.mjs";
-import * as {module} from "./{module}.mjs";
-run_tests({module});
-"#
-        )
-    }
+    )
 }
 
-fn main_let(module: &str, iter: usize) -> String {
+fn js_main_test(modules: &[&str]) -> String {
+    let mut src = String::new();
+    let _ = writeln!(
+        &mut src,
+        r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
+    );
+    for module in modules {
+        let _ = writeln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
+    }
+    let names = modules.join(", ");
+    let _ = writeln!(&mut src, "run_tests([{names}], {modules:#?});");
+    src
+}
+
+fn js_main_let(module: &str, iter: usize) -> String {
     format!(
         r#"
 import {{ try_main }} from "./sgleam_ffi.mjs";
