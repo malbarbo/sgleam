@@ -8,7 +8,7 @@ use gleam_core::{
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
     javascript::PRELUDE,
-    type_::ModuleFunction,
+    type_::{ModuleFunction, Type, TypeVar},
     uid::UniqueIdGenerator,
     warning::{WarningEmitter, WarningEmitterIO},
     Error, Warning,
@@ -18,6 +18,7 @@ use std::{
     io::{IsTerminal, Read, Write},
     path::PathBuf,
     rc::Rc,
+    sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 use tar::Archive;
@@ -108,6 +109,54 @@ pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
 
 pub fn get_main_function(module: &Module) -> Result<ModuleFunction, Error> {
     module.ast.type_info.get_main_function(Target::JavaScript)
+}
+
+// FIXME: check in the lsp module how the action "Add type annotation" works
+pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
+    if let Some((_, return_type)) = type_.named_type_name() {
+        return return_type.into();
+    }
+
+    if let Some((args, return_type)) = type_.fn_types() {
+        let args = args
+            .iter()
+            .map(|arg| type_to_string(arg.clone(), unbounds))
+            .collect::<Vec<_>>()
+            .join(",");
+        let return_type = type_to_string(return_type, unbounds);
+        return format!("fn({args}) -> {return_type}");
+    }
+
+    if let Some(types_) = type_.tuple_types() {
+        let types_ = types_
+            .iter()
+            .map(|type_| type_to_string(type_.clone(), unbounds))
+            .collect::<Vec<_>>()
+            .join(", ");
+        return format!("#({types_})");
+    }
+
+    if let Type::Var { type_: t } = &*type_ {
+        let type_ = if let TypeVar::Link { type_ } = t.borrow().clone() {
+            type_
+        } else {
+            type_.clone()
+        };
+
+        let pos = unbounds
+            .iter()
+            .position(|t| *t == type_)
+            .unwrap_or_else(|| {
+                let pos = unbounds.len();
+                unbounds.push(type_);
+                pos
+            });
+        return char::from_u32('a' as u32 + pos as u32)
+            .expect("A char from u32")
+            .into();
+    }
+
+    panic!("Unknow type\n{:#?}", type_);
 }
 
 pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> {

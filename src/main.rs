@@ -4,23 +4,18 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::{
-    build::Module,
-    io::FileSystemWriter,
-    type_::{Type, TypeVar},
-    Error,
-};
+use gleam_core::{build::Module, io::FileSystemWriter, Error};
 use im::HashMap;
 use rquickjs::{Context, Value};
 use sgleam::{
     format,
-    gleam::{compile, get_main_function, get_module, show_gleam_error, Project},
+    gleam::{compile, get_main_function, get_module, show_gleam_error, type_to_string, Project},
     javascript::{create_js_context, run_js},
     logger, panic,
     repl::ReplReader,
     STACK_SIZE,
 };
-use std::{fmt::Write, process::exit, sync::Arc, thread};
+use std::{fmt::Write, process::exit, thread};
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -474,54 +469,6 @@ pub fn main() {{
             (iter, type_to_string(return_type, &mut vec![])),
         );
     }
-}
-
-// FIXME: check in the lsp module how the action "Add type annotation" works
-fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
-    if let Some((_, return_type)) = type_.named_type_name() {
-        return return_type.into();
-    }
-
-    if let Some((args, return_type)) = type_.fn_types() {
-        let args = args
-            .iter()
-            .map(|arg| type_to_string(arg.clone(), unbounds))
-            .collect::<Vec<_>>()
-            .join(",");
-        let return_type = type_to_string(return_type, unbounds);
-        return format!("fn({args}) -> {return_type}");
-    }
-
-    if let Some(types_) = type_.tuple_types() {
-        let types_ = types_
-            .iter()
-            .map(|type_| type_to_string(type_.clone(), unbounds))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return format!("#({types_})");
-    }
-
-    if let Type::Var { type_: t } = &*type_ {
-        let type_ = if let TypeVar::Link { type_ } = t.borrow().clone() {
-            type_
-        } else {
-            type_.clone()
-        };
-
-        let pos = unbounds
-            .iter()
-            .position(|t| *t == type_)
-            .unwrap_or_else(|| {
-                let pos = unbounds.len();
-                unbounds.push(type_);
-                pos
-            });
-        return char::from_u32('a' as u32 + pos as u32)
-            .expect("A char from u32")
-            .into();
-    }
-
-    panic!("Unknow type\n{:#?}", type_);
 }
 
 fn import_public_types_and_values(module: &Module) -> String {
