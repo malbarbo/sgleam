@@ -1,6 +1,6 @@
 [package]
 name = "sgleam"
-version = "0.3.1"
+version = "0.4.0-dev"
 edition = "2021"
 
 [dependencies]
@@ -22,3 +22,6 @@ vec1 = "1.12.1"
 opt-level = 2
 lto = true
 codegen-units = 1
+
+[dev-dependencies]
+assert_cmd = "2.0.16"
