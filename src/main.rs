@@ -412,10 +412,11 @@ impl Repl {
     }
 
     fn run_let(&mut self, code: String) -> Result<(), Error> {
-        if let Some((name, _)) = code
+        if let Some(name) = code
             .trim()
             .strip_prefix("let")
-            .and_then(|s| s.split_once('='))
+            .and_then(|s| s.split_once('=').map(|s| s.0))
+            .map(|s| s.split_once(':').map(|s| s.0).unwrap_or(s))
         {
             if name.trim().chars().all(|c| c.is_alphanumeric() || c == '_') {
                 return self.run_code(EntryKind::Let(code));
