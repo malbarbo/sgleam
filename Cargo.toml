@@ -9,6 +9,7 @@ clap = { version = "4", features = ["derive"] }
 dirs = "5"
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "javascript-bigint" }
 im = "15.1.0"
+indoc = "2.0.5"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = ["loader"] }
 rustyline = { version = "14", features = ["derive"] }
 tar = "0.4.41"

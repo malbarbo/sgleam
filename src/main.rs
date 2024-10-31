@@ -6,6 +6,7 @@ use clap::{
 };
 use gleam_core::{build::Module, io::FileSystemWriter, Error};
 use im::HashMap;
+use indoc::formatdoc;
 use rquickjs::{Context, Value};
 use sgleam::{
     format,
@@ -16,6 +17,18 @@ use sgleam::{
     STACK_SIZE,
 };
 use std::{fmt::Write, process::exit, thread};
+
+macro_rules! swrite {
+    ($s:expr, $($arg:tt)*) => {
+        let _ = write!($s, $($arg)*);
+    };
+}
+
+macro_rules! swriteln {
+    ($s:expr, $($arg:tt)*) => {
+        let _ = writeln!($s, $($arg)*);
+    };
+}
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -84,7 +97,7 @@ fn run() -> Result<(), Error> {
     }
 
     if cli.test || cli.check {
-        return run_tests(&cli.paths, cli.test);
+        return run_check_or_test(&cli.paths, cli.test);
     }
 
     if cli.paths.len() != 1 {
@@ -134,13 +147,13 @@ fn run_main(path: &str) -> Result<(), Error> {
             js_main(&module.name),
         );
     } else {
-        // The compiler ignored the file because of the name and printed an warning.
+        // The compiler ignored the file because of the name and printed a warning.
     }
 
     Ok(())
 }
 
-fn run_tests(paths: &[String], test: bool) -> Result<(), Error> {
+fn run_check_or_test(paths: &[String], test: bool) -> Result<(), Error> {
     let mut project = Project::default();
 
     for path in paths.iter().map(Utf8Path::new).filter(|p| validade_path(p)) {
@@ -151,10 +164,10 @@ fn run_tests(paths: &[String], test: bool) -> Result<(), Error> {
 
     if test {
         let modules: Vec<_> = modules
-        .iter()
-        .map(|m| m.name.as_str())
-        .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
-        .collect();
+            .iter()
+            .map(|m| m.name.as_str())
+            .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
+            .collect();
         run_js(
             &create_js_context(project.fs.clone(), Project::out().into()),
             js_main_test(&modules),
@@ -303,16 +316,14 @@ impl Repl {
             // > fun add1(a) { int.to_float(a) +. 1.0 }
             // fn (Int) -> Float // add
             let lets = self.get_lets();
-            format!(
-                "
-pub fn main() {{
-{lets}
-  io.debug({{
-{expr}
-  }})
-}}
-"
-            )
+            formatdoc! {"
+                pub fn main() {{
+                    {lets}
+                    io.debug({{
+                {expr}
+                    }})
+                }}
+            "}
         } else {
             FN_MAIN_NIL.into()
         };
@@ -416,40 +427,41 @@ pub fn main() {{
 
     fn add_imports(&self, src: &mut String) {
         if let Some(user) = &self.user_import {
-            src.push_str(user);
-            src.push('\n');
+            swriteln!(src, "{user}");
         }
         for import in &self.imports {
-            let _ = writeln!(src, "import {import}");
+            swriteln!(src, "import {import}");
         }
     }
 
     fn add_consts(&self, src: &mut String) {
-        src.push_str(&self.consts.join("\n"));
-        src.push('\n');
+        for const_ in &self.consts {
+            swriteln!(src, "{const_}");
+        }
     }
 
     fn add_types(&self, src: &mut String) {
-        src.push_str(&self.types.join("\n"));
-        src.push('\n');
+        for type_ in &self.types {
+            swriteln!(src, "{type_}");
+        }
     }
 
     fn add_fns(&self, src: &mut String) {
-        src.push_str(&self.fns.join("\n"));
+        for fn_ in &self.fns {
+            swriteln!(src, "{fn_}");
+        }
     }
 
     fn get_lets(&mut self) -> String {
         let mut lets = String::new();
-        for (name, (iter, type_)) in &self.vars {
-            let _ = writeln!(
-                lets,
-                r#"  let {name}: {type_} = get_global("repl_var_{iter}")"#
-            );
+        for (name, (it, ty)) in &self.vars {
+            swriteln!(lets, r#"  let {name}: {ty} = get_global("repl_var_{it}")"#);
         }
         lets
     }
 
     fn has_var(&self, iter: usize) -> bool {
+        // FIX: use a funcion to get var name
         self.context.with(|ctx| {
             ctx.globals()
                 .get::<_, Value>(format!("repl_var_{iter}"))
@@ -479,50 +491,46 @@ pub fn main() {{
 fn import_public_types_and_values(module: &Module) -> String {
     let mut import = String::new();
     let name = &module.name;
-    let _ = write!(&mut import, "import {name}.{{");
+    swrite!(&mut import, "import {name}.{{");
     for type_ in module.ast.type_info.public_type_names() {
-        let _ = write!(&mut import, "type {type_}, ");
+        swrite!(&mut import, "type {type_}, ");
     }
     for value in module.ast.type_info.public_value_names() {
-        let _ = write!(&mut import, "{value}, ");
+        swrite!(&mut import, "{value}, ");
     }
     import.push('}');
     import
 }
 
 fn js_main(module: &str) -> String {
-    // FIXME: use indoc crate (formatdoc macro) to write these strings
-    format!(
-        r#"
-import {{ try_main }} from "./sgleam_ffi.mjs";
-import {{ main }} from "./{module}.mjs";
-try_main(main);
-"#
-    )
+    formatdoc! {r#"
+        import {{ try_main }} from "./sgleam_ffi.mjs";
+        import {{ main }} from "./{module}.mjs";
+        try_main(main);
+    "#}
 }
 
 fn js_main_test(modules: &[&str]) -> String {
     let mut src = String::new();
-    let _ = writeln!(
+    swriteln!(
         &mut src,
         r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
     );
     for module in modules {
-        let _ = writeln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
+        swriteln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
     }
     let names = modules.join(", ");
-    let _ = writeln!(&mut src, "run_tests([{names}], {modules:#?});");
+    swriteln!(&mut src, "run_tests([{names}], {modules:#?});");
     src
 }
 
 fn js_main_let(module: &str, iter: usize) -> String {
-    format!(
-        r#"
-import {{ try_main }} from "./sgleam_ffi.mjs";
-import {{ main }} from "./{module}.mjs";
-let r = try_main(main);
-if (r !== undefined) {{
-    globalThis.repl_var_{iter} = r;
-}}"#
-    )
+    formatdoc! {r#"
+        import {{ try_main }} from "./sgleam_ffi.mjs";
+        import {{ main }} from "./{module}.mjs";
+        let r = try_main(main);
+        if (r !== undefined) {{
+            globalThis.repl_var_{iter} = r;
+        }}
+    "#}
 }
