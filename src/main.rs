@@ -88,16 +88,16 @@ fn run() -> Result<(), Error> {
         return format::run(cli.paths.is_empty(), false, cli.paths);
     }
 
+    if cli.test || cli.check {
+        return run_check_or_test(&cli.paths, cli.test);
+    }
+
     if cli.interative {
         if cli.paths.len() > 1 {
             eprintln!("Specify at most one file to enter interative mode.");
             exit(1);
         }
         return run_interative(cli.paths.first());
-    }
-
-    if cli.test || cli.check {
-        return run_check_or_test(&cli.paths, cli.test);
     }
 
     if cli.paths.len() != 1 {
