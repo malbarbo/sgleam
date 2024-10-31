@@ -29,14 +29,17 @@ impl ReplReader {
             let _ = editor.load_history(history);
         }
 
-        // TODO: compile a initial project so the first expression do not take long
-        println!("Welcome to {}.", crate::version());
-        println!("Type ctrl-d ou \"{QUIT}\" to exit.");
-
         Ok(ReplReader {
             editor: Some(editor),
         })
     }
+}
+
+pub fn welcome_message() -> String {
+    format!(
+        "Welcome to {}.\nType ctrl-d ou \"{QUIT}\" to exit.\n",
+        crate::version()
+    )
 }
 
 // FIXME: this is not needed, Editor has an iter method...

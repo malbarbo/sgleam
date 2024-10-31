@@ -13,7 +13,7 @@ use sgleam::{
     gleam::{compile, get_main_function, get_module, show_gleam_error, type_to_string, Project},
     javascript::{create_js_context, run_js},
     logger, panic,
-    repl::ReplReader,
+    repl::{welcome_message, ReplReader},
     STACK_SIZE,
 };
 use std::{fmt::Write, process::exit, thread};
@@ -52,6 +52,9 @@ struct Cli {
     /// Check source code.
     #[arg(short, group = "cmd")]
     check: bool,
+    /// Don't print welcome message on entering interactive mode.
+    #[arg(short)]
+    quiet: bool,
     /// Print version.
     #[arg(short, long)]
     version: bool,
@@ -92,12 +95,12 @@ fn run() -> Result<(), Error> {
         return run_check_or_test(&cli.paths, cli.test);
     }
 
-    if cli.interative {
+    if cli.interative || cli.paths.is_empty() {
         if cli.paths.len() > 1 {
             eprintln!("Specify at most one file to enter interative mode.");
             exit(1);
         }
-        return run_interative(cli.paths.first());
+        return run_interative(cli.paths.first(), cli.quiet);
     }
 
     if cli.paths.len() != 1 {
@@ -108,7 +111,11 @@ fn run() -> Result<(), Error> {
     run_main(&cli.paths[0])
 }
 
-fn run_interative(path: Option<&String>) -> Result<(), Error> {
+fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), Error> {
+    if !quiet {
+        print!("{}", welcome_message());
+    }
+
     let mut project = Project::default();
 
     let input = path.map(Utf8Path::new);
