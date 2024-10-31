@@ -36,6 +36,9 @@ struct Cli {
     /// Format source code.
     #[arg(short, group = "cmd")]
     format: bool,
+    /// Check source code.
+    #[arg(short, group = "cmd")]
+    check: bool,
     /// Print version.
     #[arg(short, long)]
     version: bool,
@@ -80,8 +83,8 @@ fn run() -> Result<(), Error> {
         return run_interative(cli.paths.first());
     }
 
-    if cli.test {
-        return run_tests(&cli.paths);
+    if cli.test || cli.check {
+        return run_tests(&cli.paths, cli.test);
     }
 
     if cli.paths.len() != 1 {
@@ -137,7 +140,7 @@ fn run_main(path: &str) -> Result<(), Error> {
     Ok(())
 }
 
-fn run_tests(paths: &[String]) -> Result<(), Error> {
+fn run_tests(paths: &[String], test: bool) -> Result<(), Error> {
     let mut project = Project::default();
 
     for path in paths.iter().map(Utf8Path::new).filter(|p| validade_path(p)) {
@@ -145,16 +148,18 @@ fn run_tests(paths: &[String]) -> Result<(), Error> {
     }
 
     let modules = compile(&mut project, false)?;
-    let modules: Vec<_> = modules
+
+    if test {
+        let modules: Vec<_> = modules
         .iter()
         .map(|m| m.name.as_str())
         .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
         .collect();
-
-    run_js(
-        &create_js_context(project.fs.clone(), Project::out().into()),
-        js_main_test(&modules),
-    );
+        run_js(
+            &create_js_context(project.fs.clone(), Project::out().into()),
+            js_main_test(&modules),
+        );
+    }
 
     Ok(())
 }
