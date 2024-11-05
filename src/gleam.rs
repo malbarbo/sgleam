@@ -114,6 +114,16 @@ pub fn get_main_function(module: &Module) -> Result<ModuleFunction, Error> {
 // FIXME: check in the lsp module how the action "Add type annotation" works
 pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
     if let Some((_, return_type)) = type_.named_type_name() {
+        if let Some(constructor) = type_.constructor_types() {
+            if !constructor.is_empty() {
+                let ctypes = constructor
+                    .into_iter()
+                    .map(|type_| type_to_string(type_, unbounds))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                return format!("{return_type}({ctypes})");
+            }
+        }
         return return_type.into();
     }
 
@@ -122,7 +132,7 @@ pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String
             .iter()
             .map(|arg| type_to_string(arg.clone(), unbounds))
             .collect::<Vec<_>>()
-            .join(",");
+            .join(", ");
         let return_type = type_to_string(return_type, unbounds);
         return format!("fn({args}) -> {return_type}");
     }

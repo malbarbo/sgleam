@@ -26,6 +26,12 @@ fn repl_float_to_string() {
 }
 
 #[test]
+fn repl_constructor_types() {
+    let lit = "let a = Ok(10)\na";
+    assert_eq!(repl_exec(lit), "Ok(10)\nOk(10)");
+}
+
+#[test]
 fn repl_user_module_import() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     assert_eq!(
