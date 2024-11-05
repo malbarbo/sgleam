@@ -253,8 +253,7 @@ struct Repl {
 }
 
 enum EntryKind {
-    // FIXME: add the binding name
-    Let(String),
+    Let(String, String),
     Expr(String),
     Other,
 }
@@ -313,7 +312,7 @@ impl Repl {
         self.add_types(&mut src);
         self.add_fns(&mut src);
 
-        let main = if let EntryKind::Let(expr) | EntryKind::Expr(expr) = &kind {
+        let main = if let EntryKind::Let(_, expr) | EntryKind::Expr(expr) = &kind {
             // FIXME: can we generate code that generates better error messagens?
             // Examples of entries that generates poor errors
             // "pub "
@@ -325,7 +324,7 @@ impl Repl {
             let lets = self.get_lets();
             formatdoc! {"
                 pub fn main() {{
-                    {lets}
+                {lets}
                     io.debug({{
                 {expr}
                     }})
@@ -347,15 +346,9 @@ impl Repl {
         let result = compile(&mut self.project, true);
 
         if let Ok(modules) = &result {
-            if let EntryKind::Let(expr) = kind {
+            if let EntryKind::Let(name, _) = &kind {
                 run_js(&self.context, js_main_let(&module_name, iter));
                 if self.has_var(iter) {
-                    let name = expr
-                        .trim()
-                        .strip_prefix("let")
-                        .and_then(|s| s.split('=').next())
-                        .map(str::trim)
-                        .expect("A var name");
                     self.save_var(
                         name,
                         iter,
@@ -417,9 +410,10 @@ impl Repl {
             .strip_prefix("let")
             .and_then(|s| s.split_once('=').map(|s| s.0))
             .map(|s| s.split_once(':').map(|s| s.0).unwrap_or(s))
+            .map(str::trim)
         {
-            if name.trim().chars().all(|c| c.is_alphanumeric() || c == '_') {
-                return self.run_code(EntryKind::Let(code));
+            if name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                return self.run_code(EntryKind::Let(name.into(), code));
             } else {
                 println!("Only let with single names are supported.");
                 return Ok(());
