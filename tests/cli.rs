@@ -9,7 +9,19 @@ use std::{
 
 #[test]
 fn repl_smoke_test() {
-    let lit = "13\nTrue\n\"casa\"\nOk(Nil)\n781239812731283189237890123781923";
+    let lit = "-2\n13\n4.12\n7.0\nTrue\n\"casa\"\nOk(Nil)";
+    assert_eq!(repl_exec(lit), lit);
+}
+
+#[test]
+fn repl_bigint() {
+    let lit = "781239812731283189237890123781923";
+    assert_eq!(repl_exec(lit), lit);
+}
+
+#[test]
+fn repl_float_to_string() {
+    let lit = "[-1.23, -4.0, 1.234, 3.0, 3.0e21, 1.2e-30, -3.0e56, -1.3e-41]";
     assert_eq!(repl_exec(lit), lit);
 }
 
@@ -28,11 +40,11 @@ fn format_stdin() {
         repl_exec_args(
             &["-f"],
             &formatdoc! {r#"
-        import gleam / io.{{ debug , }}
-        fn main() {{
-            debug("Hello world!" )
-        }}
-    "#},
+            import gleam / io.{{ debug , }}
+            fn main() {{
+               debug("Hello world!" )
+            }}
+            "#},
         ),
         formatdoc! {r#"
         import gleam/io.{{debug}}

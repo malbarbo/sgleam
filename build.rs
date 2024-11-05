@@ -20,7 +20,7 @@ pub fn main() {
         env::set_current_dir(stdlib).unwrap();
         assert!(Command::new("git")
             .arg("checkout")
-            .arg("61a0ffa6ea34f194a290a6085f6d8cc84d135ef6")
+            .arg("5096af3a3ac5e6a1f49b98eaaab6c0aee33a0ac2")
             .status()
             .unwrap()
             .success());
