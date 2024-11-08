@@ -408,14 +408,17 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
         if self.repl {
             if let Warning::Type {
                 warning:
-                    gleam_core::type_::Warning::UnusedImportedValue { .. }
+                    gleam_core::type_::Warning::Todo { .. }
                     | gleam_core::type_::Warning::UnusedConstructor { .. }
-                    | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
-                    | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
-                    | gleam_core::type_::Warning::UnusedType { .. }
-                    | gleam_core::type_::Warning::UnusedVariable { .. }
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
-                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. },
+                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
+                    | gleam_core::type_::Warning::UnusedImportedValue { .. }
+                    // | gleam_core::type_::Warning::UnusedLiteral { .. }
+                    | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
+                    | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
+                    | gleam_core::type_::Warning::UnusedType { .. }
+                    // | gleam_core::type_::Warning::UnusedValue { .. }
+                    | gleam_core::type_::Warning::UnusedVariable { .. },
                 ..
             } = warning
             {
