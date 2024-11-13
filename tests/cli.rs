@@ -47,6 +47,11 @@ fn repl_constructor_types() {
 }
 
 #[test]
+fn repl_import() {
+    assert_eq!(repl_exec("import something"), "imports are not supported.");
+}
+
+#[test]
 fn repl_user_module_import() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     assert_eq!(

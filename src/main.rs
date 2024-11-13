@@ -368,14 +368,16 @@ impl Repl {
         result.map(|_| ())
     }
 
-    fn run_import(&mut self, code: String) -> Result<(), Error> {
+    fn run_import(&mut self, _code: String) -> Result<(), Error> {
+        println!("imports are not supported.");
+        Ok(())
         // TODO: implement import merge
         // import gleam/string.{append}
         // import gleam/string.{inspect}
         // -> import gleam/string.{append, inspect}
-        let new_import = code.trim().strip_prefix("import ").unwrap_or("");
-        self.imports.push(new_import.into());
-        self.run_code(EntryKind::Other)
+        // let new_import = code.trim().strip_prefix("import ").unwrap_or("");
+        // self.imports.push(new_import.into());
+        // self.run_code(EntryKind::Other)
     }
 
     fn run_const(&mut self, code: String) -> Result<(), Error> {
