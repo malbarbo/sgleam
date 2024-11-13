@@ -1,0 +1,27 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/main_stackoverflow_stdlib.gleam
+---
+STDOUT
+Stack overflow
+  at main (/build/main_stackoverflow_stdlib.mjs:9:16)
+  at map (/build/gleam/list.mjs:198:10)
+  at do_map (/build/gleam/list.mjs:192:30)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  at floop (/build/main_stackoverflow_stdlib.mjs:5:14)
+  ...
+
+STDERR

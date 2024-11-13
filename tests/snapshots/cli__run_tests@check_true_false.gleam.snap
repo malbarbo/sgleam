@@ -1,0 +1,16 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/check_true_false.gleam
+---
+STDOUT
+Running tests...
+Failure at check_true_false.eq_examples:5
+  Actual  : False
+  Expected: True
+Failure at check_true_false.eq_examples:6
+  Actual  : True
+  Expected: False
+4 tests, 2 success(es), 2 failure(s) and 0 error(s).
+
+STDERR

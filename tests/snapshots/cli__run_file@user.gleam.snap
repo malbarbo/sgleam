@@ -1,0 +1,12 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/user.gleam
+---
+STDOUT
+
+STDERR
+error: Module does not have a main function
+
+`user` does not have a main function so the module can not be run.
+Hint: Add a public `main` function to to `src/user.gleam`.

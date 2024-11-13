@@ -1,0 +1,18 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/main_todo.gleam
+---
+STDOUT
+Error at main_todo.main:2
+  `todo` expression evaluated. This code has not yet been implemented.
+
+STDERR
+warning: Todo found
+  ┌─ /src/main_todo.gleam:2:3
+  │
+2 │   todo
+  │   ^^^^ This code is incomplete
+
+This code will crash if it is run. Be sure to finish it before
+running your program.

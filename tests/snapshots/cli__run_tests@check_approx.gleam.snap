@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/check_approx.gleam
+---
+STDOUT
+Running tests...
+Failure at check_approx.approx_examples:5
+  Actual   : 1.2
+  Expected : 1.1
+  Tolerance: 0.01
+3 tests, 2 success(es), 1 failure(s) and 0 error(s).
+
+STDERR

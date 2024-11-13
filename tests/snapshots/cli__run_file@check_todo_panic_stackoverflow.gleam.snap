@@ -1,0 +1,36 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/check_todo_panic_stackoverflow.gleam
+---
+STDOUT
+
+STDERR
+warning: Todo found
+  ┌─ /src/check_todo_panic_stackoverflow.gleam:5:10
+  │
+5 │     0 -> todo
+  │          ^^^^ This code is incomplete
+
+This code will crash if it is run. Be sure to finish it before
+running your program.
+
+Hint: I think its type is `Int`.
+
+
+warning: Todo found
+  ┌─ /src/check_todo_panic_stackoverflow.gleam:6:10
+  │
+6 │     1 -> todo as "not implemented"
+  │          ^^^^^^^^^^^^^^^^^^^^^^^^^ This code is incomplete
+
+This code will crash if it is run. Be sure to finish it before
+running your program.
+
+Hint: I think its type is `Int`.
+
+
+error: Module does not have a main function
+
+`check_todo_panic_stackoverflow` does not have a main function so the module can not be run.
+Hint: Add a public `main` function to to `src/check_todo_panic_stackoverflow.gleam`.

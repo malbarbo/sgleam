@@ -1,0 +1,13 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/Invalid.gleam
+---
+STDOUT
+
+STDERR
+warning: Invalid module name
+
+Module names must begin with a lowercase letter and contain
+only lowercase alphanumeric characters or underscores.
+Hint: Rename `/src/Invalid.gleam` to be valid, or remove this file from the project source.

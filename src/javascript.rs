@@ -20,7 +20,7 @@ use crate::STACK_SIZE;
 
 pub fn create_js_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
     let runtime = Runtime::new().unwrap();
-    runtime.set_max_stack_size(STACK_SIZE);
+    runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
     let context = Context::full(&runtime).unwrap();
     runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
     context.with(|ctx| {

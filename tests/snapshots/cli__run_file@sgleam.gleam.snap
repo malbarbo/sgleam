@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/sgleam.gleam
+---
+STDOUT
+
+STDERR
+sgleam: is a reserved module name.

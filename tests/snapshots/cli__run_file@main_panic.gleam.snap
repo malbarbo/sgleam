@@ -1,0 +1,10 @@
+---
+source: tests/cli.rs
+expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+input_file: tests/inputs/main_panic.gleam
+---
+STDOUT
+Error at main_panic.main:2
+  `panic` expression evaluated.
+
+STDERR
