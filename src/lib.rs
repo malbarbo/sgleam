@@ -4,6 +4,7 @@ pub mod javascript;
 pub mod logger;
 pub mod panic;
 pub mod repl;
+pub mod run;
 
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
