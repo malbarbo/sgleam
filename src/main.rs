@@ -6,7 +6,7 @@ use clap::{
 use gleam_core::Error;
 use sgleam::{
     format,
-    gleam::show_gleam_error,
+    gleam::gleam_show_error,
     logger, panic,
     run::{run_check_or_test, run_interative, run_main},
     STACK_SIZE,
@@ -54,7 +54,7 @@ fn main() {
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {
-                show_gleam_error(err);
+                gleam_show_error(err);
             }
         })
         .expect("Create the run thread")

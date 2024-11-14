@@ -1,9 +1,11 @@
 use camino::Utf8Path;
 
 use gleam_core::io::{memory::InMemoryFileSystem, FileSystemReader};
+use indoc::formatdoc;
 
 use std::{
-    io::Write,
+    fmt::Write as _,
+    io::Write as _,
     path::{Path, PathBuf},
 };
 
@@ -16,9 +18,9 @@ use rquickjs::{
     Value,
 };
 
-use crate::STACK_SIZE;
+use crate::{swriteln, STACK_SIZE};
 
-pub fn create_js_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
+pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
     let runtime = Runtime::new().unwrap();
     runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
     let context = Context::full(&runtime).unwrap();
@@ -29,7 +31,34 @@ pub fn create_js_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
     context
 }
 
-pub fn run_js(context: &Context, source: String) {
+pub fn run_main(context: &Context, module: &str) {
+    run_script(
+        context,
+        formatdoc! {r#"
+            import {{ try_main }} from "./sgleam_ffi.mjs";
+            import {{ main }} from "./{module}.mjs";
+            try_main(main);
+            "#
+        },
+    )
+}
+
+pub fn run_tests(context: &Context, modules: &[&str]) {
+    let mut src = String::new();
+    swriteln!(
+        &mut src,
+        r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
+    );
+    for module in modules {
+        swriteln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
+    }
+    let names = modules.join(", ");
+    swriteln!(&mut src, "run_tests([{names}]);");
+
+    run_script(context, src)
+}
+
+pub fn run_script(context: &Context, source: String) {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
@@ -37,17 +66,17 @@ pub fn run_js(context: &Context, source: String) {
             .eval_with_options::<Promise, _>(source, options)
             .catch(&ctx)
         {
-            Err(err) => show_js_error(err),
+            Err(err) => js_show_error(err),
             Ok(v) => {
                 if let Err(err) = v.finish::<Value>().catch(&ctx) {
-                    show_js_error(err)
+                    js_show_error(err)
                 }
             }
         }
     });
 }
 
-fn show_js_error(err: CaughtError) {
+fn js_show_error(err: CaughtError) {
     eprintln!("{}", err);
     std::process::exit(1);
 }

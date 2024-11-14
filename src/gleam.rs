@@ -94,7 +94,7 @@ impl Project {
     }
 }
 
-pub fn show_gleam_error(err: Error) {
+pub fn gleam_show_error(err: Error) {
     let buffer_writer = stderr_buffer_writer();
     let mut buffer = buffer_writer.buffer();
     err.pretty(&mut buffer);
@@ -169,6 +169,7 @@ pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String
     panic!("Unknow type\n{:#?}", type_);
 }
 
+// TODO: move this function to Project
 pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> {
     let config = PackageConfig {
         target: Target::JavaScript,
@@ -409,6 +410,7 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
             if let Warning::Type {
                 warning:
                     gleam_core::type_::Warning::Todo { .. }
+                    | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
                     | gleam_core::type_::Warning::UnusedConstructor { .. }
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
                     | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }

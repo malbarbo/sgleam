@@ -35,8 +35,16 @@ export function run_tests(modules) {
     console.log(`${total} tests, ${successes} success(es), ${failures} failure(s) and ${errors} error(s).`);
 }
 
-export function get_global(name) {
-    return globalThis[name]
+export function repl_save(value) {
+    if (!globalThis.repl_vars) {
+        globalThis.repl_vars = []
+    }
+    globalThis.repl_vars.push(value);
+    return value;
+}
+
+export function repl_load(index) {
+    return globalThis.repl_vars[index]
 }
 
 export function check_equal(a, b, module_name, function_name, line_number) {
@@ -87,7 +95,7 @@ export function check_approx(a, b, tolerance, module_name, function_name, line_n
 }
 
 function show_check_failure(a, b, tolerance, module_name, function_name, line_number) {
-    let space = (tolerance !== null)? ' ' : '';
+    let space = (tolerance !== null) ? ' ' : '';
     console.log(`Failure at ${location(module_name, function_name, line_number)}`);
     console.log(`  Actual  ${space}: ${inspect(a)}`);
     console.log(`  Expected${space}: ${inspect(b)}`);
@@ -107,7 +115,7 @@ function show_check_error(err, module_name, function_name, line_number) {
 }
 
 function location(module_name, function_name, line_number) {
-    let fname = (function_name !== '')? '.' + function_name : '';
+    let fname = (function_name !== '') ? '.' + function_name : '';
     return `${module_name}${fname}:${line_number}`
 }
 

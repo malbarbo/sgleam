@@ -1,13 +1,11 @@
 use camino::Utf8Path;
 use gleam_core::Error;
-use indoc::formatdoc;
-use std::{fmt::Write, process::exit};
+use std::process::exit;
 
 use crate::{
     gleam::{compile, get_main_function, get_module, Project},
-    javascript::{create_js_context, run_js},
+    javascript,
     repl::{welcome_message, Repl},
-    swriteln,
 };
 
 pub fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), Error> {
@@ -48,9 +46,9 @@ pub fn run_main(path: &str) -> Result<(), Error> {
 
     if let Some(module) = path.file_stem().and_then(|name| get_module(&modules, name)) {
         let _mainf = get_main_function(module)?;
-        run_js(
-            &create_js_context(project.fs.clone(), Project::out().into()),
-            js_main(&module.name),
+        javascript::run_main(
+            &javascript::create_context(project.fs.clone(), Project::out().into()),
+            &module.name,
         );
     } else {
         // The compiler ignored the file because of the name and printed a warning.
@@ -74,9 +72,9 @@ pub fn run_check_or_test(paths: &[String], test: bool) -> Result<(), Error> {
             .map(|m| m.name.as_str())
             .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
             .collect();
-        run_js(
-            &create_js_context(project.fs.clone(), Project::out().into()),
-            js_main_test(&modules),
+        javascript::run_tests(
+            &javascript::create_context(project.fs.clone(), Project::out().into()),
+            &modules,
         );
     }
 
@@ -101,26 +99,4 @@ fn validade_path(path: &Utf8Path) -> bool {
     }
 
     true
-}
-
-fn js_main_test(modules: &[&str]) -> String {
-    let mut src = String::new();
-    swriteln!(
-        &mut src,
-        r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
-    );
-    for module in modules {
-        swriteln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
-    }
-    let names = modules.join(", ");
-    swriteln!(&mut src, "run_tests([{names}], {modules:#?});");
-    src
-}
-
-fn js_main(module: &str) -> String {
-    formatdoc! {r#"
-        import {{ try_main }} from "./sgleam_ffi.mjs";
-        import {{ main }} from "./{module}.mjs";
-        try_main(main);
-    "#}
 }

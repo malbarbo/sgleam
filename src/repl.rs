@@ -2,18 +2,21 @@ use std::{collections::HashMap, fmt::Write};
 
 use gleam_core::{build::Module, io::FileSystemWriter, Error};
 use indoc::formatdoc;
-use rquickjs::{Context, Value};
+use rquickjs::{Array, Context};
 
 use crate::{
-    gleam::{compile, get_module, show_gleam_error, type_to_string, Project},
-    javascript::{create_js_context, run_js},
+    gleam::{compile, get_module, gleam_show_error, type_to_string, Project},
+    javascript,
     repl_reader::ReplReader,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
 
-const FN_GET_GLOBAL: &str = r#"
-@external(javascript, "./sgleam_ffi.mjs", "get_global")
-pub fn get_global(name: String) -> a
+const FNS_REPL: &str = r#"
+@external(javascript, "./sgleam_ffi.mjs", "repl_save")
+pub fn repl_save(value: a) -> a
+
+@external(javascript, "./sgleam_ffi.mjs", "repl_load")
+pub fn repl_load(index: Int) -> a
 "#;
 
 const QUIT: &str = ":quit";
@@ -36,6 +39,7 @@ pub struct Repl {
     project: Project,
     context: Context,
     iter: usize,
+    var_index: usize,
 }
 
 enum EntryKind {
@@ -56,8 +60,9 @@ impl Repl {
             fns: vec![],
             vars: HashMap::new(),
             project,
-            context: create_js_context(fs, Project::out().into()),
+            context: javascript::create_context(fs, Project::out().into()),
             iter: 0,
+            var_index: 0,
         }
     }
 
@@ -90,7 +95,7 @@ impl Repl {
             };
 
             if let Err(err) = result {
-                show_gleam_error(err);
+                gleam_show_error(err);
             } else {
                 // rollback
                 *self = repl;
@@ -100,26 +105,44 @@ impl Repl {
 
     fn run_code(&mut self, kind: EntryKind) -> Result<(), Error> {
         let mut src = String::new();
-        src.push_str(FN_GET_GLOBAL);
+        src.push_str(FNS_REPL);
         self.add_imports(&mut src);
         self.add_consts(&mut src);
         self.add_types(&mut src);
         self.add_fns(&mut src);
 
-        if let EntryKind::Let(_, expr) | EntryKind::Expr(expr) = &kind {
-            // FIXME: can we generate code that generates better error messagens?
-            // Examples of entries that generates poor errors
-            // "pub "
-            // "let"
-            let lets = self.get_lets();
-            src.push_str(&formatdoc! {"
-                pub fn main() {{
-                {lets}
-                    io.debug({{
-                {expr}
-                    }})
-                }}
-            "});
+        match &kind {
+            EntryKind::Let(_, expr) => {
+                // FIXME: can we generate code that generates better error messagens?
+                // Examples of entries that generates poor errors
+                // "pub "
+                // "let"
+                let lets = self.get_lets();
+                src.push_str(&formatdoc! {"
+                    pub fn main() {{
+                    {lets}
+                      io.debug(repl_save({{
+                        {expr}
+                      }}))
+                    }}
+                    "
+                });
+            }
+            EntryKind::Expr(expr) => {
+                let lets = self.get_lets();
+                src.push_str(&formatdoc! {"
+                    pub fn main() {{
+                      {lets}
+                      io.debug({{
+                        {expr}
+                      }})
+                    }}
+                    "
+                });
+            }
+            _ => {
+                // main function is not needed
+            }
         }
 
         let iter = self.iter;
@@ -133,18 +156,19 @@ impl Repl {
 
         if let Ok(modules) = &result {
             if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
-                run_js(&self.context, js_main_let(&module_name, iter));
-                if let EntryKind::Let(name, _) = &kind {
-                    if self.has_var(iter) {
-                        self.save_var(
-                            name,
-                            iter,
-                            get_module(modules, &module_name).expect("The repl module"),
-                        );
-                    }
-                }
+                javascript::run_main(&self.context, &module_name);
             } else {
                 // Nothing to run
+            }
+
+            if let EntryKind::Let(name, _) = &kind {
+                if self.try_save_var(
+                    name,
+                    self.var_index,
+                    get_module(modules, &module_name).expect("The repl module"),
+                ) {
+                    self.var_index += 1;
+                }
             }
         }
 
@@ -246,23 +270,23 @@ impl Repl {
 
     fn get_lets(&mut self) -> String {
         let mut lets = String::new();
-        for (name, (it, ty)) in &self.vars {
-            swriteln!(lets, r#"  let {name}: {ty} = get_global("repl_var_{it}")"#);
+        for (name, (index, ty)) in &self.vars {
+            swriteln!(lets, r#"  let {name}: {ty} = repl_load({index})"#);
         }
         lets
     }
 
-    fn has_var(&self, iter: usize) -> bool {
-        // FIX: use a funcion to get var name
-        self.context.with(|ctx| {
+    fn try_save_var(&mut self, name: &str, index: usize, module: &Module) -> bool {
+        if !self.context.with(|ctx| {
             ctx.globals()
-                .get::<_, Value>(format!("repl_var_{iter}"))
-                .map(|v| !v.is_undefined())
+                .get::<_, Array>("repl_vars")
+                .map(|a| index < a.len())
                 .unwrap_or(false)
-        })
-    }
+        }) {
+            // the expression crashed and repl_save was not called
+            return false;
+        }
 
-    fn save_var(&mut self, name: &str, iter: usize, module: &Module) {
         let return_type = module
             .ast
             .definitions
@@ -275,8 +299,10 @@ impl Repl {
 
         self.vars.insert(
             name.into(),
-            (iter, type_to_string(return_type, &mut vec![])),
+            (index, type_to_string(return_type, &mut vec![])),
         );
+
+        true
     }
 }
 
@@ -292,15 +318,4 @@ fn import_public_types_and_values(module: &Module) -> String {
     }
     import.push('}');
     import
-}
-
-fn js_main_let(module: &str, iter: usize) -> String {
-    formatdoc! {r#"
-        import {{ try_main }} from "./sgleam_ffi.mjs";
-        import {{ main }} from "./{module}.mjs";
-        let r = try_main(main);
-        if (r !== undefined) {{
-            globalThis.repl_var_{iter} = r;
-        }}
-    "#}
 }
