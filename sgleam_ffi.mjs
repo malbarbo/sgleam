@@ -9,7 +9,7 @@ export function try_main(main) {
     }
 }
 
-export function run_tests(modules, names) {
+export function run_tests(modules) {
     globalThis.successes = 0;
     globalThis.failures = 0;
     globalThis.errors = 0;
