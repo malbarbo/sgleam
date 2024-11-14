@@ -4,17 +4,56 @@ pub mod javascript;
 pub mod logger;
 pub mod panic;
 pub mod repl;
+pub mod repl_reader;
 pub mod run;
 
-pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
+
+pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_STDLIB_VERSION: &str = "0.40.0";
+pub const GLEAM_MODULES_NAMES: &[&str] = &[
+    "gleam/bit_array",
+    "gleam/bool",
+    "gleam/bytes_builder",
+    "gleam/dict",
+    "gleam/dynamic",
+    "gleam/float",
+    "gleam/function",
+    "gleam/int",
+    "gleam/io",
+    "gleam/iterator",
+    "gleam/list",
+    "gleam/option",
+    "gleam/order",
+    "gleam/pair",
+    "gleam/queue",
+    "gleam/regex",
+    "gleam/result",
+    "gleam/set",
+    "gleam/string",
+    "gleam/string_builder",
+    "gleam/uri",
+];
 
 pub const SGLEAM_CHECK: &str = include_str!("../check.gleam");
 pub const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
 pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const STACK_SIZE: usize = 128 * 1024 * 1024;
+
+#[macro_export]
+macro_rules! swrite {
+    ($s:expr, $($arg:tt)*) => {
+        let _ = write!($s, $($arg)*);
+    };
+}
+
+#[macro_export]
+macro_rules! swriteln {
+    ($s:expr, $($arg:tt)*) => {
+        let _ = writeln!($s, $($arg)*);
+    };
+}
 
 pub fn version() -> String {
     format!(

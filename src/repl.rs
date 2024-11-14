@@ -1,39 +1,22 @@
-use std::path::PathBuf;
+use std::{collections::HashMap, fmt::Write};
 
-use rustyline::{
-    error::ReadlineError,
-    history::FileHistory,
-    validate::{ValidationContext, ValidationResult, Validator},
-    Completer, Editor, Helper, Highlighter, Hinter, Result, Validator,
+use gleam_core::{build::Module, io::FileSystemWriter, Error};
+use indoc::formatdoc;
+use rquickjs::{Context, Value};
+
+use crate::{
+    gleam::{compile, get_module, show_gleam_error, type_to_string, Project},
+    javascript::{create_js_context, run_js},
+    repl_reader::ReplReader,
+    swrite, swriteln, GLEAM_MODULES_NAMES,
 };
 
-const PROMPT: &str = "> ";
+const FN_GET_GLOBAL: &str = r#"
+@external(javascript, "./sgleam_ffi.mjs", "get_global")
+pub fn get_global(name: String) -> a
+"#;
+
 const QUIT: &str = ":quit";
-const HISTORY_FILE: &str = ".sgleam_history";
-
-// TODO: add auto ident
-// TODO: add completation
-pub struct ReplReader {
-    editor: Option<Editor<InputValidator, FileHistory>>,
-}
-
-impl ReplReader {
-    pub fn new() -> Result<ReplReader> {
-        let mut editor = Editor::new()?;
-
-        editor.set_helper(Some(InputValidator {
-            validator: BracketsStringValidador {},
-        }));
-
-        if let Some(history) = &history_path() {
-            let _ = editor.load_history(history);
-        }
-
-        Ok(ReplReader {
-            editor: Some(editor),
-        })
-    }
-}
 
 pub fn welcome_message() -> String {
     format!(
@@ -42,132 +25,282 @@ pub fn welcome_message() -> String {
     )
 }
 
-// FIXME: this is not needed, Editor has an iter method...
-impl Iterator for ReplReader {
-    type Item = String;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let mut editor = match self.editor.take() {
-            None => return None,
-            Some(editor) => editor,
-        };
-
-        match editor.readline(PROMPT) {
-            Ok(input) => {
-                if input.trim() == QUIT {
-                    None
-                } else {
-                    let _ = editor.add_history_entry(&input);
-                    self.editor = Some(editor);
-                    Some(input)
-                }
-            }
-            Err(ReadlineError::Interrupted) => {
-                self.editor = Some(editor);
-                Some("".into())
-            }
-            Err(err) => {
-                if !matches!(err, ReadlineError::Eof) {
-                    // TODO: improve error message
-                    println!("Error: {:?}", err);
-                }
-                if let Some(history) = &history_path() {
-                    let _ = editor.save_history(history);
-                }
-                None
-            }
-        }
-    }
+#[derive(Clone)]
+pub struct Repl {
+    user_import: Option<String>,
+    imports: Vec<String>,
+    consts: Vec<String>,
+    types: Vec<String>,
+    fns: Vec<String>,
+    vars: HashMap<String, (usize, String)>,
+    project: Project,
+    context: Context,
+    iter: usize,
 }
 
-fn history_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|p| p.join(HISTORY_FILE))
+enum EntryKind {
+    Let(String, String),
+    Expr(String),
+    Other,
 }
 
-#[derive(Completer, Helper, Highlighter, Hinter, Validator)]
-struct InputValidator {
-    #[rustyline(Validator)]
-    validator: BracketsStringValidador,
-}
-
-struct BracketsStringValidador {}
-
-impl Validator for BracketsStringValidador {
-    fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult> {
-        Ok(validade_brackets_and_string(ctx.input()))
-    }
-}
-
-fn validade_brackets_and_string(string: &str) -> ValidationResult {
-    let mut stack = Vec::new();
-    let mut chars = string.chars();
-
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {
-                stack.push('"');
-                while let Some(c) = chars.next() {
-                    if c == '"' {
-                        stack.pop();
-                        break;
-                    }
-                    if c == '\\' && matches!(chars.clone().next(), Some('\\' | '\"')) {
-                        chars.next();
-                        continue;
-                    }
-                }
-            }
-
-            '(' | '[' | '{' => stack.push(c),
-
-            ')' | ']' | '}' => {
-                // FIXME: can we stop the prompt?
-                if !bracket_match(stack.pop().unwrap_or(' '), c) {
-                    return ValidationResult::Invalid(None);
-                }
-            }
-            _ => {}
+impl Repl {
+    pub fn new(project: Project, user_module: Option<&Module>) -> Repl {
+        let imports = GLEAM_MODULES_NAMES.iter().map(|s| s.to_string()).collect();
+        let fs = project.fs.clone();
+        Repl {
+            user_import: user_module.map(import_public_types_and_values),
+            imports,
+            consts: vec![],
+            types: vec![],
+            fns: vec![],
+            vars: HashMap::new(),
+            project,
+            context: create_js_context(fs, Project::out().into()),
+            iter: 0,
         }
     }
 
-    if stack.is_empty() {
-        ValidationResult::Valid(None)
-    } else {
-        ValidationResult::Incomplete
+    pub fn run(&mut self) {
+        let editor = ReplReader::new().expect("Create the reader for repl");
+        for code in editor {
+            let code_trim = code.trim();
+            if code_trim.is_empty() || code_trim.starts_with("//") {
+                continue;
+            }
+            if code_trim == QUIT {
+                break;
+            }
+
+            self.iter += 1;
+
+            // FIXME: avoid this clone
+            // We clone self so we can rollback if the execution fail
+            let mut repl = (*self).clone();
+
+            let code_no_pub = code.trim_start().strip_prefix("pub ").unwrap_or(&code);
+            let pub_code = format!("pub {code_no_pub}");
+            let result = match code_no_pub.split_whitespace().next() {
+                Some("import") => repl.run_import(code),
+                Some("const") => repl.run_const(pub_code),
+                Some("type") => repl.run_type(pub_code),
+                Some("let") => repl.run_let(code),
+                Some("fn") => repl.run_fn(pub_code),
+                _ => repl.run_expr(code),
+            };
+
+            if let Err(err) = result {
+                show_gleam_error(err);
+            } else {
+                // rollback
+                *self = repl;
+            }
+        }
+    }
+
+    fn run_code(&mut self, kind: EntryKind) -> Result<(), Error> {
+        let mut src = String::new();
+        src.push_str(FN_GET_GLOBAL);
+        self.add_imports(&mut src);
+        self.add_consts(&mut src);
+        self.add_types(&mut src);
+        self.add_fns(&mut src);
+
+        if let EntryKind::Let(_, expr) | EntryKind::Expr(expr) = &kind {
+            // FIXME: can we generate code that generates better error messagens?
+            // Examples of entries that generates poor errors
+            // "pub "
+            // "let"
+            let lets = self.get_lets();
+            src.push_str(&formatdoc! {"
+                pub fn main() {{
+                {lets}
+                    io.debug({{
+                {expr}
+                    }})
+                }}
+            "});
+        }
+
+        let iter = self.iter;
+        let module_name = format!("repl{iter}");
+        let file = format!("{module_name}.gleam");
+
+        // TODO: add an option to show the generated code
+        self.project.write_source(&file, &src);
+
+        let result = compile(&mut self.project, true);
+
+        if let Ok(modules) = &result {
+            if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
+                run_js(&self.context, js_main_let(&module_name, iter));
+                if let EntryKind::Let(name, _) = &kind {
+                    if self.has_var(iter) {
+                        self.save_var(
+                            name,
+                            iter,
+                            get_module(modules, &module_name).expect("The repl module"),
+                        );
+                    }
+                }
+            } else {
+                // Nothing to run
+            }
+        }
+
+        self.project
+            .fs
+            .delete_file(&Project::source().join(file))
+            .expect("To delete repl file");
+
+        result.map(|_| ())
+    }
+
+    fn run_import(&mut self, _code: String) -> Result<(), Error> {
+        println!("imports are not supported.");
+        Ok(())
+        // TODO: implement import merge
+        // import gleam/string.{append}
+        // import gleam/string.{inspect}
+        // -> import gleam/string.{append, inspect}
+        // let new_import = code.trim().strip_prefix("import ").unwrap_or("");
+        // self.imports.push(new_import.into());
+        // self.run_code(EntryKind::Other)
+    }
+
+    fn run_const(&mut self, code: String) -> Result<(), Error> {
+        // TODO: improve error message for const redefinition
+        self.consts.push(code);
+        self.run_code(EntryKind::Other)
+    }
+
+    fn run_type(&mut self, code: String) -> Result<(), Error> {
+        // TODO: improve error message for type redefinition
+        self.types.push(code);
+        self.run_code(EntryKind::Other)
+    }
+
+    fn run_fn(&mut self, code: String) -> Result<(), Error> {
+        if let Some((pub_fn_name, code)) = code.split_once('(') {
+            if let Some(name) = pub_fn_name.strip_prefix("pub fn").map(str::trim) {
+                if !name.contains(char::is_whitespace) {
+                    // TODO: check if the compiler erros are ok
+                    return self.run_let(format!("let {name} = fn({code}"));
+                }
+            }
+        }
+        // We could not transformed the code to a let expression, so we run it to fail
+        self.fns.push(code);
+        self.run_code(EntryKind::Other)
+    }
+
+    fn run_let(&mut self, code: String) -> Result<(), Error> {
+        if let Some(name) = code
+            .trim()
+            .strip_prefix("let")
+            .and_then(|s| s.split_once('=').map(|s| s.0))
+            .map(|s| s.split_once(':').map(|s| s.0).unwrap_or(s))
+            .map(str::trim)
+        {
+            if name.chars().all(|c| c.is_alphanumeric() || c == '_') {
+                return self.run_code(EntryKind::Let(name.into(), code));
+            } else {
+                println!("Only let with single names are supported.");
+                return Ok(());
+            }
+        }
+        // We could not get the binding name, so we run it to fail
+        self.run_code(EntryKind::Expr(code))
+    }
+
+    fn run_expr(&mut self, code: String) -> Result<(), Error> {
+        self.run_code(EntryKind::Expr(code))
+    }
+
+    fn add_imports(&self, src: &mut String) {
+        if let Some(user) = &self.user_import {
+            swriteln!(src, "{user}");
+        }
+        for import in &self.imports {
+            swriteln!(src, "import {import}");
+        }
+    }
+
+    fn add_consts(&self, src: &mut String) {
+        for const_ in &self.consts {
+            swriteln!(src, "{const_}");
+        }
+    }
+
+    fn add_types(&self, src: &mut String) {
+        for type_ in &self.types {
+            swriteln!(src, "{type_}");
+        }
+    }
+
+    fn add_fns(&self, src: &mut String) {
+        for fn_ in &self.fns {
+            swriteln!(src, "{fn_}");
+        }
+    }
+
+    fn get_lets(&mut self) -> String {
+        let mut lets = String::new();
+        for (name, (it, ty)) in &self.vars {
+            swriteln!(lets, r#"  let {name}: {ty} = get_global("repl_var_{it}")"#);
+        }
+        lets
+    }
+
+    fn has_var(&self, iter: usize) -> bool {
+        // FIX: use a funcion to get var name
+        self.context.with(|ctx| {
+            ctx.globals()
+                .get::<_, Value>(format!("repl_var_{iter}"))
+                .map(|v| !v.is_undefined())
+                .unwrap_or(false)
+        })
+    }
+
+    fn save_var(&mut self, name: &str, iter: usize, module: &Module) {
+        let return_type = module
+            .ast
+            .definitions
+            .iter()
+            .filter_map(|d| d.main_function())
+            .next()
+            .expect("The main function")
+            .return_type
+            .clone();
+
+        self.vars.insert(
+            name.into(),
+            (iter, type_to_string(return_type, &mut vec![])),
+        );
     }
 }
 
-fn bracket_match(a: char, b: char) -> bool {
-    matches!([a, b], ['(', ')'] | ['[', ']'] | ['{', '}'])
+fn import_public_types_and_values(module: &Module) -> String {
+    let mut import = String::new();
+    let name = &module.name;
+    swrite!(&mut import, "import {name}.{{");
+    for type_ in module.ast.type_info.public_type_names() {
+        swrite!(&mut import, "type {type_}, ");
+    }
+    for value in module.ast.type_info.public_value_names() {
+        swrite!(&mut import, "{value}, ");
+    }
+    import.push('}');
+    import
 }
 
-#[cfg(test)]
-mod tests {
-    use rustyline::validate::ValidationResult;
-
-    use crate::repl::validade_brackets_and_string;
-
-    #[test]
-    fn test_brackets_and_string_ok() {
-        assert!(matches!(
-            validade_brackets_and_string("4 + (3 * { [4] - 2 })"),
-            ValidationResult::Valid(None)
-        ));
-        assert!(matches!(
-            validade_brackets_and_string("\"ca\\\"sa\""),
-            ValidationResult::Valid(None)
-        ));
-        assert!(matches!(
-            validade_brackets_and_string("\"ca\"sa\""),
-            ValidationResult::Incomplete
-        ));
-        assert!(matches!(
-            validade_brackets_and_string("4 + 3 * { 4 - 2 })"),
-            ValidationResult::Invalid(None)
-        ));
-        assert!(matches!(
-            validade_brackets_and_string("4 + (3 * { 4 - 2 )"),
-            ValidationResult::Invalid(None)
-        ));
-    }
+fn js_main_let(module: &str, iter: usize) -> String {
+    formatdoc! {r#"
+        import {{ try_main }} from "./sgleam_ffi.mjs";
+        import {{ main }} from "./{module}.mjs";
+        let r = try_main(main);
+        if (r !== undefined) {{
+            globalThis.repl_var_{iter} = r;
+        }}
+    "#}
 }
