@@ -3,6 +3,7 @@ pub mod gleam;
 pub mod javascript;
 pub mod logger;
 pub mod panic;
+pub mod parser;
 pub mod repl;
 pub mod repl_reader;
 pub mod run;
