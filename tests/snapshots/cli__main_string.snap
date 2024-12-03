@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: "formatdoc! { \"\n        STDOUT\n        {out}\n        STDERR\n        {err}\" }"
+---
+STDOUT
+hello
+world
+
+STDERR

@@ -1,14 +1,18 @@
 use camino::Utf8Path;
-use gleam_core::Error;
+use gleam_core::{
+    ast::TypedDefinition,
+    build::{Module, Target},
+};
 use std::process::exit;
 
 use crate::{
-    gleam::{compile, get_main_function, get_module, Project},
-    javascript,
+    error::SgleamError,
+    gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
+    javascript::{self, MainKind},
     repl::{welcome_message, Repl},
 };
 
-pub fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), Error> {
+pub fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), SgleamError> {
     if !quiet {
         print!("{}", welcome_message());
     }
@@ -28,12 +32,12 @@ pub fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), Error> {
         .and_then(|input| input.file_stem())
         .and_then(|module_name| get_module(&modules, module_name));
 
-    Repl::new(project, module).run();
+    Repl::new(project, module)?.run()?;
 
     Ok(())
 }
 
-pub fn run_main(path: &str) -> Result<(), Error> {
+pub fn run_main(path: &str) -> Result<(), SgleamError> {
     let path = Utf8Path::new(path);
     if !validade_path(path) {
         exit(1);
@@ -45,9 +49,9 @@ pub fn run_main(path: &str) -> Result<(), Error> {
     let modules = compile(&mut project, false)?;
 
     if let Some(module) = path.file_stem().and_then(|name| get_module(&modules, name)) {
-        let _mainf = get_main_function(module)?;
         javascript::run_main(
-            &javascript::create_context(project.fs.clone(), Project::out().into()),
+            &javascript::create_context(project.fs.clone(), Project::out().into())?,
+            get_main_kind(module)?,
             &module.name,
         );
     } else {
@@ -57,7 +61,51 @@ pub fn run_main(path: &str) -> Result<(), Error> {
     Ok(())
 }
 
-pub fn run_check_or_test(paths: &[String], test: bool) -> Result<(), Error> {
+pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
+    let main = module
+        .ast
+        .definitions
+        .iter()
+        .find_map(|def| match def {
+            TypedDefinition::Function(f)
+                if f.name.as_ref().map(|s| s.1.as_str()) == Some("main") =>
+            {
+                Some(f)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| gleam_core::Error::ModuleDoesNotHaveMainFunction {
+            module: module.name.clone(),
+        })?;
+
+    if !main.implementations.supports(Target::JavaScript) {
+        return Err(gleam_core::Error::MainFunctionDoesNotSupportTarget {
+            module: module.name.clone(),
+            target: Target::JavaScript,
+        }
+        .into());
+    }
+
+    match &main.arguments[..] {
+        [] => Ok(MainKind::Nil),
+        // TODO: make the signatures generic, also in show_error
+        [arg] if type_to_string(arg.type_.clone()) == "String" => Ok(MainKind::Stdin),
+        [arg] if type_to_string(arg.type_.clone()) == "List(String)" => Ok(MainKind::StdinLines),
+        _ => Err(SgleamError::InvalidMain {
+            module: module.name.clone(),
+            signature: {
+                let args = main
+                    .arguments
+                    .iter()
+                    .map(|arg| arg.type_.clone())
+                    .collect::<Vec<_>>();
+                fn_type_to_string(&args[..], main.return_type.clone()).into()
+            },
+        }),
+    }
+}
+
+pub fn run_check_or_test(paths: &[String], test: bool) -> Result<(), SgleamError> {
     let mut project = Project::default();
 
     for path in paths.iter().map(Utf8Path::new).filter(|p| validade_path(p)) {
@@ -73,7 +121,7 @@ pub fn run_check_or_test(paths: &[String], test: bool) -> Result<(), Error> {
             .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
             .collect();
         javascript::run_tests(
-            &javascript::create_context(project.fs.clone(), Project::out().into()),
+            &javascript::create_context(project.fs.clone(), Project::out().into())?,
             &modules,
         );
     }

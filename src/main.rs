@@ -3,11 +3,9 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::Error;
 use sgleam::{
-    format,
-    gleam::gleam_show_error,
-    logger, panic,
+    error::{show_error, SgleamError},
+    format, logger, panic,
     run::{run_check_or_test, run_interative, run_main},
     STACK_SIZE,
 };
@@ -54,14 +52,14 @@ fn main() {
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {
-                gleam_show_error(err);
+                show_error(&err);
             }
         })
         .expect("Create the run thread")
         .join();
 }
 
-fn run() -> Result<(), Error> {
+fn run() -> Result<(), SgleamError> {
     let cli = Cli::parse();
 
     // TODO: include quickjs version
@@ -71,11 +69,11 @@ fn run() -> Result<(), Error> {
     }
 
     if cli.format {
-        return format::run(cli.paths.is_empty(), false, cli.paths);
+        return Ok(format::run(cli.paths.is_empty(), false, cli.paths)?);
     }
 
     if cli.test || cli.check {
-        return run_check_or_test(&cli.paths, cli.test);
+        return Ok(run_check_or_test(&cli.paths, cli.test)?);
     }
 
     if cli.interative || cli.paths.is_empty() {
@@ -83,7 +81,7 @@ fn run() -> Result<(), Error> {
             eprintln!("Specify at most one file to enter interative mode.");
             exit(1);
         }
-        return run_interative(cli.paths.first(), cli.quiet);
+        return Ok(run_interative(cli.paths.first(), cli.quiet)?);
     }
 
     if cli.paths.len() != 1 {

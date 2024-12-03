@@ -4,9 +4,8 @@ use insta::{assert_snapshot, glob};
 use sgleam::repl::welcome_message;
 
 use std::{
-    io::{Read, Write},
+    io::Write,
     process::{Command, Stdio},
-    sync::{Arc, Mutex},
 };
 
 // FIXME: do not launch sgleam process if not necessary, use the module functions.
@@ -120,13 +119,51 @@ fn run_tests() {
 #[test]
 fn run_file() {
     glob!("inputs/*.gleam", |path| {
-        let (out, err) = run_sgleam_cmd(&[path.as_os_str().to_str().expect("a valid path")], None);
+        let (out, err) = run_sgleam_cmd(&[&path.to_string_lossy().to_string()], None);
         assert_snapshot!(formatdoc! {"
             STDOUT
             {out}
             STDERR
             {err}"
         });
+    });
+}
+
+#[test]
+fn main_list_string() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/main_list_string.gleam"
+    );
+    let (out, err) = run_sgleam_cmd(
+        &[input],
+        Some(&formatdoc! {
+            "
+            An example
+            with
+            three lines"
+        }),
+    );
+    assert_snapshot!(formatdoc! {"
+        STDOUT
+        {out}
+        STDERR
+        {err}"
+    });
+}
+
+#[test]
+fn main_string() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/main_string.gleam"
+    );
+    let (out, err) = run_sgleam_cmd(&[input], Some("hello\nworld"));
+    assert_snapshot!(formatdoc! {"
+        STDOUT
+        {out}
+        STDERR
+        {err}"
     });
 }
 
@@ -153,30 +190,12 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
         });
     }
 
-    let mut stdout = child.stdout.take().unwrap();
-    let out = Arc::new(Mutex::new(String::new()));
-    let out_ = out.clone();
-    let tout = std::thread::spawn(move || {
-        let out = out_.clone();
-        let mut out = out.lock().unwrap();
-        stdout.read_to_string(&mut *out)
-    });
+    let result = child.wait_with_output().unwrap();
 
-    let mut stderr = child.stderr.take().unwrap();
-    let err = Arc::new(Mutex::new(String::new()));
-    let err_ = err.clone();
-    let terr = std::thread::spawn(move || {
-        let err = err_.clone();
-        let mut err = err.lock().unwrap();
-        stderr.read_to_string(&mut *err)
-    });
-
-    child.wait().expect("Read stdout");
-    let _ = tout.join().expect("Join out thread");
-    let _ = terr.join().expect("Join err thread");
+    // assert!(result.status.success());
 
     (
-        Arc::try_unwrap(out).unwrap().into_inner().unwrap(),
-        Arc::try_unwrap(err).unwrap().into_inner().unwrap(),
+        String::from_utf8_lossy(&result.stdout).into_owned(),
+        String::from_utf8_lossy(&result.stderr).into_owned(),
     )
 }

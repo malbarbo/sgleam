@@ -8,21 +8,23 @@ use gleam_core::{
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
     javascript::PRELUDE,
-    type_::{ModuleFunction, Type, TypeVar},
+    type_::{Type, TypeVar},
     uid::UniqueIdGenerator,
     warning::{WarningEmitter, WarningEmitterIO},
     Error, Warning,
 };
 use std::{
     collections::HashSet,
-    io::{IsTerminal, Read, Write},
+    io::{Read, Write},
     path::PathBuf,
     rc::Rc,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
 };
 use tar::Archive;
-use termcolor::{BufferWriter, Color, ColorChoice, ColorSpec, WriteColor};
+use termcolor::{Color, ColorSpec, WriteColor};
+
+use crate::error::stderr_buffer_writer;
 
 #[derive(Clone)]
 pub struct Project {
@@ -94,31 +96,40 @@ impl Project {
     }
 }
 
-pub fn gleam_show_error(err: Error) {
-    let buffer_writer = stderr_buffer_writer();
-    let mut buffer = buffer_writer.buffer();
-    err.pretty(&mut buffer);
-    buffer_writer
-        .print(&buffer)
-        .expect("Write warning to stderr");
-}
-
 pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
     modules.iter().find(|m| m.name == name)
 }
 
-pub fn get_main_function(module: &Module) -> Result<ModuleFunction, Error> {
-    module.ast.type_info.get_main_function(Target::JavaScript)
+// FIXME: check in the lsp module how the action "Add type annotation" works
+pub fn type_to_string(type_: Arc<Type>) -> String {
+    type_to_string_unbonds(type_, &mut vec![])
 }
 
-// FIXME: check in the lsp module how the action "Add type annotation" works
-pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
+pub fn fn_type_to_string(args: &[Arc<Type>], return_type: Arc<Type>) -> String {
+    fn_type_to_string_unbounds(args, return_type, &mut vec![])
+}
+
+pub fn fn_type_to_string_unbounds(
+    args: &[Arc<Type>],
+    return_type: Arc<Type>,
+    unbounds: &mut Vec<Arc<Type>>,
+) -> String {
+    let args = args
+        .iter()
+        .map(|arg| type_to_string_unbonds(arg.clone(), unbounds))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let return_type = type_to_string_unbonds(return_type, unbounds);
+    format!("fn({args}) -> {return_type}")
+}
+
+fn type_to_string_unbonds(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
     if let Some((_, return_type)) = type_.named_type_name() {
         if let Some(constructor) = type_.constructor_types() {
             if !constructor.is_empty() {
                 let ctypes = constructor
                     .into_iter()
-                    .map(|type_| type_to_string(type_, unbounds))
+                    .map(|type_| type_to_string_unbonds(type_, unbounds))
                     .collect::<Vec<_>>()
                     .join(", ");
                 return format!("{return_type}({ctypes})");
@@ -128,19 +139,13 @@ pub fn type_to_string(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String
     }
 
     if let Some((args, return_type)) = type_.fn_types() {
-        let args = args
-            .iter()
-            .map(|arg| type_to_string(arg.clone(), unbounds))
-            .collect::<Vec<_>>()
-            .join(", ");
-        let return_type = type_to_string(return_type, unbounds);
-        return format!("fn({args}) -> {return_type}");
+        return fn_type_to_string_unbounds(&args, return_type, unbounds);
     }
 
     if let Some(types_) = type_.tuple_types() {
         let types_ = types_
             .iter()
-            .map(|type_| type_to_string(type_.clone(), unbounds))
+            .map(|type_| type_to_string_unbonds(type_.clone(), unbounds))
             .collect::<Vec<_>>()
             .join(", ");
         return format!("#({types_})");
@@ -368,29 +373,6 @@ pub fn print_colourful_prefix(prefix: &str, text: &str) {
     buffer_writer
         .print(&buffer)
         .expect("print_colourful_prefix");
-}
-
-pub fn stderr_buffer_writer() -> BufferWriter {
-    // Don't add color codes to the output if standard error isn't connected to a terminal
-    BufferWriter::stderr(color_choice())
-}
-
-fn colour_forced() -> bool {
-    if let Ok(force) = std::env::var("FORCE_COLOR") {
-        !force.is_empty()
-    } else {
-        false
-    }
-}
-
-fn color_choice() -> ColorChoice {
-    if colour_forced() {
-        ColorChoice::Always
-    } else if std::io::stderr().is_terminal() {
-        ColorChoice::Auto
-    } else {
-        ColorChoice::Never
-    }
 }
 
 #[derive(Debug, Clone, Copy)]

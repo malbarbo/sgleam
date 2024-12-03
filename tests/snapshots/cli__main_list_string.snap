@@ -1,0 +1,10 @@
+---
+source: tests/cli.rs
+expression: "formatdoc! { \"\n        STDOUT\n        {out}\n        STDERR\n        {err}\" }"
+---
+STDOUT
+1 An example
+2 with
+3 three lines
+
+STDERR

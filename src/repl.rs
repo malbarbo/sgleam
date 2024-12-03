@@ -5,8 +5,9 @@ use indoc::formatdoc;
 use rquickjs::{Array, Context};
 
 use crate::{
-    gleam::{compile, get_module, gleam_show_error, type_to_string, Project},
-    javascript,
+    error::{show_error, SgleamError},
+    gleam::{compile, get_module, type_to_string, Project},
+    javascript::{self, MainKind},
     repl_reader::ReplReader,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
@@ -49,10 +50,10 @@ enum EntryKind {
 }
 
 impl Repl {
-    pub fn new(project: Project, user_module: Option<&Module>) -> Repl {
+    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl, SgleamError> {
         let imports = GLEAM_MODULES_NAMES.iter().map(|s| s.to_string()).collect();
         let fs = project.fs.clone();
-        Repl {
+        Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
             imports,
             consts: vec![],
@@ -60,14 +61,14 @@ impl Repl {
             fns: vec![],
             vars: HashMap::new(),
             project,
-            context: javascript::create_context(fs, Project::out().into()),
+            context: javascript::create_context(fs, Project::out().into())?,
             iter: 0,
             var_index: 0,
-        }
+        })
     }
 
-    pub fn run(&mut self) {
-        let editor = ReplReader::new().expect("Create the reader for repl");
+    pub fn run(&mut self) -> Result<(), SgleamError> {
+        let editor = ReplReader::new()?;
         for code in editor {
             let code_trim = code.trim();
             if code_trim.is_empty() || code_trim.starts_with("//") {
@@ -95,12 +96,13 @@ impl Repl {
             };
 
             if let Err(err) = result {
-                gleam_show_error(err);
+                show_error(&err.into());
             } else {
                 // rollback
                 *self = repl;
             }
         }
+        Ok(())
     }
 
     fn run_code(&mut self, kind: EntryKind) -> Result<(), Error> {
@@ -124,6 +126,7 @@ impl Repl {
                       io.debug(repl_save({{
                         {expr}
                       }}))
+                      Nil
                     }}
                     "
                 });
@@ -136,6 +139,7 @@ impl Repl {
                       io.debug({{
                         {expr}
                       }})
+                      Nil
                     }}
                     "
                 });
@@ -156,7 +160,7 @@ impl Repl {
 
         if let Ok(modules) = &result {
             if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
-                javascript::run_main(&self.context, &module_name);
+                javascript::run_main(&self.context, MainKind::Nil, &module_name);
             } else {
                 // Nothing to run
             }
@@ -297,10 +301,8 @@ impl Repl {
             .return_type
             .clone();
 
-        self.vars.insert(
-            name.into(),
-            (index, type_to_string(return_type, &mut vec![])),
-        );
+        self.vars
+            .insert(name.into(), (index, type_to_string(return_type)));
 
         true
     }

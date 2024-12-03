@@ -1,0 +1,15 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/main_int_nil.gleam
+---
+STDOUT
+
+STDERR
+error: Main functions has an invalid signature
+
+`main_int_nil.main` has the invalid signature `fn(Int) -> Nil` and can not be run.
+Hint: Use one of the valid signatures for `main` function:
+  fn() -> a
+  fn(String) -> a
+  fn(List(String)) -> a

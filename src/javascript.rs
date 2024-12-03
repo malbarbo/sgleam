@@ -1,5 +1,3 @@
-use camino::Utf8Path;
-
 use gleam_core::io::{memory::InMemoryFileSystem, FileSystemReader};
 use indoc::formatdoc;
 
@@ -14,33 +12,35 @@ use rquickjs::{
     loader::{Loader, Resolver},
     module::Declared,
     qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
-    CatchResultExt, CaughtError, Context, Ctx, Function, Module, Object, Promise, Result, Runtime,
-    Value,
+    CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise, Result,
+    Runtime, Value,
 };
 
 use crate::{swriteln, STACK_SIZE};
 
-pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Context {
-    let runtime = Runtime::new().unwrap();
-    runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
-    let context = Context::full(&runtime).unwrap();
-    runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
-    context.with(|ctx| {
-        add_console_log(&ctx);
-    });
-    context
+#[derive(Debug)]
+pub enum MainKind {
+    Nil,
+    Stdin,
+    StdinLines,
 }
 
-pub fn run_main(context: &Context, module: &str) {
-    run_script(
-        context,
-        formatdoc! {r#"
-            import {{ try_main }} from "./sgleam_ffi.mjs";
-            import {{ main }} from "./{module}.mjs";
-            try_main(main);
-            "#
-        },
-    )
+pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
+    let runtime = Runtime::new()?;
+    runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
+    let context = Context::full(&runtime)?;
+    runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
+    context.with(|ctx| add_console(&ctx)).map(|_| context)
+}
+
+pub fn run_main(context: &Context, main: MainKind, module: &str) {
+    let code = formatdoc! {r#"
+        import {{ try_main }} from "./sgleam_ffi.mjs";
+        import {{ main }} from "./{module}.mjs";
+        try_main(main, "{main:?}");
+        "#
+    };
+    run_script(context, code)
 }
 
 pub fn run_tests(context: &Context, modules: &[&str]) {
@@ -81,19 +81,38 @@ fn js_show_error(err: CaughtError) {
     std::process::exit(1);
 }
 
-fn add_console_log(ctx: &Ctx) {
+fn add_console(ctx: &Ctx) -> Result<()> {
     let global = ctx.globals();
-    let console = Object::new(ctx.clone()).unwrap();
-    console
-        .set(
-            "log",
-            Function::new(ctx.clone(), log)
-                .unwrap()
-                .with_name("log")
-                .unwrap(),
-        )
-        .unwrap();
-    global.set("console", console).unwrap();
+    let console = Object::new(ctx.clone())?;
+    console.set("log", Function::new(ctx.clone(), log)?.with_name("log")?)?;
+    console.set(
+        "getline",
+        Function::new(ctx.clone(), getline)?.with_name("getline")?,
+    )?;
+
+    global.set("console", console)?;
+    Ok(())
+}
+
+fn getline() -> Option<String> {
+    let mut buffer = String::new();
+    let stdin = std::io::stdin();
+    match stdin.read_line(&mut buffer) {
+        Ok(0) => None,
+        Ok(_) => {
+            if buffer.ends_with('\n') {
+                buffer.pop();
+                if buffer.ends_with('\r') {
+                    buffer.pop();
+                }
+            }
+            Some(buffer)
+        }
+        Err(err) => {
+            eprintln!("{}", err);
+            None
+        }
+    }
 }
 
 fn log(value: Value) {
@@ -125,6 +144,9 @@ struct FileResolver {
 
 impl Resolver for FileResolver {
     fn resolve(&mut self, _ctx: &Ctx, base: &str, name: &str) -> Result<String> {
+        let no_parent = |basep: String| {
+            Error::new_resolving_message(base, name, format!("no parent for {basep}"))
+        };
         let result = if self.first {
             // FIXME: remove this first hack
             self.first = false;
@@ -132,16 +154,23 @@ impl Resolver for FileResolver {
         } else if base == "eval_script" {
             self.base.join(name.strip_prefix("./").unwrap_or(name))
         } else {
-            let basep = Path::new(base).parent().unwrap();
+            let basep = Path::new(base)
+                .parent()
+                .ok_or_else(|| no_parent(base.into()))?;
             if let Some(name) = name.strip_prefix("./") {
                 basep.join(name)
-            } else if let Some(name) = name.strip_prefix("../") {
-                basep.parent().unwrap().join(name)
             } else {
-                basep.parent().unwrap().join(name)
+                let parent = basep
+                    .parent()
+                    .ok_or_else(|| no_parent(basep.to_string_lossy().into()))?;
+                if let Some(name) = name.strip_prefix("../") {
+                    parent.join(name)
+                } else {
+                    parent.join(name)
+                }
             }
         };
-        Ok(result.to_str().unwrap().into())
+        Ok(result.to_string_lossy().into())
     }
 }
 
@@ -152,10 +181,10 @@ struct ScriptLoader {
 impl Loader for ScriptLoader {
     fn load<'js>(&mut self, ctx: &Ctx<'js>, path: &str) -> Result<Module<'js, Declared>> {
         tracing::debug!("Loading {path}");
-        Module::declare(
-            ctx.clone(),
-            path,
-            self.fs.read(Utf8Path::new(path)).unwrap(),
-        )
+        let src = self
+            .fs
+            .read(path.into())
+            .map_err(|err| Error::new_loading_message(path, err.to_string()))?;
+        Module::declare(ctx.clone(), path, src)
     }
 }

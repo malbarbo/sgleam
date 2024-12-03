@@ -1,3 +1,4 @@
+pub mod error;
 pub mod format;
 pub mod gleam;
 pub mod javascript;

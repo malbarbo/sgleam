@@ -1,0 +1,24 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/main_int.gleam
+---
+STDOUT
+
+STDERR
+warning: Todo found
+  ┌─ /src/main_int.gleam:2:3
+  │
+2 │   todo
+  │   ^^^^ This code is incomplete
+
+This code will crash if it is run. Be sure to finish it before
+running your program.
+
+error: Main functions has an invalid signature
+
+`main_int.main` has the invalid signature `fn(Int) -> a` and can not be run.
+Hint: Use one of the valid signatures for `main` function:
+  fn() -> a
+  fn(String) -> a
+  fn(List(String)) -> a

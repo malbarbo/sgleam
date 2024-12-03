@@ -1,0 +1,12 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/main_erlang.gleam
+---
+STDOUT
+
+STDERR
+error: Target not supported
+
+`main_erlang` has a main function, but it does not support the javascript
+target, so it cannot be run.

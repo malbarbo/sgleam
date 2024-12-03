@@ -1,11 +1,11 @@
 // This file is from gleam project.
 
-#![allow(clippy::unwrap_used)]
+use std::io::Write as _;
 use std::panic::PanicHookInfo;
 
-use crate::gleam::stderr_buffer_writer;
-use std::io::Write;
-use termcolor::{Color, ColorSpec, WriteColor};
+use termcolor::{Color, ColorSpec, WriteColor as _};
+
+use crate::error::stderr_buffer_writer;
 
 pub fn add_handler() {
     std::panic::set_hook(Box::new(move |info: &PanicHookInfo<'_>| {

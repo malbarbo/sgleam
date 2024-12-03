@@ -1,11 +1,34 @@
-import { isEqual } from './gleam.mjs';
+import { isEqual, List } from './gleam.mjs';
 import { inspect } from './gleam/string.mjs';
 
-export function try_main(main) {
+export function try_main(main, input_kind) {
     try {
-        return main();
+        let r;
+        if (input_kind === "Stdin") {
+            r = main(read_lines().join("\n"));
+        } else if (input_kind === "StdinLines") {
+            r = main(List.fromArray(read_lines()));
+        } else {
+            r = main();
+        }
+        if (typeof r == "string") {
+            console.log(r);
+        } else if (r) {
+            console.log(inspect(r));
+        }
     } catch (err) {
         show_error(err);
+    }
+}
+
+function read_lines() {
+    let r = [];
+    while (true) {
+        let line = console.getline();
+        if (line == null) {
+            return r;
+        }
+        r.push(line)
     }
 }
 
