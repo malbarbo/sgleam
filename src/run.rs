@@ -1,6 +1,6 @@
 use camino::Utf8Path;
 use gleam_core::{
-    ast::TypedDefinition,
+    ast::{TypedDefinition, TypedFunction},
     build::{Module, Target},
 };
 use std::process::exit;
@@ -61,8 +61,8 @@ pub fn run_main(path: &str) -> Result<(), SgleamError> {
     Ok(())
 }
 
-pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
-    let main = module
+pub fn get_main(module: &Module) -> Result<&TypedFunction, gleam_core::Error> {
+    module
         .ast
         .definitions
         .iter()
@@ -76,7 +76,11 @@ pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
         })
         .ok_or_else(|| gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
-        })?;
+        })
+}
+
+pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
+    let main = get_main(module)?;
 
     if !main.implementations.supports(Target::JavaScript) {
         return Err(gleam_core::Error::MainFunctionDoesNotSupportTarget {

@@ -9,6 +9,7 @@ use crate::{
     gleam::{compile, get_module, type_to_string, Project},
     javascript::{self, MainKind},
     repl_reader::ReplReader,
+    run::get_main,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
 
@@ -20,7 +21,8 @@ pub fn repl_save(value: a) -> a
 pub fn repl_load(index: Int) -> a
 "#;
 
-const QUIT: &str = ":quit";
+pub const QUIT: &str = ":quit";
+pub const TYPE: &str = ":type ";
 
 pub fn welcome_message() -> String {
     format!(
@@ -39,6 +41,7 @@ pub struct Repl {
     vars: HashMap<String, (usize, String)>,
     project: Project,
     context: Context,
+    type_: bool,
     iter: usize,
     var_index: usize,
 }
@@ -62,6 +65,7 @@ impl Repl {
             vars: HashMap::new(),
             project,
             context: javascript::create_context(fs, Project::out().into())?,
+            type_: false,
             iter: 0,
             var_index: 0,
         })
@@ -69,13 +73,21 @@ impl Repl {
 
     pub fn run(&mut self) -> Result<(), SgleamError> {
         let editor = ReplReader::new()?;
-        for code in editor {
+        for mut code in editor {
             let code_trim = code.trim();
             if code_trim.is_empty() || code_trim.starts_with("//") {
                 continue;
             }
+
             if code_trim == QUIT {
                 break;
+            }
+
+            if let Some(expr) = code_trim.strip_prefix(TYPE) {
+                self.type_ = true;
+                code = expr.into();
+            } else {
+                self.type_ = false;
             }
 
             self.iter += 1;
@@ -86,12 +98,12 @@ impl Repl {
 
             let code_no_pub = code.trim_start().strip_prefix("pub ").unwrap_or(&code);
             let pub_code = format!("pub {code_no_pub}");
-            let result = match code_no_pub.split_whitespace().next() {
-                Some("import") => repl.run_import(code),
-                Some("const") => repl.run_const(pub_code),
-                Some("type") => repl.run_type(pub_code),
-                Some("let") => repl.run_let(code),
-                Some("fn") => repl.run_fn(pub_code),
+            let result = match (code_no_pub.split_whitespace().next(), self.type_) {
+                (Some("import"), false) => repl.run_import(code),
+                (Some("const"), false) => repl.run_const(pub_code),
+                (Some("type"), false) => repl.run_type(pub_code),
+                (Some("let"), false) => repl.run_let(code),
+                (Some("fn"), false) => repl.run_fn(pub_code),
                 _ => repl.run_expr(code),
             };
 
@@ -113,6 +125,8 @@ impl Repl {
         self.add_types(&mut src);
         self.add_fns(&mut src);
 
+        let ret = if self.type_ { "" } else { "Nil" };
+
         match &kind {
             EntryKind::Let(_, expr) => {
                 // FIXME: can we generate code that generates better error messagens?
@@ -126,7 +140,7 @@ impl Repl {
                       io.debug(repl_save({{
                         {expr}
                       }}))
-                      Nil
+                      {ret}
                     }}
                     "
                 });
@@ -139,7 +153,7 @@ impl Repl {
                       io.debug({{
                         {expr}
                       }})
-                      Nil
+                      {ret}
                     }}
                     "
                 });
@@ -159,18 +173,20 @@ impl Repl {
         let result = compile(&mut self.project, true);
 
         if let Ok(modules) = &result {
+            let module = get_module(modules, &module_name).expect("The repl module");
             if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
-                javascript::run_main(&self.context, MainKind::Nil, &module_name);
+                if self.type_ {
+                    let type_ = get_main(module).expect("main function").return_type.clone();
+                    println!("{}", type_to_string(type_));
+                } else {
+                    javascript::run_main(&self.context, MainKind::Nil, &module_name);
+                }
             } else {
-                // Nothing to run
+                // Nothing to run, was a definition (type, const, import or fn)
             }
 
             if let EntryKind::Let(name, _) = &kind {
-                if self.try_save_var(
-                    name,
-                    self.var_index,
-                    get_module(modules, &module_name).expect("The repl module"),
-                ) {
+                if self.try_save_var(name, self.var_index, module) {
                     self.var_index += 1;
                 }
             }
@@ -217,9 +233,8 @@ impl Repl {
                 }
             }
         }
-        // We could not transformed the code to a let expression, so we run it to fail
-        self.fns.push(code);
-        self.run_code(EntryKind::Other)
+        // We could not transforme the code to a let expression, so it can be an anonymous function
+        self.run_code(EntryKind::Expr(code))
     }
 
     fn run_let(&mut self, code: String) -> Result<(), Error> {

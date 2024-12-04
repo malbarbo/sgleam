@@ -1,7 +1,7 @@
 use assert_cmd::prelude::*;
 use indoc::formatdoc;
 use insta::{assert_snapshot, glob};
-use sgleam::repl::welcome_message;
+use sgleam::repl::{welcome_message, QUIT, TYPE};
 
 use std::{
     io::Write,
@@ -51,6 +51,27 @@ fn repl_import() {
 }
 
 #[test]
+fn repl_quit() {
+    assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
+}
+
+#[test]
+fn repl_type() {
+    assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
+    assert_eq!(repl_exec(&format!("{TYPE} int.add")), "fn(Int, Int) -> Int");
+    assert_eq!(
+        repl_exec(&format!("{TYPE} list.filter_map")),
+        "fn(List(a), fn(a) -> Result(b, c)) -> List(b)"
+    );
+    // :type does not evaluate
+    assert_eq!(
+        repl_exec(&format!("{TYPE} io.debug(Ok(1))")),
+        "Result(Int, a)", // without the io.debug side effect
+    );
+    // TODO: check that :type let x = 10 does not create x
+}
+
+#[test]
 fn repl_user_module_import() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     assert_eq!(
@@ -96,7 +117,7 @@ fn repl_welcome_message() {
 fn repl_exec(s: &str) -> String {
     run_sgleam_cmd_stdout(&["-q"], Some(s))
         .strip_suffix('\n')
-        .unwrap()
+        .unwrap_or("")
         .into()
 }
 
