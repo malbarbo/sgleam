@@ -8,7 +8,7 @@ use std::process::exit;
 use crate::{
     error::SgleamError,
     gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
-    javascript::{self, MainKind},
+    javascript::{self, MainInput},
     repl::{welcome_message, Repl},
 };
 
@@ -51,8 +51,9 @@ pub fn run_main(path: &str) -> Result<(), SgleamError> {
     if let Some(module) = path.file_stem().and_then(|name| get_module(&modules, name)) {
         javascript::run_main(
             &javascript::create_context(project.fs.clone(), Project::out().into())?,
-            get_main_kind(module)?,
             &module.name,
+            get_main_kind(module)?,
+            true,
         );
     } else {
         // The compiler ignored the file because of the name and printed a warning.
@@ -79,7 +80,7 @@ pub fn get_main(module: &Module) -> Result<&TypedFunction, gleam_core::Error> {
         })
 }
 
-pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
+pub fn get_main_kind(module: &Module) -> Result<MainInput, SgleamError> {
     let main = get_main(module)?;
 
     if !main.implementations.supports(Target::JavaScript) {
@@ -91,10 +92,10 @@ pub fn get_main_kind(module: &Module) -> Result<MainKind, SgleamError> {
     }
 
     match &main.arguments[..] {
-        [] => Ok(MainKind::Nil),
+        [] => Ok(MainInput::Nothing),
         // TODO: make the signatures generic, also in show_error
-        [arg] if type_to_string(arg.type_.clone()) == "String" => Ok(MainKind::Stdin),
-        [arg] if type_to_string(arg.type_.clone()) == "List(String)" => Ok(MainKind::StdinLines),
+        [arg] if type_to_string(arg.type_.clone()) == "String" => Ok(MainInput::Stdin),
+        [arg] if type_to_string(arg.type_.clone()) == "List(String)" => Ok(MainInput::StdinLines),
         _ => Err(SgleamError::InvalidMain {
             module: module.name.clone(),
             signature: {

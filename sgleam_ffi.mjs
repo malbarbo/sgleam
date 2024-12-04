@@ -1,7 +1,7 @@
 import { isEqual, List } from './gleam.mjs';
 import { inspect } from './gleam/string.mjs';
 
-export function try_main(main, input_kind) {
+export function try_main(main, input_kind, show_output) {
     try {
         let r;
         if (input_kind === "Stdin") {
@@ -11,10 +11,12 @@ export function try_main(main, input_kind) {
         } else {
             r = main();
         }
-        if (typeof r == "string") {
-            console.log(r);
-        } else if (r) {
-            console.log(inspect(r));
+        if (show_output) {
+            if (typeof r == "string") {
+                console.log(r);
+            } else if (r) {
+                console.log(inspect(r));
+            }
         }
     } catch (err) {
         show_error(err);

@@ -51,6 +51,16 @@ fn repl_import() {
 }
 
 #[test]
+fn repl_let() {
+    assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
+}
+
+#[test]
+fn repl_fn() {
+    assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "//fn(a) { ... }\n2");
+}
+
+#[test]
 fn repl_quit() {
     assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
 }

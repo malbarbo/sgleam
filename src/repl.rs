@@ -7,7 +7,7 @@ use rquickjs::{Array, Context};
 use crate::{
     error::{show_error, SgleamError},
     gleam::{compile, get_module, type_to_string, Project},
-    javascript::{self, MainKind},
+    javascript::{self, MainInput},
     repl_reader::ReplReader,
     run::get_main,
     swrite, swriteln, GLEAM_MODULES_NAMES,
@@ -125,8 +125,6 @@ impl Repl {
         self.add_types(&mut src);
         self.add_fns(&mut src);
 
-        let ret = if self.type_ { "" } else { "Nil" };
-
         match &kind {
             EntryKind::Let(_, expr) => {
                 // FIXME: can we generate code that generates better error messagens?
@@ -140,7 +138,6 @@ impl Repl {
                       io.debug(repl_save({{
                         {expr}
                       }}))
-                      {ret}
                     }}
                     "
                 });
@@ -153,7 +150,6 @@ impl Repl {
                       io.debug({{
                         {expr}
                       }})
-                      {ret}
                     }}
                     "
                 });
@@ -179,7 +175,7 @@ impl Repl {
                     let type_ = get_main(module).expect("main function").return_type.clone();
                     println!("{}", type_to_string(type_));
                 } else {
-                    javascript::run_main(&self.context, MainKind::Nil, &module_name);
+                    javascript::run_main(&self.context, &module_name, MainInput::Nothing, false);
                 }
             } else {
                 // Nothing to run, was a definition (type, const, import or fn)
