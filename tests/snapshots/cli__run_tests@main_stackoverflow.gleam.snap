@@ -1,7 +1,0 @@
----
-source: tests/cli.rs
-expression: "run_sgleam_cmd_stdout(&[\"-t\",\npath.as_os_str().to_str().expect(\"a valid path\")], None)"
-input_file: tests/inputs/main_stackoverflow.gleam
----
-Running tests...
-0 tests, 0 success(es), 0 failure(s) and 0 error(s).

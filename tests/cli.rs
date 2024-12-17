@@ -161,10 +161,10 @@ fn run_file() {
 }
 
 #[test]
-fn main_list_string() {
+fn smain_list_string() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/inputs/main_list_string.gleam"
+        "/tests/inputs/smain_list_string.gleam"
     );
     let (out, err) = run_sgleam_cmd(
         &[input],
@@ -184,10 +184,10 @@ fn main_list_string() {
 }
 
 #[test]
-fn main_string() {
+fn smain_string() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/inputs/main_string.gleam"
+        "/tests/inputs/smain_string.gleam"
     );
     let (out, err) = run_sgleam_cmd(&[input], Some("hello\nworld"));
     assert_snapshot!(formatdoc! {"

@@ -8,8 +8,8 @@ use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum SgleamError {
-    #[error("invalid main signature")]
-    InvalidMain {
+    #[error("invalid smain signature")]
+    InvalidSMain {
         module: EcoString,
         signature: EcoString,
     },
@@ -50,14 +50,14 @@ pub fn show_error(err: &SgleamError) {
         SgleamError::Gleam(err) => {
             err.pretty(&mut buffer);
         }
-        SgleamError::InvalidMain { module, signature } => Diagnostic {
-            title: "Main functions has an invalid signature".into(),
+        SgleamError::InvalidSMain { module, signature } => Diagnostic {
+            title: "smain function has an invalid signature".into(),
             text: format!(
-                "`{module}.main` has the invalid signature `{signature}` and can not be run."
+                "`{module}.smain` has the invalid signature `{signature}` and can not be run."
             ),
             // TODO: add an url for more information
             hint: Some(formatdoc! {"
-                Use one of the valid signatures for `main` function:
+                Use one of the valid signatures for `smain` function:
                   fn() -> a
                   fn(String) -> a
                   fn(List(String)) -> a

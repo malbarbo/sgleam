@@ -18,11 +18,20 @@ use rquickjs::{
 
 use crate::{swriteln, STACK_SIZE};
 
-#[derive(Debug)]
-pub enum MainInput {
-    Nothing,
-    Stdin,
-    StdinLines,
+#[derive(Debug, Clone, Copy)]
+pub enum MainFunction {
+    Main,
+    SmainStdin,
+    SmainStdinLines,
+}
+
+impl MainFunction {
+    fn name(&self) -> &str {
+        match self {
+            MainFunction::Main => "main",
+            _ => "smain",
+        }
+    }
 }
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
@@ -33,11 +42,12 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
     context.with(|ctx| add_console(&ctx)).map(|_| context)
 }
 
-pub fn run_main(context: &Context, module: &str, input: MainInput, show_output: bool) {
+pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output: bool) {
+    let name = main.name();
     let code = formatdoc! {r#"
         import {{ try_main }} from "./sgleam_ffi.mjs";
-        import {{ main }} from "./{module}.mjs";
-        try_main(main, "{input:?}", {show_output});
+        import {{ {name} }} from "./{module}.mjs";
+        try_main({name}, "{main:?}", {show_output});
         "#
     };
     run_script(context, code)

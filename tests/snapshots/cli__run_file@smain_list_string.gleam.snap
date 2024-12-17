@@ -1,7 +1,7 @@
 ---
 source: tests/cli.rs
 expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
-input_file: tests/inputs/main_string.gleam
+input_file: tests/inputs/smain_list_string.gleam
 ---
 STDOUT
 

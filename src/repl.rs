@@ -7,9 +7,9 @@ use rquickjs::{Array, Context};
 use crate::{
     error::{show_error, SgleamError},
     gleam::{compile, get_module, type_to_string, Project},
-    javascript::{self, MainInput},
+    javascript::{self, MainFunction},
     repl_reader::ReplReader,
-    run::get_main,
+    run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
 
@@ -172,10 +172,13 @@ impl Repl {
             let module = get_module(modules, &module_name).expect("The repl module");
             if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
                 if self.type_ {
-                    let type_ = get_main(module).expect("main function").return_type.clone();
+                    let type_ = get_function(module, "main")
+                        .expect("main function")
+                        .return_type
+                        .clone();
                     println!("{}", type_to_string(type_));
                 } else {
-                    javascript::run_main(&self.context, &module_name, MainInput::Nothing, false);
+                    javascript::run_main(&self.context, &module_name, MainFunction::Main, false);
                 }
             } else {
                 // Nothing to run, was a definition (type, const, import or fn)

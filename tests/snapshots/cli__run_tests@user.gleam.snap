@@ -1,7 +1,0 @@
----
-source: tests/cli.rs
-expression: "run_sgleam_cmd(&[\"-t\", path.as_os_str().to_str().unwrap()], None)"
-input_file: tests/inputs/user.gleam
----
-Running tests...
-0 tests, 0 success(es), 0 failure(s) and 0 error(s).

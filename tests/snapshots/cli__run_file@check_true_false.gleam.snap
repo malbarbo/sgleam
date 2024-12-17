@@ -1,6 +1,6 @@
 ---
 source: tests/cli.rs
-expression: "format!(\"STDOUT\\n{out}\\nSTDERR\\n{err}\")"
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
 input_file: tests/inputs/check_true_false.gleam
 ---
 STDOUT
