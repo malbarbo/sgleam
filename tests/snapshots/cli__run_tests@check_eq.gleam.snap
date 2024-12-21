@@ -5,14 +5,14 @@ input_file: tests/inputs/check_eq.gleam
 ---
 STDOUT
 Running tests...
-Failure at check_eq.string_examples:9
+Failure at tests/inputs/check_eq.string_examples:9
   Actual  : "wrong string"
   Expected: "not this"
 4 tests, 3 success(es), 1 failure(s) and 0 error(s).
 
 STDERR
 warning: Unused private function
-  ┌─ /src/check_eq.gleam:3:1
+  ┌─ /src/tests/inputs/check_eq.gleam:3:1
   │
 3 │ fn ignore_examples() {
   │ ^^^^^^^^^^^^^^^^^^^^ This private function is never used

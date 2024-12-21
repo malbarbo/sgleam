@@ -6,4 +6,4 @@ input_file: tests/inputs/sgleam.gleam
 STDOUT
 
 STDERR
-sgleam: is a reserved module name.
+Ignoring `tests/inputs/sgleam.gleam`: `sgleam` is a reserved module name.

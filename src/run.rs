@@ -1,11 +1,9 @@
-use camino::Utf8Path;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use gleam_core::{
     ast::{TypedDefinition, TypedFunction},
     build::{Module, Target},
 };
-
-use std::process::exit;
 
 use crate::{
     error::SgleamError,
@@ -16,43 +14,31 @@ use crate::{
 
 const SGLEAM_SMAIN: &str = "smain";
 
-pub fn run_interative(path: Option<&String>, quiet: bool) -> Result<(), SgleamError> {
+pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
     if !quiet {
         print!("{}", welcome_message());
     }
 
     let mut project = Project::default();
-
-    let input = path.map(Utf8Path::new);
-    if let Some(input) = input {
-        if !validade_path(input) {
-            exit(1);
-        }
-        project.copy_to_source(input)?;
-    }
-
-    let modules = compile(&mut project, false)?;
-    let module = input
-        .and_then(|input| input.file_stem())
-        .and_then(|module_name| get_module(&modules, module_name));
+    let modules = copy_files_and_build(&mut project, paths)?;
+    let module = paths.get(0).and_then(|input| {
+        let name = input.with_extension("");
+        let name = name.as_str();
+        get_module(&modules, name)
+    });
 
     Repl::new(project, module)?.run()?;
 
     Ok(())
 }
 
-pub fn run_main(path: &str) -> Result<(), SgleamError> {
-    let path = Utf8Path::new(path);
-    if !validade_path(path) {
-        exit(1);
-    }
-
+pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
-    project.copy_to_source(path)?;
+    let modules = copy_files_and_build(&mut project, paths)?;
+    let name = paths[0].with_extension("");
+    let name = name.as_str();
 
-    let modules = compile(&mut project, false)?;
-
-    if let Some(module) = path.file_stem().and_then(|name| get_module(&modules, name)) {
+    if let Some(module) = get_module(&modules, name) {
         let main = get_main(module)?;
         let context = javascript::create_context(project.fs.clone(), Project::out().into())?;
         javascript::run_main(&context, &module.name, main, true);
@@ -60,6 +46,22 @@ pub fn run_main(path: &str) -> Result<(), SgleamError> {
         // The compiler ignored the file because of the name and printed a warning.
     }
 
+    Ok(())
+}
+
+pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+    let mut project = Project::default();
+    Ok(copy_files_and_build(&mut project, paths).map(|_| ())?)
+}
+
+pub fn run_test(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+    let mut project = Project::default();
+    let modules = copy_files_and_build(&mut project, paths)?;
+    let modules: Vec<_> = modules.iter().map(|module| module.name.as_str()).collect();
+    javascript::run_tests(
+        &javascript::create_context(project.fs.clone(), Project::out().into())?,
+        &modules,
+    );
     Ok(())
 }
 
@@ -120,44 +122,28 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
-pub fn run_check_or_test(paths: &[String], test: bool) -> Result<(), SgleamError> {
-    let mut project = Project::default();
-
-    for path in paths.iter().map(Utf8Path::new).filter(|p| validade_path(p)) {
-        project.copy_to_source(path)?;
+fn copy_files_and_build(
+    project: &mut Project,
+    paths: &[Utf8PathBuf],
+) -> Result<Vec<Module>, gleam_core::Error> {
+    for path in paths.iter().filter(|p| validade_path(p)) {
+        project.copy_file_to_source(path)?;
     }
-
-    let modules = compile(&mut project, false)?;
-
-    if test {
-        let modules: Vec<_> = modules
-            .iter()
-            .map(|m| m.name.as_str())
-            .filter(|name| !name.starts_with("gleam/") && !name.starts_with("sgleam/"))
-            .collect();
-        javascript::run_tests(
-            &javascript::create_context(project.fs.clone(), Project::out().into())?,
-            &modules,
-        );
-    }
-
-    Ok(())
+    let mut modules = compile(project, false)?;
+    modules
+        .retain(|module| !module.name.starts_with("gleam/") && !module.name.starts_with("sgleam/"));
+    Ok(modules)
 }
 
 fn validade_path(path: &Utf8Path) -> bool {
-    if !path.is_file() {
-        eprintln!("{path}: does not exist or is not a file.");
-        return false;
-    }
-
     let steam = path.file_stem().unwrap_or("");
     if path.extension() != Some("gleam") || steam.is_empty() {
-        eprintln!("{path}: is not a valid gleam file.");
+        eprintln!("Ignoring `{path}`: is not a valid gleam file.");
         return false;
     }
 
     if steam == "gleam" || steam == "sgleam" {
-        eprintln!("{steam}: is a reserved module name.");
+        eprintln!("Ignoring `{path}`: `{steam}` is a reserved module name.");
         return false;
     }
 

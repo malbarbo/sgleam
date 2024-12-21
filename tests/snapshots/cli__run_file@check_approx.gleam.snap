@@ -8,5 +8,5 @@ STDOUT
 STDERR
 error: Module does not have a main function
 
-`check_approx` does not have a main function so the module can not be run.
-Hint: Add a public `main` function to to `src/check_approx.gleam`.
+`tests/inputs/check_approx` does not have a main function so the module can not be run.
+Hint: Add a public `main` function to to `src/tests/inputs/check_approx.gleam`.

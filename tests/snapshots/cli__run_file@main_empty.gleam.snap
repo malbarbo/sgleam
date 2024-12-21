@@ -4,12 +4,12 @@ expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n     
 input_file: tests/inputs/main_empty.gleam
 ---
 STDOUT
-Error at main_empty.main:1
+Error at tests/inputs/main_empty.main:1
   `todo` expression evaluated. This code has not yet been implemented.
 
 STDERR
 warning: Unimplemented function
-  ┌─ /src/main_empty.gleam:1:1
+  ┌─ /src/tests/inputs/main_empty.gleam:1:1
   │
 1 │ pub fn main() {}
   │ ^^^^^^^^^^^^^ This code is incomplete

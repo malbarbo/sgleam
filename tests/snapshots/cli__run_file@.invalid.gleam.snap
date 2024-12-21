@@ -10,4 +10,4 @@ warning: Invalid module name
 
 Module names must begin with a lowercase letter and contain
 only lowercase alphanumeric characters or underscores.
-Hint: Rename `/src/.invalid.gleam` to be valid, or remove this file from the project source.
+Hint: Rename `/src/tests/inputs/.invalid.gleam` to be valid, or remove this file from the project source.

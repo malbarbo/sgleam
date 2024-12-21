@@ -1,12 +1,16 @@
+use camino::Utf8PathBuf;
 use clap::{
     arg,
     builder::{styling, Styles},
     command, Parser,
 };
+use gleam_core::error::{FileIoAction, FileKind};
 use sgleam::{
     error::{show_error, SgleamError},
-    format, logger, panic,
-    run::{run_check_or_test, run_interative, run_main},
+    format,
+    gleam::find_imports,
+    logger, panic,
+    run::{run_check, run_interative, run_main, run_test},
     STACK_SIZE,
 };
 use std::{process::exit, thread};
@@ -68,26 +72,62 @@ fn run() -> Result<(), SgleamError> {
         return Ok(());
     }
 
+    let paths = cli
+        .paths
+        .into_iter()
+        .map(|path| make_relative_to_current_dir(path.into()))
+        .collect::<Result<Vec<_>, _>>()?;
+
     if cli.format {
-        return Ok(format::run(cli.paths.is_empty(), false, cli.paths)?);
+        return Ok(format::run(false, paths)?);
     }
 
-    if cli.test || cli.check {
-        return Ok(run_check_or_test(&cli.paths, cli.test)?);
+    if cli.check {
+        return Ok(run_check(&paths)?);
     }
 
-    if cli.interative || cli.paths.is_empty() {
-        if cli.paths.len() > 1 {
-            eprintln!("Specify at most one file to enter interative mode.");
+    if cli.test {
+        return Ok(run_test(&paths)?);
+    }
+
+    match &paths[..] {
+        [] => run_interative(&paths, cli.quiet),
+        [path] => {
+            let paths = find_imports(path.clone())?;
+            if cli.interative {
+                run_interative(&paths, cli.quiet)
+            } else {
+                run_main(&paths)
+            }
+        }
+        _ => {
+            eprintln!("Specify at most one.");
             exit(1);
         }
-        return Ok(run_interative(cli.paths.first(), cli.quiet)?);
     }
+}
 
-    if cli.paths.len() != 1 {
-        eprintln!("Specify only one file to run.");
-        exit(1);
-    }
+fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, SgleamError> {
+    let current_dir = get_current_dir()?;
+    path.canonicalize_utf8()
+        .map_err(|e| gleam_core::Error::FileIo {
+            kind: FileKind::File,
+            action: FileIoAction::Canonicalise,
+            path: path.clone(),
+            err: Some(e.to_string()),
+        })?
+        .strip_prefix(&current_dir)
+        .map(Utf8PathBuf::from)
+        .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
+}
 
-    run_main(&cli.paths[0])
+fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
+    let curr_dir = std::env::current_dir().map_err(|e| gleam_core::Error::FileIo {
+        kind: FileKind::Directory,
+        action: FileIoAction::Open,
+        path: ".".into(),
+        err: Some(e.to_string()),
+    })?;
+    Utf8PathBuf::from_path_buf(curr_dir.clone())
+        .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
 }

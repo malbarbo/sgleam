@@ -4,7 +4,7 @@ use indoc::formatdoc;
 use std::{
     fmt::Write as _,
     io::Write as _,
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
 };
 
 use rquickjs::{
@@ -59,12 +59,14 @@ pub fn run_tests(context: &Context, modules: &[&str]) {
         &mut src,
         r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
     );
+    let mut imports = vec![];
     for module in modules {
-        swriteln!(&mut src, r#"import * as {module} from "./{module}.mjs";"#);
+        let import = module.replace("/", "_");
+        swriteln!(&mut src, r#"import * as {import} from "./{module}.mjs";"#);
+        imports.push(import);
     }
-    let names = modules.join(", ");
-    swriteln!(&mut src, "run_tests([{names}]);");
-
+    let modules = imports.join(", ");
+    swriteln!(&mut src, "run_tests([{modules}]);");
     run_script(context, src)
 }
 
@@ -154,9 +156,6 @@ struct FileResolver {
 
 impl Resolver for FileResolver {
     fn resolve(&mut self, _ctx: &Ctx, base: &str, name: &str) -> Result<String> {
-        let no_parent = |basep: String| {
-            Error::new_resolving_message(base, name, format!("no parent for {basep}"))
-        };
         let result = if self.first {
             // FIXME: remove this first hack
             self.first = false;
@@ -164,24 +163,37 @@ impl Resolver for FileResolver {
         } else if base == "eval_script" {
             self.base.join(name.strip_prefix("./").unwrap_or(name))
         } else {
-            let basep = Path::new(base)
-                .parent()
-                .ok_or_else(|| no_parent(base.into()))?;
-            if let Some(name) = name.strip_prefix("./") {
-                basep.join(name)
-            } else {
-                let parent = basep
+            resolve_path(
+                &Path::new(base)
                     .parent()
-                    .ok_or_else(|| no_parent(basep.to_string_lossy().into()))?;
-                if let Some(name) = name.strip_prefix("../") {
-                    parent.join(name)
-                } else {
-                    parent.join(name)
-                }
-            }
+                    .ok_or_else(|| {
+                        Error::new_resolving_message(base, name, format!("no parent for {base}"))
+                    })?
+                    .join(name),
+            )
         };
         Ok(result.to_string_lossy().into())
     }
+}
+
+fn resolve_path(path: &Path) -> PathBuf {
+    let mut components = Vec::new();
+
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                if let Some(Component::Normal(_)) = components.last() {
+                    components.pop();
+                }
+            }
+            Component::CurDir => {}
+            _ => {
+                components.push(component);
+            }
+        }
+    }
+
+    components.iter().collect()
 }
 
 struct ScriptLoader {

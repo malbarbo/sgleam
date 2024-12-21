@@ -6,4 +6,4 @@ input_file: tests/inputs/gleam.gleam
 STDOUT
 
 STDERR
-gleam: is a reserved module name.
+Ignoring `tests/inputs/gleam.gleam`: `gleam` is a reserved module name.

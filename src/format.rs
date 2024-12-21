@@ -8,13 +8,12 @@ use gleam_core::{
 use std::{
     fs::File,
     io::{Read, Write},
-    str::FromStr,
 };
 
 use camino::{Utf8Path, Utf8PathBuf};
 
-pub fn run(stdin: bool, check: bool, files: Vec<String>) -> Result<()> {
-    if stdin {
+pub fn run(check: bool, files: Vec<Utf8PathBuf>) -> Result<()> {
+    if files.is_empty() {
         process_stdin(check)
     } else {
         process_files(check, files)
@@ -45,7 +44,7 @@ fn process_stdin(check: bool) -> Result<()> {
     Ok(())
 }
 
-fn process_files(check: bool, files: Vec<String>) -> Result<()> {
+fn process_files(check: bool, files: Vec<Utf8PathBuf>) -> Result<()> {
     if check {
         check_files(files)
     } else {
@@ -53,7 +52,7 @@ fn process_files(check: bool, files: Vec<String>) -> Result<()> {
     }
 }
 
-fn check_files(files: Vec<String>) -> Result<()> {
+fn check_files(files: Vec<Utf8PathBuf>) -> Result<()> {
     let problem_files = unformatted_files(files)?;
 
     if problem_files.is_empty() {
@@ -63,7 +62,7 @@ fn check_files(files: Vec<String>) -> Result<()> {
     }
 }
 
-fn format_files(files: Vec<String>) -> Result<()> {
+fn format_files(files: Vec<Utf8PathBuf>) -> Result<()> {
     for file in unformatted_files(files)? {
         write_output(&OutputFile {
             path: file.destination,
@@ -73,17 +72,10 @@ fn format_files(files: Vec<String>) -> Result<()> {
     Ok(())
 }
 
-fn unformatted_files(files: Vec<String>) -> Result<Vec<Unformatted>> {
+fn unformatted_files(files: Vec<Utf8PathBuf>) -> Result<Vec<Unformatted>> {
     let mut problem_files = Vec::with_capacity(files.len());
 
-    for file_path in files {
-        let path = Utf8PathBuf::from_str(&file_path).map_err(|e| Error::FileIo {
-            action: FileIoAction::Open,
-            kind: FileKind::File,
-            path: Utf8PathBuf::from(file_path),
-            err: Some(e.to_string()),
-        })?;
-
+    for path in files {
         if !path.is_dir() {
             format_file(&mut problem_files, path)?;
         }

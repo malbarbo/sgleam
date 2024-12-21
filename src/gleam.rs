@@ -8,13 +8,14 @@ use gleam_core::{
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
     javascript::PRELUDE,
+    parse::parse_module,
     type_::{Type, TypeVar},
     uid::UniqueIdGenerator,
-    warning::{WarningEmitter, WarningEmitterIO},
+    warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
     Error, Warning,
 };
 use std::{
-    collections::HashSet,
+    collections::{HashSet, VecDeque},
     io::{Read, Write},
     path::PathBuf,
     rc::Rc,
@@ -76,15 +77,14 @@ impl Project {
             .expect("Set modification time of a file in memory")
     }
 
-    pub fn copy_to_source(&mut self, input: &Utf8Path) -> Result<(), Error> {
+    pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<(), Error> {
         let content = std::fs::read_to_string(input).map_err(|err| Error::FileIo {
             kind: FileKind::File,
             action: FileIoAction::Read,
             path: input.into(),
             err: Some(err.to_string()),
         })?;
-        let to = input.file_name().expect("Extract file name");
-        self.write_source(to, &content);
+        self.write_source(input.as_str(), &content);
         Ok(())
     }
 
@@ -209,6 +209,53 @@ pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> 
             &NullTelemetry,
         )
         .into_result()
+}
+
+pub fn find_imports(path: Utf8PathBuf) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
+    let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
+    let mut files: Vec<Utf8PathBuf> = vec![];
+    let mut pending = VecDeque::from([path]);
+    while let Some(path) = pending.pop_front() {
+        if files.contains(&path) {
+            continue;
+        }
+
+        files.push(path.clone());
+
+        let src = std::fs::read_to_string(&path).map_err(|err| gleam_core::Error::FileIo {
+            kind: FileKind::File,
+            action: FileIoAction::Read,
+            path: path.clone(),
+            err: Some(err.to_string()),
+        })?;
+
+        let parsed = parse_module(path.clone(), &src, &warning_emitter).map_err(|error| {
+            gleam_core::Error::Parse {
+                path,
+                src: src.into(),
+                error,
+            }
+        })?;
+
+        for definition in &parsed.module.definitions {
+            match &definition.definition {
+                gleam_core::ast::Definition::Import(import)
+                    if import.module != "sgleam"
+                        && !import.module.starts_with("sgleam/")
+                        && !import.module.starts_with("gleam/") =>
+                {
+                    let mut path = Utf8PathBuf::new();
+                    for p in import.module.split("/") {
+                        path.push(p);
+                    }
+                    path.set_extension("gleam");
+                    pending.push_back(path);
+                }
+                _ => continue,
+            }
+        }
+    }
+    Ok(files)
 }
 
 fn extract_tar(

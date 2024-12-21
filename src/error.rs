@@ -1,5 +1,6 @@
 use std::io::{IsTerminal as _, Write as _};
 
+use camino::Utf8PathBuf;
 use ecow::EcoString;
 use gleam_core::diagnostic::{Diagnostic, Level};
 use indoc::formatdoc;
@@ -12,6 +13,12 @@ pub enum SgleamError {
     InvalidSMain {
         module: EcoString,
         signature: EcoString,
+    },
+
+    #[error("path is not within the current directory")]
+    PathNotInCurrentDir {
+        current_dir: Utf8PathBuf,
+        path: Utf8PathBuf,
     },
 
     #[error("gleam error")]
@@ -63,6 +70,15 @@ pub fn show_error(err: &SgleamError) {
                   fn(List(String)) -> a
                 "
             }),
+            level: Level::Error,
+            location: None,
+        }
+        .write(&mut buffer),
+
+        SgleamError::PathNotInCurrentDir { current_dir, path } => Diagnostic {
+            title: "path is not within the current directory".into(),
+            text: format!("`{path}` is outside of the current directory `{current_dir}`"),
+            hint: Some("Change the current directory or specify another path.".into()),
             level: Level::Error,
             location: None,
         }

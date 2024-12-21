@@ -171,6 +171,8 @@ impl Repl {
         if let Ok(modules) = &result {
             let module = get_module(modules, &module_name).expect("The repl module");
             if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
+                // TODO: change the output for functions (show the function type)
+                // TODO: should we show the type of all expressions? See haskell, elm, ocaml, roc.
                 if self.type_ {
                     let type_ = get_function(module, "main")
                         .expect("main function")
@@ -191,6 +193,7 @@ impl Repl {
             }
         }
 
+        // TODO: Can we remove the file after the compilation?
         self.project
             .fs
             .delete_file(&Project::source().join(file))

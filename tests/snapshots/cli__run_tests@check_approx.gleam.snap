@@ -5,7 +5,7 @@ input_file: tests/inputs/check_approx.gleam
 ---
 STDOUT
 Running tests...
-Failure at check_approx.approx_examples:5
+Failure at tests/inputs/check_approx.approx_examples:5
   Actual   : 1.2
   Expected : 1.1
   Tolerance: 0.01

@@ -8,5 +8,5 @@ STDOUT
 STDERR
 error: Module does not have a main function
 
-`user` does not have a main function so the module can not be run.
-Hint: Add a public `main` function to to `src/user.gleam`.
+`tests/inputs/user` does not have a main function so the module can not be run.
+Hint: Add a public `main` function to to `src/tests/inputs/user.gleam`.
