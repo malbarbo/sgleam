@@ -54,10 +54,24 @@ pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     Ok(copy_files_and_build(&mut project, paths).map(|_| ())?)
 }
 
-pub fn run_test(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let modules = copy_files_and_build(&mut project, paths)?;
-    let modules: Vec<_> = modules.iter().map(|module| module.name.as_str()).collect();
+    let modules: Vec<_> = modules
+        .iter()
+        .filter_map(|module| {
+            let path = module
+                .input_path
+                .strip_prefix("/src/")
+                .unwrap_or(Utf8Path::new(""))
+                .to_owned();
+            if user_files.contains(&path) {
+                Some(module.name.as_str())
+            } else {
+                None
+            }
+        })
+        .collect();
     javascript::run_tests(
         &javascript::create_context(project.fs.clone(), Project::out().into())?,
         &modules,

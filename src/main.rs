@@ -72,38 +72,35 @@ fn run() -> Result<(), SgleamError> {
         return Ok(());
     }
 
-    let paths = cli
+    let user_files = cli
         .paths
         .into_iter()
         .map(|path| make_relative_to_current_dir(path.into()))
         .collect::<Result<Vec<_>, _>>()?;
 
     if cli.format {
-        return Ok(format::run(false, paths)?);
+        return Ok(format::run(false, user_files)?);
     }
+
+    if user_files.is_empty() {
+        return run_interative(&user_files, cli.quiet);
+    }
+
+    if !cli.check && !cli.test && user_files.len() != 1 {
+        eprintln!("Specify at most one.");
+        exit(1);
+    }
+
+    let files = find_imports(user_files.clone())?;
 
     if cli.check {
-        return Ok(run_check(&paths)?);
-    }
-
-    if cli.test {
-        return Ok(run_test(&paths)?);
-    }
-
-    match &paths[..] {
-        [] => run_interative(&paths, cli.quiet),
-        [path] => {
-            let paths = find_imports(path.clone())?;
-            if cli.interative {
-                run_interative(&paths, cli.quiet)
-            } else {
-                run_main(&paths)
-            }
-        }
-        _ => {
-            eprintln!("Specify at most one.");
-            exit(1);
-        }
+        run_check(&files)
+    } else if cli.test {
+        run_test(&user_files, &files)
+    } else if cli.interative {
+        run_interative(&files, cli.quiet)
+    } else {
+        run_main(&files)
     }
 }
 

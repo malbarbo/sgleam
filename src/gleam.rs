@@ -211,10 +211,10 @@ pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> 
         .into_result()
 }
 
-pub fn find_imports(path: Utf8PathBuf) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
+pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
     let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
-    let mut pending = VecDeque::from([path]);
+    let mut pending = VecDeque::from(paths);
     while let Some(path) = pending.pop_front() {
         if files.contains(&path) {
             continue;
