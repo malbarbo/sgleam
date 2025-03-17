@@ -14,7 +14,7 @@ pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_STDLIB_BIGINT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib-bigint.tar"));
-pub const GLEAM_STDLIB_VERSION: &str = "0.51.0";
+pub const GLEAM_STDLIB_VERSION: &str = "0.57.0";
 pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "gleam/bit_array",
     "gleam/bool",

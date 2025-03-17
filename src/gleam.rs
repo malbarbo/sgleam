@@ -7,7 +7,7 @@ use gleam_core::{
     config::PackageConfig,
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
-    javascript::{is_bigint_enabled, PRELUDE, PRELUDE_BIGINT},
+    javascript::is_bigint_enabled,
     parse::parse_module,
     type_::{Type, TypeVar},
     uid::UniqueIdGenerator,
@@ -32,23 +32,25 @@ pub struct Project {
     pub fs: InMemoryFileSystem,
 }
 
+fn stdlib() -> &'static [u8] {
+    if is_bigint_enabled() {
+        GLEAM_STDLIB_BIGINT
+    } else {
+        GLEAM_STDLIB
+    }
+}
+
 impl Default for Project {
     fn default() -> Project {
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
         };
 
-        let (prelude, stdlib) = if is_bigint_enabled() {
-            (PRELUDE_BIGINT, GLEAM_STDLIB_BIGINT)
-        } else {
-            (PRELUDE, GLEAM_STDLIB)
-        };
-
-        extract_tar(&mut project.fs, Archive::new(stdlib), Project::source())
+        extract_tar(&mut project.fs, Archive::new(stdlib()), Project::source())
             .expect("Extract stdlib");
         project.write_source("sgleam/check.gleam", crate::SGLEAM_CHECK);
         project.write_source("sgleam_ffi.mjs", crate::SGLEAM_FFI_MJS);
-        project.write_out("prelude.mjs", prelude);
+        project.write_out("prelude.mjs", gleam_core::javascript::prelude());
         project
     }
 }
@@ -211,6 +213,7 @@ pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> 
             &mut HashSet::new(),
             &NullTelemetry,
         )
+        .map(|out| out.modules)
         .into_result()
 }
 

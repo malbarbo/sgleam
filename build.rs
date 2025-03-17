@@ -8,12 +8,12 @@ pub fn main() {
     create_tar(
         &outdir,
         "gleam-stdlib.tar",
-        "9f1c71d7512fd93609135d56690a30fdfcd8c655",
+        "8ff87f27cead50fb12e77b52a2b33f4e7f5dcf81",
     );
     create_tar(
         &outdir,
         "gleam-stdlib-bigint.tar",
-        "cdfc63d3da6ef0ae5f28e19afab938b49b062969",
+        "f36c3c3e8fafaf089dc08e4b53425e231f636d3a",
     );
 }
 
