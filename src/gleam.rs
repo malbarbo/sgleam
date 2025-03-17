@@ -7,7 +7,7 @@ use gleam_core::{
     config::PackageConfig,
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemWriter},
-    javascript::PRELUDE,
+    javascript::{is_bigint_enabled, PRELUDE, PRELUDE_BIGINT},
     parse::parse_module,
     type_::{Type, TypeVar},
     uid::UniqueIdGenerator,
@@ -25,7 +25,7 @@ use std::{
 use tar::Archive;
 use termcolor::{Color, ColorSpec, WriteColor};
 
-use crate::error::stderr_buffer_writer;
+use crate::{error::stderr_buffer_writer, GLEAM_STDLIB, GLEAM_STDLIB_BIGINT};
 
 #[derive(Clone)]
 pub struct Project {
@@ -37,15 +37,18 @@ impl Default for Project {
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
         };
-        extract_tar(
-            &mut project.fs,
-            Archive::new(crate::GLEAM_STDLIB),
-            Project::source(),
-        )
-        .expect("Extract gleam-stdlib.tar");
+
+        let (prelude, stdlib) = if is_bigint_enabled() {
+            (PRELUDE_BIGINT, GLEAM_STDLIB_BIGINT)
+        } else {
+            (PRELUDE, GLEAM_STDLIB)
+        };
+
+        extract_tar(&mut project.fs, Archive::new(stdlib), Project::source())
+            .expect("Extract stdlib");
         project.write_source("sgleam/check.gleam", crate::SGLEAM_CHECK);
         project.write_source("sgleam_ffi.mjs", crate::SGLEAM_FFI_MJS);
-        project.write_out("prelude.mjs", PRELUDE);
+        project.write_out("prelude.mjs", prelude);
         project
     }
 }

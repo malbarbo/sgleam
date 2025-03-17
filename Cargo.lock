@@ -720,7 +720,7 @@ dependencies = [
 [[package]]
 name = "gleam-core"
 version = "1.6.2"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#650855f48d10f9795c936bd8e1a812fe4c64881b"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#50c4c678e7f00bf84f93f734f523284874c780d8"
 dependencies = [
  "askama",
  "async-trait",

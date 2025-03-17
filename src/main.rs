@@ -4,7 +4,10 @@ use clap::{
     builder::{styling, Styles},
     command, Parser,
 };
-use gleam_core::error::{FileIoAction, FileKind};
+use gleam_core::{
+    error::{FileIoAction, FileKind},
+    javascript::set_bigint_enabled,
+};
 use sgleam::{
     error::{show_error, SgleamError},
     format,
@@ -37,6 +40,9 @@ struct Cli {
     /// Check source code.
     #[arg(short, group = "cmd")]
     check: bool,
+    /// Use Number instead of BigInt for integers
+    #[arg(short)]
+    number: bool,
     /// Don't print welcome message on entering interactive mode.
     #[arg(short)]
     quiet: bool,
@@ -65,6 +71,8 @@ fn main() {
 
 fn run() -> Result<(), SgleamError> {
     let cli = Cli::parse();
+
+    set_bigint_enabled(!cli.number);
 
     // TODO: include quickjs version
     if cli.version {
