@@ -1,10 +1,11 @@
 use std::{collections::HashMap, fmt::Write};
 
-use gleam_core::{build::Module, io::FileSystemWriter, Error};
+use gleam_core::{ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedStatement}, build::Module, io::FileSystemWriter, Error};
 use indoc::formatdoc;
 use rquickjs::{Array, Context};
 
 use crate::{
+    parser::{self, ReplItem},
     error::{show_error, SgleamError},
     gleam::{compile, get_module, type_to_string, Project},
     javascript::{self, MainFunction},
@@ -37,7 +38,7 @@ pub struct Repl {
     imports: Vec<String>,
     consts: Vec<String>,
     types: Vec<String>,
-    fns: Vec<String>,
+    fns: Vec<(String, Option<String>)>,
     vars: HashMap<String, (usize, String)>,
     project: Project,
     context: Context,
@@ -90,28 +91,35 @@ impl Repl {
                 self.type_ = false;
             }
 
-            self.iter += 1;
-
             // FIXME: avoid this clone
             // We clone self so we can rollback if the execution fail
-            let mut repl = (*self).clone();
+            let repl = (*self).clone();
 
-            let code_no_pub = code.trim_start().strip_prefix("pub ").unwrap_or(&code);
-            let pub_code = format!("pub {code_no_pub}");
-            let result = match (code_no_pub.split_whitespace().next(), self.type_) {
-                (Some("import"), false) => repl.run_import(code),
-                (Some("const"), false) => repl.run_const(pub_code),
-                (Some("type"), false) => repl.run_type(pub_code),
-                (Some("let"), false) => repl.run_let(code),
-                (Some("fn"), false) => repl.run_fn(pub_code),
-                _ => repl.run_expr(code),
-            };
+            let parsed = parser::parse_repl(&code);
 
-            if let Err(err) = result {
-                show_error(&err.into());
-            } else {
-                // rollback
-                *self = repl;
+            if let Err(_err) = parsed {
+                // FIXME: Create error correctly
+                println!("parser error");
+                continue;
+            }
+
+            let parsed = parsed.unwrap();
+
+            for repl_item in parsed {
+                self.iter += 1;
+                let result = match repl_item {
+                    ReplItem::ReplDefinition(t) => 
+                    self.run_definition(t, &code),
+
+                    ReplItem::ReplStatement(s) => 
+                    self.run_statement(s, &code),
+                };
+
+                if let Err(err) = result {
+                    show_error(&SgleamError::Gleam(err));
+                    *self = repl;
+                    break;
+                }
             }
         }
         Ok(())
@@ -202,6 +210,88 @@ impl Repl {
         result.map(|_| ())
     }
 
+    fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
+        let start = targeted.definition.location().start as usize;
+        let end = targeted.definition.location().end as usize;
+
+        let result = match targeted.definition {
+            Definition::Import(_) => {
+                let code = String::from(&src[start..end]); 
+                self.run_import(code)
+            }
+            Definition::CustomType(t) => {
+                let end = t.end_position as usize;
+                let code = String::from(&src[start..end]); 
+
+                self.run_type(code)
+            }
+            Definition::TypeAlias(_) => {
+                let code = String::from(&src[start..end]); 
+                self.run_type(code)
+            }
+            Definition::ModuleConstant(c) => {
+                let end = c.value.location().end as usize;
+                let code = String::from(&src[start..end]); 
+
+                self.run_const(code)
+            }
+            Definition::Function(f) => {
+                let end = f.end_position as usize;
+                let mut code = String::from(&src[start..end]);
+
+                // Add all lets in the beggining of the function.
+                if let Some((signature, body)) = code.clone().split_once('{') {
+                    let arg_names: Vec<String> = f.arguments
+                    .into_iter()
+                    .filter_map(|arg| arg.names.get_variable_name().cloned())
+                    .map(Into::into)
+                    .collect();
+                    
+                    let lets = self.get_lets_not_in_parameters(arg_names);
+
+                    code = String::new();
+                    code.push_str(&format!("{signature} {{ {lets} {body}"));
+                }
+
+                let name: Option<String> = f.name.map(|spanned| spanned.1.into());
+                self.run_fn(code, name)
+            }
+        };
+
+        if let Ok(_) = result {
+            println!("Definition added");
+        }
+
+        result
+    }
+
+    fn run_statement(&mut self, statement: UntypedStatement, src: &str) -> Result<(), Error> {
+        let start = statement.location().start as usize;
+        let end = statement.location().end as usize;
+
+        match statement {
+            Statement::Use(_) => {
+                let code = String::from(&src[start..end]);
+                self.run_use(code)
+            }
+            Statement::Expression(_) => {
+                let code = String::from(&src[start..end]);
+                self.run_expr(code)
+            }
+            Statement::Assignment(a) => {
+                if let Pattern::Variable { name, ..} = a.pattern {
+                    let end = a.value.location().end as usize;
+
+                    let code = String::from(&src[start..end]);
+                    self.run_let(name.into(), code)
+                } else {
+                    println!("Only let with single names are supported.");
+                    Ok(())
+                }
+            }
+        }
+    }
+
     fn run_import(&mut self, _code: String) -> Result<(), Error> {
         println!("imports are not supported.");
         Ok(())
@@ -226,36 +316,25 @@ impl Repl {
         self.run_code(EntryKind::Other)
     }
 
-    fn run_fn(&mut self, code: String) -> Result<(), Error> {
-        if let Some((pub_fn_name, code)) = code.split_once('(') {
-            if let Some(name) = pub_fn_name.strip_prefix("pub fn").map(str::trim) {
-                if !name.contains(char::is_whitespace) {
-                    // TODO: check if the compiler erros are ok
-                    return self.run_let(format!("let {name} = fn({code}"));
-                }
+    fn run_fn(&mut self, code: String, name: Option<String>) -> Result<(), Error> {
+        for (i, (_, other_name)) in self.fns.iter().enumerate() {
+            if !other_name.is_none() && *other_name == name {
+                let _ = self.fns.remove(i);
+                break;
             }
         }
-        // We could not transforme the code to a let expression, so it can be an anonymous function
-        self.run_code(EntryKind::Expr(code))
+        
+        self.fns.push((code, name));
+        self.run_code(EntryKind::Other)
     }
 
-    fn run_let(&mut self, code: String) -> Result<(), Error> {
-        if let Some(name) = code
-            .trim()
-            .strip_prefix("let")
-            .and_then(|s| s.split_once('=').map(|s| s.0))
-            .map(|s| s.split_once(':').map(|s| s.0).unwrap_or(s))
-            .map(str::trim)
-        {
-            if name.chars().all(|c| c.is_alphanumeric() || c == '_') {
-                return self.run_code(EntryKind::Let(name.into(), code));
-            } else {
-                println!("Only let with single names are supported.");
-                return Ok(());
-            }
-        }
-        // We could not get the binding name, so we run it to fail
-        self.run_code(EntryKind::Expr(code))
+    fn run_let(&mut self, name: String, code: String) -> Result<(), Error> {
+        self.run_code(EntryKind::Let(name, code))
+    }
+
+    fn run_use(&mut self, _code: String) -> Result<(), Error> {
+        println!("use statements are not supported");
+        Ok(())
     }
 
     fn run_expr(&mut self, code: String) -> Result<(), Error> {
@@ -285,8 +364,19 @@ impl Repl {
 
     fn add_fns(&self, src: &mut String) {
         for fn_ in &self.fns {
-            swriteln!(src, "{fn_}");
+            let (code, _) = fn_;
+            swriteln!(src, "{code}");
         }
+    }
+
+    fn get_lets_not_in_parameters(&mut self, args: Vec<String>) -> String {
+        let mut lets = String::new();
+        for (name, (index, ty)) in &self.vars {
+            if !args.contains(name) {
+                swriteln!(lets, r#"  let {name}: {ty} = repl_load({index})"#);
+            }
+        }
+        lets
     }
 
     fn get_lets(&mut self) -> String {
