@@ -61,12 +61,27 @@ fn repl_let_discard() {
 
 #[test]
 fn repl_let_int_pattern() {
-    assert_eq!(repl_exec("let 10 = 10"), "patterns are not supported in let statements.");
+    assert_eq!(
+        repl_exec("let 10 = 10"),
+        "patterns are not supported in let statements."
+    );
 }
 
 #[test]
 fn repl_fn() {
     assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "2");
+}
+
+#[test]
+fn repl_generic_fn() {
+    assert_eq!(
+        repl_exec("fn keep(_) { True }\nlist.filter([1, 2], keep)"),
+        "[1, 2]"
+    );
+    assert_eq!(
+        repl_exec("let keep = fn (_) { True }\nlist.filter([1, 2], keep)"),
+        "//fn(a) { ... }\n[1, 2]"
+    );
 }
 
 #[test]

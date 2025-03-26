@@ -146,7 +146,7 @@ impl Repl {
                 // Examples of entries that generates poor errors
                 // "pub "
                 // "let"
-                let lets = self.get_lets();
+                let lets = self.get_lets(&[]);
                 src.push_str(&formatdoc! {"
                     pub fn main() {{
                     {lets}
@@ -158,7 +158,7 @@ impl Repl {
                 });
             }
             EntryKind::Expr(expr) => {
-                let lets = self.get_lets();
+                let lets = self.get_lets(&[]);
                 src.push_str(&formatdoc! {"
                     pub fn main() {{
                       {lets}
@@ -245,14 +245,13 @@ impl Repl {
                 let mut code = String::from(&src[start..end]);
                 // Add all lets in the beggining of the function.
                 if let Some((signature, body)) = code.clone().split_once('{') {
-                    let arg_names: Vec<String> = f
+                    let args: Vec<String> = f
                         .arguments
                         .into_iter()
-                        .filter_map(|arg| arg.names.get_variable_name().cloned())
-                        .map(Into::into)
+                        .filter_map(|arg| arg.names.get_variable_name().map(String::from))
                         .collect();
 
-                    let lets = self.get_lets_not_in_parameters(arg_names);
+                    let lets = self.get_lets(&args);
 
                     code = String::new();
                     code.push_str(&format!("{signature} {{ {lets} {body}"));
@@ -277,7 +276,7 @@ impl Repl {
                 let code = String::from(&src[start..end]);
                 self.run_expr(code)
             }
-            Statement::Assignment(a) => match a.pattern {                
+            Statement::Assignment(a) => match a.pattern {
                 Pattern::Variable { name, .. } => {
                     let end = a.value.location().end as usize;
                     let code = String::from(&src[start..end]);
@@ -373,20 +372,15 @@ impl Repl {
         }
     }
 
-    fn get_lets_not_in_parameters(&mut self, args: Vec<String>) -> String {
+    fn get_lets(&mut self, exclude: &[String]) -> String {
         let mut lets = String::new();
         for (name, (index, ty)) in &self.vars {
-            if !args.contains(name) {
-                swriteln!(lets, r#"  let {name}: {ty} = repl_load({index})"#);
+            if !exclude.contains(name) {
+                swriteln!(
+                    lets,
+                    r#"  let {name} = fn () -> {ty} {{ repl_load({index}) }} ()"#
+                );
             }
-        }
-        lets
-    }
-
-    fn get_lets(&mut self) -> String {
-        let mut lets = String::new();
-        for (name, (index, ty)) in &self.vars {
-            swriteln!(lets, r#"  let {name}: {ty} = repl_load({index})"#);
         }
         lets
     }
