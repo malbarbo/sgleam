@@ -54,10 +54,19 @@ fn repl_import() {
 fn repl_let() {
     assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
 }
+#[test]
+fn repl_let_discard() {
+    assert_eq!(repl_exec("let _ = True"), "True");
+}
+
+#[test]
+fn repl_let_int_pattern() {
+    assert_eq!(repl_exec("let 10 = 10"), "patterns are not supported in let statements.");
+}
 
 #[test]
 fn repl_fn() {
-    assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "//fn(a) { ... }\n2");
+    assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "2");
 }
 
 #[test]

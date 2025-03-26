@@ -1,14 +1,19 @@
 use std::{collections::HashMap, fmt::Write};
 
-use gleam_core::{ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedStatement}, build::Module, io::FileSystemWriter, Error};
+use gleam_core::{
+    ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedStatement},
+    build::Module,
+    io::FileSystemWriter,
+    Error,
+};
 use indoc::formatdoc;
 use rquickjs::{Array, Context};
 
 use crate::{
-    parser::{self, ReplItem},
     error::{show_error, SgleamError},
     gleam::{compile, get_module, type_to_string, Project},
     javascript::{self, MainFunction},
+    parser::{self, ReplItem},
     repl_reader::ReplReader,
     run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
@@ -73,46 +78,48 @@ impl Repl {
     }
 
     pub fn run(&mut self) -> Result<(), SgleamError> {
-        let editor = ReplReader::new()?;
-        for mut code in editor {
-            let code_trim = code.trim();
-            if code_trim.is_empty() || code_trim.starts_with("//") {
+        let reader = ReplReader::new()?;
+        for mut input in reader {
+            let line_trim = input.trim();
+            if line_trim.is_empty() || line_trim.starts_with("//") {
                 continue;
             }
 
-            if code_trim == QUIT {
+            if line_trim == QUIT {
                 break;
             }
 
-            if let Some(expr) = code_trim.strip_prefix(TYPE) {
+            if let Some(expr) = line_trim.strip_prefix(TYPE) {
                 self.type_ = true;
-                code = expr.into();
+                input = expr.into();
             } else {
                 self.type_ = false;
             }
+
+            let items = parser::parse_repl(&input).map_err(|error| Error::Parse {
+                path: format!("/src/repl{}.gleam", self.iter).into(),
+                src: input.clone().into(),
+                error,
+            });
+
+            let items = match items {
+                Err(err) => {
+                    self.iter += 1;
+                    show_error(&SgleamError::Gleam(err));
+                    continue;
+                }
+                Ok(items) => items,
+            };
 
             // FIXME: avoid this clone
             // We clone self so we can rollback if the execution fail
             let repl = (*self).clone();
 
-            let parsed = parser::parse_repl(&code);
-
-            if let Err(_err) = parsed {
-                // FIXME: Create error correctly
-                println!("parser error");
-                continue;
-            }
-
-            let parsed = parsed.unwrap();
-
-            for repl_item in parsed {
+            for item in items {
                 self.iter += 1;
-                let result = match repl_item {
-                    ReplItem::ReplDefinition(t) => 
-                    self.run_definition(t, &code),
-
-                    ReplItem::ReplStatement(s) => 
-                    self.run_statement(s, &code),
+                let result = match item {
+                    ReplItem::ReplDefinition(t) => self.run_definition(t, &input),
+                    ReplItem::ReplStatement(s) => self.run_statement(s, &input),
                 };
 
                 if let Err(err) = result {
@@ -214,39 +221,37 @@ impl Repl {
         let start = targeted.definition.location().start as usize;
         let end = targeted.definition.location().end as usize;
 
-        let result = match targeted.definition {
+        match targeted.definition {
             Definition::Import(_) => {
-                let code = String::from(&src[start..end]); 
+                let code = String::from(&src[start..end]);
                 self.run_import(code)
             }
             Definition::CustomType(t) => {
                 let end = t.end_position as usize;
-                let code = String::from(&src[start..end]); 
-
+                let code = String::from(&src[start..end]);
                 self.run_type(code)
             }
             Definition::TypeAlias(_) => {
-                let code = String::from(&src[start..end]); 
+                let code = String::from(&src[start..end]);
                 self.run_type(code)
             }
             Definition::ModuleConstant(c) => {
                 let end = c.value.location().end as usize;
-                let code = String::from(&src[start..end]); 
-
+                let code = String::from(&src[start..end]);
                 self.run_const(code)
             }
             Definition::Function(f) => {
                 let end = f.end_position as usize;
                 let mut code = String::from(&src[start..end]);
-
                 // Add all lets in the beggining of the function.
                 if let Some((signature, body)) = code.clone().split_once('{') {
-                    let arg_names: Vec<String> = f.arguments
-                    .into_iter()
-                    .filter_map(|arg| arg.names.get_variable_name().cloned())
-                    .map(Into::into)
-                    .collect();
-                    
+                    let arg_names: Vec<String> = f
+                        .arguments
+                        .into_iter()
+                        .filter_map(|arg| arg.names.get_variable_name().cloned())
+                        .map(Into::into)
+                        .collect();
+
                     let lets = self.get_lets_not_in_parameters(arg_names);
 
                     code = String::new();
@@ -256,13 +261,7 @@ impl Repl {
                 let name: Option<String> = f.name.map(|spanned| spanned.1.into());
                 self.run_fn(code, name)
             }
-        };
-
-        if let Ok(_) = result {
-            println!("Definition added");
         }
-
-        result
     }
 
     fn run_statement(&mut self, statement: UntypedStatement, src: &str) -> Result<(), Error> {
@@ -278,17 +277,22 @@ impl Repl {
                 let code = String::from(&src[start..end]);
                 self.run_expr(code)
             }
-            Statement::Assignment(a) => {
-                if let Pattern::Variable { name, ..} = a.pattern {
+            Statement::Assignment(a) => match a.pattern {                
+                Pattern::Variable { name, .. } => {
                     let end = a.value.location().end as usize;
-
                     let code = String::from(&src[start..end]);
                     self.run_let(name.into(), code)
-                } else {
-                    println!("Only let with single names are supported.");
+                }
+                Pattern::Discard { .. } => {
+                    let end = a.value.location().end as usize;
+                    let code = String::from(&src[start..end]);
+                    self.run_expr(code)
+                }
+                _ => {
+                    println!("patterns are not supported in let statements.");
                     Ok(())
                 }
-            }
+            },
         }
     }
 
@@ -323,7 +327,7 @@ impl Repl {
                 break;
             }
         }
-        
+
         self.fns.push((code, name));
         self.run_code(EntryKind::Other)
     }
