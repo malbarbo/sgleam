@@ -998,7 +998,7 @@ dependencies = [
 [[package]]
 name = "gleam-core"
 version = "1.9.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#d263ad88e58cf073789382695f50446b790391a6"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#f7bda2d97e0ef722b4ca28534dbaa72fe0955366"
 dependencies = [
  "age",
  "askama",

@@ -85,6 +85,11 @@ fn repl_generic_fn() {
 }
 
 #[test]
+fn repl_anonymous_fn() {
+    assert_eq!(repl_exec("fn () { 1 }"), "//fn() { ... }");
+}
+
+#[test]
 fn repl_quit() {
     assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
 }

@@ -3,6 +3,7 @@ use gleam_core::{
     parse::{
         error::ParseError,
         lexer::{self, LexResult},
+        token::Token,
         Parser,
     },
 };
@@ -29,6 +30,10 @@ where
     T: Iterator<Item = LexResult>,
 {
     fn parse_definition_or_statement(parser: &mut Self) -> Result<Option<ReplItem>, ParseError> {
+        // special case for anonymous function
+        if let (Some((_, Token::Fn, _)), Some((_, Token::LeftParen, _))) = parser.tok01() {
+            return Ok(parser.parse_statement()?.map(ReplItem::ReplStatement));
+        }
         if let Some(def) = parser.parse_definition()? {
             return Ok(Some(ReplItem::ReplDefinition(def)));
         }
