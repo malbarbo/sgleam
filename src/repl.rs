@@ -193,7 +193,7 @@ impl Repl {
                         .expect("main function")
                         .return_type
                         .clone();
-                    println!("{}", type_to_string(type_));
+                    println!("{}", type_to_string(module, &type_));
                 } else {
                     javascript::run_main(&self.context, &module_name, MainFunction::Main, false);
                 }
@@ -407,7 +407,7 @@ impl Repl {
             .clone();
 
         self.vars
-            .insert(name.into(), (index, type_to_string(return_type)));
+            .insert(name.into(), (index, type_to_string(module, &return_type)));
 
         true
     }

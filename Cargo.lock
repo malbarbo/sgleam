@@ -998,7 +998,7 @@ dependencies = [
 [[package]]
 name = "gleam-core"
 version = "1.9.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#e3729718fffe50a9b7458a149e47440a5b87026f"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#d263ad88e58cf073789382695f50446b790391a6"
 dependencies = [
  "age",
  "askama",
@@ -2793,7 +2793,7 @@ version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf221c93e13a30d793f7645a0e7762c55d169dbb0a49671918a2319d289b10bb"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

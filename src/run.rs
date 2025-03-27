@@ -118,8 +118,8 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     match &smain.arguments[..] {
         [] => Ok(MainFunction::Main),
         // TODO: make the signatures generic, also in show_error
-        [arg] if type_to_string(arg.type_.clone()) == "String" => Ok(MainFunction::SmainStdin),
-        [arg] if type_to_string(arg.type_.clone()) == "List(String)" => {
+        [arg] if type_to_string(module, &arg.type_) == "String" => Ok(MainFunction::SmainStdin),
+        [arg] if type_to_string(module, &arg.type_) == "List(String)" => {
             Ok(MainFunction::SmainStdinLines)
         }
         _ => Err(SgleamError::InvalidSMain {
@@ -130,7 +130,7 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
                     .iter()
                     .map(|arg| arg.type_.clone())
                     .collect::<Vec<_>>();
-                fn_type_to_string(&args[..], smain.return_type.clone()).into()
+                fn_type_to_string(module, &args[..], smain.return_type.clone()).into()
             },
         }),
     }

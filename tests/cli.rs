@@ -95,14 +95,22 @@ fn repl_type() {
     assert_eq!(repl_exec(&format!("{TYPE} int.add")), "fn(Int, Int) -> Int");
     assert_eq!(
         repl_exec(&format!("{TYPE} list.filter_map")),
-        "fn(List(a), fn(a) -> Result(b, c)) -> List(b)"
+        "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
     // :type does not evaluate
     assert_eq!(
         repl_exec(&format!("{TYPE} io.debug(Ok(1))")),
-        "Result(Int, a)", // without the io.debug side effect
+        "Result(Int, b)", // without the io.debug side effect
     );
     // TODO: check that :type let x = 10 does not create x
+}
+
+#[test]
+fn repl_type_module() {
+    assert_eq!(
+        repl_exec(&format!("type List {{}}\n{TYPE} list.map")),
+        "fn(gleam.List(b), fn(b) -> c) -> gleam.List(c)"
+    );
 }
 
 #[test]

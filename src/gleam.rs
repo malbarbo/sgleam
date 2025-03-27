@@ -9,7 +9,7 @@ use gleam_core::{
     io::{memory::InMemoryFileSystem, FileSystemWriter},
     javascript::is_bigint_enabled,
     parse::parse_module,
-    type_::{Type, TypeVar},
+    type_::{printer::Printer, Type},
     uid::UniqueIdGenerator,
     warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
     Error, Warning,
@@ -106,77 +106,18 @@ pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
 }
 
 // FIXME: check in the lsp module how the action "Add type annotation" works
-pub fn type_to_string(type_: Arc<Type>) -> String {
-    type_to_string_unbonds(type_, &mut vec![])
+pub fn type_to_string(module: &Module, type_: &Type) -> String {
+    Printer::new(&module.ast.names).print_type(type_).into()
 }
 
-pub fn fn_type_to_string(args: &[Arc<Type>], return_type: Arc<Type>) -> String {
-    fn_type_to_string_unbounds(args, return_type, &mut vec![])
-}
-
-pub fn fn_type_to_string_unbounds(
-    args: &[Arc<Type>],
-    return_type: Arc<Type>,
-    unbounds: &mut Vec<Arc<Type>>,
-) -> String {
-    let args = args
-        .iter()
-        .map(|arg| type_to_string_unbonds(arg.clone(), unbounds))
-        .collect::<Vec<_>>()
-        .join(", ");
-    let return_type = type_to_string_unbonds(return_type, unbounds);
-    format!("fn({args}) -> {return_type}")
-}
-
-fn type_to_string_unbonds(type_: Arc<Type>, unbounds: &mut Vec<Arc<Type>>) -> String {
-    if let Some((_, return_type)) = type_.named_type_name() {
-        if let Some(constructor) = type_.constructor_types() {
-            if !constructor.is_empty() {
-                let ctypes = constructor
-                    .into_iter()
-                    .map(|type_| type_to_string_unbonds(type_, unbounds))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                return format!("{return_type}({ctypes})");
-            }
-        }
-        return return_type.into();
-    }
-
-    if let Some((args, return_type)) = type_.fn_types() {
-        return fn_type_to_string_unbounds(&args, return_type, unbounds);
-    }
-
-    if let Some(types_) = type_.tuple_types() {
-        let types_ = types_
-            .iter()
-            .map(|type_| type_to_string_unbonds(type_.clone(), unbounds))
-            .collect::<Vec<_>>()
-            .join(", ");
-        return format!("#({types_})");
-    }
-
-    if let Type::Var { type_: t } = &*type_ {
-        let type_ = if let TypeVar::Link { type_ } = t.borrow().clone() {
-            type_
-        } else {
-            type_.clone()
-        };
-
-        let pos = unbounds
-            .iter()
-            .position(|t| *t == type_)
-            .unwrap_or_else(|| {
-                let pos = unbounds.len();
-                unbounds.push(type_);
-                pos
-            });
-        return char::from_u32('a' as u32 + pos as u32)
-            .expect("A char from u32")
-            .into();
-    }
-
-    panic!("Unknow type\n{:#?}", type_);
+pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], retrn: Arc<Type>) -> String {
+    type_to_string(
+        module,
+        &Type::Fn {
+            args: args.into(),
+            retrn,
+        },
+    )
 }
 
 // TODO: move this function to Project
