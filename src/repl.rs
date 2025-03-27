@@ -249,19 +249,19 @@ impl Repl {
             Definition::Function(f) => {
                 let end = f.end_position as usize;
                 let mut code = String::from(&src[start..end]);
-                // Add all lets in the beggining of the function.
-                if let Some((signature, body)) = code.clone().split_once('{') {
-                    let args: Vec<String> = f
-                        .arguments
-                        .into_iter()
-                        .filter_map(|arg| arg.names.get_variable_name().map(String::from))
-                        .collect();
 
-                    let lets = self.get_lets(&args);
+                let args: Vec<String> = f
+                    .arguments
+                    .into_iter()
+                    .filter_map(|arg| arg.names.get_variable_name().map(String::from))
+                    .collect();
 
-                    code = String::new();
-                    code.push_str(&format!("{signature} {{ {lets} {body}"));
-                }
+                let lets = self.get_lets(&args);
+
+                code.insert_str(
+                    f.body.first().location().start as usize - start,
+                    &format!("\n  {lets}"),
+                );
 
                 let name: Option<String> = f.name.map(|spanned| spanned.1.into());
                 self.run_fn(code, name)

@@ -90,6 +90,21 @@ fn repl_anonymous_fn() {
 }
 
 #[test]
+fn repl_fn_capture() {
+    assert_eq!(
+        repl_exec(&formatdoc! { r#"
+    let a = 1
+    let b = 2
+    fn fun(a) {{
+        a + b
+    }}
+    fun(10)
+    "#}),
+        "1\n2\n12"
+    );
+}
+
+#[test]
 fn repl_quit() {
     assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
 }
