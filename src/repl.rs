@@ -38,13 +38,19 @@ pub fn welcome_message() -> String {
 }
 
 #[derive(Clone)]
+struct Value {
+    index: usize,
+    type_: String,
+}
+
+#[derive(Clone)]
 pub struct Repl {
     user_import: Option<String>,
     imports: Vec<String>,
     consts: Vec<String>,
     types: Vec<String>,
     fns: Vec<(String, Option<String>)>,
-    vars: HashMap<String, (usize, String)>,
+    vars: HashMap<String, Value>,
     project: Project,
     context: Context,
     type_: bool,
@@ -374,11 +380,11 @@ impl Repl {
 
     fn get_lets(&mut self, exclude: &[String]) -> String {
         let mut lets = String::new();
-        for (name, (index, ty)) in &self.vars {
+        for (name, Value { index, type_ }) in &self.vars {
             if !exclude.contains(name) {
                 swriteln!(
                     lets,
-                    r#"  let {name} = fn () -> {ty} {{ repl_load({index}) }} ()"#
+                    r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
                 );
             }
         }
@@ -406,8 +412,13 @@ impl Repl {
             .return_type
             .clone();
 
-        self.vars
-            .insert(name.into(), (index, type_to_string(module, &return_type)));
+        self.vars.insert(
+            name.into(),
+            Value {
+                index,
+                type_: type_to_string(module, &return_type),
+            },
+        );
 
         true
     }
