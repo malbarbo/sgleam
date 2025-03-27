@@ -49,7 +49,7 @@ pub struct Repl {
     imports: Vec<String>,
     consts: Vec<String>,
     types: Vec<String>,
-    fns: Vec<(String, Option<String>)>,
+    fns: HashMap<String, String>,
     vars: HashMap<String, Value>,
     project: Project,
     context: Context,
@@ -73,7 +73,7 @@ impl Repl {
             imports,
             consts: vec![],
             types: vec![],
-            fns: vec![],
+            fns: HashMap::new(),
             vars: HashMap::new(),
             project,
             context: javascript::create_context(fs, Project::out().into())?,
@@ -263,8 +263,7 @@ impl Repl {
                     &format!("\n  {lets}"),
                 );
 
-                let name: Option<String> = f.name.map(|spanned| spanned.1.into());
-                self.run_fn(code, name)
+                self.run_fn(f.name.expect("A function must have a name").1.into(), code)
             }
         }
     }
@@ -325,15 +324,8 @@ impl Repl {
         self.run_code(EntryKind::Other)
     }
 
-    fn run_fn(&mut self, code: String, name: Option<String>) -> Result<(), Error> {
-        for (i, (_, other_name)) in self.fns.iter().enumerate() {
-            if !other_name.is_none() && *other_name == name {
-                let _ = self.fns.remove(i);
-                break;
-            }
-        }
-
-        self.fns.push((code, name));
+    fn run_fn(&mut self, name: String, code: String) -> Result<(), Error> {
+        self.fns.insert(name, code);
         self.run_code(EntryKind::Other)
     }
 
@@ -372,8 +364,7 @@ impl Repl {
     }
 
     fn add_fns(&self, src: &mut String) {
-        for fn_ in &self.fns {
-            let (code, _) = fn_;
+        for code in self.fns.values() {
             swriteln!(src, "{code}");
         }
     }
