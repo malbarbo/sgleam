@@ -342,7 +342,7 @@ impl Repl {
     }
 
     fn run_use(&mut self, _code: String) -> Result<(), Error> {
-        println!("use statements are not supported");
+        println!("use statements are not supported outside blocks.");
         Ok(())
     }
 

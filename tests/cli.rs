@@ -105,6 +105,15 @@ fn repl_fn_capture() {
 }
 
 #[test]
+fn repl_use() {
+    assert_eq!(
+        repl_exec("use x <- result.try(Ok(10))\nOk(x)"),
+        "use statements are not supported outside blocks."
+    );
+    assert_eq!(repl_exec("{use x <- result.try(Ok(10))\nOk(x)}"), "Ok(10)");
+}
+
+#[test]
 fn repl_quit() {
     assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
 }
