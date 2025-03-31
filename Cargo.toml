@@ -7,21 +7,28 @@ default-run = "sgleam"
 [dependencies]
 camino = "1.1.9"
 clap = { version = "4", features = ["derive"] }
-dirs = "5"
 ecow = "0.2.3"
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam" }
 im = "15.1.0"
 indoc = "2.0.5"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = [
-    "loader",
+    "loader", "bindgen"
 ] }
-rustyline = { version = "14", features = ["derive"] }
 tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"
 tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 vec1 = "1.12.1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+# A transitive dependency needed to compile into wasm32-unknown-unknown
+# See https://docs.rs/getrandom/latest/getrandom/index.html#webassembly-support
+getrandom = { version = "0", features = ["js"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+dirs = "5"
+rustyline = { version = "14", features = ["derive"] }
 
 [profile.release]
 opt-level = 2

@@ -6,7 +6,15 @@ pub mod logger;
 pub mod panic;
 pub mod parser;
 pub mod repl;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod repl_reader;
+
+#[cfg(target_arch = "wasm32")]
+pub mod repl_reader_wasm;
+
+#[cfg(target_arch = "wasm32")]
+pub use repl_reader_wasm as repl_reader;
+
 pub mod run;
 
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
