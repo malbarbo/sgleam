@@ -1,10 +1,11 @@
+pub mod engine;
 pub mod error;
 pub mod format;
 pub mod gleam;
-pub mod javascript;
 pub mod logger;
 pub mod panic;
 pub mod parser;
+pub mod quickjs;
 pub mod repl;
 pub mod repl_reader;
 pub mod run;

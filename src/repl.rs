@@ -7,13 +7,12 @@ use gleam_core::{
     Error,
 };
 use indoc::formatdoc;
-use rquickjs::{Array, Context};
 use vec1::Vec1;
 
 use crate::{
+    engine::{Engine, MainFunction},
     error::{show_error, SgleamError},
     gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
-    javascript::{self, MainFunction},
     parser::{self, ReplItem},
     repl_reader::ReplReader,
     run::get_function,
@@ -45,7 +44,7 @@ struct Value {
 }
 
 #[derive(Clone)]
-pub struct Repl {
+pub struct Repl<E: Engine> {
     user_import: Option<String>,
     imports: Vec<String>,
     consts: Vec<String>,
@@ -53,13 +52,13 @@ pub struct Repl {
     fns: HashMap<String, String>,
     vars: HashMap<String, Value>,
     project: Project,
-    context: Context,
+    engine: E,
     iter: usize,
     var_index: usize,
 }
 
-impl Repl {
-    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl, SgleamError> {
+impl<E: Engine> Repl<E> {
+    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
         let imports = GLEAM_MODULES_NAMES.iter().map(|s| s.to_string()).collect();
         let fs = project.fs.clone();
         Ok(Repl {
@@ -70,7 +69,7 @@ impl Repl {
             fns: HashMap::new(),
             vars: HashMap::new(),
             project,
-            context: javascript::create_context(fs, Project::out().into())?,
+            engine: E::new(fs),
             iter: 0,
             var_index: 0,
         })
@@ -255,9 +254,27 @@ impl Repl {
 
         let module = self.compile(&src)?.split_off_first().0;
 
-        javascript::run_main(&self.context, &module.name, MainFunction::Main, false);
+        self.engine
+            .run_main(&module.name, MainFunction::Main, false);
 
-        if self.try_save_var(name, self.var_index, &module) {
+        if self.engine.has_var(self.var_index) {
+            let return_type = module
+                .ast
+                .definitions
+                .iter()
+                .filter_map(|d| d.main_function())
+                .next()
+                .expect("The main function")
+                .return_type
+                .clone();
+
+            self.vars.insert(
+                name.into(),
+                Value {
+                    index: self.var_index,
+                    type_: type_to_string(&module, &return_type),
+                },
+            );
             self.var_index += 1;
         }
 
@@ -268,7 +285,8 @@ impl Repl {
         let mut src = self.build_source();
         self.add_expr(&mut src, code);
         let module = self.compile(&src)?.split_off_first().0;
-        javascript::run_main(&self.context, &module.name, MainFunction::Main, false);
+        self.engine
+            .run_main(&module.name, MainFunction::Main, false);
         Ok(())
     }
 
@@ -357,38 +375,6 @@ impl Repl {
             }
         }
         lets
-    }
-
-    fn try_save_var(&mut self, name: &str, index: usize, module: &Module) -> bool {
-        if !self.context.with(|ctx| {
-            ctx.globals()
-                .get::<_, Array>("repl_vars")
-                .map(|a| index < a.len())
-                .unwrap_or(false)
-        }) {
-            // the expression crashed and repl_save was not called
-            return false;
-        }
-
-        let return_type = module
-            .ast
-            .definitions
-            .iter()
-            .filter_map(|d| d.main_function())
-            .next()
-            .expect("The main function")
-            .return_type
-            .clone();
-
-        self.vars.insert(
-            name.into(),
-            Value {
-                index,
-                type_: type_to_string(module, &return_type),
-            },
-        );
-
-        true
     }
 }
 

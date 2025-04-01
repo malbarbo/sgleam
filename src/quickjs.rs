@@ -12,25 +12,43 @@ use rquickjs::{
     loader::{Loader, Resolver},
     module::Declared,
     qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
-    CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise, Result,
-    Runtime, Value,
+    Array, CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise,
+    Result, Runtime, Value,
 };
 
-use crate::{swriteln, STACK_SIZE};
+use crate::{
+    engine::{Engine, MainFunction},
+    gleam::Project,
+    swriteln, STACK_SIZE,
+};
 
-#[derive(Debug, Clone, Copy)]
-pub enum MainFunction {
-    Main,
-    SmainStdin,
-    SmainStdinLines,
+#[derive(Clone)]
+pub struct QuickJsEngine {
+    context: Context,
 }
 
-impl MainFunction {
-    fn name(&self) -> &str {
-        match self {
-            MainFunction::Main => "main",
-            _ => "smain",
+impl Engine for QuickJsEngine {
+    fn new(fs: InMemoryFileSystem) -> Self {
+        QuickJsEngine {
+            context: create_context(fs, Project::out().into()).unwrap(),
         }
+    }
+
+    fn run_main(&self, module: &str, main: MainFunction, show_output: bool) {
+        run_main(&self.context, module, main, show_output);
+    }
+
+    fn has_var(&self, index: usize) -> bool {
+        self.context.with(|ctx| {
+            ctx.globals()
+                .get::<_, Array>("repl_vars")
+                .map(|a| index < a.len())
+                .unwrap_or(false)
+        })
+    }
+
+    fn run_tests(&self, modules: &[&str]) {
+        run_tests(&self.context, modules);
     }
 }
 

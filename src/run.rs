@@ -6,11 +6,13 @@ use gleam_core::{
 };
 
 use crate::{
+    engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
-    javascript::{self, MainFunction},
     repl::{welcome_message, Repl},
 };
+
+use crate::quickjs::QuickJsEngine as JsEngine;
 
 const SGLEAM_SMAIN: &str = "smain";
 
@@ -27,7 +29,7 @@ pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamEr
         get_module(&modules, name)
     });
 
-    Repl::new(project, module)?.run()?;
+    Repl::<JsEngine>::new(project, module)?.run()?;
 
     Ok(())
 }
@@ -40,8 +42,7 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
 
     if let Some(module) = get_module(&modules, name) {
         let main = get_main(module)?;
-        let context = javascript::create_context(project.fs.clone(), Project::out().into())?;
-        javascript::run_main(&context, &module.name, main, true);
+        JsEngine::new(project.fs.clone()).run_main(&module.name, main, true);
     } else {
         // The compiler ignored the file because of the name and printed a warning.
     }
@@ -72,10 +73,8 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
             }
         })
         .collect();
-    javascript::run_tests(
-        &javascript::create_context(project.fs.clone(), Project::out().into())?,
-        &modules,
-    );
+
+    JsEngine::new(project.fs.clone()).run_tests(&modules);
     Ok(())
 }
 
