@@ -119,8 +119,10 @@ fn repl_quit() {
 }
 
 #[test]
-fn repl_type() {
+fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
+    // TODO: check that :type let x = 10 does not create x
+    assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
     assert_eq!(repl_exec(&format!("{TYPE} int.add")), "fn(Int, Int) -> Int");
     assert_eq!(
         repl_exec(&format!("{TYPE} list.filter_map")),
@@ -131,7 +133,22 @@ fn repl_type() {
         repl_exec(&format!("{TYPE} io.debug(Ok(1))")),
         "Result(Int, b)", // without the io.debug side effect
     );
-    // TODO: check that :type let x = 10 does not create x
+}
+
+#[test]
+fn repl_type_cmd_multi() {
+    assert_eq!(
+        repl_exec(&format!("{TYPE} 1 False")),
+        format!("{TYPE}command expects exactly one expression.")
+    );
+}
+
+#[test]
+fn repl_type_cmd_def() {
+    assert_eq!(
+        repl_exec(&format!("{TYPE} const a = 1")),
+        format!("{TYPE}command cannot be used with definitions.")
+    );
 }
 
 #[test]

@@ -1,5 +1,6 @@
 use camino::{Utf8Path, Utf8PathBuf};
 use gleam_core::{
+    ast::{Definition, Function, UntypedDefinition, UntypedExpr},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration, Telemetry,
@@ -105,7 +106,6 @@ pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
     modules.iter().find(|m| m.name == name)
 }
 
-// FIXME: check in the lsp module how the action "Add type annotation" works
 pub fn type_to_string(module: &Module, type_: &Type) -> String {
     Printer::new(&module.ast.names).print_type(type_).into()
 }
@@ -118,6 +118,26 @@ pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], retrn: Arc<Type>) 
             retrn,
         },
     )
+}
+
+pub fn get_definition_src<'a>(def: &UntypedDefinition, src: &'a str) -> &'a str {
+    let start = def.location().start as usize;
+    let end = def.location().end as usize;
+    let end = match def {
+        Definition::TypeAlias(_) | Definition::Import(_) => end,
+        Definition::CustomType(type_) => type_.end_position as usize,
+        Definition::ModuleConstant(const_) => const_.value.location().end as usize,
+        Definition::Function(f) => f.end_position as usize,
+    };
+
+    &src[start..end]
+}
+
+pub fn get_args_names(fun: &Function<(), UntypedExpr>) -> Vec<String> {
+    fun.arguments
+        .iter()
+        .filter_map(|arg| arg.names.get_variable_name().map(String::from))
+        .collect()
 }
 
 // TODO: move this function to Project

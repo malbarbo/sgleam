@@ -8,10 +8,11 @@ use gleam_core::{
 };
 use indoc::formatdoc;
 use rquickjs::{Array, Context};
+use vec1::Vec1;
 
 use crate::{
     error::{show_error, SgleamError},
-    gleam::{compile, get_module, type_to_string, Project},
+    gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
     javascript::{self, MainFunction},
     parser::{self, ReplItem},
     repl_reader::ReplReader,
@@ -53,15 +54,8 @@ pub struct Repl {
     vars: HashMap<String, Value>,
     project: Project,
     context: Context,
-    type_: bool,
     iter: usize,
     var_index: usize,
-}
-
-enum EntryKind {
-    Let(String, String),
-    Expr(String),
-    Other,
 }
 
 impl Repl {
@@ -77,7 +71,6 @@ impl Repl {
             vars: HashMap::new(),
             project,
             context: javascript::create_context(fs, Project::out().into())?,
-            type_: false,
             iter: 0,
             var_index: 0,
         })
@@ -95,12 +88,12 @@ impl Repl {
                 break;
             }
 
-            if let Some(expr) = line_trim.strip_prefix(TYPE) {
-                self.type_ = true;
+            let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
                 input = expr.into();
+                true
             } else {
-                self.type_ = false;
-            }
+                false
+            };
 
             let items = parser::parse_repl(&input).map_err(|error| Error::Parse {
                 path: format!("/src/repl{}.gleam", self.iter).into(),
@@ -117,6 +110,11 @@ impl Repl {
                 Ok(items) => items,
             };
 
+            if type_ && items.len() != 1 {
+                println!("{TYPE}command expects exactly one expression.");
+                continue;
+            }
+
             // FIXME: avoid this clone
             // We clone self so we can rollback if the execution fail
             let repl = (*self).clone();
@@ -124,7 +122,12 @@ impl Repl {
             for item in items {
                 self.iter += 1;
                 let result = match item {
+                    ReplItem::ReplDefinition(_) if type_ => {
+                        println!("{TYPE}command cannot be used with definitions.");
+                        Ok(())
+                    }
                     ReplItem::ReplDefinition(t) => self.run_definition(t, &input),
+                    ReplItem::ReplStatement(_) if type_ => self.run_type_cmd(&input),
                     ReplItem::ReplStatement(s) => self.run_statement(s, &input),
                 };
 
@@ -138,132 +141,61 @@ impl Repl {
         Ok(())
     }
 
-    fn run_code(&mut self, kind: EntryKind) -> Result<(), Error> {
+    fn build_source(&self) -> String {
         let mut src = String::new();
         src.push_str(FNS_REPL);
         self.add_imports(&mut src);
         self.add_consts(&mut src);
         self.add_types(&mut src);
         self.add_fns(&mut src);
+        src
+    }
 
-        match &kind {
-            EntryKind::Let(_, expr) => {
-                // FIXME: can we generate code that generates better error messagens?
-                // Examples of entries that generates poor errors
-                // "pub "
-                // "let"
-                let lets = self.get_lets(&[]);
-                src.push_str(&formatdoc! {"
-                    pub fn main() {{
-                    {lets}
-                      io.debug(repl_save({{
-                        {expr}
-                      }}))
-                    }}
-                    "
-                });
-            }
-            EntryKind::Expr(expr) => {
-                let lets = self.get_lets(&[]);
-                src.push_str(&formatdoc! {"
-                    pub fn main() {{
-                      {lets}
-                      io.debug({{
-                        {expr}
-                      }})
-                    }}
-                    "
-                });
-            }
-            _ => {
-                // main function is not needed
-            }
-        }
-
-        let iter = self.iter;
-        let module_name = format!("repl{iter}");
+    fn compile(&mut self, code: &str) -> Result<Vec1<Module>, Error> {
+        let module_name = format!("repl{}", self.iter);
         let file = format!("{module_name}.gleam");
 
         // TODO: add an option to show the generated code
-        self.project.write_source(&file, &src);
+        self.project.write_source(&file, code);
 
         let result = compile(&mut self.project, true);
 
-        if let Ok(modules) = &result {
-            let module = get_module(modules, &module_name).expect("The repl module");
-            if let EntryKind::Let(_, _) | EntryKind::Expr(_) = &kind {
-                // TODO: change the output for functions (show the function type)
-                // TODO: should we show the type of all expressions? See haskell, elm, ocaml, roc.
-                if self.type_ {
-                    let type_ = get_function(module, "main")
-                        .expect("main function")
-                        .return_type
-                        .clone();
-                    println!("{}", type_to_string(module, &type_));
-                } else {
-                    javascript::run_main(&self.context, &module_name, MainFunction::Main, false);
-                }
-            } else {
-                // Nothing to run, was a definition (type, const, import or fn)
-            }
-
-            if let EntryKind::Let(name, _) = &kind {
-                if self.try_save_var(name, self.var_index, module) {
-                    self.var_index += 1;
-                }
-            }
-        }
-
-        // TODO: Can we remove the file after the compilation?
         self.project
             .fs
             .delete_file(&Project::source().join(file))
             .expect("To delete repl file");
 
-        result.map(|_| ())
+        let mut modules = result?;
+
+        let pos = modules
+            .iter()
+            .position(|module| module.name == module_name)
+            .expect("The repl module");
+
+        let mut modules1 = Vec1::new(modules.swap_remove(pos));
+        modules1.extend(modules);
+
+        Ok(modules1)
     }
 
     fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
-        let start = targeted.definition.location().start as usize;
-        let end = targeted.definition.location().end as usize;
+        let mut src = get_definition_src(&targeted.definition, src).into();
 
-        match targeted.definition {
-            Definition::Import(_) => {
-                let code = String::from(&src[start..end]);
-                self.run_import(code)
-            }
-            Definition::CustomType(t) => {
-                let end = t.end_position as usize;
-                let code = String::from(&src[start..end]);
-                self.run_type(code)
-            }
-            Definition::TypeAlias(_) => {
-                let code = String::from(&src[start..end]);
-                self.run_type(code)
-            }
-            Definition::ModuleConstant(c) => {
-                let end = c.value.location().end as usize;
-                let code = String::from(&src[start..end]);
-                self.run_const(code)
-            }
+        match &targeted.definition {
+            Definition::Import(_) => self.run_import(src),
+            Definition::TypeAlias(_) | Definition::CustomType(_) => self.run_type(src),
+            Definition::ModuleConstant(_) => self.run_const(src),
             Definition::Function(f) => {
-                let end = f.end_position as usize;
-                let mut code = String::from(&src[start..end]);
+                let lets = self.gen_lets(&get_args_names(f));
 
-                let args: Vec<String> = f
-                    .arguments
-                    .into_iter()
-                    .filter_map(|arg| arg.names.get_variable_name().map(String::from))
-                    .collect();
-
-                let lets = self.get_lets(&args);
-
-                code.insert_str(
-                    f.body.first().location().start as usize - start,
+                src.insert_str(
+                    (f.body.first().location().start - targeted.definition.location().start)
+                        as usize,
                     &format!("\n  {lets}"),
                 );
 
-                self.run_fn(f.name.expect("A function must have a name").1.into(), code)
+                let name = f.name.clone().expect("A function must have a name").1;
+                self.run_fn(name.into(), src)
             }
         }
     }
@@ -277,20 +209,15 @@ impl Repl {
                 let code = String::from(&src[start..end]);
                 self.run_use(code)
             }
-            Statement::Expression(_) => {
-                let code = String::from(&src[start..end]);
-                self.run_expr(code)
-            }
+            Statement::Expression(_) => self.run_expr(&src[start..end]),
             Statement::Assignment(a) => match a.pattern {
                 Pattern::Variable { name, .. } => {
                     let end = a.value.location().end as usize;
-                    let code = String::from(&src[start..end]);
-                    self.run_let(name.into(), code)
+                    self.run_let(name.as_str(), &src[start..end])
                 }
                 Pattern::Discard { .. } => {
                     let end = a.value.location().end as usize;
-                    let code = String::from(&src[start..end]);
-                    self.run_expr(code)
+                    self.run_expr(&src[start..end])
                 }
                 _ => {
                     println!("patterns are not supported in let statements.");
@@ -298,6 +225,51 @@ impl Repl {
                 }
             },
         }
+    }
+
+    fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
+        let mut src = self.build_source();
+        self.add_expr(&mut src, code);
+        let module = self.compile(&src)?.split_off_first().0;
+        let main = &get_function(&module, "main").expect("main function");
+        println!("{}", type_to_string(&module, &main.return_type));
+        Ok(())
+    }
+
+    fn run_check(&mut self) -> Result<(), Error> {
+        self.compile(&self.build_source()).map(|_| ())
+    }
+
+    fn run_let(&mut self, name: &str, code: &str) -> Result<(), Error> {
+        let mut src = self.build_source();
+        let lets = self.gen_lets(&[]);
+        src.push_str(&formatdoc! {"
+            pub fn main() {{
+              {lets}
+              io.debug(repl_save({{
+            {code}
+              }}))
+            }}
+            "
+        });
+
+        let module = self.compile(&src)?.split_off_first().0;
+
+        javascript::run_main(&self.context, &module.name, MainFunction::Main, false);
+
+        if self.try_save_var(name, self.var_index, &module) {
+            self.var_index += 1;
+        }
+
+        Ok(())
+    }
+
+    fn run_expr(&mut self, code: &str) -> Result<(), Error> {
+        let mut src = self.build_source();
+        self.add_expr(&mut src, code);
+        let module = self.compile(&src)?.split_off_first().0;
+        javascript::run_main(&self.context, &module.name, MainFunction::Main, false);
+        Ok(())
     }
 
     fn run_import(&mut self, _code: String) -> Result<(), Error> {
@@ -315,22 +287,18 @@ impl Repl {
     fn run_const(&mut self, code: String) -> Result<(), Error> {
         // TODO: improve error message for const redefinition
         self.consts.push(code);
-        self.run_code(EntryKind::Other)
+        self.run_check()
     }
 
     fn run_type(&mut self, code: String) -> Result<(), Error> {
         // TODO: improve error message for type redefinition
         self.types.push(code);
-        self.run_code(EntryKind::Other)
+        self.run_check()
     }
 
     fn run_fn(&mut self, name: String, code: String) -> Result<(), Error> {
         self.fns.insert(name, code);
-        self.run_code(EntryKind::Other)
-    }
-
-    fn run_let(&mut self, name: String, code: String) -> Result<(), Error> {
-        self.run_code(EntryKind::Let(name, code))
+        self.run_check()
     }
 
     fn run_use(&mut self, _code: String) -> Result<(), Error> {
@@ -338,8 +306,17 @@ impl Repl {
         Ok(())
     }
 
-    fn run_expr(&mut self, code: String) -> Result<(), Error> {
-        self.run_code(EntryKind::Expr(code))
+    fn add_expr(&self, src: &mut String, expr: &str) {
+        let lets = self.gen_lets(&[]);
+        src.push_str(&formatdoc! {"
+            pub fn main() {{
+              {lets}
+              io.debug({{
+            {expr}
+              }})
+            }}
+            "
+        });
     }
 
     fn add_imports(&self, src: &mut String) {
@@ -369,7 +346,7 @@ impl Repl {
         }
     }
 
-    fn get_lets(&mut self, exclude: &[String]) -> String {
+    fn gen_lets(&self, exclude: &[String]) -> String {
         let mut lets = String::new();
         for (name, Value { index, type_ }) in &self.vars {
             if !exclude.contains(name) {
