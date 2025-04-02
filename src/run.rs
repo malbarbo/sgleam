@@ -42,7 +42,7 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
 
     if let Some(module) = get_module(&modules, name) {
         let main = get_main(module)?;
-        JsEngine::new(project.fs.clone()).run_main(&module.name, main, true);
+        JsEngine::new(project.fs.clone()).run_main(&module.name, main, main != MainFunction::Main);
     } else {
         // The compiler ignored the file because of the name and printed a warning.
     }

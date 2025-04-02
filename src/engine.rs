@@ -1,6 +1,6 @@
 use gleam_core::io::memory::InMemoryFileSystem;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MainFunction {
     Main,
     SmainStdin,
