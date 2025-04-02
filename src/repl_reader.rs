@@ -39,10 +39,7 @@ impl Iterator for ReplReader {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut editor = match self.editor.take() {
-            None => return None,
-            Some(editor) => editor,
-        };
+        let mut editor = self.editor.take()?;
 
         match editor.readline(PROMPT) {
             Ok(input) => {

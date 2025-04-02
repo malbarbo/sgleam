@@ -1,4 +1,8 @@
-use std::{env, path::PathBuf, process::Command};
+use std::{
+    env,
+    path::{Path, PathBuf},
+    process::Command,
+};
 
 pub fn main() {
     println!("cargo::rerun-if-changed=build.rs");
@@ -17,7 +21,7 @@ pub fn main() {
     );
 }
 
-fn create_tar(outdir: &PathBuf, name: &str, hash: &str) {
+fn create_tar(outdir: &Path, name: &str, hash: &str) {
     let stdlib = &outdir.join("gleam-stdlib");
     let tar = outdir.join(name);
 

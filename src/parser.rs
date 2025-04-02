@@ -40,6 +40,6 @@ where
         if let Some(sta) = parser.parse_statement()? {
             return Ok(Some(ReplItem::ReplStatement(sta)));
         }
-        return Ok(None);
+        Ok(None)
     }
 }
