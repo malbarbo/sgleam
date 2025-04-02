@@ -7,9 +7,10 @@ use gleam_core::{
 
 use crate::{
     engine::{Engine, MainFunction},
-    error::SgleamError,
+    error::{show_error, SgleamError},
     gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
-    repl::{welcome_message, Repl},
+    repl::{welcome_message, Repl, ReplOutput},
+    repl_reader::ReplReader,
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -23,13 +24,20 @@ pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamEr
 
     let mut project = Project::default();
     let modules = copy_files_and_build(&mut project, paths)?;
-    let module = paths.get(0).and_then(|input| {
+    let module = paths.first().and_then(|input| {
         let name = input.with_extension("");
         let name = name.as_str();
         get_module(&modules, name)
     });
 
-    Repl::<JsEngine>::new(project, module)?.run()?;
+    let mut repl = Repl::<JsEngine>::new(project, module)?;
+    for input in ReplReader::new()? {
+        match repl.run(&input) {
+            Err(err) => show_error(&err),
+            Ok(ReplOutput::Quit) => break,
+            _ => continue,
+        }
+    }
 
     Ok(())
 }

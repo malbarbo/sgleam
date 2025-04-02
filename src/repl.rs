@@ -11,10 +11,9 @@ use vec1::Vec1;
 
 use crate::{
     engine::{Engine, MainFunction},
-    error::{show_error, SgleamError},
+    error::SgleamError,
     gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
     parser::{self, ReplItem},
-    repl_reader::ReplReader,
     run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
@@ -38,12 +37,6 @@ pub fn welcome_message() -> String {
 }
 
 #[derive(Clone)]
-struct Value {
-    index: usize,
-    type_: String,
-}
-
-#[derive(Clone)]
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
     imports: Vec<String>,
@@ -53,8 +46,19 @@ pub struct Repl<E: Engine> {
     vars: HashMap<String, Value>,
     project: Project,
     engine: E,
-    iter: usize,
+    iter: (usize, usize),
     var_index: usize,
+}
+
+pub enum ReplOutput {
+    Quit,
+    StdOut,
+}
+
+#[derive(Clone)]
+struct Value {
+    index: usize,
+    type_: String,
 }
 
 impl<E: Engine> Repl<E> {
@@ -70,74 +74,60 @@ impl<E: Engine> Repl<E> {
             vars: HashMap::new(),
             project,
             engine: E::new(fs),
-            iter: 0,
+            iter: (0, 0),
             var_index: 0,
         })
     }
 
-    pub fn run(&mut self) -> Result<(), SgleamError> {
-        let reader = ReplReader::new()?;
-        for mut input in reader {
-            let line_trim = input.trim();
-            if line_trim.is_empty() || line_trim.starts_with("//") {
-                continue;
-            }
+    pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
+        self.iter = (self.iter.0 + 1, 0);
+        let line_trim = input.trim();
 
-            if line_trim == QUIT {
-                break;
-            }
+        if line_trim == QUIT {
+            return Ok(ReplOutput::Quit);
+        }
 
-            let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
-                input = expr.into();
-                true
-            } else {
-                false
-            };
+        let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
+            input = expr;
+            true
+        } else {
+            false
+        };
 
-            let items = parser::parse_repl(&input).map_err(|error| Error::Parse {
-                path: format!("/src/repl{}.gleam", self.iter).into(),
-                src: input.clone().into(),
-                error,
-            });
+        let items = parser::parse_repl(input).map_err(|error| Error::Parse {
+            path: format!("/src/{}.gleam", self.module_name()).into(),
+            src: input.into(),
+            error,
+        })?;
 
-            let items = match items {
-                Err(err) => {
-                    self.iter += 1;
-                    show_error(&SgleamError::Gleam(err));
+        if type_ && items.len() != 1 {
+            println!("{TYPE}command expects exactly one expression.");
+            return Ok(ReplOutput::StdOut);
+        }
+
+        // FIXME: avoid this clone
+        // We clone self so we can rollback if the execution fail
+        let repl = (*self).clone();
+
+        for item in items {
+            self.iter.1 += 1;
+            let result = match item {
+                ReplItem::ReplDefinition(_) if type_ => {
+                    println!("{TYPE}command cannot be used with definitions.");
                     continue;
                 }
-                Ok(items) => items,
+                ReplItem::ReplDefinition(t) => self.run_definition(t, input),
+                ReplItem::ReplStatement(_) if type_ => self.run_type_cmd(input),
+                ReplItem::ReplStatement(s) => self.run_statement(s, input),
             };
 
-            if type_ && items.len() != 1 {
-                println!("{TYPE}command expects exactly one expression.");
-                continue;
-            }
-
-            // FIXME: avoid this clone
-            // We clone self so we can rollback if the execution fail
-            let repl = (*self).clone();
-
-            for item in items {
-                self.iter += 1;
-                let result = match item {
-                    ReplItem::ReplDefinition(_) if type_ => {
-                        println!("{TYPE}command cannot be used with definitions.");
-                        Ok(())
-                    }
-                    ReplItem::ReplDefinition(t) => self.run_definition(t, &input),
-                    ReplItem::ReplStatement(_) if type_ => self.run_type_cmd(&input),
-                    ReplItem::ReplStatement(s) => self.run_statement(s, &input),
-                };
-
-                if let Err(err) = result {
-                    show_error(&SgleamError::Gleam(err));
-                    *self = repl;
-                    break;
-                }
+            if let Err(err) = result {
+                *self = repl;
+                return Err(SgleamError::Gleam(err));
             }
         }
-        Ok(())
+
+        Ok(ReplOutput::StdOut)
     }
 
     fn build_source(&self) -> String {
@@ -150,8 +140,12 @@ impl<E: Engine> Repl<E> {
         src
     }
 
+    fn module_name(&self) -> String {
+        format!("repl{}_{}", self.iter.0, self.iter.1)
+    }
+
     fn compile(&mut self, code: &str) -> Result<Vec1<Module>, Error> {
-        let module_name = format!("repl{}", self.iter);
+        let module_name = self.module_name();
         let file = format!("{module_name}.gleam");
 
         // TODO: add an option to show the generated code
@@ -204,10 +198,7 @@ impl<E: Engine> Repl<E> {
         let end = statement.location().end as usize;
 
         match statement {
-            Statement::Use(_) => {
-                let code = String::from(&src[start..end]);
-                self.run_use(code)
-            }
+            Statement::Use(_) => self.run_use(&src[start..end]),
             Statement::Expression(_) => self.run_expr(&src[start..end]),
             Statement::Assignment(a) => match a.pattern {
                 Pattern::Variable { name, .. } => {
@@ -258,24 +249,13 @@ impl<E: Engine> Repl<E> {
             .run_main(&module.name, MainFunction::Main, false);
 
         if self.engine.has_var(self.var_index) {
-            let return_type = module
-                .ast
-                .definitions
-                .iter()
-                .filter_map(|d| d.main_function())
-                .next()
-                .expect("The main function")
-                .return_type
-                .clone();
-
-            self.vars.insert(
-                name.into(),
-                Value {
-                    index: self.var_index,
-                    type_: type_to_string(&module, &return_type),
-                },
-            );
+            let main = get_function(&module, "main").expect("main function");
+            let type_ = type_to_string(&module, &main.return_type);
+            let index = self.var_index;
+            self.vars.insert(name.into(), Value { index, type_ });
             self.var_index += 1;
+        } else {
+            // there was an error and the variable was not saved
         }
 
         Ok(())
@@ -297,9 +277,6 @@ impl<E: Engine> Repl<E> {
         // import gleam/string.{append}
         // import gleam/string.{inspect}
         // -> import gleam/string.{append, inspect}
-        // let new_import = code.trim().strip_prefix("import ").unwrap_or("");
-        // self.imports.push(new_import.into());
-        // self.run_code(EntryKind::Other)
     }
 
     fn run_const(&mut self, code: String) -> Result<(), Error> {
@@ -319,7 +296,7 @@ impl<E: Engine> Repl<E> {
         self.run_check()
     }
 
-    fn run_use(&mut self, _code: String) -> Result<(), Error> {
+    fn run_use(&mut self, _code: &str) -> Result<(), Error> {
         println!("use statements are not supported outside blocks.");
         Ok(())
     }
