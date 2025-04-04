@@ -27,6 +27,7 @@ pub enum SgleamError {
     #[error("quickjs error")]
     QuickJs(rquickjs::Error),
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("rustline error")]
     Rustline(rustyline::error::ReadlineError),
 }
@@ -43,6 +44,7 @@ impl From<rquickjs::Error> for SgleamError {
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<rustyline::error::ReadlineError> for SgleamError {
     fn from(value: rustyline::error::ReadlineError) -> Self {
         SgleamError::Rustline(value)
