@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sgleam Playground</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: monospace;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        #top-bar {
+            background-color: #f0f0f0;
+            padding: 8px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+            border-bottom: 1px solid #ccc;
+        }
+        button {
+            padding: 6px 12px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        button.stop {
+            background-color: #f44336;
+            visibility: hidden;
+        }
+        #container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+        #editor-wrapper {
+            width: 50%;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #editor-panel {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        #repl-panel {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        #resize-handle {
+            width: 8px;
+            background-color: #ddd;
+            cursor: col-resize;
+            transition: background-color 0.2s;
+        }
+        #resize-handle:hover {
+            background-color: #bbb;
+        }
+
+        #repl-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #repl-container {
+            flex: 1;
+            overflow: auto;
+            padding: 8px;
+        }
+        .repl-line {
+            margin-bottom: 8px;
+            white-space: pre-wrap;
+        }
+        .repl-input-container {
+            display: flex;
+            margin-bottom: 8px;
+        }
+        .repl-prompt {
+            color: #0074d9;
+            margin-right: 8px;
+            user-select: none;
+        }
+        .repl-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-family: monospace;
+            caret-color: black;
+        }
+    </style>
+</head>
+<body>
+    <div id="top-bar">
+        <button id="run-button" title="Run (Ctrl+Enter)" disabled>▶ Run</button>
+        <button id="stop-button" class="stop" title="Stop" disabled>■ Stop</button>
+    </div>
+
+    <div id="container">
+        <div id="editor-wrapper">
+            <div id="editor-panel"></div>
+        </div>
+        <div id="resize-handle"></div>
+        <div id="repl-panel">
+            <div id="repl-container"></div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codeflask/1.4.1/codeflask.min.js"></script>
+    <script src="sgleam.js"></script>
+</body>
+</html>

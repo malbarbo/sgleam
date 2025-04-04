@@ -7,17 +7,22 @@ use gleam_core::{
 
 use crate::{
     engine::{Engine, MainFunction},
-    error::{show_error, SgleamError},
+    error::SgleamError,
     gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
-    repl::{welcome_message, Repl, ReplOutput},
-    repl_reader::ReplReader,
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
 
 const SGLEAM_SMAIN: &str = "smain";
 
+#[cfg(not(target_arch = "wasm32"))]
 pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
+    use crate::{
+        error::show_error,
+        repl::{welcome_message, Repl, ReplOutput},
+        repl_reader::ReplReader,
+    };
+
     if !quiet {
         print!("{}", welcome_message());
     }
