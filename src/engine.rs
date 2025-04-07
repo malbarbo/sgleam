@@ -24,4 +24,6 @@ pub trait Engine: Clone {
     fn has_var(&self, index: usize) -> bool;
 
     fn run_tests(&self, modules: &[&str]);
+
+    fn interrupt(&self);
 }

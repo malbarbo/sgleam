@@ -23,6 +23,7 @@ tracing-subscriber = { version = "0.3.18", features = ["fmt", "env-filter"] }
 vec1 = "1.12.1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ctrlc = "3.4.6"
 rustyline = { version = "14", features = ["derive"] }
 
 [profile.release]

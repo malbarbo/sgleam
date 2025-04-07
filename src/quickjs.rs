@@ -5,6 +5,7 @@ use std::{
     fmt::Write as _,
     io::Write as _,
     path::{Component, Path, PathBuf},
+    sync::atomic::{AtomicBool, Ordering},
 };
 
 use rquickjs::{
@@ -29,6 +30,9 @@ pub struct QuickJsEngine {
 
 impl Engine for QuickJsEngine {
     fn new(fs: InMemoryFileSystem) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        ctrlc::set_handler(interrupt).expect("Add crtlc handlers");
+
         QuickJsEngine {
             context: create_context(fs, Project::out().into()).unwrap(),
         }
@@ -50,11 +54,27 @@ impl Engine for QuickJsEngine {
     fn run_tests(&self, modules: &[&str]) {
         run_tests(&self.context, modules);
     }
+
+    // FIXME: handle more than one instance?
+    fn interrupt(&self) {
+        interrupt();
+    }
+}
+
+static STOP: AtomicBool = AtomicBool::new(false);
+
+fn interrupt() {
+    STOP.store(true, Ordering::Relaxed);
+}
+
+fn check_interrupt() -> bool {
+    STOP.swap(false, Ordering::Relaxed)
 }
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
     let runtime = Runtime::new()?;
     runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
+    runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
     runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
     context.with(|ctx| add_console(&ctx)).map(|_| context)
@@ -97,18 +117,23 @@ pub fn run_script(context: &Context, source: String) {
             .catch(&ctx)
         {
             Err(err) => js_show_error(err),
-            Ok(v) => {
-                if let Err(err) = v.finish::<Value>().catch(&ctx) {
-                    js_show_error(err)
+            Ok(v) => match v.finish::<Value>().catch(&ctx) {
+                Err(CaughtError::Exception(value))
+                    if value.message() == Some("interrupted".into()) =>
+                {
+                    println!("interrupted");
                 }
-            }
+                Err(err) => js_show_error(err),
+
+                Ok(_) => (),
+            },
         }
     });
 }
 
 fn js_show_error(err: CaughtError) {
+    // TODO: bump the exception up?
     eprintln!("{}", err);
-    std::process::exit(1);
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {
