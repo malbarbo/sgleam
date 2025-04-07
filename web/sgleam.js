@@ -121,6 +121,7 @@ pub fn main() {
 
     async function loadWasm() {
         var count = 0;
+        const args = [];
         const env = ["RUST_BACKTRACE=1"];
         const response = await fetch("sgleam.wasm");
         const bytes = await response.arrayBuffer();
@@ -260,6 +261,40 @@ pub fn main() {
                 },
                 fd_prestat_dir_name() {
                     console.trace(count++, arguments);
+                    return 0;
+                },
+                args_sizes_get(argc_ptr, argv_buf_size_ptr) {
+                    let argv_buf_size = 0;
+                    for (const arg of args) {
+                        argv_buf_size += arg.length + 1;
+                    }
+                    const dataView = new DataView(instance.exports.memory.buffer);
+                    dataView.setInt32(argc_ptr, args.length, true);
+                    dataView.setInt32(argv_buf_size_ptr, argv_buf_size, true);
+                    return 0;
+                },
+                args_get(argv_ptr, argv_buf) {
+                    const encoder = new TextEncoder();
+                    const argPointers = [];
+
+                    const dataView = new DataView(instance.exports.memory.buffer);
+                    const byteView = new Uint8Array(instance.exports.memory.buffer);
+
+                    let offset = 0;
+                    for (const arg of simulatedArgs) {
+                        const encodedArg = encoder.encode(arg);
+                        argPointers.push(argv_buf + offset);
+                        byteView.set(encodedArg, argv_buf + offset);
+                        offset += encodedArg.length;
+                        byteView[argv_buf + offset] = 0; // Null terminator
+                        offset++;
+                    }
+
+                    for (let i = 0; i < argPointers.length; i++) {
+                        dataView.setInt32(argv_ptr + i * 4, argPointers[i], true);
+                    }
+                    dataView.setInt32(argv_ptr + simulatedArgs.length * 4, 0, true);
+
                     return 0;
                 },
                 random_get(buf, len) {

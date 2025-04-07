@@ -12,11 +12,9 @@ use sgleam::{
     error::{show_error, SgleamError},
     format,
     gleam::find_imports,
-    logger, panic,
     run::{run_check, run_interative, run_main, run_test},
-    STACK_SIZE,
 };
-use std::{process::exit, thread};
+use std::process::exit;
 
 /// The student version of gleam.
 #[derive(Parser)]
@@ -52,13 +50,20 @@ struct Cli {
     /// Input files.
     paths: Vec<String>,
 }
-
+#[cfg(target_arch = "wasm32")]
 fn main() {
-    panic::add_handler();
-    logger::initialise_logger();
+    if let Err(err) = run() {
+        show_error(&err);
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn main() {
+    sgleam::panic::add_handler();
+    sgleam::logger::initialise_logger();
     // Error is handled by the panic hook.
-    let _ = thread::Builder::new()
-        .stack_size(STACK_SIZE)
+    let _ = std::thread::Builder::new()
+        .stack_size(sgleam::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {

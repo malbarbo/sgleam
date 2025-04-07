@@ -1,3 +1,4 @@
+#![allow(clippy::missing_safety_doc)]
 use error::show_error;
 use gleam::{compile, get_module, Project};
 use gleam_core::javascript::set_bigint_enabled;
@@ -13,9 +14,15 @@ pub mod panic;
 pub mod parser;
 pub mod quickjs;
 pub mod repl;
+pub mod run;
+
+#[cfg(target_arch = "wasm32")]
+pub mod repl_reader_wasm;
+#[cfg(target_arch = "wasm32")]
+pub use repl_reader_wasm as repl_reader;
+
 #[cfg(not(target_arch = "wasm32"))]
 pub mod repl_reader;
-pub mod run;
 
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 
@@ -79,7 +86,7 @@ pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
 }
 
 #[no_mangle]
-pub extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
+pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
     assert!(!ptr.is_null());
     unsafe {
         let _ = Vec::from_raw_parts(ptr, 0, size);
@@ -92,10 +99,8 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
     String::from_utf8_lossy(slice).into()
 }
 
-
-// TODO: add repl_destroy
 #[no_mangle]
-pub extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
+pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
     let mut project = Project::default();
     project.write_source("user.gleam", &new_string(str, len));
     let mut modules = match compile(&mut project, false) {
@@ -111,15 +116,21 @@ pub extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine>
     Box::leak(Box::new(Repl::new(project, module).expect("An repl")))
 }
 
-fn new_repl(repl: *mut Repl<QuickJsEngine>) -> Box<Repl<QuickJsEngine>> {
-    unsafe { Box::from_raw(repl) }
+pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
+    unsafe {
+        let _ = Box::from_raw(repl);
+    };
 }
 
 #[no_mangle]
-pub extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, len: usize) -> bool {
+pub unsafe extern "C" fn repl_run(
+    repl: *mut Repl<QuickJsEngine>,
+    str: *mut u8,
+    len: usize,
+) -> bool {
     assert!(!repl.is_null());
 
-    let mut repl = new_repl(repl);
+    let mut repl = unsafe { Box::from_raw(repl) };
     let ret = match repl.run(&new_string(str, len)) {
         Ok(ReplOutput::Quit) => true,
         Err(err) => {

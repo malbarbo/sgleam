@@ -1,13 +1,13 @@
-use std::path::PathBuf;
+use crate::error::SgleamError;
+use std::io::Write;
 
 const PROMPT: &str = "> ";
-const HISTORY_FILE: &str = ".sgleam_history";
 
 pub struct ReplReader {}
 
 impl ReplReader {
-    pub fn new() -> Result<ReplReader> {
-        panic!()
+    pub fn new() -> Result<ReplReader, SgleamError> {
+        Ok(ReplReader {})
     }
 }
 
@@ -15,6 +15,15 @@ impl Iterator for ReplReader {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
-        panic!()
+        print!("{PROMPT}");
+        std::io::stdout().flush().expect("Flush stdout.");
+
+        let mut input = String::new();
+
+        if std::io::stdin().read_line(&mut input).expect("Read stdin") == 0 {
+            None
+        } else {
+            Some(input)
+        }
     }
 }
