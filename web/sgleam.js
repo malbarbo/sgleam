@@ -84,10 +84,49 @@ pub fn main() {
 
         replInput.focus();
 
+        replInput.addEventListener("paste", function (event) {
+            event.preventDefault();
+
+            const selection = window.getSelection();
+            if (!selection.rangeCount) {
+                return;
+            }
+
+            const texto = event.clipboardData.getData('text/plain');
+            const linhas = texto.split('\n');
+            const range = selection.getRangeAt(0);
+            range.deleteContents();
+
+            let ultimoNo = null;
+
+            linhas.forEach((linha, i) => {
+                if (i > 0) {
+                    const br = document.createElement('br');
+                    range.insertNode(br);
+                    ultimoNo = br;
+                }
+
+                const textNode = document.createTextNode(linha);
+                range.insertNode(textNode);
+                ultimoNo = textNode;
+            });
+
+            if (ultimoNo) {
+                const novoRange = document.createRange();
+                novoRange.setStartAfter(ultimoNo);
+                novoRange.collapse(true);
+
+                selection.removeAllRanges();
+                selection.addRange(novoRange);
+            }
+        });
+
         replInput.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                const code = replInput.textContent.trim();
+                const text = replInput.cloneNode(true);
+                text.querySelectorAll('br').forEach(br => br.replaceWith('\n'))
+                const code = text.textContent.trim();
                 if (code) {
                     replInput.contentEditable = false;
                     postRun(code)
