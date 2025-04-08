@@ -10,7 +10,7 @@ use indoc::formatdoc;
 use vec1::Vec1;
 
 use crate::{
-    engine::{Engine, MainFunction},
+    engine::{Engine, MainFunction, REPL_MAIN},
     error::SgleamError,
     gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
     parser::{self, ReplItem},
@@ -18,7 +18,7 @@ use crate::{
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
 
-const FNS_REPL: &str = r#"
+const REPL_SAVE_LOAD_FNS: &str = r#"
 @external(javascript, "./sgleam_ffi.mjs", "repl_save")
 pub fn repl_save(value: a) -> a
 
@@ -132,7 +132,7 @@ impl<E: Engine> Repl<E> {
 
     fn build_source(&self) -> String {
         let mut src = String::new();
-        src.push_str(FNS_REPL);
+        src.push_str(REPL_SAVE_LOAD_FNS);
         self.add_imports(&mut src);
         self.add_consts(&mut src);
         self.add_types(&mut src);
@@ -221,7 +221,7 @@ impl<E: Engine> Repl<E> {
         let mut src = self.build_source();
         self.add_expr(&mut src, code);
         let module = self.compile(&src)?.split_off_first().0;
-        let main = &get_function(&module, "main").expect("main function");
+        let main = &get_function(&module, REPL_MAIN).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
     }
@@ -233,8 +233,9 @@ impl<E: Engine> Repl<E> {
     fn run_let(&mut self, name: &str, code: &str) -> Result<(), Error> {
         let mut src = self.build_source();
         let lets = self.gen_lets(&[]);
+        // FIXME: avoid name collision
         src.push_str(&formatdoc! {"
-            pub fn main() {{
+            pub fn {REPL_MAIN}() {{
               {lets}
               io.debug(repl_save({{
             {code}
@@ -246,10 +247,10 @@ impl<E: Engine> Repl<E> {
         let module = self.compile(&src)?.split_off_first().0;
 
         self.engine
-            .run_main(&module.name, MainFunction::Main, false);
+            .run_main(&module.name, MainFunction::ReplMain, false);
 
         if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, "main").expect("main function");
+            let main = get_function(&module, REPL_MAIN).expect("repl main function");
             let type_ = type_to_string(&module, &main.return_type);
             let index = self.var_index;
             self.vars.insert(name.into(), Value { index, type_ });
@@ -266,7 +267,7 @@ impl<E: Engine> Repl<E> {
         self.add_expr(&mut src, code);
         let module = self.compile(&src)?.split_off_first().0;
         self.engine
-            .run_main(&module.name, MainFunction::Main, false);
+            .run_main(&module.name, MainFunction::ReplMain, false);
         Ok(())
     }
 
@@ -304,7 +305,7 @@ impl<E: Engine> Repl<E> {
     fn add_expr(&self, src: &mut String, expr: &str) {
         let lets = self.gen_lets(&[]);
         src.push_str(&formatdoc! {"
-            pub fn main() {{
+            pub fn {REPL_MAIN}() {{
               {lets}
               io.debug({{
             {expr}

@@ -73,6 +73,11 @@ fn repl_fn() {
 }
 
 #[test]
+fn repl_fn_main() {
+    assert_eq!(repl_exec("fn main() { 10 }\nmain()"), "10");
+}
+
+#[test]
 fn repl_generic_fn() {
     assert_eq!(
         repl_exec("fn keep(_) { True }\nlist.filter([1, 2], keep)"),
