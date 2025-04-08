@@ -103,19 +103,20 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
 pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
     let mut project = Project::default();
     project.write_source("user.gleam", &new_string(str, len));
-    let mut modules = match compile(&mut project, false) {
+    let modules = match compile(&mut project, false) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
-            return std::ptr::null_mut();
+            return Box::leak(Box::new(
+                Repl::new(Project::default(), None).expect("An repl"),
+            ));
         }
         Ok(modules) => modules,
     };
-    modules
-        .retain(|module| !module.name.starts_with("gleam/") && !module.name.starts_with("sgleam/"));
     let module = get_module(&modules, "user");
     Box::leak(Box::new(Repl::new(project, module).expect("An repl")))
 }
 
+#[no_mangle]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
     unsafe {
         let _ = Box::from_raw(repl);

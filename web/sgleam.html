@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pt-BR">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,6 +14,7 @@
             height: 100vh;
             overflow: hidden;
         }
+
         #top-bar {
             background-color: #f0f0f0;
             padding: 8px;
@@ -21,6 +23,7 @@
             justify-content: flex-end;
             border-bottom: 1px solid #ccc;
         }
+
         button {
             padding: 6px 12px;
             background-color: #4CAF50;
@@ -29,43 +32,48 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
         button:disabled {
             opacity: 0.4;
             cursor: not-allowed;
         }
+
         button.stop {
             background-color: #f44336;
-            visibility: hidden;
         }
+
         #container {
             display: flex;
             flex: 1;
             overflow: hidden;
             position: relative;
         }
+
         #editor-wrapper {
             width: 50%;
             display: flex;
-            flex-direction: column;
             overflow: hidden;
         }
+
         #editor-panel {
             flex: 1;
             position: relative;
             overflow: hidden;
         }
+
         #repl-panel {
             flex: 1;
             overflow: hidden;
             display: flex;
-            flex-direction: column;
         }
+
         #resize-handle {
             width: 8px;
             background-color: #ddd;
             cursor: col-resize;
             transition: background-color 0.2s;
         }
+
         #resize-handle:hover {
             background-color: #bbb;
         }
@@ -76,24 +84,29 @@
             flex-direction: column;
             overflow: hidden;
         }
+
         #repl-container {
             flex: 1;
             overflow: auto;
             padding: 8px;
         }
+
         .repl-line {
             margin-bottom: 8px;
             white-space: pre-wrap;
         }
+
         .repl-input-container {
             display: flex;
             margin-bottom: 8px;
         }
+
         .repl-prompt {
             color: #0074d9;
             margin-right: 8px;
             user-select: none;
         }
+
         .repl-input {
             flex: 1;
             border: none;
@@ -103,6 +116,7 @@
         }
     </style>
 </head>
+
 <body>
     <div id="top-bar">
         <button id="run-button" title="Run (Ctrl+Enter)" disabled>▶ Run</button>
@@ -122,4 +136,5 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codeflask/1.4.1/codeflask.min.js"></script>
     <script src="sgleam.js"></script>
 </body>
+
 </html>

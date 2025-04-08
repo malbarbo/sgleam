@@ -63,10 +63,21 @@ impl Engine for QuickJsEngine {
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
-fn interrupt() {
+pub fn interrupt() {
     STOP.store(true, Ordering::Relaxed);
 }
 
+#[cfg(target_arch = "wasm32")]
+extern "C" {
+    fn import_check_interrupt() -> bool;
+}
+
+#[cfg(target_arch = "wasm32")]
+fn check_interrupt() -> bool {
+    unsafe { import_check_interrupt() }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn check_interrupt() -> bool {
     STOP.swap(false, Ordering::Relaxed)
 }
@@ -121,7 +132,7 @@ pub fn run_script(context: &Context, source: String) {
                 Err(CaughtError::Exception(value))
                     if value.message() == Some("interrupted".into()) =>
                 {
-                    println!("interrupted");
+                    println!("Interrupted.");
                 }
                 Err(err) => js_show_error(err),
 
