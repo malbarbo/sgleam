@@ -1,11 +1,47 @@
+let wasmBytes;
 let wasmModule;
 let wasmExports;
 let repl;
 let stopBuffer;
 
 async function loadAndInstantiateWasm() {
-    wasmModule = await WebAssembly.compileStreaming(fetch('sgleam.wasm'));
-    await instantiateWasm();
+    try {
+        const response = await fetch('sgleam.wasm');
+
+        if (!response.ok) {
+            postError(`Error loading sgleam.wasm: ${response.status}`);
+            return;
+        }
+
+        const total = parseInt(response.headers.get('Content-Length'));
+        const reader = response.body.getReader();
+        const chunks = [];
+        let loaded = 0;
+        while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            chunks.push(value);
+            loaded += value.length;
+            if (total) {
+                postProgress((loaded / total) * 100);
+            }
+        }
+
+        wasmBytes = new Uint8Array(loaded);
+        let offset = 0;
+        for (const chunk of chunks) {
+            wasmBytes.set(chunk, offset);
+            offset += chunk.length;
+        }
+        wasmModule = await WebAssembly.compile(wasmBytes.buffer);
+        await instantiateWasm();
+    } catch (error) {
+        postError(`${error} `);
+    }
 }
 
 async function instantiateWasm() {
@@ -209,12 +245,20 @@ async function instantiateWasm() {
     initRepl('');
 }
 
-function postOutput(data) {
-    self.postMessage({ cmd: 'output', data: data });
+function postError(data) {
+    self.postMessage({ cmd: 'error', data: data });
+}
+
+function postProgress(data) {
+    self.postMessage({ cmd: 'progress', data: data });
 }
 
 function postReady() {
     self.postMessage({ cmd: 'ready' });
+}
+
+function postOutput(data) {
+    self.postMessage({ cmd: 'output', data: data });
 }
 
 function processMsg(event) {
@@ -228,7 +272,7 @@ function processMsg(event) {
     } else if (data.cmd == 'stop') {
         wasmExports.repl_stop();
     } else {
-        console.log(`${event}`);
+        console.log(`${event} `);
     }
 }
 

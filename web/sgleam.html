@@ -12,25 +12,54 @@
             display: flex;
             flex-direction: column;
             height: 100vh;
+            font-size: 14px;
             overflow: hidden;
         }
 
-        #top-bar {
-            background-color: #f0f0f0;
-            padding: 8px;
+        #top {
+            padding: 5px;
             display: flex;
             gap: 8px;
             justify-content: flex-end;
             border-bottom: 1px solid #ccc;
         }
 
+        #main {
+            display: flex;
+            flex: 1;
+            flex-direction: row;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #info {
+            padding: 5px 10px;
+            flex-grow: 1;
+            font-family: "Fira Sans", "Roboto";
+        }
+
+        #layout-horizontal,
+        #layout-vertical {
+            padding: 0px;
+            padding-top: 4px;
+            background-color: #ffffff;
+            cursor: pointer;
+            opacity: 0.4;
+        }
+
+        #layout-horizontal:disabled,
+        #layout-vertical:disabled {
+            cursor: initial;
+            opacity: 1.0;
+        }
+
         button {
-            padding: 6px 12px;
-            background-color: #4CAF50;
+            padding: 5px 10px;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: inherit;
         }
 
         button:disabled {
@@ -38,26 +67,18 @@
             cursor: not-allowed;
         }
 
-        button.stop {
+        #run-button {
+            background-color: #4CAF50;
+        }
+
+        #stop-button {
             background-color: #f44336;
         }
 
-        #container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-            position: relative;
-        }
-
-        #editor-wrapper {
-            width: 50%;
-            display: flex;
-            overflow: hidden;
-        }
-
         #editor-panel {
-            flex: 1;
+            width: 50%;
             position: relative;
+            display: flex;
             overflow: hidden;
         }
 
@@ -79,16 +100,9 @@
         }
 
         #repl-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        #repl-container {
-            flex: 1;
-            overflow: auto;
             padding: 8px;
+            flex-direction: column;
+            overflow: auto;
         }
 
         .repl-line {
@@ -113,27 +127,105 @@
             outline: none;
             font-family: monospace;
             caret-color: black;
+            overflow-wrap: break-word;
+        }
+
+        .codeflask__flatten {
+            font-size: inherit !important;
+        }
+
+        .codeflask__textarea {
+            font-family: monospace !important;
+        }
+
+        #help-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 999;
+        }
+
+        #help {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 1rem 1rem;
+            border-radius: 12px;
+            border: 1px solid #ccc;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            width: 80%;
+            max-width: 450px;
+            font-family: initial;
+        }
+
+        kbd {
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-family: monospace;
+            font-size: 0.95em;
         }
     </style>
 </head>
 
 <body>
-    <div id="top-bar">
-        <button id="run-button" title="Run (Ctrl+Enter)" disabled>▶ Run</button>
-        <button id="stop-button" class="stop" title="Stop" disabled>■ Stop</button>
+
+    <div id="help-overlay"></div>
+    <div id="help">
+        <h1>Help</h1>
+        <p><kbd>Ctrl</kbd> + <kbd>r</kbd>: Run the definitions</p>
+        <p><kbd>Ctrl</kbd> + <kbd>j</kbd>: Focuses the definition panel if it is visible</p>
+        <p><kbd>Ctrl</kbd> + <kbd>k</kbd>: Focuses the iteration panel if it is visible</p>
+        <br>
+        <p><kbd>Ctrl</kbd> + <kbd>d</kbd>: Toggles between showing and hiding the definition panel</p>
+        <p><kbd>Ctrl</kbd> + <kbd>i</kbd>: Toggles between showing and hiding the iteration panel</p>
+        <p><kbd>Ctrl</kbd> + <kbd>l</kbd>: Toggles between horizontal and vertical layouts</p>
+        <br>
+        <p><kbd>Ctrl</kbd> + <kbd>?</kbd>: Show this windows</p>
+        <p><kbd>Esc</kbd>: Close this windows</p>
+        </ul>
     </div>
 
-    <div id="container">
-        <div id="editor-wrapper">
-            <div id="editor-panel"></div>
-        </div>
+    <div id="top">
+        <div id="info">Help (crtl-?)</div>
+        <button id="run-button" title="Run" disabled>▶ Run</button>
+        <button id="stop-button" title="Stop" disabled>■ Stop</button>
+        <button id="layout-horizontal" disabled>
+            <svg width="6mm" height="5mm" xmlns="http://www.w3.org/2000/svg">
+                <rect style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" width="5mm" height="4mm"
+                    x="0.5mm" y="0.5mm" />
+                <line style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" x1="3mm" y1="0mm"
+                    x2="3mm" y2="5mm" />
+            </svg>
+        </button>
+        <button id="layout-vertical">
+            <svg width="6mm" height="5mm" xmlns="http://www.w3.org/2000/svg">
+                <rect style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" width="5mm" height="4mm"
+                    x="0.5mm" y="0.5mm" />
+                <line style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" x1="0mm" y1="2.5mm"
+                    x2="6mm" y2="2.5mm" />
+            </svg>
+        </button>
+    </div>
+
+    <div id="main">
+        <div id="editor-panel"></div>
         <div id="resize-handle"></div>
         <div id="repl-panel">
-            <div id="repl-container"></div>
+            <p id="loading">Loading...</p>
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/codeflask/1.4.1/codeflask.min.js"></script>
+    <script src="https://unpkg.com/codeflask/build/codeflask.min.js"></script>
     <script src="sgleam.js"></script>
 </body>
 

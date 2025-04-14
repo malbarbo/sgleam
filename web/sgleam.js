@@ -12,19 +12,32 @@ pub fn main() {
 }`);
 
     let replInput;
+    const main = document.getElementById('main');
+    const loading = document.getElementById('loading');
     const runButton = document.getElementById('run-button');
     const stopButton = document.getElementById('stop-button');
     const resizeHandle = document.getElementById('resize-handle');
-    const editorWrapper = document.getElementById('editor-wrapper');
-    const replContainer = document.getElementById('repl-container');
+    const editorPanel = document.getElementById('editor-panel');
+    const replPanel = document.getElementById('repl-panel');
+    const helpOverlay = document.getElementById('help-overlay');
+    const help = document.getElementById('help');
     const repl = new Worker('repl.js');
+    let first = true;
 
     let sharedBuffer = new SharedArrayBuffer(4);
     let buffer = new Int32Array(sharedBuffer);
     Atomics.store(buffer, 0, 0);
     repl.onmessage = (event) => {
         const data = event.data;
-        if (data.cmd == 'ready') {
+        if (data.cmd == 'error') {
+            loading.textContent = data.data;
+        } else if (data.cmd == 'progress') {
+            loading.textContent = `Loading ${Math.round(data.data)}%`;
+        } else if (data.cmd == 'ready') {
+            if (first) {
+                replPanel.replaceChildren()
+                first = false;
+            }
             addInputLine();
             runButton.disabled = false;
             stopButton.disabled = true;
@@ -46,20 +59,141 @@ pub fn main() {
         repl.postMessage({ cmd: 'run', data: data });
     }
 
+    function focusEditor() {
+        const input = editorPanel.querySelector('textarea:not([disabled])');
+        if (isEditorVisible() && input) {
+            input.focus();
+        }
+    }
+
+    function focusRepl() {
+        if (isReplVisible() && replInput) {
+            replInput.focus();
+        }
+    }
+
+    // Shortcuts
+
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            hideHelp()
+        } else if (helpOverlay.style.display == 'block') {
+            return;
+        } else if (event.ctrlKey && event.key === '?') {
+            event.preventDefault();
+            showHelp();
+        } else if (event.ctrlKey && event.key === 'j') {
+            event.preventDefault();
+            focusEditor();
+        } else if (event.ctrlKey && event.key === 'k') {
+            event.preventDefault();
+            focusRepl();
+        } else if (event.ctrlKey && event.key === 'r') {
+            event.preventDefault();
+            run();
+        } else if (event.ctrlKey && event.key === 'd') {
+            event.preventDefault();
+            toogleEditor();
+        } else if (event.ctrlKey && event.key === 'i') {
+            event.preventDefault();
+            toogleRepl();
+        } else if (event.ctrlKey && event.key === 'l') {
+            event.preventDefault();
+            toogleLayout();
+        }
+    });
+
+    // Actions
+
+    let lastActive;
+
+    function showHelp() {
+        if (document.activeElement && document.activeElement.blur) {
+            lastActive = document.activeElement;
+            document.activeElement.blur();
+        } else {
+            lastActive = null;
+        }
+        helpOverlay.style.display = 'block';
+        help.style.display = 'block';
+    }
+
+    function hideHelp() {
+        if (lastActive) {
+            lastActive.focus();
+        }
+        helpOverlay.style.display = 'none';
+        help.style.display = 'none';
+    }
+
+    function run() {
+        if (!runButton.disabled) {
+            replInput = null;
+            replPanel.replaceChildren();
+            postLoad();
+        }
+    }
+
+    function stop() {
+        if (!stop.disabled) {
+            stopButton.disabled = true;
+            let buffer = new Int32Array(sharedBuffer);
+            Atomics.store(buffer, 0, 1);
+        }
+    }
+
+    function isReplVisible() {
+        return replPanel.style.display !== 'none';
+    }
+
+    function isEditorVisible() {
+        return editorPanel.style.display !== 'none';
+    }
+
+    function toogleEditor() {
+        if (!isEditorVisible()) {
+            editorPanel.style.display = 'flex';
+            resizeHandle.style.display = 'initial';
+        } else {
+            replPanel.style.display = 'flex';
+            editorPanel.style.display = 'none';
+            resizeHandle.style.display = 'none';
+            focusRepl();
+        }
+        updateEditorSize();
+    }
+
+    function toogleRepl() {
+        if (!isReplVisible()) {
+            replPanel.style.display = 'flex';
+            resizeHandle.style.display = 'initial';
+        } else {
+            editorPanel.style.display = 'flex';
+            replPanel.style.display = 'none';
+            resizeHandle.style.display = 'none';
+            focusEditor();
+        }
+        updateEditorSize();
+    }
+
+    function updateEditorSize() {
+        if (isHorizontal()) {
+            editorPanel.style.height = '100%';
+            editorPanel.style.width = size;
+        } else if (isReplVisible()) {
+            editorPanel.style.width = '100%';
+            editorPanel.style.height = size;
+        } else {
+            editorPanel.style.width = '100%';
+            editorPanel.style.height = '100%';
+        }
+    }
 
     // Buttons
 
-    runButton.addEventListener('click', () => {
-        replInput = null;
-        replContainer.replaceChildren();
-        postLoad()
-    });
-
-    stopButton.addEventListener('click', () => {
-        stopButton.disabled = true;
-        let buffer = new Int32Array(sharedBuffer);
-        Atomics.store(buffer, 0, 1);
-    });
+    runButton.addEventListener('click', run);
+    stopButton.addEventListener('click', stop);
 
 
     // Input / output
@@ -80,11 +214,11 @@ pub fn main() {
 
         inputContainer.appendChild(prompt);
         inputContainer.appendChild(replInput);
-        replContainer.appendChild(inputContainer);
+        replPanel.appendChild(inputContainer);
 
         replInput.focus();
 
-        replInput.addEventListener("paste", function (event) {
+        replInput.addEventListener('paste', function (event) {
             event.preventDefault();
 
             const selection = window.getSelection();
@@ -139,47 +273,122 @@ pub fn main() {
         const output = document.createElement('div');
         output.className = 'repl-line';
         output.textContent = text;
-        replContainer.appendChild(output);
-        replContainer.scrollTop = replContainer.scrollHeight;
+        replPanel.appendChild(output);
+        replPanel.scrollTop = replPanel.scrollHeight;
     }
 
 
     // Focus
 
-    replContainer.addEventListener('click', () => {
+    replPanel.addEventListener('click', () => {
         if (window.getSelection().toString().length !== 0) {
             return;
         }
-        if (replInput) {
-            replInput.focus();
+        focusRepl();
+    });
+
+
+    // Panel resizing and layout
+
+    const layoutHorizontal = document.getElementById('layout-horizontal');
+    const layoutVertical = document.getElementById('layout-vertical');
+    let resizing = false;
+    let size = '50%';
+
+    layoutHorizontal.addEventListener('click', enableHorizontal);
+    layoutVertical.addEventListener('click', enableVertical)
+
+    function isHorizontal() {
+        return window.getComputedStyle(main).flexDirection === 'row';
+    }
+
+    function toogleLayout() {
+        if (isHorizontal()) {
+            enableVertical();
+        } else {
+            enableHorizontal();
         }
-    });
+    }
 
+    function enableHorizontal() {
+        main.style.flexDirection = 'row';
 
-    // Panel resizing
+        resizeHandle.style.cursor = 'col-resize';
+        resizeHandle.style.width = '8px';
+        resizeHandle.style.height = '100%';
 
-    let isResizing = false;
-    resizeHandle.addEventListener('mousedown', (e) => {
-        isResizing = true;
-        document.body.style.cursor = 'col-resize';
+        updateEditorSize();
+
+        layoutHorizontal.disabled = true;
+        layoutVertical.disabled = false;
+    }
+
+    function enableVertical() {
+        main.style.flexDirection = 'column';
+
+        resizeHandle.style.cursor = 'row-resize';
+        resizeHandle.style.width = '100%';
+        resizeHandle.style.height = '8px';
+
+        updateEditorSize();
+
+        layoutHorizontal.disabled = false;
+        layoutVertical.disabled = true;
+    }
+
+    function startResize(e) {
+        resizing = true;
+        if (isHorizontal()) {
+            document.body.style.cursor = 'col-resize';
+        } else {
+            document.body.style.cursor = 'row-resize';
+        }
         e.preventDefault();
-    });
+    }
 
-    document.addEventListener('mousemove', (e) => {
-        if (!isResizing) {
+    function resize(e) {
+        if (!resizing) {
             return;
         }
 
-        const containerWidth = document.getElementById('container').clientWidth;
-        const newWidth = (e.clientX / containerWidth) * 100;
+        let clientX
+        let clientY;
 
-        if (newWidth > 20 && newWidth < 80) {
-            editorWrapper.style.width = `${newWidth}%`;
+        if (e.type.startsWith('touch')) {
+            clientX = e.touches[0].clientX;
+            clientY = e.touches[0].clientY;
+        } else {
+            clientX = e.clientX;
+            clientY = e.clientY;
         }
-    });
 
-    document.addEventListener('mouseup', () => {
-        isResizing = false;
+        let newSize;
+        if (layoutHorizontal.disabled) {
+            newSize = (clientX / main.clientWidth) * 100;
+        } else {
+            newSize = ((clientY - main.getBoundingClientRect().top) / main.clientHeight) * 100;
+        }
+
+        if (newSize > 20 && newSize < 80) {
+            size = `${newSize}%`;
+            if (layoutHorizontal.disabled) {
+                editorPanel.style.width = size;
+            } else {
+                editorPanel.style.height = size;
+            }
+        }
+    };
+
+    function stopResize() {
+        resizing = false;
         document.body.style.cursor = '';
-    });
+    }
+
+    resizeHandle.addEventListener('mousedown', startResize);
+    document.addEventListener('mousemove', resize)
+    document.addEventListener('mouseup', stopResize);
+
+    resizeHandle.addEventListener('touchstart', startResize);
+    document.addEventListener('touchmove', resize)
+    document.addEventListener('touchend', stopResize);
 });
