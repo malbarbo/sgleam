@@ -219,10 +219,11 @@ fn repl_exec(s: &str) -> String {
 #[test]
 fn run_tests() {
     glob!("inputs/check*.gleam", |path| {
-        let (out, err) = run_sgleam_cmd(
-            &["-t", path.as_os_str().to_str().expect("a valid path")],
-            None,
-        );
+        let path = path.as_os_str().to_str().expect("a valid path");
+        if path.contains("stackoverflow") && !cfg!(target_os = "linux") {
+            return;
+        }
+        let (out, err) = run_sgleam_cmd(&["-t", path], None);
         assert_snapshot!(formatdoc! {"
             STDOUT
             {out}
@@ -235,7 +236,11 @@ fn run_tests() {
 #[test]
 fn run_file() {
     glob!("inputs/*.gleam", |path| {
-        let (out, err) = run_sgleam_cmd(&[&path.to_string_lossy().to_string()], None);
+        let path = path.as_os_str().to_str().expect("a valid path");
+        if path.contains("stackoverflow") && !cfg!(target_os = "linux") {
+            return;
+        }
+        let (out, err) = run_sgleam_cmd(&[&path], None);
         assert_snapshot!(formatdoc! {"
             STDOUT
             {out}
