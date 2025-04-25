@@ -118,17 +118,21 @@ fn run() -> Result<(), SgleamError> {
 }
 
 fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, SgleamError> {
-    let current_dir = get_current_dir()?;
+    let current_dir = canonicalise(get_current_dir()?)?;
+    canonicalise(path.clone())?
+        .strip_prefix(&current_dir)
+        .map(Utf8PathBuf::from)
+        .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
+}
+
+fn canonicalise(path: Utf8PathBuf) -> Result<Utf8PathBuf, gleam_core::Error> {
     path.canonicalize_utf8()
         .map_err(|e| gleam_core::Error::FileIo {
             kind: FileKind::File,
             action: FileIoAction::Canonicalise,
-            path: path.clone(),
+            path,
             err: Some(e.to_string()),
-        })?
-        .strip_prefix(&current_dir)
-        .map(Utf8PathBuf::from)
-        .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
+        })
 }
 
 fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {

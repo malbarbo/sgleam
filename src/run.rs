@@ -26,8 +26,8 @@ pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamEr
     let modules = copy_files_and_build(&mut project, paths)?;
     let module = paths.first().and_then(|input| {
         let name = input.with_extension("");
-        let name = name.as_str();
-        get_module(&modules, name)
+        let name = name.as_str().replace('\\', "/");
+        get_module(&modules, &name)
     });
 
     let mut repl = Repl::<JsEngine>::new(project, module)?;
@@ -46,9 +46,9 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let modules = copy_files_and_build(&mut project, paths)?;
     let name = paths[0].with_extension("");
-    let name = name.as_str();
+    let name = name.as_str().replace('\\', "/");
 
-    if let Some(module) = get_module(&modules, name) {
+    if let Some(module) = get_module(&modules, &name) {
         let main = get_main(module)?;
         JsEngine::new(project.fs.clone()).run_main(&module.name, main, main != MainFunction::Main);
     } else {

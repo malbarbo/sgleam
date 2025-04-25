@@ -98,13 +98,14 @@ fn repl_anonymous_fn() {
 fn repl_fn_capture() {
     assert_eq!(
         repl_exec(&formatdoc! { r#"
-    let a = 1
-    let b = 2
-    fn fun(a) {{
-        a + b
-    }}
-    fun(10)
-    "#}),
+            let a = 1
+            let b = 2
+            fn fun(a) {{
+                a + b
+            }}
+            fun(10)
+            "#
+        }),
         "1\n2\n12"
     );
 }
@@ -170,11 +171,12 @@ fn repl_user_module_import() {
     assert_eq!(
         run_sgleam_cmd_stdout(
             &["-q", "-i", input],
-            Some(
-                "one
-                  two()
-                  let _: Three = Num3"
-            )
+            Some(&formatdoc! { "
+                one
+                two()
+                let _: Three = Num3
+                "
+            })
         ),
         "1\n2\nNum3\n"
     );
@@ -309,7 +311,11 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
     // assert!(result.status.success());
 
     (
-        String::from_utf8_lossy(&result.stdout).into_owned(),
-        String::from_utf8_lossy(&result.stderr).into_owned(),
+        String::from_utf8_lossy(&result.stdout)
+            .replace('\\', "/")
+            .replace("\r\n", "\n"),
+        String::from_utf8_lossy(&result.stderr)
+            .replace('\\', "/")
+            .replace("\r\n", "\n"),
     )
 }
