@@ -57,8 +57,10 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
         .unwrap()
         .success());
 
+    // FIXME: use tar crate
     let stdlib_src = &stdlib.join("src");
     assert!(Command::new("tar")
+        .env("COPYFILE_DISABLE", "1")
         .arg("cf")
         .arg(tar)
         .arg("-C")
