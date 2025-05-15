@@ -1,5 +1,58 @@
+// @ts-check
+/// <reference lib="dom" />
+
+/**
+ * @enum {number}
+ */
+const Layout = {
+    HORIZONTAL: 1,
+    VERTICAL: 2,
+}
+
+/**
+ * @enum {number}
+ */
+const Panels = {
+    BOTH: 1,
+    ONLY_DEFS: 2,
+    ONLY_REPL: 3,
+}
+
+/**
+ * @enum {number}
+ */
+const Exec = {
+    LOADING: 1,
+    READY: 2,
+    RUNNING: 3,
+    PENDING_STOP: 4,
+}
+
+/**
+ * @typedef {Object} State
+ * @property {Layout} layout
+ * @property {Panels} panels
+ * @property {Exec} exec
+ * @property {number} size
+ * @property {boolean} resizing
+ * @property {string} msg
+ * @property {boolean} showingHelp
+ */
+
+/** @type {State} */
+let state = {
+    layout: Layout.HORIZONTAL,
+    panels: Panels.BOTH,
+    exec: Exec.LOADING,
+    size: 50,
+    resizing: false,
+    msg: 'Loading...',
+    showingHelp: false,
+};
+
 document.addEventListener('DOMContentLoaded', () => {
     // TODO: add gleam lang
+    // @ts-ignore
     const flask = new CodeFlask(document.getElementById('editor-panel'), {
         language: 'js',
         lineNumbers: true
@@ -11,74 +64,87 @@ pub fn main() {
   io.println("Hello, world!")
 }`);
 
+    /**
+     * @param {string} id 
+     * @returns HTMLElement
+     */
+    function getElementById(id) {
+        return /** @type {HTMLInputElement} */ (document.getElementById(id));
+    }
+
     let replInput;
-    const main = document.getElementById('main');
-    const loading = document.getElementById('loading');
-    const runButton = document.getElementById('run-button');
-    const stopButton = document.getElementById('stop-button');
-    const resizeHandle = document.getElementById('resize-handle');
-    const editorPanel = document.getElementById('editor-panel');
-    const replPanel = document.getElementById('repl-panel');
-    const helpOverlay = document.getElementById('help-overlay');
-    const help = document.getElementById('help');
+    const main = getElementById('main');
+    const loading = getElementById('loading');
+    const runButton = getElementById('run-button');
+    const stopButton = getElementById('stop-button');
+    const resizeHandle = getElementById('resize-handle');
+    const editorPanel = getElementById('editor-panel');
+    const replPanel = getElementById('repl-panel');
+    const helpOverlay = getElementById('help-overlay');
+    const help = getElementById('help');
+    const horizontalButton = getElementById('layout-horizontal');
+    const verticalButton = getElementById('layout-vertical');
     const repl = new Worker('repl.js');
-    let first = true;
 
     let sharedBuffer = new SharedArrayBuffer(4);
-    let buffer = new Int32Array(sharedBuffer);
-    Atomics.store(buffer, 0, 0);
+    let stopBuffer = new Int32Array(sharedBuffer);
+    Atomics.store(stopBuffer, 0, 0);
+
+    // Events
     repl.onmessage = (event) => {
         const data = event.data;
         if (data.cmd == 'error') {
-            loading.textContent = data.data;
+            state.msg = data.data;
         } else if (data.cmd == 'progress') {
-            loading.textContent = `Loading ${Math.round(data.data)}%`;
+            state.msg = `Loading ${Math.round(data.data)}%`;
         } else if (data.cmd == 'ready') {
-            if (first) {
-                replPanel.replaceChildren()
-                first = false;
+            if (state.exec === Exec.LOADING) {
+                replPanel.replaceChildren();
             }
+            state.exec = Exec.READY;
             addInputLine();
-            runButton.disabled = false;
-            stopButton.disabled = true;
             repl.postMessage({ cmd: 'init', data: sharedBuffer });
         } else if (data.cmd == 'output') {
             addOutput(data.data);
         }
+        updateDom()
     }
 
-    function postLoad() {
-        runButton.disabled = true;
-        stopButton.disabled = false;
-        repl.postMessage({ cmd: 'load', data: flask.getCode() });
-    }
+    runButton.addEventListener('click', run);
 
-    function postRun(data) {
-        runButton.disabled = true;
-        stopButton.disabled = false;
-        repl.postMessage({ cmd: 'run', data: data });
-    }
+    stopButton.addEventListener('click', stop);
 
-    function focusEditor() {
-        const input = editorPanel.querySelector('textarea:not([disabled])');
-        if (isEditorVisible() && input) {
-            input.focus();
+    verticalButton.addEventListener('click', () => {
+        state.layout = Layout.VERTICAL;
+        updateDom()
+    });
+
+    horizontalButton.addEventListener('click', () => {
+        state.layout = Layout.HORIZONTAL;
+        updateDom();
+    });
+
+    replPanel.addEventListener('click', () => {
+        const selection = window.getSelection();
+        if (!selection || selection.toString().length !== 0) {
+            return;
         }
-    }
+        focusRepl();
+    });
 
-    function focusRepl() {
-        if (isReplVisible() && replInput) {
-            replInput.focus();
-        }
-    }
+    resizeHandle.addEventListener('mousedown', startResize);
+    document.addEventListener('mousemove', resize)
+    document.addEventListener('mouseup', stopResize);
 
-    // Shortcuts
+    resizeHandle.addEventListener('touchstart', startResize);
+    document.addEventListener('touchmove', resize)
+    document.addEventListener('touchend', stopResize);
 
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape') {
             event.preventDefault();
             hideHelp()
-        } else if (helpOverlay.style.display == 'block') {
+        } else if (state.showingHelp) {
             return;
         } else if (event.ctrlKey && event.key === '?') {
             event.preventDefault();
@@ -104,7 +170,114 @@ pub fn main() {
         }
     });
 
-    // Actions
+    function updateDom() {
+        if (state.exec == Exec.LOADING) {
+            loading.textContent = state.msg;
+            return;
+        }
+
+        // Cursor
+        if (state.resizing) {
+            if (state.layout == Layout.HORIZONTAL) {
+                document.body.style.cursor = 'col-resize';
+            } else {
+                document.body.style.cursor = 'row-resize';
+            }
+        } else {
+            document.body.style.cursor = 'initial';
+        }
+
+        // Buttons
+        runButton.disabled = state.exec !== Exec.READY;
+        stopButton.disabled = state.exec !== Exec.RUNNING && state.exec !== Exec.PENDING_STOP;
+        horizontalButton.disabled = state.layout === Layout.HORIZONTAL;
+        verticalButton.disabled = state.layout === Layout.VERTICAL;
+
+        // Help
+        if (state.showingHelp) {
+            helpOverlay.style.display = 'block';
+            help.style.display = 'block';
+        } else {
+            helpOverlay.style.display = 'none';
+            help.style.display = 'none';
+        }
+
+        // Layout
+        if (isEditorVisible()) {
+            editorPanel.style.display = 'flex';
+        } else {
+            editorPanel.style.display = 'none';
+        }
+
+        if (isReplVisible()) {
+            replPanel.style.display = 'flex';
+        } else {
+            replPanel.style.display = 'none';
+        }
+
+        resizeHandle.style.display = 'initial';
+        if (state.layout === Layout.HORIZONTAL) {
+            main.style.flexDirection = 'row';
+
+            resizeHandle.style.cursor = 'col-resize';
+            resizeHandle.style.width = '8px';
+            resizeHandle.style.height = '100%';
+
+            editorPanel.style.height = '100%';
+            if (state.panels == Panels.BOTH) {
+                editorPanel.style.width = `${state.size}%`;
+            } else {
+                editorPanel.style.width = `100%`;
+                resizeHandle.style.display = 'none';
+            }
+        } else {
+            main.style.flexDirection = 'column';
+
+            resizeHandle.style.cursor = 'row-resize';
+            resizeHandle.style.width = '100%';
+            resizeHandle.style.height = '8px';
+
+            editorPanel.style.width = '100%';
+            if (state.panels == Panels.BOTH) {
+                editorPanel.style.height = `${state.size}%`;
+            } else {
+                editorPanel.style.height = `100%`;
+                resizeHandle.style.display = 'none';
+            }
+        }
+
+        if (state.panels == Panels.ONLY_REPL) {
+            focusRepl();
+        } else if (state.panels == Panels.ONLY_DEFS) {
+            focusEditor();
+        }
+    }
+
+    function postLoad() {
+        state.exec = Exec.RUNNING;
+        repl.postMessage({ cmd: 'load', data: flask.getCode() });
+        updateDom();
+    }
+
+    function postRun(data) {
+        state.exec = Exec.RUNNING;
+        repl.postMessage({ cmd: 'run', data: data });
+        updateDom();
+    }
+
+    function focusEditor() {
+        const input = editorPanel.querySelector('textarea:not([disabled])');
+        if (isEditorVisible() && input) {
+            // @ts-ignore
+            input.focus();
+        }
+    }
+
+    function focusRepl() {
+        if (isReplVisible() && replInput) {
+            replInput.focus();
+        }
+    }
 
     let lastActive;
 
@@ -115,86 +288,62 @@ pub fn main() {
         } else {
             lastActive = null;
         }
-        helpOverlay.style.display = 'block';
-        help.style.display = 'block';
+        state.showingHelp = true;
+        updateDom();
     }
 
     function hideHelp() {
         if (lastActive) {
             lastActive.focus();
         }
-        helpOverlay.style.display = 'none';
-        help.style.display = 'none';
+        state.showingHelp = false;
+        updateDom();
     }
 
     function run() {
-        if (!runButton.disabled) {
+        if (state.exec === Exec.READY) {
             replInput = null;
             replPanel.replaceChildren();
             postLoad();
+            updateDom();
         }
     }
 
     function stop() {
-        if (!stop.disabled) {
-            stopButton.disabled = true;
-            let buffer = new Int32Array(sharedBuffer);
-            Atomics.store(buffer, 0, 1);
+        console.log('stop');
+        if (state.exec === Exec.RUNNING) {
+            console.log('setting');
+            state.exec = Exec.PENDING_STOP;
+            Atomics.store(stopBuffer, 0, 1);
+            updateDom();
         }
     }
 
     function isReplVisible() {
-        return replPanel.style.display !== 'none';
+        return state.panels !== Panels.ONLY_DEFS;
     }
 
     function isEditorVisible() {
-        return editorPanel.style.display !== 'none';
+        return state.panels !== Panels.ONLY_REPL;
     }
 
     function toogleEditor() {
-        if (!isEditorVisible()) {
-            editorPanel.style.display = 'flex';
-            resizeHandle.style.display = 'initial';
+        if (state.panels === Panels.ONLY_REPL) {
+            state.panels = Panels.BOTH;
         } else {
-            replPanel.style.display = 'flex';
-            editorPanel.style.display = 'none';
-            resizeHandle.style.display = 'none';
-            focusRepl();
+            state.panels = Panels.ONLY_REPL;
         }
-        updateEditorSize();
+        updateDom();
     }
 
     function toogleRepl() {
-        if (!isReplVisible()) {
-            replPanel.style.display = 'flex';
-            resizeHandle.style.display = 'initial';
+        if (state.panels === Panels.ONLY_DEFS) {
+            state.panels = Panels.BOTH;
         } else {
-            editorPanel.style.display = 'flex';
-            replPanel.style.display = 'none';
-            resizeHandle.style.display = 'none';
-            focusEditor();
+            state.panels = Panels.ONLY_DEFS;
         }
-        updateEditorSize();
+        updateDom();
     }
-
-    function updateEditorSize() {
-        if (isHorizontal()) {
-            editorPanel.style.height = '100%';
-            editorPanel.style.width = size;
-        } else if (isReplVisible()) {
-            editorPanel.style.width = '100%';
-            editorPanel.style.height = size;
-        } else {
-            editorPanel.style.width = '100%';
-            editorPanel.style.height = '100%';
-        }
-    }
-
-    // Buttons
-
-    runButton.addEventListener('click', run);
-    stopButton.addEventListener('click', stop);
-
 
     // Input / output
 
@@ -209,7 +358,7 @@ pub fn main() {
         // TODO: add syntax highlight
         replInput = document.createElement('div');
         replInput.className = 'repl-input';
-        replInput.contentEditable = true;
+        replInput.contentEditable = "true";
         replInput.spellcheck = false;
 
         inputContainer.appendChild(prompt);
@@ -222,7 +371,7 @@ pub fn main() {
             event.preventDefault();
 
             const selection = window.getSelection();
-            if (!selection.rangeCount) {
+            if (!selection || !selection.rangeCount) {
                 return;
             }
 
@@ -277,79 +426,29 @@ pub fn main() {
         replPanel.scrollTop = replPanel.scrollHeight;
     }
 
-
-    // Focus
-
-    replPanel.addEventListener('click', () => {
-        if (window.getSelection().toString().length !== 0) {
-            return;
-        }
-        focusRepl();
-    });
-
-
     // Panel resizing and layout
 
-    const layoutHorizontal = document.getElementById('layout-horizontal');
-    const layoutVertical = document.getElementById('layout-vertical');
-    let resizing = false;
-    let size = '50%';
-
-    layoutHorizontal.addEventListener('click', enableHorizontal);
-    layoutVertical.addEventListener('click', enableVertical)
-
-    function isHorizontal() {
-        return window.getComputedStyle(main).flexDirection === 'row';
-    }
-
     function toogleLayout() {
-        if (isHorizontal()) {
-            enableVertical();
+        if (state.layout === Layout.HORIZONTAL) {
+            state.layout = Layout.VERTICAL;
         } else {
-            enableHorizontal();
+            state.layout = Layout.HORIZONTAL;
         }
-    }
-
-    function enableHorizontal() {
-        main.style.flexDirection = 'row';
-
-        resizeHandle.style.cursor = 'col-resize';
-        resizeHandle.style.width = '8px';
-        resizeHandle.style.height = '100%';
-
-        updateEditorSize();
-
-        layoutHorizontal.disabled = true;
-        layoutVertical.disabled = false;
-    }
-
-    function enableVertical() {
-        main.style.flexDirection = 'column';
-
-        resizeHandle.style.cursor = 'row-resize';
-        resizeHandle.style.width = '100%';
-        resizeHandle.style.height = '8px';
-
-        updateEditorSize();
-
-        layoutHorizontal.disabled = false;
-        layoutVertical.disabled = true;
+        updateDom();
     }
 
     function startResize(e) {
-        resizing = true;
-        if (isHorizontal()) {
-            document.body.style.cursor = 'col-resize';
-        } else {
-            document.body.style.cursor = 'row-resize';
-        }
+        state.resizing = true;
         e.preventDefault();
+        updateDom();
     }
 
     function resize(e) {
-        if (!resizing) {
+        if (!state.resizing) {
             return;
         }
+
+        e.preventDefault();
 
         let clientX
         let clientY;
@@ -363,32 +462,21 @@ pub fn main() {
         }
 
         let newSize;
-        if (layoutHorizontal.disabled) {
+        if (state.layout === Layout.HORIZONTAL) {
             newSize = (clientX / main.clientWidth) * 100;
         } else {
             newSize = ((clientY - main.getBoundingClientRect().top) / main.clientHeight) * 100;
         }
 
         if (newSize > 20 && newSize < 80) {
-            size = `${newSize}%`;
-            if (layoutHorizontal.disabled) {
-                editorPanel.style.width = size;
-            } else {
-                editorPanel.style.height = size;
-            }
+            state.size = newSize;
         }
+
+        updateDom();
     };
 
     function stopResize() {
-        resizing = false;
-        document.body.style.cursor = '';
+        state.resizing = false;
+        updateDom();
     }
-
-    resizeHandle.addEventListener('mousedown', startResize);
-    document.addEventListener('mousemove', resize)
-    document.addEventListener('mouseup', stopResize);
-
-    resizeHandle.addEventListener('touchstart', startResize);
-    document.addEventListener('touchmove', resize)
-    document.addEventListener('touchend', stopResize);
 });
