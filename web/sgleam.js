@@ -235,33 +235,11 @@ pub fn main() {
                 return;
             }
 
-            const texto = event.clipboardData.getData('text/plain');
-            const linhas = texto.split('\n');
+            const text = event.clipboardData.getData('text/plain');
             const range = selection.getRangeAt(0);
             range.deleteContents();
-
-            let ultimoNo = null;
-
-            linhas.forEach((linha, i) => {
-                if (i > 0) {
-                    const br = document.createElement('br');
-                    range.insertNode(br);
-                    ultimoNo = br;
-                }
-
-                const textNode = document.createTextNode(linha);
-                range.insertNode(textNode);
-                ultimoNo = textNode;
-            });
-
-            if (ultimoNo) {
-                const novoRange = document.createRange();
-                novoRange.setStartAfter(ultimoNo);
-                novoRange.collapse(true);
-
-                selection.removeAllRanges();
-                selection.addRange(novoRange);
-            }
+            range.insertNode(document.createTextNode(text));
+            selection.collapseToEnd();
         });
 
         replInput.addEventListener('keydown', (e) => {
