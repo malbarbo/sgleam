@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use clap::Parser;
 use gleam_core::{
     error::{FileIoAction, FileKind},

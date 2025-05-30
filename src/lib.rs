@@ -1,4 +1,9 @@
-#![allow(clippy::missing_safety_doc)]
+#![allow(
+    clippy::missing_safety_doc,
+    clippy::large_enum_variant,
+    clippy::result_large_err
+)]
+
 use camino::Utf8Path;
 use error::show_error;
 use gleam::{compile, get_module, Project};
