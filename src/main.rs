@@ -125,6 +125,8 @@ fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, Sgleam
         .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
 }
 
+// Make the compiler remove some imported functions in the wasm build.
+#[cfg_attr(target_arch = "wasm32", inline(always))]
 fn canonicalise(path: Utf8PathBuf) -> Result<Utf8PathBuf, gleam_core::Error> {
     path.canonicalize_utf8()
         .map_err(|e| gleam_core::Error::FileIo {
