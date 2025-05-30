@@ -261,12 +261,18 @@ function postOutput(data) {
     self.postMessage({ cmd: 'output', data: data });
 }
 
+function postFomat(data) {
+    self.postMessage({ cmd: 'format', data: data });
+}
+
 function processMsg(event) {
     const data = event.data;
     if (data.cmd == 'init') {
         stopBuffer = new Int32Array(data.data);
     } else if (data.cmd == 'run') {
         runRepl(data.data);
+    } else if (data.cmd == 'format') {
+        format(data.data);
     } else if (data.cmd == 'load') {
         initRepl(data.data);
     } else if (data.cmd == 'stop') {
@@ -304,6 +310,30 @@ async function runRepl(input) {
     } finally {
         wasmExports.string_deallocate(ptr);
     }
+}
+
+function format(input) {
+    const [ptr, len] = createString(input);
+    const r = wasmExports.format(ptr, len);
+    if (r !== 0) {
+        let src = readCstr(r);
+        postFomat(src);
+        wasmExports.cstr_deallocate(r);
+    } else {
+        postReady();
+    }
+    wasmExports.string_deallocate(ptr);
+}
+
+function readCstr(ptr) {
+    const buffer = new Uint8Array(wasmExports.memory.buffer);
+
+    let end = ptr;
+    while (buffer[end] !== 0) {
+        end++;
+    }
+
+    return new TextDecoder("utf-8").decode(buffer.slice(ptr, end))
 }
 
 function createString(str) {

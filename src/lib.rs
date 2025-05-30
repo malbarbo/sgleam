@@ -1,4 +1,5 @@
 #![allow(clippy::missing_safety_doc)]
+use camino::Utf8Path;
 use error::show_error;
 use gleam::{compile, get_module, Project};
 use gleam_core::javascript::set_bigint_enabled;
@@ -144,6 +145,31 @@ pub unsafe extern "C" fn repl_run(
     Box::leak(repl);
 
     ret
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut i8 {
+    let mut out = String::new();
+    if let Err(err) = gleam_core::format::pretty(
+        &mut out,
+        &new_string(str, len).into(),
+        Utf8Path::new("<stdin>"),
+    ) {
+        show_error(&error::SgleamError::Gleam(err));
+        return std::ptr::null_mut();
+    }
+    match std::ffi::CString::new(out) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn cstr_deallocate(ptr: *mut i8) {
+    assert!(!ptr.is_null());
+    unsafe {
+        let _ = std::ffi::CString::from_raw(ptr);
+    }
 }
 
 #[no_mangle]

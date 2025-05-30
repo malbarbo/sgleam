@@ -42,6 +42,8 @@ pub fn main() {
             runButton.disabled = false;
             stopButton.disabled = true;
             repl.postMessage({ cmd: 'init', data: sharedBuffer });
+        } else if (data.cmd == 'format') {
+            flask.updateCode(data.data);
         } else if (data.cmd == 'output') {
             addOutput(data.data);
         }
@@ -92,6 +94,9 @@ pub fn main() {
         } else if (event.ctrlKey && event.key === 'r') {
             event.preventDefault();
             run();
+        } else if (event.ctrlKey && event.key === 'f') {
+            event.preventDefault();
+            format();
         } else if (event.ctrlKey && event.key === 'd') {
             event.preventDefault();
             toogleEditor();
@@ -141,6 +146,10 @@ pub fn main() {
             let buffer = new Int32Array(sharedBuffer);
             Atomics.store(buffer, 0, 1);
         }
+    }
+
+    function format() {
+        repl.postMessage({ cmd: 'format', data: flask.getCode() });
     }
 
     function isReplVisible() {
