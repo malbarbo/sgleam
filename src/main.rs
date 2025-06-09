@@ -52,6 +52,7 @@ struct Cli {
     /// Input files.
     paths: Vec<String>,
 }
+
 #[cfg(target_arch = "wasm32")]
 fn main() {
     if let Err(err) = run() {

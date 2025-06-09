@@ -5,9 +5,10 @@
 )]
 
 use camino::Utf8Path;
+use engine::Engine as _;
 use error::show_error;
 use gleam::{compile, get_module, Project};
-use gleam_core::javascript::set_bigint_enabled;
+use gleam_core::{build::Module, javascript::set_bigint_enabled};
 use quickjs::QuickJsEngine;
 use repl::{Repl, ReplOutput};
 
@@ -107,8 +108,9 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
 
 #[no_mangle]
 pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
+    let source = new_string(str, len);
     let mut project = Project::default();
-    project.write_source("user.gleam", &new_string(str, len));
+    project.write_source("user.gleam", &source);
     let modules = match compile(&mut project, false) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
@@ -119,7 +121,23 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
         Ok(modules) => modules,
     };
     let module = get_module(&modules, "user");
+    if !source.is_empty() && module.map(has_examples).unwrap_or(false) {
+        QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
+    }
     Box::leak(Box::new(Repl::new(project, module).expect("An repl")))
+}
+
+fn has_examples(module: &Module) -> bool {
+    module.ast.definitions.iter().any(|d| match d {
+        gleam_core::ast::Definition::Function(f) => {
+            f.publicity.is_public()
+                && f.name
+                    .as_ref()
+                    .map(|(_, name)| name.ends_with("_examples"))
+                    .unwrap_or(false)
+        }
+        _ => false,
+    })
 }
 
 #[no_mangle]
@@ -158,7 +176,7 @@ pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut i8 {
     if let Err(err) = gleam_core::format::pretty(
         &mut out,
         &new_string(str, len).into(),
-        Utf8Path::new("<stdin>"),
+        Utf8Path::new("user.gleam"),
     ) {
         show_error(&error::SgleamError::Gleam(err));
         return std::ptr::null_mut();

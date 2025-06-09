@@ -5,11 +5,16 @@ document.addEventListener('DOMContentLoaded', () => {
         lineNumbers: true
     });
 
-    flask.updateCode(`import gleam/io
+    flask.updateCode(`import sgleam/check
 
-pub fn main() {
-  io.println("Hello, world!")
-}`);
+pub fn hello(name: String) -> String {
+  "Hello " <> name <> "!"
+}
+
+pub fn hello_examples() {
+  check.eq(hello("World"), "Hello World!")
+}
+`);
 
     let replInput;
     const main = document.getElementById('main');
@@ -23,6 +28,7 @@ pub fn main() {
     const help = document.getElementById('help');
     const repl = new Worker('repl.js');
     let first = true;
+    let runAfterFormat = false;
 
     let sharedBuffer = new SharedArrayBuffer(4);
     let buffer = new Int32Array(sharedBuffer);
@@ -44,6 +50,10 @@ pub fn main() {
             repl.postMessage({ cmd: 'init', data: sharedBuffer });
         } else if (data.cmd == 'format') {
             flask.updateCode(data.data);
+            if (runAfterFormat) {
+                runAfterFormat = false;
+                run();
+            }
         } else if (data.cmd == 'output') {
             addOutput(data.data);
         }
@@ -93,7 +103,7 @@ pub fn main() {
             focusRepl();
         } else if (event.ctrlKey && event.key === 'r') {
             event.preventDefault();
-            run();
+            formatThanRun();
         } else if (event.ctrlKey && event.key === 'f') {
             event.preventDefault();
             format();
@@ -138,6 +148,11 @@ pub fn main() {
             replPanel.replaceChildren();
             postLoad();
         }
+    }
+
+    function formatThanRun() {
+        runAfterFormat = true;
+        format();
     }
 
     function stop() {
@@ -201,7 +216,7 @@ pub fn main() {
 
     // Buttons
 
-    runButton.addEventListener('click', run);
+    runButton.addEventListener('click', formatThanRun);
     stopButton.addEventListener('click', stop);
 
 
