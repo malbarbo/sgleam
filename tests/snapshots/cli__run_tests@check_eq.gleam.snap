@@ -5,7 +5,7 @@ input_file: tests/inputs/check_eq.gleam
 ---
 STDOUT
 Running tests...
-Failure at tests/inputs/check_eq.string_examples:9
+Failure at tests/inputs/check_eq.gleam (string_examples:9)
   Actual  : "wrong string"
   Expected: "not this"
 4 tests, 3 success(es), 1 failure(s) and 0 error(s).

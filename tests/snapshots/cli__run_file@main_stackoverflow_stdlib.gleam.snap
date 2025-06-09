@@ -6,8 +6,8 @@ input_file: tests/inputs/main_stackoverflow_stdlib.gleam
 STDOUT
 Stack overflow
   at main (/build/tests/inputs/main_stackoverflow_stdlib.mjs:9:16)
-  at map (/build/gleam/list.mjs:200:10)
-  at map_loop (/build/gleam/list.mjs:194:30)
+  at map (/build/gleam/list.mjs:205:10)
+  at map_loop (/build/gleam/list.mjs:199:30)
   at floop (/build/tests/inputs/main_stackoverflow_stdlib.mjs:5:14)
   at floop (/build/tests/inputs/main_stackoverflow_stdlib.mjs:5:14)
   at floop (/build/tests/inputs/main_stackoverflow_stdlib.mjs:5:14)

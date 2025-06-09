@@ -72,7 +72,7 @@ export function repl_load(index) {
     return globalThis.repl_vars[index]
 }
 
-export function check_equal(a, b, module_name, function_name, line_number) {
+export function check_equal(a, b, path, function_name, line_number) {
     try {
         const a_ = a();
         const b_ = b();
@@ -80,26 +80,26 @@ export function check_equal(a, b, module_name, function_name, line_number) {
             globalThis.successes += 1;
             return true;
         } else {
-            show_check_failure(a_, b_, null, module_name, function_name, line_number)
+            show_check_failure(a_, b_, null, path, function_name, line_number)
             globalThis.failures += 1;
             return false;
         }
     } catch (err) {
-        show_check_error(err, module_name, function_name, line_number);
+        show_check_error(err, path, function_name, line_number);
         globalThis.errors += 1;
         return false;
     }
 }
 
-export function check_true(a, module_name, function_name, line_number) {
-    check_equal(a, () => true, module_name, function_name, line_number)
+export function check_true(a, path, function_name, line_number) {
+    check_equal(a, () => true, path, function_name, line_number)
 }
 
-export function check_false(a, module_name, function_name, line_number) {
-    check_equal(a, () => false, module_name, function_name, line_number)
+export function check_false(a, path, function_name, line_number) {
+    check_equal(a, () => false, path, function_name, line_number)
 }
 
-export function check_approx(a, b, tolerance, module_name, function_name, line_number) {
+export function check_approx(a, b, tolerance, path, function_name, line_number) {
     try {
         const a_ = a();
         const b_ = b();
@@ -108,20 +108,22 @@ export function check_approx(a, b, tolerance, module_name, function_name, line_n
             globalThis.successes += 1;
             return true;
         } else {
-            show_check_failure(a_, b_, tolerance_, module_name, function_name, line_number)
+            show_check_failure(a_, b_, tolerance_, path, function_name, line_number)
             globalThis.failures += 1;
             return false;
         }
     } catch (err) {
-        show_check_error(err, module_name, function_name, line_number);
+        show_check_error(err, path, function_name, line_number);
         globalThis.errors += 1;
         return false;
     }
 }
 
-function show_check_failure(a, b, tolerance, module_name, function_name, line_number) {
-    let space = (tolerance !== null) ? ' ' : '';
-    console.log(`Failure at ${location(module_name, function_name, line_number)}`);
+function show_check_failure(a, b, tolerance, path, function_name, line_number) {
+    const space = (tolerance !== null) ? ' ' : '';
+    // remove src/
+    const file = path.slice(4)
+    console.log(`Failure at ${location(file, function_name, line_number)}`);
     console.log(`  Actual  ${space}: ${inspect(a)}`);
     console.log(`  Expected${space}: ${inspect(b)}`);
     if (tolerance !== null) {
@@ -129,27 +131,32 @@ function show_check_failure(a, b, tolerance, module_name, function_name, line_nu
     }
 }
 
-function show_check_error(err, module_name, function_name, line_number) {
+function show_check_error(err, path, function_name, line_number) {
     if (!err.gleam_error) {
         err.gleam_error = true;
-        err.module = module_name;
+        err.file = path;
         err.fn = function_name;
         err.line = line_number;
     }
     show_error(err);
 }
 
-function location(module_name, function_name, line_number) {
-    let fname = (function_name !== '') ? '.' + function_name : '';
-    return `${module_name}${fname}:${line_number}`
+function location(file, fname, line_number) {
+    if (fname !== '') {
+        return `${file} (${fname}:${line_number})`;
+    } else {
+        return `${file}`;
+    }
 }
 
 function show_error(err) {
     if (err.gleam_error) {
-        console.log(`Error at ${location(err.module, err.fn, err.line)}`);
+        // remove src/
+        const file = err.file.slice(4)
+        console.log(`Error at ${location(file, err.fn, err.line)}`);
         console.log(`  ${err.message}`);
         for (const k in err) {
-            if (!['message', 'gleam_error', 'module', 'line', 'function', 'fn'].includes(k)) {
+            if (!['message', 'gleam_error', 'module', 'file', 'line', 'function', 'fn'].includes(k)) {
                 console.log(`  ${k}: ${err[k]}`);
             }
         }

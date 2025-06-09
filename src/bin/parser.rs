@@ -33,7 +33,7 @@ fn run() -> Result<(), gleam_core::Error> {
     for item in parse_repl(&src).map_err(|error| Error::Parse {
         path: cli.path.into(),
         src: src.into(),
-        error,
+        error: error.into(),
     })? {
         println!("{item:#?}");
     }

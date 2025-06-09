@@ -4,7 +4,7 @@ expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n     
 input_file: tests/inputs/main_empty.gleam
 ---
 STDOUT
-Error at tests/inputs/main_empty.main:1
+Error at tests/inputs/main_empty.gleam (main:1)
   `todo` expression evaluated. This code has not yet been implemented.
 
 STDERR

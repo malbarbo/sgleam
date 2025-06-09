@@ -4,7 +4,7 @@ expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n     
 input_file: tests/inputs/main_panic.gleam
 ---
 STDOUT
-Error at tests/inputs/main_panic.main:2
+Error at tests/inputs/main_panic.gleam (main:2)
   `panic` expression evaluated.
 
 STDERR

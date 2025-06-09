@@ -5,15 +5,15 @@ input_file: tests/inputs/check_todo_panic_stackoverflow.gleam
 ---
 STDOUT
 Running tests...
-Error at tests/inputs/check_todo_panic_stackoverflow.f:5
+Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:5)
   `todo` expression evaluated. This code has not yet been implemented.
-Error at tests/inputs/check_todo_panic_stackoverflow.f:6
+Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:6)
   not implemented
-Error at tests/inputs/check_todo_panic_stackoverflow.f:7
+Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:7)
   `panic` expression evaluated.
-Error at tests/inputs/check_todo_panic_stackoverflow.f:8
+Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:8)
   invalid input
-Error at tests/inputs/check_todo_panic_stackoverflow.f_examples:19
+Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f_examples:19)
   stack overflow
 6 tests, 1 success(es), 0 failure(s) and 5 error(s).
 

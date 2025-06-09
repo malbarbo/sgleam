@@ -1,3 +1,4 @@
+use camino::Utf8Path;
 use gleam_core::io::{memory::InMemoryFileSystem, FileSystemReader};
 use indoc::formatdoc;
 
@@ -26,6 +27,7 @@ use crate::{
 #[derive(Clone)]
 pub struct QuickJsEngine {
     context: Context,
+    fs: InMemoryFileSystem,
 }
 
 impl Engine for QuickJsEngine {
@@ -34,7 +36,8 @@ impl Engine for QuickJsEngine {
         ctrlc::set_handler(interrupt).expect("Add crtlc handlers");
 
         QuickJsEngine {
-            context: create_context(fs, Project::out().into()).unwrap(),
+            context: create_context(fs.clone(), Project::out().into()).unwrap(),
+            fs,
         }
     }
 
@@ -58,6 +61,16 @@ impl Engine for QuickJsEngine {
     // FIXME: handle more than one instance?
     fn interrupt(&self) {
         interrupt();
+    }
+}
+
+impl QuickJsEngine {
+    pub fn dump_module(&self, module: &str) {
+        let mut path = String::from("/build/");
+        path.push_str(module);
+        path.push_str(".mjs");
+        let content = self.fs.read(Utf8Path::new(&path)).unwrap();
+        println!("{path}\n{content}");
     }
 }
 

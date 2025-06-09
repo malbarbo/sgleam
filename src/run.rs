@@ -2,7 +2,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 
 use gleam_core::{
     ast::{TypedDefinition, TypedFunction},
-    build::{Module, Target},
+    build::{Module, Origin, Target},
 };
 
 use crate::{
@@ -111,6 +111,7 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     let smain = get_function(module, SGLEAM_SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
+            origin: Origin::Src,
         }
     })?;
 

@@ -359,9 +359,9 @@ checksum = "2dca085c2c7d9d65ad749d450b19b551efaa8e3476a439bdca07aca8533097f3"
 
 [[package]]
 name = "capnp"
-version = "0.20.6"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "053b81915c2ce1629b8fb964f578b18cb39b23ef9d5b24120d0dfc959569a1d9"
+checksum = "64b3560604b407fe0ab6f89b81ac11887b4ae07f8d31486581dee5b353e48f06"
 dependencies = [
  "embedded-io",
 ]
@@ -377,9 +377,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.1.16"
+version = "1.2.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9d013ecb737093c0e86b151a7b837993cf9ec6c502946cfb44bedc392421e0b"
+checksum = "956a5e21988b87f372569b66183b78babf23ebc2e744b733e4350a752c4dafac"
 dependencies = [
  "shlex",
 ]
@@ -1013,8 +1013,8 @@ dependencies = [
 
 [[package]]
 name = "gleam-core"
-version = "1.9.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam#f7bda2d97e0ef722b4ca28534dbaa72fe0955366"
+version = "1.11.1"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.6#c9ca576e6b0db315423d7756576fe89071381434"
 dependencies = [
  "age",
  "askama",
@@ -1022,9 +1022,8 @@ dependencies = [
  "base16",
  "bimap",
  "bincode",
- "bytes",
  "camino",
- "capnp 0.20.6",
+ "capnp 0.21.1",
  "capnpc",
  "codespan-reporting",
  "debug-ignore",
@@ -1033,7 +1032,6 @@ dependencies = [
  "flate2",
  "futures",
  "globset",
- "heck",
  "hexpm",
  "http",
  "id-arena",
@@ -1047,12 +1045,13 @@ dependencies = [
  "petgraph",
  "pubgrub",
  "pulldown-cmark",
+ "radix_trie",
  "regex",
  "serde",
  "serde_derive",
  "serde_json",
  "spdx",
- "strsim",
+ "stacker",
  "strum",
  "tar",
  "termcolor",
@@ -1547,6 +1546,7 @@ checksum = "a5e44f723f1133c9deac646763579fdb3ac745e418f2a7af9cd0c431da1f20b9"
 dependencies = [
  "num-integer",
  "num-traits",
+ "serde",
 ]
 
 [[package]]
@@ -1840,6 +1840,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52c2c1bf36ddb1a1c396b3601a3cec27c2462e45f07c386894ec3ccf5332bd16"
 dependencies = [
  "prost",
+]
+
+[[package]]
+name = "psm"
+version = "0.1.26"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e944464ec8536cd1beb0bbfd96987eb5e3b72f2ecdafdc5c769a37f1fa2ae1f"
+dependencies = [
+ "cc",
 ]
 
 [[package]]
@@ -2265,7 +2274,7 @@ dependencies = [
 
 [[package]]
 name = "sgleam"
-version = "0.5.1"
+version = "0.6.0-dev"
 dependencies = [
  "assert_cmd",
  "camino",
@@ -2358,6 +2367,19 @@ name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6980e8d7511241f8acf4aebddbb1ff938df5eebe98691418c4468d0b72a96a67"
+
+[[package]]
+name = "stacker"
+version = "0.1.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cddb07e32ddb770749da91081d8d0ac3a16f1a569a18b20348cd371f5dead06b"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "windows-sys 0.59.0",
+]
 
 [[package]]
 name = "strsim"

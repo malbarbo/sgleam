@@ -97,7 +97,7 @@ impl<E: Engine> Repl<E> {
         let items = parser::parse_repl(input).map_err(|error| Error::Parse {
             path: format!("/src/{}.gleam", self.module_name()).into(),
             src: input.into(),
-            error,
+            error: error.into(),
         })?;
 
         if type_ && items.len() != 1 {
@@ -214,6 +214,10 @@ impl<E: Engine> Repl<E> {
                     Ok(())
                 }
             },
+            Statement::Assert(_) => {
+                println!("assert is not supported.");
+                Ok(())
+            }
         }
     }
 

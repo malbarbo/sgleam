@@ -1,6 +1,6 @@
 [package]
 name = "sgleam"
-version = "0.5.1"
+version = "0.6.0-dev"
 edition = "2021"
 default-run = "sgleam"
 
@@ -9,7 +9,7 @@ camino = "1.1.9"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
 ecow = "0.2.3"
-gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam" }
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.6" }
 im = "15.1.0"
 indoc = "2.0.5"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = [

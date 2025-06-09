@@ -5,10 +5,10 @@ input_file: tests/inputs/check_true_false.gleam
 ---
 STDOUT
 Running tests...
-Failure at tests/inputs/check_true_false.eq_examples:5
+Failure at tests/inputs/check_true_false.gleam (eq_examples:5)
   Actual  : False
   Expected: True
-Failure at tests/inputs/check_true_false.eq_examples:6
+Failure at tests/inputs/check_true_false.gleam (eq_examples:6)
   Actual  : True
   Expected: False
 4 tests, 2 success(es), 2 failure(s) and 0 error(s).

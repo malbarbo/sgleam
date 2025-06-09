@@ -110,12 +110,12 @@ pub fn type_to_string(module: &Module, type_: &Type) -> String {
     Printer::new(&module.ast.names).print_type(type_).into()
 }
 
-pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], retrn: Arc<Type>) -> String {
+pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>) -> String {
     type_to_string(
         module,
         &Type::Fn {
             args: args.into(),
-            retrn,
+            return_,
         },
     )
 }
@@ -200,7 +200,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
             gleam_core::Error::Parse {
                 path,
                 src: src.into(),
-                error,
+                error: error.into(),
             }
         })?;
 
