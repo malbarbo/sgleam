@@ -9,7 +9,9 @@ camino = "1.1.9"
 clap = { version = "4", features = ["derive"] }
 dirs = "5"
 ecow = "0.2.3"
-gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.6" }
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.6", features = [
+    "disable-erlang", "disable-hide-internal",
+] }
 im = "15.1.0"
 indoc = "2.0.5"
 rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = [
@@ -26,11 +28,18 @@ vec1 = "1.12.1"
 ctrlc = "3.4.6"
 rustyline = { version = "14", features = ["derive"] }
 
+[dev-dependencies]
+assert_cmd = "2.0.16"
+insta = { version = "1.41.1", features = ["glob"] }
+
 [profile.release]
 opt-level = 2
 lto = true
 codegen-units = 1
 
-[dev-dependencies]
-assert_cmd = "2.0.16"
-insta = { version = "1.41.1", features = ["glob"] }
+[profile.release-small]
+inherits = "release"
+opt-level = 's'
+lto = true
+codegen-units = 1
+panic = "abort"
