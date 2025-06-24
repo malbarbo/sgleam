@@ -124,7 +124,7 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 
     match &smain.arguments[..] {
-        [] => Ok(MainFunction::Main),
+        [] => Ok(MainFunction::Smain),
         // TODO: make the signatures generic, also in show_error
         [arg] if type_to_string(module, &arg.type_) == "String" => Ok(MainFunction::SmainStdin),
         [arg] if type_to_string(module, &arg.type_) == "List(String)" => {

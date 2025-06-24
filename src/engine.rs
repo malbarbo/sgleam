@@ -6,6 +6,7 @@ pub const REPL_MAIN: &str = "repl_main";
 pub enum MainFunction {
     Main,
     ReplMain,
+    Smain,
     SmainStdin,
     SmainStdinLines,
 }

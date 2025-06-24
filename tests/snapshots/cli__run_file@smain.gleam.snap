@@ -1,0 +1,9 @@
+---
+source: tests/cli.rs
+expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+input_file: tests/inputs/smain.gleam
+---
+STDOUT
+["Hello", "World"]
+
+STDERR
