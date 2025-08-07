@@ -24,6 +24,9 @@ pub fn repl_save(value: a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
 pub fn repl_load(index: Int) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+pub fn repl_print(value: a) -> a
 "#;
 
 pub const QUIT: &str = ":quit";
@@ -241,7 +244,7 @@ impl<E: Engine> Repl<E> {
         src.push_str(&formatdoc! {"
             pub fn {REPL_MAIN}() {{
               {lets}
-              io.debug(repl_save({{
+              repl_print(repl_save({{
             {code}
               }}))
             }}
@@ -311,7 +314,7 @@ impl<E: Engine> Repl<E> {
         src.push_str(&formatdoc! {"
             pub fn {REPL_MAIN}() {{
               {lets}
-              io.debug({{
+              repl_print({{
             {expr}
               }})
             }}

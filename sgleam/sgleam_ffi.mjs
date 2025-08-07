@@ -72,6 +72,10 @@ export function repl_load(index) {
     return globalThis.repl_vars[index]
 }
 
+export function repl_print(value) {
+    console.log(`${inspect(value)}`);
+}
+
 export function check_equal(a, b, path, function_name, line_number) {
     try {
         const a_ = a();
