@@ -27,6 +27,7 @@ pub mod run;
 pub mod repl_reader_wasm;
 #[cfg(target_arch = "wasm32")]
 pub use repl_reader_wasm as repl_reader;
+use rust_embed::Embed;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub mod repl_reader;
@@ -58,10 +59,10 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "gleam/uri",
 ];
 
-pub const SGLEAM: &[(&str, &str)] = &[
-    ("sgleam/check.gleam", include_str!("../sgleam/check.gleam")),
-    ("sgleam/sgleam_ffi.mjs", include_str!("../sgleam/sgleam_ffi.mjs")),
-];
+#[derive(Embed)]
+#[folder = "sgleam/"]
+#[prefix = "sgleam/"]
+pub struct Sgleam;
 
 pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 

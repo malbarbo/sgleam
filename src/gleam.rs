@@ -50,10 +50,14 @@ impl Default for Project {
         extract_tar(&mut project.fs, Archive::new(stdlib()), Project::source())
             .expect("Extract stdlib");
 
-        for (name, content) in crate::SGLEAM {
-            project.write_source(name, content);
+        for path in crate::Sgleam::iter() {
+            if let Some(content) = crate::Sgleam::get(&path) {
+                if let Ok(content) = std::str::from_utf8(&content.data) {
+                    project.write_source(&path, content);
+                }
+            }
         }
-        
+
         project.write_out("prelude.mjs", gleam_core::javascript::prelude());
         project
     }
