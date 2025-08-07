@@ -1,5 +1,5 @@
-import { isEqual, List } from './gleam.mjs';
-import { inspect } from './gleam/string.mjs';
+import { isEqual, List } from '../gleam.mjs';
+import { inspect } from '../gleam/string.mjs';
 
 export function try_main(main, input_kind, show_output) {
     try {

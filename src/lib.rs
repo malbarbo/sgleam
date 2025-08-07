@@ -58,8 +58,11 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "gleam/uri",
 ];
 
-pub const SGLEAM_CHECK: &str = include_str!("../check.gleam");
-pub const SGLEAM_FFI_MJS: &str = include_str!("../sgleam_ffi.mjs");
+pub const SGLEAM: &[(&str, &str)] = &[
+    ("sgleam/check.gleam", include_str!("../sgleam/check.gleam")),
+    ("sgleam/sgleam_ffi.mjs", include_str!("../sgleam/sgleam_ffi.mjs")),
+];
+
 pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub const STACK_SIZE: usize = 128 * 1024 * 1024;

@@ -19,10 +19,10 @@ use crate::{
 };
 
 const REPL_SAVE_LOAD_FNS: &str = r#"
-@external(javascript, "./sgleam_ffi.mjs", "repl_save")
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
 pub fn repl_save(value: a) -> a
 
-@external(javascript, "./sgleam_ffi.mjs", "repl_load")
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
 pub fn repl_load(index: Int) -> a
 "#;
 

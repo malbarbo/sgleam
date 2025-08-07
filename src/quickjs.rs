@@ -107,7 +107,7 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
 pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output: bool) {
     let name = main.name();
     let code = formatdoc! {r#"
-        import {{ try_main }} from "./sgleam_ffi.mjs";
+        import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
         import {{ {name} }} from "./{module}.mjs";
         try_main({name}, "{main:?}", {show_output});
         "#
@@ -119,7 +119,7 @@ pub fn run_tests(context: &Context, modules: &[&str]) {
     let mut src = String::new();
     swriteln!(
         &mut src,
-        r#"import {{ run_tests }} from "./sgleam_ffi.mjs";"#
+        r#"import {{ run_tests }} from "./sgleam/sgleam_ffi.mjs";"#
     );
     let mut imports = vec![];
     for module in modules {
