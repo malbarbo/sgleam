@@ -57,6 +57,14 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "gleam/string",
     "gleam/string_tree",
     "gleam/uri",
+    "sgleam/check",
+    "sgleam/color",
+    "sgleam/create",
+    "sgleam/fill",
+    "sgleam/image",
+    "sgleam/stroke",
+    "sgleam/style",
+    "sgleam/system",
 ];
 
 #[derive(Embed)]

@@ -2,7 +2,12 @@ let wasmBytes;
 let wasmModule;
 let wasmExports;
 let repl;
-let stopBuffer;
+let sharedBuffer;
+
+const stdout = 1;
+const stderr = 2;
+const stopIndex = 0;
+const sleepIndex = 1;
 
 async function loadAndInstantiateWasm() {
     try {
@@ -56,8 +61,15 @@ async function instantiateWasm() {
     const env = ['RUST_BACKTRACE=1'];
     const instance = await WebAssembly.instantiate(wasmModule, {
         env: {
-            import_check_interrupt() {
-                return Atomics.exchange(stopBuffer, 0);
+            sgleam_check_interrupt() {
+                return Atomics.exchange(sharedBuffer, stopIndex, 0);
+            },
+            sgleam_sleep(ms) {
+                Atomics.wait(sharedBuffer, sleepIndex, 0, Number(ms));
+            },
+            sgleam_draw_svg(ptr, len) {
+                const buffer = new Uint8Array(wasmExports.memory.buffer);
+                postSvg(new TextDecoder("utf-8").decode(buffer.slice(ptr, ptr + len)));
             }
         },
         wasi_snapshot_preview1: {
@@ -155,7 +167,7 @@ async function instantiateWasm() {
                         const bufLen = dataView.getInt32(iovPtr + 4, true);
                         const buf = new Uint8Array(memory.buffer, bufPtr, bufLen);
 
-                        postOutput(decoder.decode(buf));
+                        postOutput(fd, decoder.decode(buf));
 
                         totalBytesWritten += bufLen;
                     }
@@ -237,6 +249,22 @@ async function instantiateWasm() {
                     return __WASI_ENOSYS;
                 }
             },
+            path_open() {
+                console.error('path_open');
+                return __WASI_ENOSYS;
+            },
+            fd_filestat_get() {
+                console.error('fd_filestat_get');
+                return __WASI_ENOSYS;
+            },
+            fd_prestat_get() {
+                console.error('fd_prestat_get');
+                return __WASI_ENOSYS;
+            },
+            fd_prestat_dir_name() {
+                console.error('fd_prestat_dir_name');
+                return __WASI_ENOSYS;
+            }
         }
     });
     wasmExports = instance.exports;
@@ -257,18 +285,22 @@ function postReady() {
     self.postMessage({ cmd: 'ready' });
 }
 
-function postOutput(data) {
-    self.postMessage({ cmd: 'output', data: data });
+function postOutput(fd, data) {
+    self.postMessage({ cmd: 'output', fd: fd, data: data });
 }
 
 function postFomat(data) {
     self.postMessage({ cmd: 'format', data: data });
 }
 
+function postSvg(data) {
+    self.postMessage({ cmd: 'svg', data: data });
+}
+
 function processMsg(event) {
     const data = event.data;
     if (data.cmd == 'init') {
-        stopBuffer = new Int32Array(data.data);
+        sharedBuffer = new Int32Array(data.data);
     } else if (data.cmd == 'run') {
         runRepl(data.data);
     } else if (data.cmd == 'format') {
@@ -298,13 +330,14 @@ async function runRepl(input) {
     try {
         if (wasmExports.repl_run(repl, ptr, len)) {
             // :quit
-            postOutput('Reloading the repl.');
+            postOutput(stdout, 'Reloading the repl.');
             initRepl("");
         } else {
             postReady();
         }
     } catch (err) {
-        postOutput('Execution error (probably a stackoverflow). Reloading the repl.');
+        console.log(err);
+        postOutput(stderr, 'Execution error (probably a stackoverflow). Reloading the repl.');
         repl = null;
         await instantiateWasm();
     } finally {

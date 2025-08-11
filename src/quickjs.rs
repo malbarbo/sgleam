@@ -82,12 +82,14 @@ pub fn interrupt() {
 
 #[cfg(target_arch = "wasm32")]
 extern "C" {
-    fn import_check_interrupt() -> bool;
+    fn sgleam_check_interrupt() -> bool;
+    fn sgleam_sleep(ms: u64);
+    fn sgleam_draw_svg(str: *const u8, len: usize);
 }
 
 #[cfg(target_arch = "wasm32")]
 fn check_interrupt() -> bool {
-    unsafe { import_check_interrupt() }
+    unsafe { sgleam_check_interrupt() }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -101,7 +103,12 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
     runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
-    context.with(|ctx| add_console(&ctx)).map(|_| context)
+    context
+        .with(|ctx| {
+            add_console(&ctx)?;
+            add_sgleam(&ctx)
+        })
+        .map(|_| context)
 }
 
 pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output: bool) {
@@ -164,12 +171,27 @@ fn add_console(ctx: &Ctx) -> Result<()> {
     let global = ctx.globals();
     let console = Object::new(ctx.clone())?;
     console.set("log", Function::new(ctx.clone(), log)?.with_name("log")?)?;
-    console.set(
+    global.set("console", console)?;
+    Ok(())
+}
+
+fn add_sgleam(ctx: &Ctx) -> Result<()> {
+    let global = ctx.globals();
+    let sgleam = Object::new(ctx.clone())?;
+    sgleam.set(
         "getline",
         Function::new(ctx.clone(), getline)?.with_name("getline")?,
     )?;
-
-    global.set("console", console)?;
+    sgleam.set(
+        "sleep",
+        Function::new(ctx.clone(), sleep)?.with_name("sleep")?,
+    )?;
+    #[cfg(target_arch = "wasm32")]
+    sgleam.set(
+        "draw_svg",
+        Function::new(ctx.clone(), draw_svg)?.with_name("draw_svg")?,
+    )?;
+    global.set("sgleam", sgleam)?;
     Ok(())
 }
 
@@ -192,6 +214,21 @@ fn getline() -> Option<String> {
             None
         }
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn draw_svg(str: String) {
+    unsafe { sgleam_draw_svg(str.as_ptr(), str.len()) }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn sleep(ms: u64) {
+    unsafe { sgleam_sleep(ms) };
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn sleep(ms: u64) {
+    std::thread::sleep(std::time::Duration::from_millis(ms));
 }
 
 fn log(value: Value) {

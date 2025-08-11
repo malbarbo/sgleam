@@ -1,5 +1,6 @@
 import { isEqual, List } from '../gleam.mjs';
 import { inspect } from '../gleam/string.mjs';
+import { rectangle, ellipse, line, crop, beside, empty, to_svg } from '../sgleam/image.mjs';
 
 export function try_main(main, input_kind, show_output) {
     try {
@@ -26,7 +27,7 @@ export function try_main(main, input_kind, show_output) {
 function read_lines() {
     let r = [];
     while (true) {
-        let line = console.getline();
+        let line = sgleam.getline();
         if (line == null) {
             return r;
         }
@@ -73,7 +74,27 @@ export function repl_load(index) {
 }
 
 export function repl_print(value) {
-    console.log(`${inspect(value)}`);
+    if (value && (value.constructor == rectangle(0.0, 0.0).constructor ||
+        value.constructor == ellipse(0.0, 0.0).constructor ||
+        value.constructor == line(0.0, 0.0).constructor || // Polygon
+        value.constructor == beside(empty, empty).constructor || // Combinatin
+        value.constructor == crop(empty).constructor)) {
+        if (sgleam.draw_svg) {
+            sgleam.draw_svg(`${to_svg(value)}`);
+        } else {
+            console.log("Image");
+        }
+    } else {
+        console.log(`${inspect(value)}`);
+    }
+}
+
+export function show_svg(svg) {
+    if (sgleam.draw_svg) {
+        sgleam.draw_svg(svg);
+    } else {
+        console.log("Image");
+    }
 }
 
 export function check_equal(a, b, path, function_name, line_number) {
@@ -174,5 +195,32 @@ function show_error(err) {
         }
     } else {
         console.log(`${err}`);
+    }
+}
+
+export function cos_deg(angle) {
+    return Math.cos(angle * Math.PI / 180.0);
+}
+
+export function sin_deg(angle) {
+    return Math.sin(angle * Math.PI / 180.0);
+}
+
+export function hypot(a, b) {
+    return Math.hypot(a, b);
+}
+
+let clipid = 0;
+
+export function next_clip_id() {
+    return clipid++;
+}
+
+export function sleep(ms) {
+    // spend time on the interpreter so check_interrupt is called
+    let msn = Number(ms);
+    let start = Date.now();
+    while (msn > (Date.now() - start)) {
+        sgleam.sleep(1);
     }
 }

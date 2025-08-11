@@ -1,3 +1,8 @@
+const stdout = 1;
+const stderr = 2;
+const stopIndex = 0;
+const sleepIndex = 1;
+
 document.addEventListener('DOMContentLoaded', () => {
     // TODO: add gleam lang
     const flask = new CodeFlask(document.getElementById('editor-panel'), {
@@ -17,6 +22,7 @@ pub fn hello_examples() {
 `);
 
     let replInput;
+    let lastSvg;
     const main = document.getElementById('main');
     const loading = document.getElementById('loading');
     const runButton = document.getElementById('run-button');
@@ -30,9 +36,9 @@ pub fn hello_examples() {
     let first = true;
     let runAfterFormat = false;
 
-    let sharedBuffer = new SharedArrayBuffer(4);
-    let buffer = new Int32Array(sharedBuffer);
-    Atomics.store(buffer, 0, 0);
+    let sharedBuffer = new SharedArrayBuffer(8);
+    let sharedIntBuffer = new Int32Array(sharedBuffer);
+    sharedIntBuffer.fill(0);
     repl.onmessage = (event) => {
         const data = event.data;
         if (data.cmd == 'error') {
@@ -40,6 +46,7 @@ pub fn hello_examples() {
         } else if (data.cmd == 'progress') {
             loading.textContent = `Loading ${Math.round(data.data)}%`;
         } else if (data.cmd == 'ready') {
+            lastSvg = null;
             if (first) {
                 replPanel.replaceChildren()
                 first = false;
@@ -55,7 +62,9 @@ pub fn hello_examples() {
                 run();
             }
         } else if (data.cmd == 'output') {
-            addOutput(data.data);
+            addOutput(data.fd, data.data);
+        } else if (data.cmd == 'svg') {
+            addSvg(data.data);
         }
     }
 
@@ -158,8 +167,8 @@ pub fn hello_examples() {
     function stop() {
         if (!stop.disabled) {
             stopButton.disabled = true;
-            let buffer = new Int32Array(sharedBuffer);
-            Atomics.store(buffer, 0, 1);
+            Atomics.store(sharedIntBuffer, stopIndex, 1);
+            Atomics.notify(sharedIntBuffer, sleepIndex, 1);
         }
     }
 
@@ -271,7 +280,7 @@ pub fn hello_examples() {
         });
     }
 
-    function addOutput(text) {
+    function addOutput(fd, text) {
         const output = document.createElement('div');
         output.className = 'repl-line';
         output.textContent = text;
@@ -279,6 +288,17 @@ pub fn hello_examples() {
         replPanel.scrollTop = replPanel.scrollHeight;
     }
 
+    function addSvg(svg) {
+        if (lastSvg) {
+            lastSvg.innerHTML = svg;
+        } else {
+            lastSvg = document.createElement('div');
+            lastSvg.innerHTML = svg;
+            lastSvg.style.fontSize = "0";
+            replPanel.appendChild(lastSvg);
+            replPanel.scrollTop = replPanel.scrollHeight;
+        }
+    }
 
     // Focus
 
