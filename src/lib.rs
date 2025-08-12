@@ -65,6 +65,7 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "sgleam/stroke",
     "sgleam/style",
     "sgleam/system",
+    "sgleam/world",
     "sgleam/xplace",
     "sgleam/yplace",
 ];

@@ -224,3 +224,11 @@ export function sleep(ms) {
         sgleam.sleep(1);
     }
 }
+
+export function get_key_event() {
+    if (sgleam.get_key_event) {
+        return List.fromArray(sgleam.get_key_event());
+    } else {
+        return List.fromArray([]);
+    }
+}
