@@ -3,6 +3,7 @@ let wasmModule;
 let wasmExports;
 let repl;
 let sharedBuffer;
+let keyEvents = [];
 
 const stdout = 1;
 const stderr = 2;
@@ -70,6 +71,32 @@ async function instantiateWasm() {
             sgleam_draw_svg(ptr, len) {
                 const buffer = new Uint8Array(wasmExports.memory.buffer);
                 postSvg(new TextDecoder("utf-8").decode(buffer.slice(ptr, ptr + len)));
+            },
+            sgleam_get_key_event(ptr, len, mods) {
+                if (keyEvents.length === 0) {
+                    return 3;
+                }
+                const event = keyEvents.shift();
+                const dataView = new Uint8Array(instance.exports.memory.buffer);
+                const encoded = new TextEncoder().encode(event.key);
+                dataView.set(encoded.subarray(0, len), ptr);
+                if (encoded.length < len) {
+                    dataView.fill(0, ptr + encoded.length, ptr + len);
+                }
+                dataView[mods + 0] = event.altKey;
+                dataView[mods + 1] = event.ctrlKey;
+                dataView[mods + 2] = event.shiftKey;
+                dataView[mods + 3] = event.metaKey;
+                dataView[mods + 4] = event.repeat;
+                if (event.type === "keypress") {
+                    return 0;
+                } else if (event.type === "keydown") {
+                    return 1;
+                } else if (event.type === "keyup") {
+                    return 2;
+                } else {
+                    return 3;
+                }
             }
         },
         wasi_snapshot_preview1: {

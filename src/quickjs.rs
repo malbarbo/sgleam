@@ -85,11 +85,39 @@ extern "C" {
     fn sgleam_check_interrupt() -> bool;
     fn sgleam_sleep(ms: u64);
     fn sgleam_draw_svg(str: *const u8, len: usize);
+    fn sgleam_get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
 }
 
 #[cfg(target_arch = "wasm32")]
 fn check_interrupt() -> bool {
     unsafe { sgleam_check_interrupt() }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn get_key_event() -> Vec<String> {
+    let mut key = [0u8; 32];
+    let mut modifiers = [false; 5];
+    let result =
+        unsafe { sgleam_get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
+    if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
+        let mut ret = vec![
+            (*type_).into(),
+            String::from_utf8_lossy(&key)
+                .trim_matches(char::from(0))
+                .to_string(),
+        ];
+        for (on, key) in modifiers
+            .iter()
+            .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
+        {
+            if *on {
+                ret.push((*key).into())
+            }
+        }
+        ret
+    } else {
+        vec![]
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -190,6 +218,11 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     sgleam.set(
         "draw_svg",
         Function::new(ctx.clone(), draw_svg)?.with_name("draw_svg")?,
+    )?;
+    #[cfg(target_arch = "wasm32")]
+    sgleam.set(
+        "get_key_event",
+        Function::new(ctx.clone(), get_key_event)?.with_name("get_key_event")?,
     )?;
     global.set("sgleam", sgleam)?;
     Ok(())
