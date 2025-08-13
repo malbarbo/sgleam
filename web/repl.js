@@ -5,10 +5,70 @@ let repl;
 let sharedBuffer;
 let keyEvents = [];
 
-const stdout = 1;
-const stderr = 2;
-const stopIndex = 0;
-const sleepIndex = 1;
+const STDOUT = 1;
+const STDERR = 2;
+
+// Shared buffer
+const STOP_INDEX = 0;
+const SLEEP_INDEX = 1;
+
+const KEY_EVENTS_INDEX = 2;
+const NUM_KEY_EVENTS_INDEX = 3;
+const HEADER_SIZE = 4;
+const EVENT_KEY_LEN = 12;
+const EVENT_SIZE = 1 + EVENT_KEY_LEN + 5;
+
+const KEYPRESS = 0;
+const KEYDOWN = 1;
+const KEYUP = 2;
+
+function lock(mem) {
+    while (Atomics.compareExchange(mem, KEY_EVENTS_INDEX, 0, 1) !== 0) { }
+}
+
+function unlock(mem) {
+    Atomics.store(mem, KEY_EVENTS_INDEX, 0);
+}
+
+function dequeueEvent(mem) {
+    lock(mem);
+    try {
+        let count = mem[NUM_KEY_EVENTS_INDEX];
+
+        if (count === 0) {
+            return null;
+        }
+
+        const type = mem[HEADER_SIZE];
+        const key = readKey(mem, HEADER_SIZE + 1);
+        const alt = !!mem[HEADER_SIZE + 1 + EVENT_KEY_LEN + 0];
+        const ctrl = !!mem[HEADER_SIZE + 1 + EVENT_KEY_LEN + 1];
+        const shift = !!mem[HEADER_SIZE + 1 + EVENT_KEY_LEN + 2];
+        const meta = !!mem[HEADER_SIZE + 1 + EVENT_KEY_LEN + 3];
+        const repeat = !!mem[HEADER_SIZE + 1 + EVENT_KEY_LEN + 4];
+
+        const remaining = (count - 1) * EVENT_SIZE
+        mem.copyWithin(HEADER_SIZE, HEADER_SIZE + EVENT_SIZE, HEADER_SIZE + EVENT_SIZE + remaining);
+        mem.fill(0, HEADER_SIZE + remaining, HEADER_SIZE + remaining + EVENT_SIZE);
+        mem[NUM_KEY_EVENTS_INDEX] = count - 1;
+
+        return { type, key, alt, ctrl, shift, meta, repeat };
+    } finally {
+        unlock(mem);
+    }
+}
+
+function readKey(mem, offset) {
+    let chars = [];
+    for (let i = 0; i < EVENT_KEY_LEN; i++) {
+        const code = mem[offset + i];
+        if (code === 0) {
+            break;
+        }
+        chars.push(code);
+    }
+    return String.fromCodePoint(...chars);
+}
 
 async function loadAndInstantiateWasm() {
     try {
@@ -63,40 +123,30 @@ async function instantiateWasm() {
     const instance = await WebAssembly.instantiate(wasmModule, {
         env: {
             sgleam_check_interrupt() {
-                return Atomics.exchange(sharedBuffer, stopIndex, 0);
+                return Atomics.exchange(sharedBuffer, STOP_INDEX, 0);
             },
             sgleam_sleep(ms) {
-                Atomics.wait(sharedBuffer, sleepIndex, 0, Number(ms));
+                Atomics.wait(sharedBuffer, SLEEP_INDEX, 0, Number(ms));
             },
             sgleam_draw_svg(ptr, len) {
                 const buffer = new Uint8Array(wasmExports.memory.buffer);
                 postSvg(new TextDecoder("utf-8").decode(buffer.slice(ptr, ptr + len)));
             },
             sgleam_get_key_event(ptr, len, mods) {
-                if (keyEvents.length === 0) {
+                let event = dequeueEvent(sharedBuffer);
+                if (event === null) {
                     return 3;
                 }
-                const event = keyEvents.shift();
-                const dataView = new Uint8Array(instance.exports.memory.buffer);
+                const buffer = new Uint8Array(instance.exports.memory.buffer);
                 const encoded = new TextEncoder().encode(event.key);
-                dataView.set(encoded.subarray(0, len), ptr);
-                if (encoded.length < len) {
-                    dataView.fill(0, ptr + encoded.length, ptr + len);
-                }
-                dataView[mods + 0] = event.altKey;
-                dataView[mods + 1] = event.ctrlKey;
-                dataView[mods + 2] = event.shiftKey;
-                dataView[mods + 3] = event.metaKey;
-                dataView[mods + 4] = event.repeat;
-                if (event.type === "keypress") {
-                    return 0;
-                } else if (event.type === "keydown") {
-                    return 1;
-                } else if (event.type === "keyup") {
-                    return 2;
-                } else {
-                    return 3;
-                }
+                buffer.set(encoded.subarray(0, len), ptr);
+                buffer.fill(0, ptr + encoded.length, ptr + len);
+                buffer[mods + 0] = event.alt;
+                buffer[mods + 1] = event.ctrl;
+                buffer[mods + 2] = event.shift;
+                buffer[mods + 3] = event.meta;
+                buffer[mods + 4] = event.repeat;
+                return event.type;
             }
         },
         wasi_snapshot_preview1: {
@@ -357,14 +407,14 @@ async function runRepl(input) {
     try {
         if (wasmExports.repl_run(repl, ptr, len)) {
             // :quit
-            postOutput(stdout, 'Reloading the repl.');
+            postOutput(STDOUT, 'Reloading the repl.');
             initRepl("");
         } else {
             postReady();
         }
     } catch (err) {
         console.log(err);
-        postOutput(stderr, 'Execution error (probably a stackoverflow). Reloading the repl.');
+        postOutput(STDERR, 'Execution error (probably a stackoverflow). Reloading the repl.');
         repl = null;
         await instantiateWasm();
     } finally {

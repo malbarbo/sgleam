@@ -1,7 +1,58 @@
-const stdout = 1;
-const stderr = 2;
-const stopIndex = 0;
-const sleepIndex = 1;
+const STDOUT = 1;
+const STDERR = 2;
+
+// Shared buffer
+const STOP_INDEX = 0;
+const SLEEP_INDEX = 1;
+
+const KEY_EVENTS_INDEX = 2;
+const NUM_KEY_EVENTS_INDEX = 3;
+const HEADER_SIZE = 4;
+const EVENT_KEY_LEN = 12;
+const EVENT_SIZE = 1 + EVENT_KEY_LEN + 5;
+
+const KEYPRESS = 0;
+const KEYDOWN = 1;
+const KEYUP = 2;
+
+function lock(mem) {
+    while (Atomics.compareExchange(mem, KEY_EVENTS_INDEX, 0, 1) !== 0) { }
+}
+
+function unlock(mem) {
+    Atomics.store(mem, KEY_EVENTS_INDEX, 0);
+}
+
+function enqueueEvent(mem, event) {
+    lock(mem);
+    try {
+        const count = mem[NUM_KEY_EVENTS_INDEX];
+        const capacity = Math.floor((mem.length - HEADER_SIZE) / EVENT_SIZE);
+
+        if (count >= capacity) {
+            return false;
+        }
+
+        const offset = HEADER_SIZE + count * EVENT_SIZE;
+        mem[offset] = event.type;
+        writeKey(mem, offset + 1, event.key);
+        mem[offset + 1 + EVENT_KEY_LEN + 0] = event.alt ? 1 : 0;
+        mem[offset + 1 + EVENT_KEY_LEN + 1] = event.ctrl ? 1 : 0;
+        mem[offset + 1 + EVENT_KEY_LEN + 2] = event.shift ? 1 : 0;
+        mem[offset + 1 + EVENT_KEY_LEN + 3] = event.meta ? 1 : 0;
+        mem[offset + 1 + EVENT_KEY_LEN + 4] = event.repeat ? 1 : 0;
+        mem[NUM_KEY_EVENTS_INDEX] = count + 1;
+        return true;
+    } finally {
+        unlock(mem)
+    }
+}
+
+function writeKey(mem, offset, key) {
+    for (let i = 0; i < EVENT_KEY_LEN; i++) {
+        mem[offset + i] = i < key.length ? key.codePointAt(i) : 0
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     // TODO: add gleam lang
@@ -36,7 +87,7 @@ pub fn hello_examples() {
     let first = true;
     let runAfterFormat = false;
 
-    let sharedBuffer = new SharedArrayBuffer(8);
+    let sharedBuffer = new SharedArrayBuffer(HEADER_SIZE * 4 + EVENT_SIZE * 10 * 4);
     let sharedIntBuffer = new Int32Array(sharedBuffer);
     sharedIntBuffer.fill(0);
     repl.onmessage = (event) => {
@@ -167,8 +218,8 @@ pub fn hello_examples() {
     function stop() {
         if (!stop.disabled) {
             stopButton.disabled = true;
-            Atomics.store(sharedIntBuffer, stopIndex, 1);
-            Atomics.notify(sharedIntBuffer, sleepIndex, 1);
+            Atomics.store(sharedIntBuffer, STOP_INDEX, 1);
+            Atomics.notify(sharedIntBuffer, SLEEP_INDEX, 1);
         }
     }
 
@@ -295,7 +346,25 @@ pub fn hello_examples() {
             lastSvg = document.createElement('div');
             lastSvg.innerHTML = svg;
             lastSvg.style.fontSize = "0";
+            lastSvg.style.outline = 'none';
             replPanel.appendChild(lastSvg);
+            lastSvg.tabIndex = 0;
+            let handler = (type) => (event) => {
+                let e = {
+                    type: type,
+                    key: event.key,
+                    alt: event.altKey,
+                    ctrl: event.ctrlKey,
+                    shift: event.shiftKey,
+                    meta: event.metaKey,
+                    repeat: event.repeat,
+                };
+                enqueueEvent(sharedIntBuffer, e);
+            };
+            lastSvg.addEventListener("keypress", handler(KEYPRESS));
+            lastSvg.addEventListener("keydown", handler(KEYDOWN));
+            lastSvg.addEventListener("keyup", handler(KEYUP));
+            lastSvg.focus();
             replPanel.scrollTop = replPanel.scrollHeight;
         }
     }
