@@ -13,9 +13,9 @@ pub fn main() {
   |> world.run()
 }
 
-const linhas = 8
+const linhas = 9
 
-const colunas = 10
+const colunas = 11
 
 const size = 30
 
@@ -38,9 +38,12 @@ pub fn move(p: Posicao, key: world.Key) -> Posicao {
   let p = case key {
     world.Left -> Posicao(..p, coluna: p.coluna - 1)
     world.Right -> Posicao(..p, coluna: p.coluna + 1)
-    world.Down -> Posicao(..p, linha: p.linha - 1)
-    world.Up -> Posicao(..p, linha: p.linha + 1)
+    world.Down -> Posicao(..p, linha: p.linha + 1)
+    world.Up -> Posicao(..p, linha: p.linha - 1)
     _ -> p
   }
-  Posicao(int.clamp(p.linha, 0, linhas), int.clamp(p.coluna, 0, colunas))
+  Posicao(
+    int.clamp(p.linha, 0, linhas - 1),
+    int.clamp(p.coluna, 0, colunas - 1),
+  )
 }
