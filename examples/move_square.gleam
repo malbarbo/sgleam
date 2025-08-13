@@ -9,7 +9,8 @@ import sgleam/yplace
 
 pub fn main() {
   world.create(Posicao(linhas / 2, colunas / 2), desenho)
-  |> world.on_key(move)
+  |> world.on_key_down(move)
+  |> world.stop_when(fn(p) { p.linha == 0 && p.coluna == 0 })
   |> world.run()
 }
 
@@ -36,10 +37,10 @@ pub fn desenho(p: Posicao) -> image.Image {
 
 pub fn move(p: Posicao, key: world.Key) -> Posicao {
   let p = case key {
-    world.Left -> Posicao(..p, coluna: p.coluna - 1)
-    world.Right -> Posicao(..p, coluna: p.coluna + 1)
-    world.Down -> Posicao(..p, linha: p.linha + 1)
-    world.Up -> Posicao(..p, linha: p.linha - 1)
+    world.ArrowLeft -> Posicao(..p, coluna: p.coluna - 1)
+    world.ArrowRight -> Posicao(..p, coluna: p.coluna + 1)
+    world.ArrowDown -> Posicao(..p, linha: p.linha + 1)
+    world.ArrowUp -> Posicao(..p, linha: p.linha - 1)
     _ -> p
   }
   Posicao(
