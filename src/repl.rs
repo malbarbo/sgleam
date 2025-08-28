@@ -45,8 +45,8 @@ pub struct Repl<E: Engine> {
     imports: Vec<String>,
     consts: Vec<String>,
     types: Vec<String>,
-    fns: HashMap<String, String>,
-    vars: HashMap<String, Value>,
+    fns: HashMap<String, Function>,
+    vars: HashMap<String, Variable>,
     project: Project,
     engine: E,
     iter: (usize, usize),
@@ -59,9 +59,15 @@ pub enum ReplOutput {
 }
 
 #[derive(Clone)]
-struct Value {
+struct Variable {
     index: usize,
     type_: String,
+}
+
+#[derive(Clone)]
+struct Function {
+    index: usize,
+    body: String,
 }
 
 impl<E: Engine> Repl<E> {
@@ -260,7 +266,7 @@ impl<E: Engine> Repl<E> {
             let main = get_function(&module, REPL_MAIN).expect("repl main function");
             let type_ = type_to_string(&module, &main.return_type);
             let index = self.var_index;
-            self.vars.insert(name.into(), Value { index, type_ });
+            self.vars.insert(name.into(), Variable { index, type_ });
             self.var_index += 1;
         } else {
             // there was an error and the variable was not saved
@@ -299,8 +305,14 @@ impl<E: Engine> Repl<E> {
         self.run_check()
     }
 
-    fn run_fn(&mut self, name: String, code: String) -> Result<(), Error> {
-        self.fns.insert(name, code);
+    fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
+        self.fns.insert(
+            name,
+            Function {
+                index: self.var_index,
+                body,
+            },
+        );
         self.run_check()
     }
 
@@ -344,15 +356,20 @@ impl<E: Engine> Repl<E> {
     }
 
     fn add_fns(&self, src: &mut String) {
-        for code in self.fns.values() {
-            swriteln!(src, "{code}");
+        for fun in self.fns.values() {
+            swriteln!(src, "{}", fun.body);
         }
     }
 
     fn gen_lets(&self, exclude: &[String]) -> String {
         let mut lets = String::new();
-        for (name, Value { index, type_ }) in &self.vars {
-            if !exclude.contains(name) {
+        for (name, Variable { index, type_ }) in &self.vars {
+            let replaced_by_fn = self
+                .fns
+                .get(name)
+                .map(|f| *index + 1 <= f.index)
+                .unwrap_or(false);
+            if !exclude.contains(name) && !replaced_by_fn {
                 swriteln!(
                     lets,
                     r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#

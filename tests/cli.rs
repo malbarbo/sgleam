@@ -68,6 +68,14 @@ fn repl_let_int_pattern() {
 }
 
 #[test]
+fn repl_fn_replace_let() {
+    assert_eq!(
+        repl_exec("let a = 1 fn a() { 2 } a() let a = 3 a"),
+        "1\n2\n3\n3"
+    );
+}
+
+#[test]
 fn repl_fn() {
     assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "2");
 }
