@@ -367,7 +367,7 @@ impl<E: Engine> Repl<E> {
             let replaced_by_fn = self
                 .fns
                 .get(name)
-                .map(|f| *index + 1 <= f.index)
+                .map(|f| *index < f.index)
                 .unwrap_or(false);
             if !exclude.contains(name) && !replaced_by_fn {
                 swriteln!(
