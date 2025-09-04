@@ -1,27 +1,9 @@
 ---
 source: tests/cli.rs
-expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
 input_file: tests/inputs/main_stackoverflow.gleam
 ---
 STDOUT
-Stack overflow
-  at main (/build/tests/inputs/main_stackoverflow.mjs:6:10)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  at f (/build/tests/inputs/main_stackoverflow.mjs:2:15)
-  ...
+RangeError: Maximum call stack size exceeded
 
 STDERR

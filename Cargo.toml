@@ -14,7 +14,7 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
 ] }
 im = "15.1.0"
 indoc = "2.0.5"
-rquickjs = { git = "https://github.com/malbarbo/rquickjs", branch = "fix-gleam-stdlib", features = [
+rquickjs = { git = "https://github.com/DelSkayn/rquickjs", features = [
     "loader",
 ] }
 rust-embed = "8.7.2"

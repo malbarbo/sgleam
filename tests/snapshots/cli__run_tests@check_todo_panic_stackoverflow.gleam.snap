@@ -1,6 +1,6 @@
 ---
 source: tests/cli.rs
-expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
 input_file: tests/inputs/check_todo_panic_stackoverflow.gleam
 ---
 STDOUT
@@ -14,7 +14,7 @@ Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:7)
 Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f:8)
   invalid input
 Error at tests/inputs/check_todo_panic_stackoverflow.gleam (f_examples:19)
-  stack overflow
+  Maximum call stack size exceeded
 6 tests, 1 success(es), 0 failure(s) and 5 error(s).
 
 STDERR
