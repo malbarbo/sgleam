@@ -107,26 +107,50 @@ fn mid(a: Float, b: Float) -> Float {
 // **************************
 
 pub opaque type Image {
-  Rectangle(
-    style: Style,
-    center: Pointf,
-    width: Float,
-    height: Float,
-    angle: Float,
-  )
-  Ellipse(
-    style: Style,
-    center: Pointf,
-    width: Float,
-    height: Float,
-    angle: Float,
-  )
+  Rectangle(style: Style, box: Box)
+  Ellipse(style: Style, box: Box)
   Polygon(style: Style, points: List(Pointf))
   Combination(Image, Image)
-  Crop(center: Pointf, width: Float, height: Float, angle: Float, image: Image)
+  Crop(box: Box, image: Image)
 }
 
-pub const empty = Rectangle(style.none, Pointf(0.0, 0.0), 0.0, 0.0, 0.0)
+type Box {
+  Box(center: Pointf, width: Float, height: Float, angle: Float)
+}
+
+fn box_translate(box: Box, dx: Float, dy: Float) -> Box {
+  Box(..box, center: point_translate(box.center, dx, dy))
+}
+
+fn box_box(box: Box) -> #(Pointf, Pointf) {
+  let hw = box.width /. 2.0
+  let hh = box.height /. 2.0
+  let abs = float.absolute_value
+  let dx = hw *. abs(cos_deg(box.angle)) +. hh *. abs(sin_deg(box.angle))
+  let dy = hw *. abs(sin_deg(box.angle)) +. hh *. abs(cos_deg(box.angle))
+  #(
+    point_translate(box.center, 0.0 -. dx, 0.0 -. dy),
+    point_translate(box.center, dx, dy),
+  )
+}
+
+fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
+  Box(
+    ..box,
+    center: point_rotate(box.center, center, angle),
+    angle: box.angle +. angle,
+  )
+}
+
+fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
+  Box(..box, width: box.width *. x_factor, height: box.height *. y_factor)
+}
+
+fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
+  Box(..box, center: point_flip(box.center), angle: 0.0 -. box.angle)
+}
+
+pub const empty = Rectangle(style.none, Box(Pointf(0.0, 0.0), 0.0, 0.0, 0.0))
 
 pub fn widthf(img: Image) -> Float {
   let #(min, max) = box(img)
@@ -168,19 +192,13 @@ pub fn center(img: Image) -> Point {
 fn translate(img: Image, dx: Float, dy: Float) -> Image {
   use <- bool.guard(dx == 0.0 && dy == 0.0, img)
   case img {
-    Rectangle(center:, ..) ->
-      Rectangle(..img, center: point_translate(center, dx, dy))
-    Ellipse(center:, ..) ->
-      Ellipse(..img, center: point_translate(center, dx, dy))
+    Rectangle(box:, ..) -> Rectangle(..img, box: box_translate(box, dx, dy))
+    Ellipse(box:, ..) -> Ellipse(..img, box: box_translate(box, dx, dy))
     Polygon(points:, ..) ->
       Polygon(..img, points: list.map(points, point_translate(_, dx, dy)))
     Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
-    Crop(center:, image:, ..) ->
-      Crop(
-        ..img,
-        center: point_translate(center, dx, dy),
-        image: translate(image, dx, dy),
-      )
+    Crop(box:, image:) ->
+      Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
   }
 }
 
@@ -194,18 +212,10 @@ fn fix_position(img: Image) -> Image {
 
 fn box(img: Image) -> #(Pointf, Pointf) {
   case img {
-    Rectangle(center:, width:, height:, angle:, ..) -> {
-      let hw = width /. 2.0
-      let hh = height /. 2.0
-      let abs = float.absolute_value
-      let dx = hw *. abs(cos_deg(angle)) +. hh *. abs(sin_deg(angle))
-      let dy = hw *. abs(sin_deg(angle)) +. hh *. abs(cos_deg(angle))
-      #(
-        point_translate(center, 0.0 -. dx, 0.0 -. dy),
-        point_translate(center, dx, dy),
-      )
+    Rectangle(box:, ..) -> {
+      box_box(box)
     }
-    Ellipse(center:, width:, height:, angle:, ..) -> {
+    Ellipse(box: Box(center:, width:, height:, angle:), ..) -> {
       let dx = hypot(width *. cos_deg(angle), height *. sin_deg(angle))
       let dy = hypot(width *. sin_deg(angle), height *. cos_deg(angle))
       #(
@@ -228,16 +238,8 @@ fn box(img: Image) -> #(Pointf, Pointf) {
       let max_y = list.fold(points, 0.0, fn(max, p) { float.max(max, p.y) })
       #(Pointf(min_x, min_y), Pointf(max_x, max_y))
     }
-    Crop(center:, width:, height:, angle:, ..) -> {
-      let hw = width /. 2.0
-      let hh = height /. 2.0
-      let abs = float.absolute_value
-      let dx = hw *. abs(cos_deg(angle)) +. hh *. abs(sin_deg(angle))
-      let dy = hw *. abs(sin_deg(angle)) +. hh *. abs(cos_deg(angle))
-      #(
-        point_translate(center, 0.0 -. dx, 0.0 -. dy),
-        point_translate(center, dx, dy),
-      )
+    Crop(box:, ..) -> {
+      box_box(box)
     }
   }
 }
@@ -249,7 +251,7 @@ fn box(img: Image) -> #(Pointf, Pointf) {
 pub fn rectanglef(width: Float, height: Float, style: Style) -> Image {
   let width = positive(width)
   let height = positive(height)
-  Rectangle(style, Pointf(width /. 2.0, height /. 2.0), width, height, 0.0)
+  Rectangle(style, Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0))
 }
 
 pub fn rectangle(width: Int, height: Int, style: Style) -> Image {
@@ -267,7 +269,7 @@ pub fn square(side: Int, style: Style) -> Image {
 pub fn ellipsef(width: Float, height: Float, style: Style) -> Image {
   let hw = positive(width) /. 2.0
   let hh = positive(height) /. 2.0
-  Ellipse(style, Pointf(hw, hh), hw, hh, 0.0)
+  Ellipse(style, Box(Pointf(hw, hh), hw, hh, 0.0))
 }
 
 pub fn ellipse(width: Int, height: Int, style: Style) -> Image {
@@ -521,18 +523,8 @@ pub fn rotate(img: Image, angle: Int) -> Image {
 
 fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
   case img {
-    Rectangle(..) ->
-      Rectangle(
-        ..img,
-        center: point_rotate(img.center, center, angle),
-        angle: img.angle +. angle,
-      )
-    Ellipse(..) ->
-      Ellipse(
-        ..img,
-        center: point_rotate(img.center, center, angle),
-        angle: img.angle +. angle,
-      )
+    Rectangle(..) -> Rectangle(..img, box: box_rotate(img.box, center, angle))
+    Ellipse(..) -> Ellipse(..img, box: box_rotate(img.box, center, angle))
     Polygon(..) ->
       Polygon(
         ..img,
@@ -545,9 +537,7 @@ fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
       )
     Crop(..) ->
       Crop(
-        ..img,
-        center: point_rotate(img.center, center, angle),
-        angle: img.angle +. angle,
+        box: box_rotate(img.box, center, angle),
         image: rotate_around(img.image, center, angle),
       )
   }
@@ -565,10 +555,9 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
   let x_factor = positive(x_factor)
   let y_factor = positive(y_factor)
   case img {
-    Rectangle(width:, height:, ..) ->
-      Rectangle(..img, width: width *. x_factor, height: height *. y_factor)
-    Ellipse(width:, height:, ..) ->
-      Ellipse(..img, width: width *. x_factor, height: height *. y_factor)
+    Rectangle(box:, ..) ->
+      Rectangle(..img, box: box_scale(box, x_factor, y_factor))
+    Ellipse(box:, ..) -> Ellipse(..img, box: box_scale(box, x_factor, y_factor))
     Polygon(points:, ..) ->
       Polygon(
         ..img,
@@ -581,11 +570,9 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
         scale_xyf(a, x_factor, y_factor),
         scale_xyf(b, x_factor, y_factor),
       )
-    Crop(width:, height:, image:, ..) ->
+    Crop(box:, image:) ->
       Crop(
-        ..img,
-        width: width *. x_factor,
-        height: height *. y_factor,
+        box: box_scale(box, x_factor, y_factor),
         image: scale_xyf(image, x_factor, y_factor),
       )
   }
@@ -606,20 +593,14 @@ pub fn flip_vertical(img: Image) -> Image {
 
 fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
   case img {
-    Rectangle(center:, angle:, ..) ->
-      Rectangle(..img, center: point_flip(center), angle: 0.0 -. angle)
-    Ellipse(center:, angle:, ..) -> {
-      Ellipse(..img, center: point_flip(center), angle: 0.0 -. angle)
+    Rectangle(box:, ..) -> Rectangle(..img, box: box_flip(box, point_flip))
+    Ellipse(box:, ..) -> {
+      Ellipse(..img, box: box_flip(box, point_flip))
     }
     Polygon(points:, ..) -> Polygon(..img, points: list.map(points, point_flip))
     Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
-    Crop(center:, angle:, image:, ..) ->
-      Crop(
-        ..img,
-        center: point_flip(center),
-        angle: 0.0 -. angle,
-        image: flip(image, point_flip),
-      )
+    Crop(box:, image:) ->
+      Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
   }
   |> fix_position
 }
@@ -642,10 +623,7 @@ pub fn cropf(
   let width = positive(width)
   let height = positive(height)
   Crop(
-    Pointf(width /. 2.0, height /. 2.0),
-    width,
-    height,
-    0.0,
+    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
     translate(img, 0.0 -. x, 0.0 -. y),
   )
 }
@@ -970,7 +948,7 @@ pub fn to_svg(img: Image) -> String {
 
 fn to_svg_(img: Image, level: Int) -> String {
   case img {
-    Rectangle(style:, center:, width:, height:, angle:) -> {
+    Rectangle(style:, box: Box(center:, width:, height:, angle:)) -> {
       ident(level)
       <> "<rect "
       <> attrib("x", center.x -. width /. 2.0)
@@ -981,7 +959,7 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> style.to_svg(style)
       <> "/>\n"
     }
-    Ellipse(style:, center:, width:, height:, angle:) -> {
+    Ellipse(style:, box: Box(center:, width:, height:, angle:)) -> {
       ident(level)
       <> "<ellipse "
       <> attrib("cx", center.x)
@@ -1022,7 +1000,7 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> to_svg_(b, level + 1)
       <> ident(level)
       <> "</g>\n"
-    Crop(center:, width:, height:, angle:, image:) -> {
+    Crop(box: Box(center:, width:, height:, angle:), image:) -> {
       let clipid = "clip" <> int.to_string(next_clip_id())
       let rect =
         "<rect "
