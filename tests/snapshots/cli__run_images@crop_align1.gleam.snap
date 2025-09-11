@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/crop_align1.gleam
+---
+<svg width="40.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 20.0)" /></clipPath></defs>
+  <g clip-path="url(#clip0)" >
+    <ellipse cx="40.0" cy="40.0" rx="40.0" ry="40.0" transform="rotate(0.0 40.0 40.0)" fill="rgba(210, 105, 30, 1.0)" />
+  </g>
+</svg>

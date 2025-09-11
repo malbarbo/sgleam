@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/place_image_align1.gleam
+---
+<svg width="64.0" height="64.0" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="64.0" height="64.0" transform="rotate(0.0 32.0 32.0)" /></clipPath></defs>
+  <g clip-path="url(#clip0)" >
+    <g>
+      <rect x="0.0" y="0.0" width="64.0" height="64.0" transform="rotate(0.0 32.0 32.0)" fill="rgba(238, 232, 170, 1.0)" />
+      <polygon points="40.0,22.430780618346944 64.0,64.0 16.0,64.0" fill="rgba(154, 205, 50, 1.0)" />
+    </g>
+  </g>
+</svg>

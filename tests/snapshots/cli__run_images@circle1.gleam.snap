@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/circle1.gleam
+---
+<svg width="60.0" height="60.0" xmlns="http://www.w3.org/2000/svg">
+  <ellipse cx="30.0" cy="30.0" rx="30.0" ry="30.0" transform="rotate(0.0 30.0 30.0)" fill="none" stroke="rgba(255, 0, 0, 1.0)" />
+</svg>

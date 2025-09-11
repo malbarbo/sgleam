@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/frame1.gleam
+---
+<svg width="40.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <rect x="0.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 20.0)" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
+    <ellipse cx="20.0" cy="20.0" rx="20.0" ry="20.0" transform="rotate(0.0 20.0 20.0)" fill="rgba(128, 128, 128, 1.0)" />
+  </g>
+</svg>

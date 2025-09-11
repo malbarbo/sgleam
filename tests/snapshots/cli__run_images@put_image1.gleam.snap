@@ -1,0 +1,14 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/put_image1.gleam
+---
+<svg width="50.0" height="50.0" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="50.0" height="50.0" transform="rotate(0.0 25.0 25.0)" /></clipPath></defs>
+  <g clip-path="url(#clip0)" >
+    <g>
+      <rect x="0.0" y="0.0" width="50.0" height="50.0" transform="rotate(0.0 25.0 25.0)" fill="rgba(211, 211, 211, 1.0)" />
+      <ellipse cx="40.0" cy="35.0" rx="10.0" ry="15.0" transform="rotate(0.0 40.0 35.0)" fill="rgba(255, 0, 0, 1.0)" />
+    </g>
+  </g>
+</svg>

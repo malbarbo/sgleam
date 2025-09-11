@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/regular_polygon1.gleam
+---
+<svg width="50.00000000000001" height="43.30127018922194" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="25.000000000000004,0.0 50.00000000000001,43.30127018922194 0.0,43.30127018922194" fill="none" stroke="rgba(255, 0, 0, 1.0)" />
+</svg>

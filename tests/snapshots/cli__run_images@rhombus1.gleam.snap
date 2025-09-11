@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/rhombus1.gleam
+---
+<svg width="30.614674589207183" height="73.91036260090294" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="0.0,36.95518130045147 15.307337294603592,0.0 30.614674589207183,36.95518130045147 15.307337294603592,73.91036260090294" fill="rgba(255, 0, 255, 1.0)" />
+</svg>

@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/add_line1.gleam
+---
+<svg width="40.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse cx="20.0" cy="20.0" rx="20.0" ry="20.0" transform="rotate(0.0 20.0 20.0)" fill="none" stroke="rgba(128, 0, 0, 1.0)" />
+    <line x1="0.0" y1="40.0" x2="40.0" y2="0.0" fill="none" stroke="rgba(128, 0, 0, 1.0)" />
+  </g>
+</svg>

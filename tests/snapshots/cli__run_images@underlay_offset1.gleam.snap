@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/underlay_offset1.gleam
+---
+<svg width="90.0" height="90.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <ellipse cx="40.0" cy="40.0" rx="40.0" ry="40.0" transform="rotate(0.0 40.0 40.0)" fill="rgba(255, 0, 0, 1.0)" />
+    <ellipse cx="50.0" cy="50.0" rx="40.0" ry="40.0" transform="rotate(0.0 50.0 50.0)" fill="rgba(0, 0, 255, 1.0)" />
+  </g>
+</svg>

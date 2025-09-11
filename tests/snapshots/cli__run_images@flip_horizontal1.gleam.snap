@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/flip_horizontal1.gleam
+---
+<svg width="136.60254037844388" height="68.30127018922194" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <rect x="9.15063509461097" y="9.15063509461097" width="50.0" height="50.0" transform="rotate(-30.0 34.15063509461097 34.15063509461097)" fill="rgba(255, 0, 0, 1.0)" />
+    <rect x="77.4519052838329" y="9.15063509461097" width="50.0" height="50.0" transform="rotate(30.0 102.4519052838329 34.15063509461097)" fill="rgba(0, 0, 255, 1.0)" />
+  </g>
+</svg>

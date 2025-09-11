@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/right_triangle1.gleam
+---
+<svg width="36.0" height="48.0" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="0.0,0.0 0.0,48.0 36.0,48.0" fill="rgba(0, 0, 0, 1.0)" />
+</svg>

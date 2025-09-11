@@ -1,0 +1,17 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/above_align1.gleam
+---
+<svg width="70.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <g>
+        <ellipse cx="35.0" cy="10.0" rx="35.0" ry="10.0" transform="rotate(0.0 35.0 10.0)" fill="rgba(154, 205, 50, 1.0)" />
+        <ellipse cx="45.0" cy="30.0" rx="25.0" ry="10.0" transform="rotate(0.0 45.0 30.0)" fill="rgba(107, 142, 35, 1.0)" />
+      </g>
+      <ellipse cx="55.0" cy="50.0" rx="15.0" ry="10.0" transform="rotate(0.0 55.0 50.0)" fill="rgba(85, 107, 47, 1.0)" />
+    </g>
+    <ellipse cx="65.0" cy="70.0" rx="5.0" ry="10.0" transform="rotate(0.0 65.0 70.0)" fill="rgba(0, 100, 0, 1.0)" />
+  </g>
+</svg>

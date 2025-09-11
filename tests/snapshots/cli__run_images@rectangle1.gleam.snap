@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/rectangle1.gleam
+---
+<svg width="40.0" height="20.0" xmlns="http://www.w3.org/2000/svg">
+  <rect x="0.0" y="0.0" width="40.0" height="20.0" transform="rotate(0.0 20.0 10.0)" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
+</svg>

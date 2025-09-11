@@ -296,6 +296,15 @@ fn smain_string() {
     });
 }
 
+#[test]
+fn run_images() {
+    glob!("images/*.gleam", |path| {
+        let path = path.as_os_str().to_str().expect("a valid path");
+        let (out, _) = run_sgleam_cmd(&[path], None);
+        assert_snapshot!(format!("{out}"));
+    });
+}
+
 fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
     run_sgleam_cmd(args, input).0
 }

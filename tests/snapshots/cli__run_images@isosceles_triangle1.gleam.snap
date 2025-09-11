@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/isosceles_triangle1.gleam
+---
+<svg width="398.47787923669824" height="17.431148549531628" xmlns="http://www.w3.org/2000/svg">
+  <polygon points="398.47787923669824,17.431148549531628 199.23893961834912,0.0 0.0,17.431148549531628" fill="rgba(46, 139, 87, 1.0)" />
+</svg>

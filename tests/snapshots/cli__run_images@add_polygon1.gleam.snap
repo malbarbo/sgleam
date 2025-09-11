@@ -1,0 +1,11 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/add_polygon1.gleam
+---
+<svg width="85.0" height="85.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <rect x="20.0" y="20.0" width="65.0" height="65.0" transform="rotate(0.0 52.5 52.5)" fill="rgba(173, 216, 230, 1.0)" />
+    <polygon points="50.0,0.0 70.0,70.0 0.0,50.0" fill="rgba(34, 139, 34, 1.0)" />
+  </g>
+</svg>
