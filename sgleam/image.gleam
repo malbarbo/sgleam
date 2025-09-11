@@ -1,68 +1,306 @@
+import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/string
 import sgleam/color.{type Color}
-import sgleam/imagef
+import sgleam/math.{cos_deg, hypot, sin_deg}
 import sgleam/style.{type Style}
-import sgleam/xplace.{type XPlace}
-import sgleam/yplace.{type YPlace}
+import sgleam/xplace.{type XPlace, Center, Left, Right}
+import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
-pub type Image =
-  imagef.Image
+// FIXME: adjuste figure with outline only (https://docs.racket-lang.org/teachpack/2htdpimage-guide.html#%28part._nitty-gritty%29)
+// TODO: add constants for dash
+// TODO: wedge
+// TODO: all curve funtions
+// TODO: all text functions
+// TODO: triangle/sa...
+// TODO: pulled_regular_polygon
+// TODO: place_images
+// TODO: place_images_align
+// TODO: bitmap...
+// TODO: freeze
+// TODO: create pen?
+// TODO: equality test
+// TODO: pin holes...
+
+// **************************
+// * Point
+// **************************
+
+pub type Pointf {
+  Pointf(x: Float, y: Float)
+}
+
+fn point_translate(p: Pointf, dx: Float, dy: Float) -> Pointf {
+  Pointf(p.x +. dx, p.y +. dy)
+}
+
+fn point_rotate(p: Pointf, center: Pointf, angle: Float) -> Pointf {
+  let dx = p.x -. center.x
+  let dy = p.y -. center.y
+
+  Pointf(
+    center.x +. dx *. cos_deg(angle) -. dy *. sin_deg(angle),
+    center.y +. dx *. sin_deg(angle) +. dy *. cos_deg(angle),
+  )
+}
+
+fn point_flip_x(p: Pointf) -> Pointf {
+  Pointf(0.0 -. p.x, p.y)
+}
+
+fn point_flip_y(p: Pointf) -> Pointf {
+  Pointf(p.x, 0.0 -. p.y)
+}
 
 pub type Point {
   Point(x: Int, y: Int)
 }
 
-fn point_to_pointf(p: Point) -> imagef.Point {
-  imagef.Point(int.to_float(p.x), int.to_float(p.y))
+fn point_to_pointf(p: Point) -> Pointf {
+  Pointf(int.to_float(p.x), int.to_float(p.y))
 }
 
-fn pointf_to_point(p: imagef.Point) -> Point {
+fn pointf_to_point(p: Pointf) -> Point {
   Point(float.round(p.x), float.round(p.y))
 }
 
-pub const empty = imagef.empty
+// **************************
+// * Align
+// **************************
+
+fn x_place_dx(x_place: XPlace, wa: Float, wb: Float) -> #(Float, Float) {
+  case x_place {
+    Left -> #(0.0, 0.0)
+    Center -> {
+      let wm = float.max(wa, wb)
+      #(mid(wm, wa), mid(wm, wb))
+    }
+    Right -> {
+      let wm = float.max(wa, wb)
+      #(wm -. wa, wm -. wb)
+    }
+  }
+}
+
+fn y_place_dy(y_place: YPlace, ha: Float, hb: Float) -> #(Float, Float) {
+  case y_place {
+    Top -> #(0.0, 0.0)
+    Middle -> {
+      let hm = float.max(ha, hb)
+      #(mid(hm, ha), mid(hm, hb))
+    }
+    Bottom -> {
+      let hm = float.max(ha, hb)
+      #(hm -. ha, hm -. hb)
+    }
+  }
+}
+
+fn mid(a: Float, b: Float) -> Float {
+  { a -. b } /. 2.0
+}
+
+// **************************
+// * Image
+// **************************
+
+pub opaque type Image {
+  Rectangle(
+    style: Style,
+    center: Pointf,
+    width: Float,
+    height: Float,
+    angle: Float,
+  )
+  Ellipse(
+    style: Style,
+    center: Pointf,
+    width: Float,
+    height: Float,
+    angle: Float,
+  )
+  Polygon(style: Style, points: List(Pointf))
+  Combination(Image, Image)
+  Crop(center: Pointf, width: Float, height: Float, angle: Float, image: Image)
+}
+
+pub const empty = Rectangle(style.none, Pointf(0.0, 0.0), 0.0, 0.0, 0.0)
+
+pub fn widthf(img: Image) -> Float {
+  let #(min, max) = box(img)
+  max.x -. min.x
+}
 
 pub fn width(img: Image) -> Int {
-  img |> imagef.width |> float.round
+  img |> widthf |> float.round
+}
+
+pub fn heightf(img: Image) -> Float {
+  let #(min, max) = box(img)
+  max.y -. min.y
 }
 
 pub fn height(img: Image) -> Int {
-  img |> imagef.height |> float.round
+  img |> heightf |> float.round
+}
+
+pub fn dimensionf(img: Image) -> #(Float, Float) {
+  let #(min, max) = box(img)
+  #(max.x -. min.x, max.y -. min.y)
 }
 
 pub fn dimension(img: Image) -> #(Int, Int) {
-  let #(width, height) = imagef.dimension(img)
+  let #(width, height) = dimensionf(img)
   #(float.round(width), float.round(height))
 }
 
+pub fn centerf(img: Image) -> Pointf {
+  let #(min, max) = box(img)
+  Pointf(mid(max.x, min.x), mid(max.y, min.y))
+}
+
 pub fn center(img: Image) -> Point {
-  img |> imagef.center |> pointf_to_point
+  img |> centerf |> pointf_to_point
+}
+
+fn translate(img: Image, dx: Float, dy: Float) -> Image {
+  use <- bool.guard(dx == 0.0 && dy == 0.0, img)
+  case img {
+    Rectangle(center:, ..) ->
+      Rectangle(..img, center: point_translate(center, dx, dy))
+    Ellipse(center:, ..) ->
+      Ellipse(..img, center: point_translate(center, dx, dy))
+    Polygon(points:, ..) ->
+      Polygon(..img, points: list.map(points, point_translate(_, dx, dy)))
+    Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
+    Crop(center:, image:, ..) ->
+      Crop(
+        ..img,
+        center: point_translate(center, dx, dy),
+        image: translate(image, dx, dy),
+      )
+  }
+}
+
+fn fix_position(img: Image) -> Image {
+  let #(min, _) = box(img)
+  case min == Pointf(0.0, 0.0) {
+    True -> img
+    False -> translate(img, 0.0 -. min.x, 0.0 -. min.y)
+  }
+}
+
+fn box(img: Image) -> #(Pointf, Pointf) {
+  case img {
+    Rectangle(center:, width:, height:, angle:, ..) -> {
+      let hw = width /. 2.0
+      let hh = height /. 2.0
+      let abs = float.absolute_value
+      let dx = hw *. abs(cos_deg(angle)) +. hh *. abs(sin_deg(angle))
+      let dy = hw *. abs(sin_deg(angle)) +. hh *. abs(cos_deg(angle))
+      #(
+        point_translate(center, 0.0 -. dx, 0.0 -. dy),
+        point_translate(center, dx, dy),
+      )
+    }
+    Ellipse(center:, width:, height:, angle:, ..) -> {
+      let dx = hypot(width *. cos_deg(angle), height *. sin_deg(angle))
+      let dy = hypot(width *. sin_deg(angle), height *. cos_deg(angle))
+      #(
+        point_translate(center, 0.0 -. dx, 0.0 -. dy),
+        point_translate(center, dx, dy),
+      )
+    }
+    Combination(a, b) -> {
+      let #(amin, amax) = box(a)
+      let #(bmin, bmax) = box(b)
+      #(
+        Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
+        Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
+      )
+    }
+    Polygon(points:, ..) -> {
+      let min_x = list.fold(points, 0.0, fn(min, p) { float.min(min, p.x) })
+      let min_y = list.fold(points, 0.0, fn(min, p) { float.min(min, p.y) })
+      let max_x = list.fold(points, 0.0, fn(max, p) { float.max(max, p.x) })
+      let max_y = list.fold(points, 0.0, fn(max, p) { float.max(max, p.y) })
+      #(Pointf(min_x, min_y), Pointf(max_x, max_y))
+    }
+    Crop(center:, width:, height:, angle:, ..) -> {
+      let hw = width /. 2.0
+      let hh = height /. 2.0
+      let abs = float.absolute_value
+      let dx = hw *. abs(cos_deg(angle)) +. hh *. abs(sin_deg(angle))
+      let dy = hw *. abs(sin_deg(angle)) +. hh *. abs(cos_deg(angle))
+      #(
+        point_translate(center, 0.0 -. dx, 0.0 -. dy),
+        point_translate(center, dx, dy),
+      )
+    }
+  }
 }
 
 // **************************
 // * Basic images
 // **************************
 
+pub fn rectanglef(width: Float, height: Float, style: Style) -> Image {
+  let width = positive(width)
+  let height = positive(height)
+  Rectangle(style, Pointf(width /. 2.0, height /. 2.0), width, height, 0.0)
+}
+
 pub fn rectangle(width: Int, height: Int, style: Style) -> Image {
-  imagef.rectangle(int.to_float(width), int.to_float(height), style)
+  rectanglef(int.to_float(width), int.to_float(height), style)
+}
+
+pub fn squaref(side: Float, style: Style) -> Image {
+  rectanglef(side, side, style)
 }
 
 pub fn square(side: Int, style: Style) -> Image {
-  imagef.square(int.to_float(side), style)
+  squaref(int.to_float(side), style)
+}
+
+pub fn ellipsef(width: Float, height: Float, style: Style) -> Image {
+  let hw = positive(width) /. 2.0
+  let hh = positive(height) /. 2.0
+  Ellipse(style, Pointf(hw, hh), hw, hh, 0.0)
 }
 
 pub fn ellipse(width: Int, height: Int, style: Style) -> Image {
-  imagef.ellipse(int.to_float(width), int.to_float(height), style)
+  ellipsef(int.to_float(width), int.to_float(height), style)
+}
+
+pub fn circlef(radius: Float, style: Style) -> Image {
+  ellipsef(2.0 *. radius, 2.0 *. radius, style)
 }
 
 pub fn circle(radius: Int, style: Style) -> Image {
-  imagef.circle(int.to_float(radius), style)
+  circlef(int.to_float(radius), style)
+}
+
+pub fn linef(x: Float, y: Float, style: Style) -> Image {
+  Polygon(style, [Pointf(0.0, 0.0), Pointf(x, y)])
+  |> fix_position
 }
 
 pub fn line(x: Int, y: Int, style: Style) -> Image {
-  imagef.line(int.to_float(x), int.to_float(y), style)
+  linef(int.to_float(x), int.to_float(y), style)
+}
+
+pub fn add_linef(
+  img: Image,
+  x1: Float,
+  y1: Float,
+  x2: Float,
+  y2: Float,
+  style: Style,
+) -> Image {
+  Combination(img, Polygon(style, [Pointf(x1, y1), Pointf(x2, y2)]))
+  |> fix_position
 }
 
 pub fn add_line(
@@ -73,7 +311,7 @@ pub fn add_line(
   y2: Int,
   style: Style,
 ) -> Image {
-  imagef.add_line(
+  add_linef(
     img,
     int.to_float(x1),
     int.to_float(y1),
@@ -87,40 +325,120 @@ pub fn add_line(
 // * Polygons
 // **************************
 
+pub fn trianglef(side: Float, style: Style) -> Image {
+  let side = positive(side)
+  // side *. sqrt(3.0) /. 2.0
+  let height = side *. 0.8660254037844386
+  Polygon(style, [
+    Pointf(side /. 2.0, 0.0),
+    Pointf(side, height),
+    Pointf(0.0, height),
+  ])
+}
+
 pub fn triangle(side: Int, style: Style) -> Image {
-  imagef.triangle(int.to_float(side), style)
+  trianglef(int.to_float(side), style)
+}
+
+pub fn right_trianglef(side1: Float, side2: Float, style: Style) -> Image {
+  let side1 = positive(side1)
+  let side2 = positive(side2)
+  Polygon(style, [Pointf(0.0, 0.0), Pointf(0.0, side2), Pointf(side1, side2)])
 }
 
 pub fn right_triangle(side1: Int, side2: Int, style: Style) -> Image {
-  imagef.right_triangle(int.to_float(side1), int.to_float(side2), style)
+  right_trianglef(int.to_float(side1), int.to_float(side2), style)
 }
 
-pub fn isosceles_triangle(
+pub fn isosceles_trianglef(
   side_length: Float,
   angle: Float,
   style: Style,
 ) -> Image {
-  imagef.isosceles_triangle(side_length, angle, style)
+  let side_length = positive(side_length)
+  let hangle = angle /. 2.0
+  Polygon(style, [
+    Pointf(side_length *. sin_deg(hangle), side_length *. cos_deg(hangle)),
+    Pointf(0.0, 0.0),
+    Pointf(
+      0.0 -. side_length *. sin_deg(hangle),
+      side_length *. cos_deg(hangle),
+    ),
+  ])
+  |> fix_position
+}
+
+pub fn isosceles_triangle(side_length: Int, angle: Int, style: Style) -> Image {
+  isosceles_trianglef(int.to_float(side_length), int.to_float(angle), style)
+}
+
+pub fn rhombusf(side_length: Float, angle: Float, style: Style) -> Image {
+  let side_length = positive(side_length)
+  let height = 2.0 *. side_length *. cos_deg(angle /. 2.0)
+  let width = 2.0 *. side_length *. sin_deg(angle /. 2.0)
+  Polygon(style, [
+    Pointf(0.0, height /. 2.0),
+    Pointf(width /. 2.0, 0.0),
+    Pointf(width, height /. 2.0),
+    Pointf(width /. 2.0, height),
+  ])
 }
 
 pub fn rhombus(side_length: Int, angle: Int, style: Style) -> Image {
-  imagef.rhombus(int.to_float(side_length), int.to_float(angle), style)
+  rhombusf(int.to_float(side_length), int.to_float(angle), style)
 }
 
-pub fn regular_polygon(
+pub fn regular_polygonf(
   side_length: Float,
   side_count: Int,
   style: Style,
 ) -> Image {
-  imagef.regular_polygon(side_length, side_count, style)
+  star_polygonf(side_length, side_count, 1, style)
+}
+
+pub fn regular_polygon(side_length: Int, side_count: Int, style: Style) -> Image {
+  regular_polygonf(int.to_float(side_length), side_count, style)
+}
+
+pub fn polygonf(points: List(Pointf), style: Style) -> Image {
+  Polygon(style, points) |> fix_position
 }
 
 pub fn polygon(points: List(Point), style: Style) -> Image {
-  imagef.polygon(list.map(points, point_to_pointf), style)
+  polygonf(list.map(points, point_to_pointf), style)
+}
+
+pub fn add_polygonf(img: Image, points: List(Pointf), style: Style) -> Image {
+  Combination(img, Polygon(style, points)) |> fix_position
 }
 
 pub fn add_polygon(img: Image, points: List(Point), style: Style) -> Image {
-  imagef.add_polygon(img, list.map(points, point_to_pointf), style)
+  add_polygonf(img, list.map(points, point_to_pointf), style)
+}
+
+pub fn star_polygonf(
+  side_length: Float,
+  side_count: Int,
+  step_count: Int,
+  style: Style,
+) -> Image {
+  let side_count = int.max(1, side_count)
+  let side_countf = int.to_float(side_count)
+  let step_count = int.max(1, step_count)
+  let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
+  let alpha = case int.is_even(side_count) {
+    True -> -180.0 /. side_countf
+    False -> -90.0
+  }
+
+  list.range(0, side_count - 1)
+  |> list.map(fn(i) {
+    let theta =
+      alpha +. 360.0 *. int.to_float(i * step_count % side_count) /. side_countf
+    Pointf(radius *. cos_deg(theta), radius *. sin_deg(theta))
+  })
+  |> Polygon(style, _)
+  |> fix_position
 }
 
 pub fn star_polygon(
@@ -129,11 +447,44 @@ pub fn star_polygon(
   step_count: Int,
   style: Style,
 ) -> Image {
-  imagef.star_polygon(int.to_float(side_length), side_count, step_count, style)
+  star_polygonf(int.to_float(side_length), side_count, step_count, style)
+}
+
+pub fn starf(side_length: Float, style: Style) -> Image {
+  star_polygonf(side_length, 5, 2, style)
 }
 
 pub fn star(side_length: Int, style: Style) -> Image {
-  imagef.star(int.to_float(side_length), style)
+  starf(int.to_float(side_length), style)
+}
+
+pub fn radial_startf(
+  point_count: Int,
+  inner_radius: Float,
+  outer_radius: Float,
+  style: Style,
+) -> Image {
+  let point_count = int.max(2, point_count)
+  let inner_radius = positive(inner_radius)
+  let outer_radius = positive(outer_radius)
+  let alpha = case int.is_even(point_count) {
+    True -> -180.0 /. int.to_float(point_count)
+    False -> -90.0
+  }
+
+  list.range(0, 2 * point_count - 1)
+  |> list.flat_map(fn(i) {
+    let theta1 =
+      alpha +. 360.0 *. int.to_float(i * 2) /. int.to_float(2 * point_count)
+    let theta2 =
+      alpha +. 360.0 *. int.to_float(i * 2 + 1) /. int.to_float(2 * point_count)
+    [
+      Pointf(outer_radius *. cos_deg(theta1), outer_radius *. sin_deg(theta1)),
+      Pointf(inner_radius *. cos_deg(theta2), inner_radius *. sin_deg(theta2)),
+    ]
+  })
+  |> Polygon(style, _)
+  |> fix_position
 }
 
 pub fn radial_start(
@@ -142,7 +493,7 @@ pub fn radial_start(
   outer_radius: Int,
   style: Style,
 ) -> Image {
-  imagef.radial_start(
+  radial_startf(
     point_count,
     int.to_float(inner_radius),
     int.to_float(outer_radius),
@@ -150,46 +501,177 @@ pub fn radial_start(
   )
 }
 
+fn positive(n: Float) -> Float {
+  float.max(0.0, n)
+}
+
 // **************************
 // * Transformations
 // **************************
 
-pub fn rotate(img: Image, angle: Float) -> Image {
-  imagef.rotate(img, angle)
+pub fn rotatef(img: Image, angle: Float) -> Image {
+  // the api for the user is counter clockwise, but the implementation is clockwise
+  rotate_around(img, centerf(img), 0.0 -. angle)
+  |> fix_position
 }
 
-pub fn scale(img: Image, factor: Float) -> Image {
-  imagef.scale(img, factor)
+pub fn rotate(img: Image, angle: Int) -> Image {
+  rotatef(img, int.to_float(angle))
 }
 
-pub fn scale_xy(img: Image, x_factor: Float, y_factor: Float) -> Image {
-  imagef.scale_xy(img, x_factor, y_factor)
+fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
+  case img {
+    Rectangle(..) ->
+      Rectangle(
+        ..img,
+        center: point_rotate(img.center, center, angle),
+        angle: img.angle +. angle,
+      )
+    Ellipse(..) ->
+      Ellipse(
+        ..img,
+        center: point_rotate(img.center, center, angle),
+        angle: img.angle +. angle,
+      )
+    Polygon(..) ->
+      Polygon(
+        ..img,
+        points: list.map(img.points, point_rotate(_, center, angle)),
+      )
+    Combination(a, b) ->
+      Combination(
+        rotate_around(a, center, angle),
+        rotate_around(b, center, angle),
+      )
+    Crop(..) ->
+      Crop(
+        ..img,
+        center: point_rotate(img.center, center, angle),
+        angle: img.angle +. angle,
+        image: rotate_around(img.image, center, angle),
+      )
+  }
+}
+
+pub fn scalef(img: Image, factor: Float) -> Image {
+  scale_xyf(img, factor, factor)
+}
+
+pub fn scale(img: Image, factor: Int) -> Image {
+  scalef(img, int.to_float(factor))
+}
+
+pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
+  let x_factor = positive(x_factor)
+  let y_factor = positive(y_factor)
+  case img {
+    Rectangle(width:, height:, ..) ->
+      Rectangle(..img, width: width *. x_factor, height: height *. y_factor)
+    Ellipse(width:, height:, ..) ->
+      Ellipse(..img, width: width *. x_factor, height: height *. y_factor)
+    Polygon(points:, ..) ->
+      Polygon(
+        ..img,
+        points: list.map(points, fn(p) {
+          Pointf(p.x *. x_factor, p.y *. y_factor)
+        }),
+      )
+    Combination(a, b) ->
+      Combination(
+        scale_xyf(a, x_factor, y_factor),
+        scale_xyf(b, x_factor, y_factor),
+      )
+    Crop(width:, height:, image:, ..) ->
+      Crop(
+        ..img,
+        width: width *. x_factor,
+        height: height *. y_factor,
+        image: scale_xyf(image, x_factor, y_factor),
+      )
+  }
+  |> fix_position
+}
+
+pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
+  scale_xyf(img, int.to_float(x_factor), int.to_float(y_factor))
 }
 
 pub fn flip_horizontal(img: Image) -> Image {
-  imagef.flip_horizontal(img)
+  flip(img, point_flip_x)
 }
 
 pub fn flip_vertical(img: Image) -> Image {
-  imagef.flip_vertical(img)
+  flip(img, point_flip_y)
+}
+
+fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
+  case img {
+    Rectangle(center:, angle:, ..) ->
+      Rectangle(..img, center: point_flip(center), angle: 0.0 -. angle)
+    Ellipse(center:, angle:, ..) -> {
+      Ellipse(..img, center: point_flip(center), angle: 0.0 -. angle)
+    }
+    Polygon(points:, ..) -> Polygon(..img, points: list.map(points, point_flip))
+    Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
+    Crop(center:, angle:, image:, ..) ->
+      Crop(
+        ..img,
+        center: point_flip(center),
+        angle: 0.0 -. angle,
+        image: flip(image, point_flip),
+      )
+  }
+  |> fix_position
 }
 
 pub fn frame(img: Image) -> Image {
-  imagef.frame(img)
+  color_frame(img, color.black)
 }
 
 pub fn color_frame(img: Image, color: Color) -> Image {
-  imagef.color_frame(img, color)
+  overlay(img, rectanglef(widthf(img), heightf(img), style.stroke(color)))
 }
 
-pub fn crop(
+pub fn cropf(
   img: Image,
   x: Float,
   y: Float,
   width: Float,
   height: Float,
 ) -> Image {
-  imagef.crop(img, x, y, width, height)
+  let width = positive(width)
+  let height = positive(height)
+  Crop(
+    Pointf(width /. 2.0, height /. 2.0),
+    width,
+    height,
+    0.0,
+    translate(img, 0.0 -. x, 0.0 -. y),
+  )
+}
+
+pub fn crop(img: Image, x: Int, y: Int, width: Int, height: Int) -> Image {
+  cropf(
+    img,
+    int.to_float(x),
+    int.to_float(y),
+    int.to_float(width),
+    int.to_float(height),
+  )
+}
+
+pub fn crop_alignf(
+  img: Image,
+  x_place: XPlace,
+  y_place: YPlace,
+  crop_width: Float,
+  crop_height: Float,
+) -> Image {
+  let crop_width = positive(crop_width)
+  let crop_height = positive(crop_height)
+  let #(_, dx) = x_place_dx(x_place, widthf(img), crop_width)
+  let #(_, dy) = y_place_dy(y_place, heightf(img), crop_height)
+  cropf(img, dx, dy, crop_width, crop_height)
 }
 
 pub fn crop_align(
@@ -199,7 +681,7 @@ pub fn crop_align(
   crop_width: Int,
   crop_height: Int,
 ) -> Image {
-  imagef.crop_align(
+  crop_alignf(
     img,
     x_place,
     y_place,
@@ -213,27 +695,29 @@ pub fn crop_align(
 // **************************
 
 pub fn combine(images: List(Image), op: fn(Image, Image) -> Image) -> Image {
-  imagef.combine(images, op)
+  list.fold(images, empty, op)
 }
 
 pub fn above(a: Image, b: Image) -> Image {
-  imagef.above(a, b)
+  above_align(Center, a, b)
 }
 
 pub fn above_align(x_place: XPlace, a: Image, b: Image) -> Image {
-  imagef.above_align(x_place, a, b)
+  let #(dxa, dxb) = x_place_dx(x_place, widthf(a), widthf(b))
+  Combination(translate(a, dxa, 0.0), translate(b, dxb, heightf(a)))
 }
 
 pub fn beside(a: Image, b: Image) -> Image {
-  imagef.beside(a, b)
+  beside_align(Middle, a, b)
 }
 
 pub fn beside_align(y_place: YPlace, a: Image, b: Image) -> Image {
-  imagef.beside_align(y_place, a, b)
+  let #(dya, dyb) = y_place_dy(y_place, heightf(a), heightf(b))
+  Combination(translate(a, 0.0, dya), translate(b, widthf(a), dyb))
 }
 
 pub fn overlay(top: Image, bottom: Image) -> Image {
-  imagef.overlay(top, bottom)
+  overlay_align(Center, Middle, top, bottom)
 }
 
 pub fn overlay_align(
@@ -242,11 +726,29 @@ pub fn overlay_align(
   top: Image,
   bottom: Image,
 ) -> Image {
-  imagef.overlay_align(x_place, y_place, top, bottom)
+  let #(dxa, dxb) = x_place_dx(x_place, widthf(top), widthf(bottom))
+  let #(dya, dyb) = y_place_dy(y_place, heightf(top), heightf(bottom))
+  Combination(translate(bottom, dxb, dyb), translate(top, dxa, dya))
+  |> fix_position
+}
+
+pub fn overlay_offsetf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
+  overlay(top, translate(bottom, x, y))
 }
 
 pub fn overlay_offset(top: Image, x: Int, y: Int, bottom: Image) -> Image {
-  imagef.overlay_offset(top, int.to_float(x), int.to_float(y), bottom)
+  overlay_offsetf(top, int.to_float(x), int.to_float(y), bottom)
+}
+
+pub fn overlay_align_offsetf(
+  x_place: XPlace,
+  y_place: YPlace,
+  top: Image,
+  x: Float,
+  y: Float,
+  bottom: Image,
+) -> Image {
+  overlay_align(x_place, y_place, top, translate(bottom, x, y))
 }
 
 pub fn overlay_align_offset(
@@ -257,7 +759,7 @@ pub fn overlay_align_offset(
   y: Int,
   bottom: Image,
 ) -> Image {
-  imagef.overlay_align_offset(
+  overlay_align_offsetf(
     x_place,
     y_place,
     top,
@@ -267,12 +769,17 @@ pub fn overlay_align_offset(
   )
 }
 
+pub fn overlay_xyf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
+  Combination(translate(bottom, x, y), top)
+  |> fix_position
+}
+
 pub fn overlay_xy(top: Image, x: Int, y: Int, bottom: Image) -> Image {
-  imagef.overlay_xy(top, int.to_float(x), int.to_float(y), bottom)
+  overlay_xyf(top, int.to_float(x), int.to_float(y), bottom)
 }
 
 pub fn underlay(bottom: Image, top: Image) -> Image {
-  imagef.underlay(bottom, top)
+  overlay(top, bottom)
 }
 
 pub fn underlay_align(
@@ -281,11 +788,26 @@ pub fn underlay_align(
   bottom: Image,
   top: Image,
 ) -> Image {
-  imagef.underlay_align(x_place, y_place, bottom, top)
+  overlay_align(x_place, y_place, top, bottom)
+}
+
+pub fn underlay_offsetf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
+  overlay(translate(top, x, y), bottom)
 }
 
 pub fn underlay_offset(bottom: Image, x: Int, y: Int, top: Image) -> Image {
-  imagef.underlay_offset(bottom, int.to_float(x), int.to_float(y), top)
+  underlay_offsetf(bottom, int.to_float(x), int.to_float(y), top)
+}
+
+pub fn underlay_align_offsetf(
+  x_place: XPlace,
+  y_place: YPlace,
+  bottom: Image,
+  x: Float,
+  y: Float,
+  top: Image,
+) -> Image {
+  underlay_align(x_place, y_place, bottom, translate(top, x, y))
 }
 
 pub fn underlay_align_offset(
@@ -296,7 +818,7 @@ pub fn underlay_align_offset(
   y: Int,
   top: Image,
 ) -> Image {
-  imagef.underlay_align_offset(
+  underlay_align_offsetf(
     x_place,
     y_place,
     bottom,
@@ -306,24 +828,64 @@ pub fn underlay_align_offset(
   )
 }
 
+pub fn underlay_xyf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
+  Combination(bottom, translate(top, x, y))
+  |> fix_position
+}
+
 pub fn underlay_xy(bottom: Image, x: Int, y: Int, top: Image) -> Image {
-  imagef.underlay_xy(bottom, int.to_float(x), int.to_float(y), top)
+  underlay_xyf(bottom, int.to_float(x), int.to_float(y), top)
 }
 
 // **************************
 // * Placing
 // **************************
 
+pub fn empty_scenef(width: Float, height: Float) -> Image {
+  empty_scene_colorf(width, height, color.black)
+}
+
 pub fn empty_scene(width: Int, height: Int) -> Image {
-  imagef.empty_scene(int.to_float(width), int.to_float(height))
+  empty_scenef(int.to_float(width), int.to_float(height))
+}
+
+pub fn empty_scene_colorf(width: Float, height: Float, color: Color) -> Image {
+  rectanglef(width, height, style.stroke(color))
 }
 
 pub fn empty_scene_color(width: Int, height: Int, color: Color) -> Image {
-  imagef.empty_scene_color(int.to_float(width), int.to_float(height), color)
+  empty_scene_colorf(int.to_float(width), int.to_float(height), color)
+}
+
+pub fn place_imagef(scene: Image, x: Float, y: Float, img: Image) -> Image {
+  place_image_alignf(scene, x, y, Center, Middle, img)
 }
 
 pub fn place_image(scene: Image, x: Int, y: Int, img: Image) -> Image {
-  imagef.place_image(scene, int.to_float(x), int.to_float(y), img)
+  place_imagef(scene, int.to_float(x), int.to_float(y), img)
+}
+
+pub fn place_image_alignf(
+  scene: Image,
+  x: Float,
+  y: Float,
+  x_place: XPlace,
+  y_place: YPlace,
+  img: Image,
+) -> Image {
+  let dx = case x_place {
+    Center -> widthf(img) /. -2.0
+    Left -> 0.0
+    Right -> 0.0 -. widthf(img)
+  }
+  let dy = case y_place {
+    Bottom -> 0.0 -. heightf(img)
+    Middle -> heightf(img) /. -2.0
+    Top -> 0.0
+  }
+  Combination(scene, translate(img, x +. dx, y +. dy))
+  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
+  |> fix_position
 }
 
 pub fn place_image_align(
@@ -334,7 +896,7 @@ pub fn place_image_align(
   y_place: YPlace,
   img: Image,
 ) -> Image {
-  imagef.place_image_align(
+  place_image_alignf(
     scene,
     int.to_float(x),
     int.to_float(y),
@@ -342,6 +904,19 @@ pub fn place_image_align(
     y_place,
     img,
   )
+}
+
+pub fn place_linef(
+  scene: Image,
+  x1: Float,
+  y1: Float,
+  x2: Float,
+  y2: Float,
+  style: Style,
+) -> Image {
+  Combination(scene, Polygon(style, [Pointf(x1, y1), Pointf(x2, y2)]))
+  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
+  |> fix_position
 }
 
 pub fn place_line(
@@ -352,7 +927,7 @@ pub fn place_line(
   y2: Int,
   style: Style,
 ) -> Image {
-  imagef.place_line(
+  place_linef(
     scene,
     int.to_float(x1),
     int.to_float(y1),
@@ -362,12 +937,22 @@ pub fn place_line(
   )
 }
 
+pub fn place_polygonf(scene: Image, points: List(Pointf), style: Style) -> Image {
+  Combination(scene, Polygon(style, points))
+  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
+  |> fix_position
+}
+
 pub fn place_polygon(scene: Image, points: List(Point), style: Style) -> Image {
-  imagef.place_polygon(scene, list.map(points, point_to_pointf), style)
+  place_polygonf(scene, list.map(points, point_to_pointf), style)
+}
+
+pub fn put_imagef(scene: Image, x: Float, y: Float, img: Image) -> Image {
+  place_imagef(scene, x, heightf(scene) -. y, img)
 }
 
 pub fn put_image(scene: Image, x: Int, y: Int, img: Image) -> Image {
-  imagef.put_image(scene, int.to_float(x), int.to_float(y), img)
+  put_imagef(scene, int.to_float(x), int.to_float(y), img)
 }
 
 // **************************
@@ -375,5 +960,118 @@ pub fn put_image(scene: Image, x: Int, y: Int, img: Image) -> Image {
 // **************************
 
 pub fn to_svg(img: Image) -> String {
-  imagef.to_svg(img)
+  "<svg "
+  <> attrib("width", widthf(img))
+  <> attrib("height", heightf(img))
+  <> "xmlns=\"http://www.w3.org/2000/svg\">\n"
+  <> to_svg_(img, 1)
+  <> "</svg>"
 }
+
+fn to_svg_(img: Image, level: Int) -> String {
+  case img {
+    Rectangle(style:, center:, width:, height:, angle:) -> {
+      ident(level)
+      <> "<rect "
+      <> attrib("x", center.x -. width /. 2.0)
+      <> attrib("y", center.y -. height /. 2.0)
+      <> attrib("width", width)
+      <> attrib("height", height)
+      <> attribs("transform", rotate_str(angle, center))
+      <> style.to_svg(style)
+      <> "/>\n"
+    }
+    Ellipse(style:, center:, width:, height:, angle:) -> {
+      ident(level)
+      <> "<ellipse "
+      <> attrib("cx", center.x)
+      <> attrib("cy", center.y)
+      <> attrib("rx", width)
+      <> attrib("ry", height)
+      <> attribs("transform", rotate_str(angle, center))
+      <> style.to_svg(style)
+      <> "/>\n"
+    }
+    Polygon(style:, points: [p1, p2]) -> {
+      ident(level)
+      <> "<line "
+      <> attrib("x1", p1.x)
+      <> attrib("y1", p1.y)
+      <> attrib("x2", p2.x)
+      <> attrib("y2", p2.y)
+      <> style.to_svg(style)
+      <> "/>\n"
+    }
+    Polygon(style:, points:) -> {
+      let points =
+        points
+        |> list.map(fn(p) {
+          float.to_string(p.x) <> "," <> float.to_string(p.y)
+        })
+        |> string.join(" ")
+      ident(level)
+      <> "<polygon "
+      <> attribs("points", points)
+      <> style.to_svg(style)
+      <> "/>\n"
+    }
+    Combination(a, b) ->
+      ident(level)
+      <> "<g>\n"
+      <> to_svg_(a, level + 1)
+      <> to_svg_(b, level + 1)
+      <> ident(level)
+      <> "</g>\n"
+    Crop(center:, width:, height:, angle:, image:) -> {
+      let clipid = "clip" <> int.to_string(next_clip_id())
+      let rect =
+        "<rect "
+        <> attrib("x", center.x -. width /. 2.0)
+        <> attrib("y", center.y -. height /. 2.0)
+        <> attrib("width", width)
+        <> attrib("height", height)
+        <> attribs("transform", rotate_str(angle, center))
+        <> "/>"
+      ident(level)
+      <> "<defs>"
+      <> "<clipPath "
+      <> attribs("id", clipid)
+      <> ">"
+      <> rect
+      <> "</clipPath>"
+      <> "</defs>\n"
+      <> ident(level)
+      <> "<g "
+      <> attribs("clip-path", "url(#" <> clipid <> ")")
+      <> ">\n"
+      <> to_svg_(image, level + 1)
+      <> ident(level)
+      <> "</g>\n"
+    }
+  }
+}
+
+fn rotate_str(angle: Float, center: Pointf) -> String {
+  "rotate("
+  <> float.to_string(angle)
+  <> " "
+  <> float.to_string(center.x)
+  <> " "
+  <> float.to_string(center.y)
+  <> ")"
+}
+
+fn ident(level: Int) -> String {
+  string.repeat(" ", 2 * level)
+}
+
+fn attrib(name: String, value: Float) -> String {
+  name <> "=\"" <> float.to_string(value) <> "\" "
+}
+
+fn attribs(name: String, value: String) -> String {
+  name <> "=\"" <> value <> "\" "
+}
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "next_clip_id")
+fn next_clip_id() -> Int

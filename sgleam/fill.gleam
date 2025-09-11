@@ -7,6 +7,8 @@ pub const rgba = style.fill_rgba
 
 pub const opacity = style.fill_opacity
 
+pub const opacityf = style.fill_opacityf
+
 pub fn with(color: Color) -> Style {
   style.fill(color)
 }

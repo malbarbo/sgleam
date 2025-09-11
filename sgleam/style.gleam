@@ -33,7 +33,11 @@ pub fn fill(c: Color) -> Style {
   Style([Fill(c)])
 }
 
-pub fn fill_opacity(opacity: Float) -> Style {
+pub fn fill_opacity(opacity: Int) -> Style {
+  fill_opacityf(int.to_float(opacity))
+}
+
+pub fn fill_opacityf(opacity: Float) -> Style {
   Style([FillOpacity(float.clamp(opacity, 0.0, 1.0))])
 }
 
@@ -41,11 +45,19 @@ pub fn stroke(c: Color) -> Style {
   Style([Stroke(c)])
 }
 
-pub fn stroke_width(width: Float) -> Style {
+pub fn stroke_width(width: Int) -> Style {
+  stroke_widthf(int.to_float(width))
+}
+
+pub fn stroke_widthf(width: Float) -> Style {
   Style([StrokeWidth(positive(width))])
 }
 
-pub fn stroke_opacity(opacity: Float) -> Style {
+pub fn stroke_opacity(opacity: Int) -> Style {
+  stroke_opacityf(int.to_float(opacity))
+}
+
+pub fn stroke_opacityf(opacity: Float) -> Style {
   Style([StrokeOpacity(float.clamp(opacity, 0.0, 1.0))])
 }
 

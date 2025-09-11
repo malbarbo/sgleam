@@ -6,7 +6,11 @@ pub const rgba = style.stroke_rgba
 
 pub const width = style.stroke_width
 
+pub const widthf = style.stroke_widthf
+
 pub const opacity = style.stroke_opacity
+
+pub const opacityf = style.stroke_opacityf
 
 pub const dash_array = style.stroke_dash_array
 
