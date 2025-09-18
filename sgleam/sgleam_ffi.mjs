@@ -1,6 +1,6 @@
 import { isEqual, List } from '../gleam.mjs';
 import { inspect } from '../gleam/string.mjs';
-import { rectangle, ellipse, line, crop, beside, empty, to_svg } from '../sgleam/image.mjs';
+import { rectangle, ellipse, line, crop, beside, text, empty, to_svg } from '../sgleam/image.mjs';
 
 export function try_main(main, input_kind, show_output) {
     try {
@@ -78,6 +78,7 @@ export function repl_print(value) {
         value.constructor == ellipse(0.0, 0.0).constructor ||
         value.constructor == line(0.0, 0.0).constructor || // Polygon
         value.constructor == beside(empty, empty).constructor || // Combinatin
+        value.constructor == text("", 0.0).constructor ||
         value.constructor == crop(empty).constructor)) {
         if (sgleam.draw_svg) {
             sgleam.draw_svg(`${to_svg(value)}`);
@@ -231,4 +232,12 @@ export function get_key_event() {
     } else {
         return List.fromArray([]);
     }
+}
+
+export function text_width(text, font, size) {
+    return sgleam.text_width(text, font, size)
+}
+
+export function text_height(text, font, size) {
+    return sgleam.text_height(text, font, size)
 }

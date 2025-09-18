@@ -86,6 +86,20 @@ extern "C" {
     fn sgleam_sleep(ms: u64);
     fn sgleam_draw_svg(str: *const u8, len: usize);
     fn sgleam_get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
+    fn sgleam_text_width(
+        text: *const u8,
+        text_len: usize,
+        font: *const u8,
+        font_len: usize,
+        font_size: f64,
+    ) -> f64;
+    fn sgleam_text_height(
+        text: *const u8,
+        text_len: usize,
+        font: *const u8,
+        font_len: usize,
+        font_size: f64,
+    ) -> f64;
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -224,6 +238,14 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         "get_key_event",
         Function::new(ctx.clone(), get_key_event)?.with_name("get_key_event")?,
     )?;
+    sgleam.set(
+        "text_width",
+        Function::new(ctx.clone(), text_width)?.with_name("text_width")?,
+    )?;
+    sgleam.set(
+        "text_height",
+        Function::new(ctx.clone(), text_height)?.with_name("text_height")?,
+    )?;
     global.set("sgleam", sgleam)?;
     Ok(())
 }
@@ -262,6 +284,26 @@ fn sleep(ms: u64) {
 #[cfg(not(target_arch = "wasm32"))]
 fn sleep(ms: u64) {
     std::thread::sleep(std::time::Duration::from_millis(ms));
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn text_width(text: String, _font: String, size: f64) -> f64 {
+    text.len() as f64 * size * 0.6
+}
+
+#[cfg(target_arch = "wasm32")]
+fn text_width(text: String, font: String, size: f64) -> f64 {
+    unsafe { sgleam_text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn text_height(_text: String, _font: String, size: f64) -> f64 {
+    size
+}
+
+#[cfg(target_arch = "wasm32")]
+fn text_height(text: String, font: String, size: f64) -> f64 {
+    unsafe { sgleam_text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
 }
 
 fn log(value: Value) {

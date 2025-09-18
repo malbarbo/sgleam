@@ -147,7 +147,29 @@ async function instantiateWasm() {
                 buffer[mods + 3] = event.meta;
                 buffer[mods + 4] = event.repeat;
                 return event.type;
-            }
+            },
+            sgleam_text_height(text, text_len, font, font_len, size) {
+                const buffer = new Uint8Array(wasmExports.memory.buffer);
+                const jtext = new TextDecoder("utf-8").decode(buffer.slice(text, text + text_len));
+                const jfont = new TextDecoder("utf-8").decode(buffer.slice(font, font + font_len));
+                const offscreen = new OffscreenCanvas(1, 1);
+                const ctx = offscreen.getContext("2d");
+                ctx.font = `${size}px ${jfont}`;
+                const metrics = ctx.measureText(jtext);
+                // TODO: why actual doesnt work?
+                const height = metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+                return height;
+            },
+            sgleam_text_width(text, text_len, font, font_len, size) {
+                const buffer = new Uint8Array(wasmExports.memory.buffer);
+                const jtext = new TextDecoder("utf-8").decode(buffer.slice(text, text + text_len));
+                const jfont = new TextDecoder("utf-8").decode(buffer.slice(font, font + font_len));
+                const offscreen = new OffscreenCanvas(1, 1);
+                const ctx = offscreen.getContext("2d");
+                ctx.font = `${size}px ${jfont}`;
+                const width = ctx.measureText(jtext).width;
+                return width;
+            },
         },
         wasi_snapshot_preview1: {
             clock_time_get(clockId, _precision, timePtr) {

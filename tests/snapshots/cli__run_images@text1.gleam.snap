@@ -1,0 +1,8 @@
+---
+source: tests/cli.rs
+expression: "format!(\"{out}\")"
+input_file: tests/images/text1.gleam
+---
+<svg width="115.19999999999999" height="16.0" xmlns="http://www.w3.org/2000/svg">
+  <text dominant-baseline="middle" text-anchor="middle" x="0.0" y="0.0" font-family="sans-serif" font-size="16.0" transform="translate(57.599999999999994,8.0) rotate(0.0 0.0 0.0) scale(1.0,1.0)" fill="rgba(0, 0, 0, 1.0)" >Testing text</text>
+</svg>

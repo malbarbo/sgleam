@@ -4,8 +4,10 @@ import gleam/int
 import gleam/list
 import gleam/string
 import sgleam/color.{type Color}
+import sgleam/font.{type Font, Font}
 import sgleam/math.{cos_deg, hypot, sin_deg}
 import sgleam/style.{type Style}
+import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
@@ -112,6 +114,14 @@ pub opaque type Image {
   Polygon(style: Style, points: List(Pointf))
   Combination(Image, Image)
   Crop(box: Box, image: Image)
+  Text(
+    style: Style,
+    box: Box,
+    text: String,
+    flip_vertical: Bool,
+    flip_horizontal: Bool,
+    font: Font,
+  )
 }
 
 type Box {
@@ -199,6 +209,7 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
     Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
     Crop(box:, image:) ->
       Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
+    Text(box:, ..) -> Text(..img, box: box_translate(box, dx, dy))
   }
 }
 
@@ -212,9 +223,7 @@ fn fix_position(img: Image) -> Image {
 
 fn box(img: Image) -> #(Pointf, Pointf) {
   case img {
-    Rectangle(box:, ..) -> {
-      box_box(box)
-    }
+    Rectangle(box:, ..) -> box_box(box)
     Ellipse(box: Box(center:, width:, height:, angle:), ..) -> {
       let dx = hypot(width *. cos_deg(angle), height *. sin_deg(angle))
       let dy = hypot(width *. sin_deg(angle), height *. cos_deg(angle))
@@ -238,9 +247,8 @@ fn box(img: Image) -> #(Pointf, Pointf) {
       let max_y = list.fold(points, 0.0, fn(max, p) { float.max(max, p.y) })
       #(Pointf(min_x, min_y), Pointf(max_x, max_y))
     }
-    Crop(box:, ..) -> {
-      box_box(box)
-    }
+    Crop(box:, ..) -> box_box(box)
+    Text(box:, ..) -> box_box(box)
   }
 }
 
@@ -508,6 +516,35 @@ fn positive(n: Float) -> Float {
 }
 
 // **************************
+// * Text
+// **************************
+
+pub fn text_fontf(text: String, font: Font, style: Style) -> Image {
+  let width = system.text_width(text, font.family, font.size)
+  let height = system.text_height(text, font.family, font.size)
+  Text(
+    style,
+    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
+    text,
+    False,
+    False,
+    font,
+  )
+}
+
+pub fn textf(text: String, size: Float, style: Style) -> Image {
+  text_fontf(text, Font(..font.default(), size: size), style)
+}
+
+pub fn text_font(text: String, font: Font, style: Style) -> Image {
+  text_fontf(text, font, style)
+}
+
+pub fn text(text: String, size: Int, style: Style) -> Image {
+  textf(text, int.to_float(size), style)
+}
+
+// **************************
 // * Transformations
 // **************************
 
@@ -523,23 +560,21 @@ pub fn rotate(img: Image, angle: Int) -> Image {
 
 fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
   case img {
-    Rectangle(..) -> Rectangle(..img, box: box_rotate(img.box, center, angle))
-    Ellipse(..) -> Ellipse(..img, box: box_rotate(img.box, center, angle))
-    Polygon(..) ->
-      Polygon(
-        ..img,
-        points: list.map(img.points, point_rotate(_, center, angle)),
-      )
+    Rectangle(box:, ..) -> Rectangle(..img, box: box_rotate(box, center, angle))
+    Ellipse(box:, ..) -> Ellipse(..img, box: box_rotate(box, center, angle))
+    Polygon(points:, ..) ->
+      Polygon(..img, points: list.map(points, point_rotate(_, center, angle)))
     Combination(a, b) ->
       Combination(
         rotate_around(a, center, angle),
         rotate_around(b, center, angle),
       )
-    Crop(..) ->
+    Crop(box:, image:) ->
       Crop(
-        box: box_rotate(img.box, center, angle),
-        image: rotate_around(img.image, center, angle),
+        box: box_rotate(box, center, angle),
+        image: rotate_around(image, center, angle),
       )
+    Text(box:, ..) -> Text(..img, box: box_rotate(box, center, angle))
   }
 }
 
@@ -575,6 +610,7 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
         box: box_scale(box, x_factor, y_factor),
         image: scale_xyf(image, x_factor, y_factor),
       )
+    Text(box:, ..) -> Text(..img, box: box_scale(box, x_factor, y_factor))
   }
   |> fix_position
 }
@@ -584,25 +620,47 @@ pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
 }
 
 pub fn flip_horizontal(img: Image) -> Image {
-  flip(img, point_flip_x)
+  flip(img, point_flip_x, True, False) |> fix_position
 }
 
 pub fn flip_vertical(img: Image) -> Image {
-  flip(img, point_flip_y)
+  flip(img, point_flip_y, False, True) |> fix_position
 }
 
-fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
+fn flip(
+  img: Image,
+  point_flip: fn(Pointf) -> Pointf,
+  flip_horizontal: Bool,
+  flip_vertical: Bool,
+) -> Image {
   case img {
     Rectangle(box:, ..) -> Rectangle(..img, box: box_flip(box, point_flip))
-    Ellipse(box:, ..) -> {
-      Ellipse(..img, box: box_flip(box, point_flip))
-    }
+    Ellipse(box:, ..) -> Ellipse(..img, box: box_flip(box, point_flip))
     Polygon(points:, ..) -> Polygon(..img, points: list.map(points, point_flip))
-    Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
+    Combination(a, b) ->
+      Combination(
+        flip(a, point_flip, flip_horizontal, flip_vertical),
+        flip(b, point_flip, flip_horizontal, flip_vertical),
+      )
     Crop(box:, image:) ->
-      Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
+      Crop(
+        box: box_flip(box, point_flip),
+        image: flip(image, point_flip, flip_horizontal, flip_vertical),
+      )
+    Text(box:, ..) ->
+      Text(
+        ..img,
+        box: box_flip(box, point_flip),
+        flip_horizontal: case flip_horizontal {
+          True -> !img.flip_horizontal
+          False -> img.flip_horizontal
+        },
+        flip_vertical: case flip_vertical {
+          True -> !img.flip_vertical
+          False -> img.flip_vertical
+        },
+      )
   }
-  |> fix_position
 }
 
 pub fn frame(img: Image) -> Image {
@@ -1026,6 +1084,55 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> ident(level)
       <> "</g>\n"
     }
+    Text(
+      style:,
+      box: Box(center:, width:, height:, angle:),
+      text:,
+      flip_horizontal:,
+      flip_vertical:,
+      font:,
+    ) -> {
+      let original_width = system.text_width(text, font.family, font.size)
+      let original_height = system.text_height(text, font.family, font.size)
+      let scale_x =
+        width
+        /. original_width
+        *. {
+          case flip_horizontal {
+            True -> -1.0
+            False -> 1.0
+          }
+        }
+      let scale_y =
+        height
+        /. original_height
+        *. {
+          case flip_vertical {
+            True -> -1.0
+            False -> 1.0
+          }
+        }
+      ident(level)
+      <> "<text "
+      <> attribs("dominant-baseline", "middle")
+      <> attribs("text-anchor", "middle")
+      <> attrib("x", 0.0)
+      <> attrib("y", 0.0)
+      <> attribs("font-family", font.family)
+      <> attrib("font-size", font.size)
+      <> attribs(
+        "transform",
+        translate_str(center.x, center.y)
+          <> " "
+          <> rotate_str(angle, Pointf(0.0, 0.0))
+          <> " "
+          <> scale_str(scale_x, scale_y),
+      )
+      <> style.to_svg(style)
+      <> ">"
+      <> text
+      <> "</text>\n"
+    }
   }
 }
 
@@ -1037,6 +1144,14 @@ fn rotate_str(angle: Float, center: Pointf) -> String {
   <> " "
   <> float.to_string(center.y)
   <> ")"
+}
+
+fn scale_str(scale_x: Float, scale_y: Float) -> String {
+  "scale(" <> float.to_string(scale_x) <> "," <> float.to_string(scale_y) <> ")"
+}
+
+fn translate_str(x: Float, y: Float) -> String {
+  "translate(" <> float.to_string(x) <> "," <> float.to_string(y) <> ")"
 }
 
 fn ident(level: Int) -> String {
