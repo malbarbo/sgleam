@@ -149,6 +149,9 @@ async function instantiateWasm() {
                 return event.type;
             },
             sgleam_text_height(text, text_len, font, font_len, size) {
+                if (typeof Deno === "object") {
+                    return font_len;
+                }
                 const buffer = new Uint8Array(wasmExports.memory.buffer);
                 const jtext = new TextDecoder("utf-8").decode(buffer.slice(text, text + text_len));
                 const jfont = new TextDecoder("utf-8").decode(buffer.slice(font, font + font_len));
@@ -161,6 +164,9 @@ async function instantiateWasm() {
                 return height;
             },
             sgleam_text_width(text, text_len, font, font_len, size) {
+                if (typeof Deno === "object") {
+                    return 0.6 * font_len * text_len;
+                }
                 const buffer = new Uint8Array(wasmExports.memory.buffer);
                 const jtext = new TextDecoder("utf-8").decode(buffer.slice(text, text + text_len));
                 const jfont = new TextDecoder("utf-8").decode(buffer.slice(font, font + font_len));
