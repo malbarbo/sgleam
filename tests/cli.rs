@@ -296,6 +296,7 @@ fn smain_string() {
     });
 }
 
+#[cfg(target_os = "linux")]
 #[test]
 fn run_images() {
     glob!("images/*.gleam", |path| {
