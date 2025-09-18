@@ -17,8 +17,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             target: x86_64-unknown-linux-musl
+            setup: sudo apt-get install musl-tools
+
+          - os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-musl
             setup: sudo apt-get install musl-tools
 
           - os: windows-2022
@@ -29,7 +33,7 @@ jobs:
             target: x86_64-apple-darwin
             setup: ""
 
-          - os: macos-latest
+          - os: macos-13-xlarge
             target: aarch64-apple-darwin
             setup: ""
 
