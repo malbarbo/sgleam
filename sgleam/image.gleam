@@ -153,7 +153,13 @@ fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
 }
 
 fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
-  Box(..box, width: box.width *. x_factor, height: box.height *. y_factor)
+  let center = Pointf(box.center.x *. x_factor, box.center.y *. y_factor)
+  Box(
+    ..box,
+    center: center,
+    width: box.width *. x_factor,
+    height: box.height *. y_factor,
+  )
 }
 
 fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
@@ -293,8 +299,7 @@ pub fn circle(radius: Int, style: Style) -> Image {
 }
 
 pub fn linef(x: Float, y: Float, style: Style) -> Image {
-  Polygon(style, [Pointf(0.0, 0.0), Pointf(x, y)])
-  |> fix_position
+  Polygon(style, [Pointf(0.0, 0.0), Pointf(x, y)]) |> fix_position
 }
 
 pub fn line(x: Int, y: Int, style: Style) -> Image {
@@ -550,8 +555,7 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 
 pub fn rotatef(img: Image, angle: Float) -> Image {
   // the api for the user is counter clockwise, but the implementation is clockwise
-  rotate_around(img, centerf(img), 0.0 -. angle)
-  |> fix_position
+  rotate_around(img, centerf(img), 0.0 -. angle) |> fix_position
 }
 
 pub fn rotate(img: Image, angle: Int) -> Image {
@@ -612,7 +616,6 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
       )
     Text(box:, ..) -> Text(..img, box: box_scale(box, x_factor, y_factor))
   }
-  |> fix_position
 }
 
 pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
@@ -806,8 +809,7 @@ pub fn overlay_align_offset(
 }
 
 pub fn overlay_xyf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
-  Combination(translate(bottom, x, y), top)
-  |> fix_position
+  Combination(translate(bottom, x, y), top) |> fix_position
 }
 
 pub fn overlay_xy(top: Image, x: Int, y: Int, bottom: Image) -> Image {
@@ -865,8 +867,7 @@ pub fn underlay_align_offset(
 }
 
 pub fn underlay_xyf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
-  Combination(bottom, translate(top, x, y))
-  |> fix_position
+  Combination(bottom, translate(top, x, y)) |> fix_position
 }
 
 pub fn underlay_xy(bottom: Image, x: Int, y: Int, top: Image) -> Image {
