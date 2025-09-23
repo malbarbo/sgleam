@@ -1,9 +1,9 @@
-import sgleam/create
 import sgleam/fill
 import sgleam/image
+import sgleam/world
 
 pub fn main() {
-  create.animation(circle, 10)
+  world.animate(circle)
 }
 
 const max = 200

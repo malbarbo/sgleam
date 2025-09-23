@@ -54,7 +54,6 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
     "gleam/uri",
     "sgleam/check",
     "sgleam/color",
-    "sgleam/create",
     "sgleam/fill",
     "sgleam/image",
     "sgleam/stroke",

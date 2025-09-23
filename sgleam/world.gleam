@@ -4,6 +4,16 @@ import gleam/option.{type Option, None, Some}
 import sgleam/image.{type Image}
 import sgleam/system
 
+pub fn animate(create_image: fn(Int) -> Image) -> Nil {
+  animate_loop(create_image, 1000 / 28, 0)
+}
+
+fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) {
+  frame |> create_image |> image.to_svg |> system.show_svg
+  system.sleep(delay)
+  animate_loop(create_image, delay, frame + 1)
+}
+
 pub type KeyEvent {
   KeyEvent(
     event_type: KeyEventType,
