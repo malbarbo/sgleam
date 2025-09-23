@@ -473,7 +473,7 @@ pub fn star(side_length: Int, style: Style) -> Image {
   starf(int.to_float(side_length), style)
 }
 
-pub fn radial_startf(
+pub fn radial_starf(
   point_count: Int,
   inner_radius: Float,
   outer_radius: Float,
@@ -502,13 +502,13 @@ pub fn radial_startf(
   |> fix_position
 }
 
-pub fn radial_start(
+pub fn radial_star(
   point_count: Int,
   inner_radius: Int,
   outer_radius: Int,
   style: Style,
 ) -> Image {
-  radial_startf(
+  radial_starf(
     point_count,
     int.to_float(inner_radius),
     int.to_float(outer_radius),
