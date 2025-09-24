@@ -738,31 +738,31 @@ pub fn combine(images: List(Image), op: fn(Image, Image) -> Image) -> Image {
 }
 
 pub fn above(a: Image, b: Image) -> Image {
-  above_align(Center, a, b)
+  above_align(a, Center, b)
 }
 
-pub fn above_align(x_place: XPlace, a: Image, b: Image) -> Image {
+pub fn above_align(a: Image, x_place: XPlace, b: Image) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(a), widthf(b))
   Combination(translate(a, dxa, 0.0), translate(b, dxb, heightf(a)))
 }
 
 pub fn beside(a: Image, b: Image) -> Image {
-  beside_align(Middle, a, b)
+  beside_align(a, Middle, b)
 }
 
-pub fn beside_align(y_place: YPlace, a: Image, b: Image) -> Image {
+pub fn beside_align(a: Image, y_place: YPlace, b: Image) -> Image {
   let #(dya, dyb) = y_place_dy(y_place, heightf(a), heightf(b))
   Combination(translate(a, 0.0, dya), translate(b, widthf(a), dyb))
 }
 
 pub fn overlay(top: Image, bottom: Image) -> Image {
-  overlay_align(Center, Middle, top, bottom)
+  overlay_align(top, Center, Middle, bottom)
 }
 
 pub fn overlay_align(
+  top: Image,
   x_place: XPlace,
   y_place: YPlace,
-  top: Image,
   bottom: Image,
 ) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(top), widthf(bottom))
@@ -780,28 +780,28 @@ pub fn overlay_offset(top: Image, x: Int, y: Int, bottom: Image) -> Image {
 }
 
 pub fn overlay_align_offsetf(
+  top: Image,
   x_place: XPlace,
   y_place: YPlace,
-  top: Image,
   x: Float,
   y: Float,
   bottom: Image,
 ) -> Image {
-  overlay_align(x_place, y_place, top, translate(bottom, x, y))
+  overlay_align(top, x_place, y_place, translate(bottom, x, y))
 }
 
 pub fn overlay_align_offset(
+  top: Image,
   x_place: XPlace,
   y_place: YPlace,
-  top: Image,
   x: Int,
   y: Int,
   bottom: Image,
 ) -> Image {
   overlay_align_offsetf(
+    top,
     x_place,
     y_place,
-    top,
     int.to_float(x),
     int.to_float(y),
     bottom,
@@ -821,12 +821,12 @@ pub fn underlay(bottom: Image, top: Image) -> Image {
 }
 
 pub fn underlay_align(
+  bottom: Image,
   x_place: XPlace,
   y_place: YPlace,
-  bottom: Image,
   top: Image,
 ) -> Image {
-  overlay_align(x_place, y_place, top, bottom)
+  overlay_align(top, x_place, y_place, bottom)
 }
 
 pub fn underlay_offsetf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
@@ -838,28 +838,28 @@ pub fn underlay_offset(bottom: Image, x: Int, y: Int, top: Image) -> Image {
 }
 
 pub fn underlay_align_offsetf(
+  bottom: Image,
   x_place: XPlace,
   y_place: YPlace,
-  bottom: Image,
   x: Float,
   y: Float,
   top: Image,
 ) -> Image {
-  underlay_align(x_place, y_place, bottom, translate(top, x, y))
+  underlay_align(bottom, x_place, y_place, translate(top, x, y))
 }
 
 pub fn underlay_align_offset(
+  bottom: Image,
   x_place: XPlace,
   y_place: YPlace,
-  bottom: Image,
   x: Int,
   y: Int,
   top: Image,
 ) -> Image {
   underlay_align_offsetf(
+    bottom,
     x_place,
     y_place,
-    bottom,
     int.to_float(x),
     int.to_float(y),
     top,

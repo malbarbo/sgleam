@@ -6,7 +6,7 @@ import sgleam/yplace
 
 pub fn main() {
   rectangle(30, 60, fill.orange)
-  |> overlay_align(xplace.Left, yplace.Middle, _, ellipse(60, 30, fill.purple))
+  |> overlay_align(xplace.Left, yplace.Middle, ellipse(60, 30, fill.purple))
   |> to_svg
   |> io.println
 }
