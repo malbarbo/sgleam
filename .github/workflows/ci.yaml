@@ -42,7 +42,7 @@ jobs:
         uses: denoland/setup-deno@v1
 
       - name: Build
-        run: cargo build --target wasm32-wasip1 --release
+        run: rustup target add wasm32-wasip1 && cargo build --target wasm32-wasip1 --release
 
       - name: Copy sgleam.wasm
         run: cp target/wasm32-wasip1/release/sgleam.wasm web/

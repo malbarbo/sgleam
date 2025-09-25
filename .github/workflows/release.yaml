@@ -58,13 +58,14 @@ jobs:
         run: |
           VERSION="${GITHUB_REF#refs/tags/}"
 
-          if [ "${{ matrix.os }}" = "windows-2019" ]; then
+          if [ "${{ matrix.os }}" = "windows-2022" ]; then
             ARCHIVE="sgleam-$VERSION-${{ matrix.target }}.zip"
             cp "target/${{ matrix.target }}/release/sgleam.exe" "sgleam.exe"
             7z a "$ARCHIVE" "sgleam.exe"
             rm sgleam.exe
           else
             ARCHIVE="sgleam-$VERSION-${{ matrix.target }}.tar.gz"
+            rm -rf sgleam
             cp "target/${{ matrix.target }}/release/sgleam" "sgleam"
             tar -czvf "$ARCHIVE" "sgleam"
             rm sgleam
