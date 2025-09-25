@@ -1,8 +1,13 @@
-import sgleam/style
+import sgleam/color.{type Color}
+import sgleam/style.{type Style}
 
 pub const rgb = style.stroke_rgb
 
 pub const rgba = style.stroke_rgba
+
+pub fn with(color: Color) -> Style {
+  style.stroke(color)
+}
 
 pub const width = style.stroke_width
 
