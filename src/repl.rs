@@ -1,7 +1,7 @@
 use std::{collections::HashMap, fmt::Write};
 
 use gleam_core::{
-    ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedStatement},
+    ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedPattern, UntypedStatement},
     build::Module,
     io::FileSystemWriter,
     Error,
@@ -209,24 +209,29 @@ impl<E: Engine> Repl<E> {
         match statement {
             Statement::Use(_) => self.run_use(&src[start..end]),
             Statement::Expression(_) => self.run_expr(&src[start..end]),
-            Statement::Assignment(a) => match a.pattern {
-                Pattern::Variable { name, .. } => {
-                    let end = a.value.location().end as usize;
-                    self.run_let(name.as_str(), &src[start..end])
-                }
-                Pattern::Discard { .. } => {
+            Statement::Assignment(a) => {
+                let assign_name: Option<String> = if let Pattern::Assign { name, .. } = &a.pattern {
+                    Some(name.into())
+                } else {
+                    None
+                };
+                let mut names = vec![];
+                self.assignment_find_names(&a.pattern, &mut names);
+                if names.is_empty() {
                     let end = a.value.location().end as usize;
                     self.run_expr(&src[start..end])
+                } else {
+                    let pattern_end = a.pattern.location().end as usize;
+                    let value_start = a.value.location().start as usize;
+                    self.run_assignment(
+                        assign_name,
+                        &src[start..pattern_end],
+                        &src[value_start..end],
+                        &names,
+                    )
                 }
-                _ => {
-                    println!("patterns are not supported in let statements.");
-                    Ok(())
-                }
-            },
-            Statement::Assert(_) => {
-                println!("assert is not supported.");
-                Ok(())
             }
+            Statement::Assert(_) => self.run_assert(&src[start..end]),
         }
     }
 
@@ -243,16 +248,33 @@ impl<E: Engine> Repl<E> {
         self.compile(&self.build_source()).map(|_| ())
     }
 
-    fn run_let(&mut self, name: &str, code: &str) -> Result<(), Error> {
+    fn run_assignment(
+        &mut self,
+        assigned_name: Option<String>,
+        pattern: &str,
+        value: &str,
+        names: &[String],
+    ) -> Result<(), Error> {
         let mut src = self.build_source();
         let lets = self.gen_lets(&[]);
+        let joined_names = names.join(", ");
+        let save_names = names
+            .iter()
+            .map(|name| format!("repl_save({name})"))
+            .collect::<Vec<_>>()
+            .join("\n  ");
+        let assignment = if let Some(assigned_name) = assigned_name {
+            format!("  {pattern} = {value}\n  repl_print({assigned_name})")
+        } else {
+            format!("  {pattern} as {REPL_MAIN} = {value}\n  repl_print({REPL_MAIN})")
+        };
         // FIXME: avoid name collision
         src.push_str(&formatdoc! {"
             pub fn {REPL_MAIN}() {{
               {lets}
-              repl_print(repl_save({{
-            {code}
-              }}))
+              {assignment}
+              {save_names}
+              #({joined_names})
             }}
             "
         });
@@ -264,10 +286,14 @@ impl<E: Engine> Repl<E> {
 
         if self.engine.has_var(self.var_index) {
             let main = get_function(&module, REPL_MAIN).expect("repl main function");
-            let type_ = type_to_string(&module, &main.return_type);
-            let index = self.var_index;
-            self.vars.insert(name.into(), Variable { index, type_ });
-            self.var_index += 1;
+            let types = main.return_type.tuple_types().unwrap();
+            assert_eq!(types.len(), names.len());
+            for (name, type_) in names.iter().zip(&types) {
+                let index = self.var_index;
+                let type_ = type_to_string(&module, &type_);
+                self.vars.insert(name.into(), Variable { index, type_ });
+                self.var_index += 1;
+            }
         } else {
             // there was an error and the variable was not saved
         }
@@ -278,6 +304,22 @@ impl<E: Engine> Repl<E> {
     fn run_expr(&mut self, code: &str) -> Result<(), Error> {
         let mut src = self.build_source();
         self.add_expr(&mut src, code);
+        let module = self.compile(&src)?.split_off_first().0;
+        self.engine
+            .run_main(&module.name, MainFunction::ReplMain, false);
+        Ok(())
+    }
+
+    fn run_assert(&mut self, code: &str) -> Result<(), Error> {
+        let mut src = self.build_source();
+        let lets = self.gen_lets(&[]);
+        src.push_str(&formatdoc! {"
+            pub fn {REPL_MAIN}() {{
+                {lets}
+                {code}
+            }}
+            "
+        });
         let module = self.compile(&src)?.split_off_first().0;
         self.engine
             .run_main(&module.name, MainFunction::ReplMain, false);
@@ -377,6 +419,46 @@ impl<E: Engine> Repl<E> {
             }
         }
         lets
+    }
+
+    fn assignment_find_names(&self, pattern: &UntypedPattern, names: &mut Vec<String>) {
+        match pattern {
+            Pattern::Int { .. }
+            | Pattern::Float { .. }
+            | Pattern::String { .. }
+            | Pattern::Discard { .. }
+            | Pattern::Invalid { .. }
+            | Pattern::StringPrefix { .. }
+            | Pattern::VarUsage { .. } => {}
+            Pattern::Variable { name, .. } => names.push(name.into()),
+            Pattern::Assign { name, pattern, .. } => {
+                names.push(name.into());
+                self.assignment_find_names(pattern, names);
+            }
+            Pattern::List { elements, tail, .. } => {
+                for element in elements {
+                    self.assignment_find_names(element, names);
+                }
+                if let Some(tail) = tail {
+                    self.assignment_find_names(tail, names);
+                }
+            }
+            Pattern::Constructor { arguments, .. } => {
+                for argument in arguments {
+                    self.assignment_find_names(&argument.value, names);
+                }
+            }
+            Pattern::Tuple { elements, .. } => {
+                for element in elements {
+                    self.assignment_find_names(element, names);
+                }
+            }
+            Pattern::BitArray { segments, .. } => {
+                for segment in segments {
+                    self.assignment_find_names(&segment.value, names);
+                }
+            }
+        }
     }
 }
 

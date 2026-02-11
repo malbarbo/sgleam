@@ -60,11 +60,36 @@ fn repl_let_discard() {
 }
 
 #[test]
-fn repl_let_int_pattern() {
+fn repl_let_pattern() {
+    assert_eq!(repl_exec("let #(a, b) = #(True, 1)"), "#(True, 1)");
+    assert_eq!(repl_exec("let #(a, b) = #(True, 1) a"), "#(True, 1)\nTrue");
+    assert_eq!(repl_exec("let #(a, b) = #(True, 1) b"), "#(True, 1)\n1");
+}
+
+#[test]
+fn repl_let_nested_pattern() {
     assert_eq!(
-        repl_exec("let 10 = 10"),
-        "patterns are not supported in let statements."
+        repl_exec("let assert #([f, ..r], a) = #([True], 1)"),
+        "#([True], 1)"
     );
+    assert_eq!(
+        repl_exec("let assert #([f, ..r], a) = #([True], 1) f"),
+        "#([True], 1)\nTrue"
+    );
+    assert_eq!(
+        repl_exec("let assert #([f, ..r], a) = #([True], 1) r"),
+        "#([True], 1)\n[]"
+    );
+    assert_eq!(
+        repl_exec("let assert #([f, ..r], a) = #([True], 1) a"),
+        "#([True], 1)\n1"
+    );
+}
+
+#[test]
+fn repl_let_assert() {
+    assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
+    assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
 }
 
 #[test]
