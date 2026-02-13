@@ -2,9 +2,8 @@
 
 use camino::Utf8PathBuf;
 use clap::{
-    arg,
     builder::{styling, Styles},
-    command, Parser,
+    Parser,
 };
 use gleam_core::{
     error::{FileIoAction, FileKind},

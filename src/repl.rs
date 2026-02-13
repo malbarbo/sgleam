@@ -290,7 +290,7 @@ impl<E: Engine> Repl<E> {
             assert_eq!(types.len(), names.len());
             for (name, type_) in names.iter().zip(&types) {
                 let index = self.var_index;
-                let type_ = type_to_string(&module, &type_);
+                let type_ = type_to_string(&module, type_);
                 self.vars.insert(name.into(), Variable { index, type_ });
                 self.var_index += 1;
             }
