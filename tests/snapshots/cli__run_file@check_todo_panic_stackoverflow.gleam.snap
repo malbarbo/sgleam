@@ -1,6 +1,6 @@
 ---
 source: tests/cli.rs
-expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
 input_file: tests/inputs/check_todo_panic_stackoverflow.gleam
 ---
 STDOUT
@@ -33,4 +33,4 @@ Hint: I think its type is `Int`.
 error: Module does not have a main function
 
 `tests/inputs/check_todo_panic_stackoverflow` does not have a main function so the module can not be run.
-Hint: Add a public `main` function to to `src/tests/inputs/check_todo_panic_stackoverflow.gleam`.
+Hint: Add a public `main` function to `src/tests/inputs/check_todo_panic_stackoverflow.gleam`.

@@ -1,4 +1,4 @@
-use assert_cmd::prelude::*;
+use assert_cmd::cargo;
 use indoc::formatdoc;
 use insta::{assert_snapshot, glob};
 use sgleam::repl::{welcome_message, QUIT, TYPE};
@@ -169,8 +169,8 @@ fn repl_type_cmd() {
     );
     // :type does not evaluate
     assert_eq!(
-        repl_exec(&format!("{TYPE} io.debug(Ok(1))")),
-        "Result(Int, b)", // without the io.debug side effect
+        repl_exec(&format!("{TYPE} {{ io.println(\"\") Ok(1) }}")),
+        "Result(Int, b)", // without the io.println side effect
     );
 }
 
@@ -337,7 +337,7 @@ fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
 
 // FIXME: this seams too complicated
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
-    let mut cmd = Command::cargo_bin(env!("CARGO_PKG_NAME")).unwrap();
+    let mut cmd = Command::new(cargo::cargo_bin!());
 
     let mut child = cmd
         .stdin(Stdio::piped())

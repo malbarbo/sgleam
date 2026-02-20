@@ -9,11 +9,11 @@ pub fn main() {
 
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    create_tar(&outdir, "gleam-stdlib.tar", "sgleam-stdlib-0.56.0");
+    create_tar(&outdir, "gleam-stdlib.tar", "sgleam-stdlib-0.69.0");
     create_tar(
         &outdir,
         "gleam-stdlib-bigint.tar",
-        "sgleam-bigint-stdlib-0.56.0",
+        "sgleam-stdlib-bigint-0.69.0",
     );
 }
 

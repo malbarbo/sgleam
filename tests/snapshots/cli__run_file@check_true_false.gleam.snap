@@ -1,6 +1,6 @@
 ---
 source: tests/cli.rs
-expression: "formatdoc!\n{\n    \"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"\n}"
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
 input_file: tests/inputs/check_true_false.gleam
 ---
 STDOUT
@@ -9,4 +9,4 @@ STDERR
 error: Module does not have a main function
 
 `tests/inputs/check_true_false` does not have a main function so the module can not be run.
-Hint: Add a public `main` function to to `src/tests/inputs/check_true_false.gleam`.
+Hint: Add a public `main` function to `src/tests/inputs/check_true_false.gleam`.

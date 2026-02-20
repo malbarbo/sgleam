@@ -446,12 +446,12 @@ pub fn star_polygonf(
     False -> -90.0
   }
 
-  list.range(0, side_count - 1)
-  |> list.map(fn(i) {
+  int.range(0, side_count, [], fn(acc, i) {
     let theta =
       alpha +. 360.0 *. int.to_float(i * step_count % side_count) /. side_countf
-    Pointf(radius *. cos_deg(theta), radius *. sin_deg(theta))
+    [Pointf(radius *. cos_deg(theta), radius *. sin_deg(theta)), ..acc]
   })
+  |> list.reverse
   |> Polygon(style, _)
   |> fix_position
 }
@@ -487,17 +487,18 @@ pub fn radial_starf(
     False -> -90.0
   }
 
-  list.range(0, 2 * point_count - 1)
-  |> list.flat_map(fn(i) {
+  int.range(0, 2 * point_count, [], fn(acc, i) {
     let theta1 =
       alpha +. 360.0 *. int.to_float(i * 2) /. int.to_float(2 * point_count)
     let theta2 =
       alpha +. 360.0 *. int.to_float(i * 2 + 1) /. int.to_float(2 * point_count)
     [
-      Pointf(outer_radius *. cos_deg(theta1), outer_radius *. sin_deg(theta1)),
       Pointf(inner_radius *. cos_deg(theta2), inner_radius *. sin_deg(theta2)),
+      Pointf(outer_radius *. cos_deg(theta1), outer_radius *. sin_deg(theta1)),
+      ..acc
     ]
   })
+  |> list.reverse
   |> Polygon(style, _)
   |> fix_position
 }

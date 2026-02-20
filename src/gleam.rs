@@ -7,8 +7,9 @@ use gleam_core::{
     },
     config::PackageConfig,
     error::{FileIoAction, FileKind},
-    io::{memory::InMemoryFileSystem, FileSystemWriter},
+    io::{memory::InMemoryFileSystem, FileSystemReader, FileSystemWriter},
     javascript::is_bigint_enabled,
+    manifest::PackageChanges,
     parse::parse_module,
     type_::{printer::Printer, Type},
     uid::UniqueIdGenerator,
@@ -107,6 +108,14 @@ impl Project {
             .write(&path, content)
             .expect("Write a file in memory");
     }
+
+    #[allow(unused)]
+    pub fn dump(&mut self) {
+        for path in self.fs.files() {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, self.fs.read_bytes(&path).unwrap()).unwrap();
+        }
+    }
 }
 
 pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
@@ -121,7 +130,7 @@ pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>
     type_to_string(
         module,
         &Type::Fn {
-            args: args.into(),
+            arguments: args.into(),
             return_,
         },
     )
@@ -313,6 +322,8 @@ impl Telemetry for Reporter {
     fn waiting_for_build_directory_lock(&self) {
         print_waiting_for_build_directory_lock()
     }
+
+    fn resolved_package_versions(&self, _changes: &PackageChanges) {}
 }
 
 pub fn print_published(duration: Duration) {
@@ -418,6 +429,7 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
                     | gleam_core::type_::Warning::UnusedImportedModule { .. }
                     | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
                     | gleam_core::type_::Warning::UnusedImportedValue { .. }
+                    | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
                     // | gleam_core::type_::Warning::UnusedLiteral { .. }
                     | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
                     | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }

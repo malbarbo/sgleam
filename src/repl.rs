@@ -1,7 +1,10 @@
 use std::{collections::HashMap, fmt::Write};
 
 use gleam_core::{
-    ast::{Definition, Pattern, Statement, TargetedDefinition, UntypedPattern, UntypedStatement},
+    ast::{
+        BitArraySize, Definition, Pattern, Statement, TargetedDefinition, UntypedPattern,
+        UntypedStatement,
+    },
     build::Module,
     io::FileSystemWriter,
     Error,
@@ -191,8 +194,8 @@ impl<E: Engine> Repl<E> {
                 let lets = self.gen_lets(&get_args_names(f));
 
                 src.insert_str(
-                    (f.body.first().location().start - targeted.definition.location().start)
-                        as usize,
+                    (f.body.first().unwrap().location().start
+                        - targeted.definition.location().start) as usize,
                     &format!("\n  {lets}"),
                 );
 
@@ -216,7 +219,7 @@ impl<E: Engine> Repl<E> {
                     None
                 };
                 let mut names = vec![];
-                self.assignment_find_names(&a.pattern, &mut names);
+                assignment_find_names(&a.pattern, &mut names);
                 if names.is_empty() {
                     let end = a.value.location().end as usize;
                     self.run_expr(&src[start..end])
@@ -420,44 +423,56 @@ impl<E: Engine> Repl<E> {
         }
         lets
     }
+}
 
-    fn assignment_find_names(&self, pattern: &UntypedPattern, names: &mut Vec<String>) {
-        match pattern {
-            Pattern::Int { .. }
-            | Pattern::Float { .. }
-            | Pattern::String { .. }
-            | Pattern::Discard { .. }
-            | Pattern::Invalid { .. }
-            | Pattern::StringPrefix { .. }
-            | Pattern::VarUsage { .. } => {}
-            Pattern::Variable { name, .. } => names.push(name.into()),
-            Pattern::Assign { name, pattern, .. } => {
-                names.push(name.into());
-                self.assignment_find_names(pattern, names);
+fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
+    match pattern {
+        Pattern::Int { .. }
+        | Pattern::Float { .. }
+        | Pattern::String { .. }
+        | Pattern::Discard { .. }
+        | Pattern::Invalid { .. }
+        | Pattern::StringPrefix { .. } => {}
+        Pattern::Variable { name, .. } => names.push(name.into()),
+        Pattern::Assign { name, pattern, .. } => {
+            names.push(name.into());
+            assignment_find_names(pattern, names);
+        }
+        Pattern::List { elements, tail, .. } => {
+            for element in elements {
+                assignment_find_names(element, names);
             }
-            Pattern::List { elements, tail, .. } => {
-                for element in elements {
-                    self.assignment_find_names(element, names);
-                }
-                if let Some(tail) = tail {
-                    self.assignment_find_names(tail, names);
-                }
+            if let Some(tail) = tail {
+                assignment_find_names(&tail.pattern, names);
             }
-            Pattern::Constructor { arguments, .. } => {
-                for argument in arguments {
-                    self.assignment_find_names(&argument.value, names);
-                }
+        }
+        Pattern::Constructor { arguments, .. } => {
+            for argument in arguments {
+                assignment_find_names(&argument.value, names);
             }
-            Pattern::Tuple { elements, .. } => {
-                for element in elements {
-                    self.assignment_find_names(element, names);
-                }
+        }
+        Pattern::Tuple { elements, .. } => {
+            for element in elements {
+                assignment_find_names(element, names);
             }
-            Pattern::BitArray { segments, .. } => {
-                for segment in segments {
-                    self.assignment_find_names(&segment.value, names);
-                }
+        }
+        Pattern::BitArray { segments, .. } => {
+            for segment in segments {
+                assignment_find_names(&segment.value, names);
             }
+        }
+        Pattern::BitArraySize(bit_array_size) => bit_array_size_find_names(bit_array_size, names),
+    }
+}
+
+fn bit_array_size_find_names(bit_array_size: &BitArraySize<()>, names: &mut Vec<String>) {
+    match bit_array_size {
+        BitArraySize::Int { .. } => {}
+        BitArraySize::Variable { name, .. } => names.push(name.into()),
+        BitArraySize::Block { inner, .. } => bit_array_size_find_names(inner, names),
+        BitArraySize::BinaryOperator { left, right, .. } => {
+            bit_array_size_find_names(left, names);
+            bit_array_size_find_names(right, names);
         }
     }
 }
