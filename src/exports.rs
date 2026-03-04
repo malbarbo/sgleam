@@ -52,15 +52,12 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
 }
 
 fn has_examples(module: &Module) -> bool {
-    module.ast.definitions.iter().any(|d| match d {
-        gleam_core::ast::Definition::Function(f) => {
-            f.publicity.is_public()
-                && f.name
-                    .as_ref()
-                    .map(|(_, name)| name.ends_with("_examples"))
-                    .unwrap_or(false)
-        }
-        _ => false,
+    module.ast.definitions.functions.iter().any(|f| {
+        f.publicity.is_public()
+            && f.name
+                .as_ref()
+                .map(|(_, name)| name.ends_with("_examples"))
+                .unwrap_or(false)
     })
 }
 
