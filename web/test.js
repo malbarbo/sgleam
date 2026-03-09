@@ -1,4 +1,7 @@
 import { assertEquals } from "jsr:@std/assert";
+import { UIChannel } from "./channel.js";
+
+const STDERR = 2;
 
 Deno.test("repl smoke test", async () => {
     return new Promise((resolve, reject) => {
@@ -8,9 +11,7 @@ Deno.test("repl smoke test", async () => {
         );
 
         let first = true;
-        let sharedBuffer = new SharedArrayBuffer(4);
-        let buffer = new Int32Array(sharedBuffer);
-        Atomics.store(buffer, 0, 0);
+        const sharedBuffer = new UIChannel(10).getBuffer();
 
         repl.onmessage = (event) => {
             const data = event.data;
@@ -21,6 +22,7 @@ Deno.test("repl smoke test", async () => {
                     repl.postMessage({ cmd: 'run', data: "1 + 2" });
                 }
             } else if (data.cmd == 'output') {
+                if (data.fd === STDERR) return; // ignore compiler warnings
                 assertEquals(data.data, "3\n");
                 repl.terminate();
                 resolve();
