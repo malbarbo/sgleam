@@ -35,7 +35,7 @@ jobs:
         run: deno fmt --check
 
       - name: Check TypeScript types
-        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/test.ts
+        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/ansi_test.ts web/test.ts
 
   wasm:
     name: Test wasm
@@ -61,12 +61,13 @@ jobs:
         run: |
           mkdir -p dist
           cp target/wasm32-wasip1/release/sgleam.wasm dist/
-          deno bundle web/worker.ts -o dist/repl.js
+          deno bundle web/worker.ts -o dist/worker.js
           deno bundle web/test.ts -o dist/test.js
 
       - name: Test
         run: |
           deno test --allow-read web/channel_test.ts
+          deno test web/ansi_test.ts
           deno test --allow-read dist/test.js
 
   test:

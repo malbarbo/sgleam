@@ -110,10 +110,8 @@ fn colour_forced() -> bool {
 }
 
 fn color_choice() -> ColorChoice {
-    if colour_forced() {
+    if colour_forced() || std::io::stderr().is_terminal() {
         ColorChoice::Always
-    } else if std::io::stderr().is_terminal() {
-        ColorChoice::Auto
     } else {
         ColorChoice::Never
     }

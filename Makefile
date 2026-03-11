@@ -7,7 +7,7 @@ DIST_FILES = \
 	$(DIST_DIR)/sgleam.wasm \
 	$(DIST_DIR)/index.html \
 	$(DIST_DIR)/sgleam.js \
-	$(DIST_DIR)/repl.js \
+	$(DIST_DIR)/worker.js \
 	$(DIST_DIR)/server.py
 
 .PHONY: all serve test test-web test-rs clean
@@ -30,10 +30,10 @@ $(WASM_BIN): $(RUST_SRCS)
 
 # TypeScript compilation
 
-$(DIST_DIR)/repl.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+$(DIST_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
 	deno bundle $(WEB_DIR)/worker.ts -o $@
 
-$(DIST_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+$(DIST_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/ansi.ts | $(DIST_DIR)
 	deno bundle $(WEB_DIR)/ui.ts -o $@
 
 # Static web files
@@ -51,8 +51,9 @@ test: test-rs test-web
 test-rs:
 	cargo test
 
-test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/repl.js $(DIST_DIR)/test.js
+test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/worker.js $(DIST_DIR)/test.js
 	deno test --allow-read $(WEB_DIR)/channel_test.ts
+	deno test $(WEB_DIR)/ansi_test.ts
 	deno test --allow-read $(DIST_DIR)/test.js
 
 # Utility

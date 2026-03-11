@@ -335,6 +335,30 @@ fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
     run_sgleam_cmd(args, input).0
 }
 
+#[test]
+fn error_output_has_ansi_colors() {
+    // Use a file within the current directory to trigger a compile error with source location.
+    // This exercises write_span() → codespan_reporting, which must emit ANSI codes.
+    let file = std::env::current_dir()
+        .unwrap()
+        .join("tests/inputs/unknown_variable.gleam");
+    std::fs::write(&file, "pub fn main() { unknown_variable }\n").unwrap();
+
+    let output = Command::new(cargo::cargo_bin!())
+        .env("FORCE_COLOR", "1")
+        .arg(&file)
+        .output()
+        .unwrap();
+
+    let _ = std::fs::remove_file(&file);
+
+    assert!(
+        output.stderr.contains(&0x1b),
+        "expected ANSI escape codes in stderr, got: {:?}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 // FIXME: this seams too complicated
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
     let mut cmd = Command::new(cargo::cargo_bin!());

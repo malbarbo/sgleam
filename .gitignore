@@ -1,2 +1,5 @@
 /target
 /dist
+/.zed
+*.bak
+/web/sgleam.wasm

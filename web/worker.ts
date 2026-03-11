@@ -273,7 +273,8 @@ class Worker {
                             bufPtr,
                             bufLen,
                         );
-                        this.channel.write(fd, decoder.decode(buf));
+                        const text = decoder.decode(buf);
+                        this.channel.write(fd, text);
                         totalBytesWritten += bufLen;
                     }
                     dataView.setInt32(nwrittenPtr, totalBytesWritten, true);
@@ -286,7 +287,17 @@ class Worker {
             fd_seek: (): number => 0,
             fd_read: (): number => 0,
             fd_close: (): number => 0,
-            fd_fdstat_get: (): number => 0, // called by is_terminal
+            fd_fdstat_get: (fd: number, statPtr: number): number => {
+                if (fd === STDOUT || fd === STDERR) {
+                    // Zero the entire fdstat struct (24 bytes) then set fs_filetype.
+                    // isatty() checks fs_filetype == 2 AND (fs_rights_base[0] & 0x24) == 0,
+                    // so uninitialized stack memory in fs_rights_base would make it return false.
+                    const mem = new Uint8Array(this.getBuffer());
+                    mem.fill(0, statPtr, statPtr + 24);
+                    mem[statPtr] = 2; // WASI_FILETYPE_CHARACTER_DEVICE
+                }
+                return WASI_ESUCCESS;
+            },
             args_sizes_get: (
                 argcPtr: number,
                 argvBufSizePtr: number,
@@ -349,6 +360,15 @@ class Worker {
                 console.error("path_open");
                 return WASI_ENOSYS;
             },
+            path_create_directory: (): number => {
+                return WASI_ENOSYS;
+            },
+            path_filestat_get: (): number => {
+                return WASI_ENOSYS;
+            },
+            path_readlink: (): number => {
+                return WASI_ENOSYS;
+            },
             fd_filestat_get: (): number => {
                 console.error("fd_filestat_get");
                 return WASI_ENOSYS;
@@ -408,7 +428,9 @@ class Worker {
         this.wasmModule = wasmModule;
         const instance = await WebAssembly.instantiate(wasmModule, {
             env: this.makeSgleamEnv(),
-            wasi_snapshot_preview1: this.makeWasi([], ["RUST_BACKTRACE=1"]),
+            wasi_snapshot_preview1: this.makeWasi([], [
+                "RUST_BACKTRACE=1",
+            ]),
         });
         this.exports = instance.exports as unknown as WasmExports;
         this.exports.use_bigint?.(true);

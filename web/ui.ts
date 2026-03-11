@@ -1,3 +1,4 @@
+import { ansiToHtml } from "./ansi.ts";
 import {
     KEYDOWN,
     KEYPRESS,
@@ -89,7 +90,7 @@ class App {
             document.getElementById("default-code")?.textContent ?? "",
         );
 
-        const worker = new Worker("repl.js", { type: "module" });
+        const worker = new Worker("worker.js", { type: "module" });
         worker.onmessage = (e: MessageEvent<WorkerMessage>) =>
             this.onWorkerMessage(e);
 
@@ -448,9 +449,10 @@ class App {
     }
 
     private addOutput(_fd: number, text: string): void {
+        const html = ansiToHtml(text);
         const output = document.createElement("div");
         output.className = "repl-line";
-        output.textContent = text;
+        output.innerHTML = html;
         this.replPanel.appendChild(output);
         this.replPanel.scrollTop = this.replPanel.scrollHeight;
     }
