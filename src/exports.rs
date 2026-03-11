@@ -33,9 +33,14 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
 #[no_mangle]
 pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
     let source = new_string(str, len);
+    if source.trim().is_empty() {
+        return Box::leak(Box::new(
+            Repl::new(Project::default(), None).expect("An repl"),
+        ));
+    }
     let mut project = Project::default();
     project.write_source("user.gleam", &source);
-    let modules = match compile(&mut project, false) {
+    let modules = match compile(&mut project, true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
             return Box::leak(Box::new(
@@ -45,7 +50,7 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
         Ok(modules) => modules,
     };
     let module = get_module(&modules, "user");
-    if !source.is_empty() && module.map(has_examples).unwrap_or(false) {
+    if module.map(has_examples).unwrap_or(false) {
         QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
     }
     Box::leak(Box::new(Repl::new(project, module).expect("An repl")))
