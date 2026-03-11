@@ -224,10 +224,20 @@
         <div id="editor-panel"></div>
         <div id="resize-handle"></div>
         <div id="repl-panel">
-            <p id="loading">Loading...</p>
+            <p id="loading"></p>
         </div>
     </div>
 
+    <script id="default-code" type="text/plain">import sgleam/check
+
+pub fn hello(name: String) -> String {
+  "Hello " <> name <> "!"
+}
+
+pub fn hello_examples() {
+  check.eq(hello("World"), "Hello World!")
+}
+</script>
     <script src="https://unpkg.com/codeflask/build/codeflask.min.js"></script>
     <script type="module" src="sgleam.js"></script>
 </body>

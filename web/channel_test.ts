@@ -1,15 +1,31 @@
 import { assertEquals } from "jsr:@std/assert";
-import { KEYPRESS, KEYDOWN, KEYUP, UIChannel, WorkerChannel, type KeyEvent } from "./channel.ts";
+import {
+    KEYDOWN,
+    type KeyEvent,
+    KEYPRESS,
+    KEYUP,
+    UIChannel,
+} from "./ui_channel.ts";
+import { WorkerChannel } from "./worker_channel.ts";
 
 function makeChannels(capacity = 4): [UIChannel, WorkerChannel] {
-    const ui = new UIChannel(capacity);
-    const worker = new WorkerChannel();
-    worker.init(ui.getBuffer());
+    const worker = new WorkerChannel(capacity);
+    const ui = new UIChannel({ postMessage() {} });
+    ui.setBuffer(worker.getBuffer());
     return [ui, worker];
 }
 
 function event(overrides: Partial<KeyEvent> = {}): KeyEvent {
-    return { type: KEYPRESS, key: "a", alt: false, ctrl: false, shift: false, meta: false, repeat: false, ...overrides };
+    return {
+        type: KEYPRESS,
+        key: "a",
+        alt: false,
+        ctrl: false,
+        shift: false,
+        meta: false,
+        repeat: false,
+        ...overrides,
+    };
 }
 
 Deno.test("dequeue from empty buffer returns null", () => {
@@ -38,7 +54,15 @@ Deno.test("events are dequeued in FIFO order", () => {
 
 Deno.test("modifier flags are preserved", () => {
     const [ui, worker] = makeChannels();
-    const e = event({ type: KEYDOWN, key: "x", alt: true, ctrl: true, shift: true, meta: true, repeat: true });
+    const e = event({
+        type: KEYDOWN,
+        key: "x",
+        alt: true,
+        ctrl: true,
+        shift: true,
+        meta: true,
+        repeat: true,
+    });
     ui.enqueueKeyEvent(e);
     assertEquals(worker.dequeueKeyEvent(), e);
 });

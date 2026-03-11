@@ -8,10 +8,9 @@ DIST_FILES = \
 	$(DIST_DIR)/index.html \
 	$(DIST_DIR)/sgleam.js \
 	$(DIST_DIR)/repl.js \
-	$(DIST_DIR)/channel.js \
 	$(DIST_DIR)/server.py
 
-.PHONY: all serve test test-wasm clean
+.PHONY: all serve test test-web test-rs clean
 
 all: $(DIST_FILES)
 
@@ -24,35 +23,36 @@ serve: $(DIST_FILES)
 $(DIST_DIR)/sgleam.wasm: $(WASM_BIN) | $(DIST_DIR)
 	cp $< $@
 
-$(WASM_BIN):
+RUST_SRCS = Cargo.toml build.rs $(wildcard src/*.rs)
+
+$(WASM_BIN): $(RUST_SRCS)
 	cargo build --target $(WASM_TARGET) --release
 
 # TypeScript compilation
 
-$(DIST_DIR)/channel.js: $(WEB_DIR)/channel.ts | $(DIST_DIR)
-	deno bundle $< -o $@
+$(DIST_DIR)/repl.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+	deno bundle $(WEB_DIR)/worker.ts -o $@
 
-$(DIST_DIR)/repl.js: $(WEB_DIR)/repl.ts $(WEB_DIR)/channel.ts | $(DIST_DIR)
-	deno bundle $(WEB_DIR)/repl.ts -o $@
+$(DIST_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+	deno bundle $(WEB_DIR)/ui.ts -o $@
 
 # Static web files
 
 $(DIST_DIR)/index.html: $(WEB_DIR)/sgleam.html | $(DIST_DIR)
 	cp $< $@
 
-$(DIST_DIR)/sgleam.js: $(WEB_DIR)/sgleam.js | $(DIST_DIR)
-	cp $< $@
-
-$(DIST_DIR)/test.js: $(WEB_DIR)/test.js | $(DIST_DIR)
-	cp $< $@
+$(DIST_DIR)/test.js: $(WEB_DIR)/test.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+	deno bundle $(WEB_DIR)/test.ts -o $@
 
 # Tests
 
-test:
-	deno test --allow-read $(WEB_DIR)/channel_test.ts
+test: test-rs test-web
 
-test-wasm: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/repl.js \
-           $(DIST_DIR)/channel.js $(DIST_DIR)/test.js
+test-rs:
+	cargo test
+
+test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/repl.js $(DIST_DIR)/test.js
+	deno test --allow-read $(WEB_DIR)/channel_test.ts
 	deno test --allow-read $(DIST_DIR)/test.js
 
 # Utility
