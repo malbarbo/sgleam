@@ -13,9 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
           components: rustfmt, clippy
@@ -26,29 +26,48 @@ jobs:
       - name: Run Clippy
         run: cargo clippy -- -D warnings
 
+      - name: Setup Deno
+        uses: denoland/setup-deno@v1
+        with:
+          deno-version: "2.x"
+
+      - name: Check TypeScript formatting
+        run: deno fmt --check
+
+      - name: Check TypeScript types
+        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/test.ts
+
   wasm:
     name: Test wasm
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@v1
         with:
           toolchain: stable
           target: wasm32-wasip1
 
       - name: Setup Deno
         uses: denoland/setup-deno@v1
+        with:
+          deno-version: "2.x"
 
       - name: Build
-        run: rustup target add wasm32-wasip1 && cargo build --target wasm32-wasip1 --release
+        run: cargo build --target wasm32-wasip1 --release
 
-      - name: Copy sgleam.wasm
-        run: cp target/wasm32-wasip1/release/sgleam.wasm web/
+      - name: Bundle
+        run: |
+          mkdir -p dist
+          cp target/wasm32-wasip1/release/sgleam.wasm dist/
+          deno bundle web/worker.ts -o dist/repl.js
+          deno bundle web/test.ts -o dist/test.js
 
       - name: Test
-        run: deno test --allow-read web/test.js
+        run: |
+          deno test --allow-read web/channel_test.ts
+          deno test --allow-read dist/test.js
 
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
@@ -78,7 +97,7 @@ jobs:
             setup: ""
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@v1
