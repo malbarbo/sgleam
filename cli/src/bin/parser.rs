@@ -5,7 +5,7 @@ use gleam_core::{
     error::{FileIoAction, FileKind},
     Error,
 };
-use sgleam::{error::show_error, parser::*};
+use sgleam_core::{error::show_error, parser::*};
 use std::fs;
 
 #[derive(Parser)]

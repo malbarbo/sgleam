@@ -10,7 +10,7 @@ DIST_FILES = \
 	$(DIST_DIR)/worker.js \
 	$(DIST_DIR)/server.py
 
-.PHONY: all serve test test-web test-rs clean
+.PHONY: all serve test test-web test-rs check clean
 
 all: $(DIST_FILES)
 
@@ -23,10 +23,13 @@ serve: $(DIST_FILES)
 $(DIST_DIR)/sgleam.wasm: $(WASM_BIN) | $(DIST_DIR)
 	cp $< $@
 
-RUST_SRCS = Cargo.toml build.rs $(wildcard src/*.rs)
+RUST_SRCS = Cargo.toml \
+	$(wildcard sgleam-core/src/*.rs) \
+	$(wildcard cli/src/*.rs) \
+	$(wildcard wasm/src/*.rs)
 
 $(WASM_BIN): $(RUST_SRCS)
-	cargo build --target $(WASM_TARGET) --release
+	cargo build -p sgleam-wasm --target $(WASM_TARGET) --release
 
 # TypeScript compilation
 
@@ -55,6 +58,13 @@ test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/worker.js $(DIST_DIR)/test.js
 	deno test --allow-read $(WEB_DIR)/channel_test.ts
 	deno test $(WEB_DIR)/ansi_test.ts
 	deno test --allow-read $(DIST_DIR)/test.js
+
+# Check
+
+check:
+	cargo clippy -- -D warnings
+	cargo fmt -- --check
+	deno fmt --check
 
 # Utility
 

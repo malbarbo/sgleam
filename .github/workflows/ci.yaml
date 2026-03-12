@@ -55,7 +55,7 @@ jobs:
           deno-version: "2.x"
 
       - name: Build
-        run: cargo build --target wasm32-wasip1 --release
+        run: cargo build -p sgleam-wasm --target wasm32-wasip1 --release
 
       - name: Bundle
         run: |

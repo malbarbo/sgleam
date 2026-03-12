@@ -2529,13 +2529,23 @@ dependencies = [
  "assert_cmd",
  "camino",
  "clap",
+ "gleam-core",
+ "indoc",
+ "insta",
+ "sgleam-core",
+]
+
+[[package]]
+name = "sgleam-core"
+version = "0.7.0"
+dependencies = [
+ "camino",
  "ctrlc",
  "dirs",
  "ecow",
  "gleam-core",
  "im",
  "indoc",
- "insta",
  "rquickjs",
  "rust-embed",
  "rustyline",
@@ -2545,6 +2555,15 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "vec1",
+]
+
+[[package]]
+name = "sgleam-wasm"
+version = "0.7.0"
+dependencies = [
+ "camino",
+ "gleam-core",
+ "sgleam-core",
 ]
 
 [[package]]

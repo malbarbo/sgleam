@@ -1,12 +1,14 @@
-use crate::{
+#![allow(clippy::missing_safety_doc)]
+
+use camino::Utf8Path;
+use gleam_core::{build::Module, javascript::set_bigint_enabled};
+use sgleam_core::{
     engine::Engine as _,
     error::{self, show_error},
     gleam::{compile, get_module, Project},
     quickjs::QuickJsEngine,
     repl::{Repl, ReplOutput},
 };
-use camino::Utf8Path;
-use gleam_core::{build::Module, javascript::set_bigint_enabled};
 
 #[no_mangle]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
@@ -97,7 +99,7 @@ pub unsafe extern "C" fn repl_run(
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut i8 {
+pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut std::ffi::c_char {
     let mut out = String::new();
     if let Err(err) = gleam_core::format::pretty(
         &mut out,
@@ -114,7 +116,7 @@ pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut i8 {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn cstr_deallocate(ptr: *mut i8) {
+pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
     assert!(!ptr.is_null());
     unsafe {
         let _ = std::ffi::CString::from_raw(ptr);

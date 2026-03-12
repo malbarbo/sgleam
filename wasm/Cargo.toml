@@ -1,0 +1,15 @@
+[package]
+name = "sgleam-wasm"
+version = "0.7.0"
+edition = "2021"
+
+[lib]
+name = "sgleam"
+crate-type = ["cdylib"]
+
+[dependencies]
+sgleam-core = { path = "../sgleam-core" }
+camino = "1.1.9"
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.7", features = [
+    "disable-erlang", "disable-hide-internal",
+] }

@@ -1,7 +1,7 @@
 use assert_cmd::cargo;
 use indoc::formatdoc;
 use insta::{assert_snapshot, glob};
-use sgleam::repl::{welcome_message, QUIT, TYPE};
+use sgleam_core::repl::{welcome_message, QUIT, TYPE};
 
 use std::{
     io::Write,

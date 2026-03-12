@@ -54,15 +54,20 @@ export function makeEnv(options: EnvOptions) {
                 return fontLen;
             }
             const b = new Uint8Array(buf());
-            const jtext = new TextDecoder().decode(b.slice(text, text + textLen));
-            const jfont = new TextDecoder().decode(b.slice(font, font + fontLen));
+            const jtext = new TextDecoder().decode(
+                b.slice(text, text + textLen),
+            );
+            const jfont = new TextDecoder().decode(
+                b.slice(font, font + fontLen),
+            );
             // deno-lint-ignore no-undef
             const offscreen = new OffscreenCanvas(1, 1);
             const ctx = offscreen.getContext("2d")!;
             ctx.font = `${size}px ${jfont}`;
             const metrics = ctx.measureText(jtext);
             // TODO: why actual doesnt work?
-            return metrics.fontBoundingBoxAscent + metrics.fontBoundingBoxDescent;
+            return metrics.fontBoundingBoxAscent +
+                metrics.fontBoundingBoxDescent;
         },
         text_width: (
             text: number,
@@ -75,8 +80,12 @@ export function makeEnv(options: EnvOptions) {
                 return 0.6 * fontLen * textLen;
             }
             const b = new Uint8Array(buf());
-            const jtext = new TextDecoder().decode(b.slice(text, text + textLen));
-            const jfont = new TextDecoder().decode(b.slice(font, font + fontLen));
+            const jtext = new TextDecoder().decode(
+                b.slice(text, text + textLen),
+            );
+            const jfont = new TextDecoder().decode(
+                b.slice(font, font + fontLen),
+            );
             // deno-lint-ignore no-undef
             const offscreen = new OffscreenCanvas(1, 1);
             const ctx = offscreen.getContext("2d")!;

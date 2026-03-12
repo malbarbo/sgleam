@@ -1,5 +1,8 @@
 #![allow(clippy::result_large_err)]
 
+#[cfg(target_arch = "wasm32")]
+compile_error!("The cli crate does not support wasm32. Use `cargo build -p sgleam-wasm --target wasm32-wasip1` instead.");
+
 use camino::Utf8PathBuf;
 use clap::{
     builder::{styling, Styles},
@@ -9,7 +12,7 @@ use gleam_core::{
     error::{FileIoAction, FileKind},
     javascript::set_bigint_enabled,
 };
-use sgleam::{
+use sgleam_core::{
     error::{show_error, SgleamError},
     format,
     gleam::find_imports,
@@ -52,20 +55,12 @@ struct Cli {
     paths: Vec<String>,
 }
 
-#[cfg(target_arch = "wasm32")]
 fn main() {
-    if let Err(err) = run() {
-        show_error(&err);
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn main() {
-    sgleam::panic::add_handler();
-    sgleam::logger::initialise_logger();
+    sgleam_core::panic::add_handler();
+    sgleam_core::logger::initialise_logger();
     // Error is handled by the panic hook.
     let _ = std::thread::Builder::new()
-        .stack_size(sgleam::STACK_SIZE)
+        .stack_size(sgleam_core::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {
@@ -83,7 +78,7 @@ fn run() -> Result<(), SgleamError> {
 
     // TODO: include quickjs version
     if cli.version {
-        println!("{}", sgleam::version());
+        println!("{}", sgleam_core::version());
         return Ok(());
     }
 
@@ -127,8 +122,6 @@ fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, Sgleam
         .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
 }
 
-// Make the compiler remove some imported functions in the wasm build.
-#[cfg_attr(target_arch = "wasm32", inline(always))]
 fn canonicalise(path: Utf8PathBuf) -> Result<Utf8PathBuf, gleam_core::Error> {
     path.canonicalize_utf8()
         .map_err(|e| gleam_core::Error::FileIo {
