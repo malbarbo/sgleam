@@ -5,7 +5,7 @@ const STDERR = 2;
 
 function makeWorker(): [Worker, UIChannel] {
     const worker = new Worker(
-        new URL("./worker.js", import.meta.url).href,
+        new URL("./worker.js?wasm=sgleam.wasm", import.meta.url).href,
         { type: "module" },
     );
     return [worker, new UIChannel(worker)];

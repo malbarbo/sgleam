@@ -30,7 +30,7 @@ $(WASM_BIN): $(RUST_SRCS)
 
 # TypeScript compilation
 
-$(DIST_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
+$(DIST_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/env.ts $(WEB_DIR)/wasi.ts | $(DIST_DIR)
 	deno bundle $(WEB_DIR)/worker.ts -o $@
 
 $(DIST_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/ansi.ts | $(DIST_DIR)

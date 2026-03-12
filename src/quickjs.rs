@@ -81,30 +81,32 @@ pub fn interrupt() {
 }
 
 #[cfg(target_arch = "wasm32")]
-extern "C" {
-    fn sgleam_check_interrupt() -> bool;
-    fn sgleam_sleep(ms: u64);
-    fn sgleam_draw_svg(str: *const u8, len: usize);
-    fn sgleam_get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
-    fn sgleam_text_width(
-        text: *const u8,
-        text_len: usize,
-        font: *const u8,
-        font_len: usize,
-        font_size: f64,
-    ) -> f64;
-    fn sgleam_text_height(
-        text: *const u8,
-        text_len: usize,
-        font: *const u8,
-        font_len: usize,
-        font_size: f64,
-    ) -> f64;
+mod ffi {
+    extern "C" {
+        pub fn check_interrupt() -> bool;
+        pub fn sleep(ms: u64);
+        pub fn draw_svg(str: *const u8, len: usize);
+        pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
+        pub fn text_width(
+            text: *const u8,
+            text_len: usize,
+            font: *const u8,
+            font_len: usize,
+            font_size: f64,
+        ) -> f64;
+        pub fn text_height(
+            text: *const u8,
+            text_len: usize,
+            font: *const u8,
+            font_len: usize,
+            font_size: f64,
+        ) -> f64;
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 fn check_interrupt() -> bool {
-    unsafe { sgleam_check_interrupt() }
+    unsafe { ffi::check_interrupt() }
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -112,7 +114,7 @@ fn get_key_event() -> Vec<String> {
     let mut key = [0u8; 32];
     let mut modifiers = [false; 5];
     let result =
-        unsafe { sgleam_get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
+        unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
     if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
         let mut ret = vec![
             (*type_).into(),
@@ -273,12 +275,12 @@ fn getline() -> Option<String> {
 
 #[cfg(target_arch = "wasm32")]
 fn draw_svg(str: String) {
-    unsafe { sgleam_draw_svg(str.as_ptr(), str.len()) }
+    unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }
 
 #[cfg(target_arch = "wasm32")]
 fn sleep(ms: u64) {
-    unsafe { sgleam_sleep(ms) };
+    unsafe { ffi::sleep(ms) };
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -293,7 +295,7 @@ fn text_width(text: String, _font: String, size: f64) -> f64 {
 
 #[cfg(target_arch = "wasm32")]
 fn text_width(text: String, font: String, size: f64) -> f64 {
-    unsafe { sgleam_text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    unsafe { ffi::text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -303,7 +305,7 @@ fn text_height(_text: String, _font: String, size: f64) -> f64 {
 
 #[cfg(target_arch = "wasm32")]
 fn text_height(text: String, font: String, size: f64) -> f64 {
-    unsafe { sgleam_text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    unsafe { ffi::text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
 }
 
 fn log(value: Value) {
