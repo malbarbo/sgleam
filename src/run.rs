@@ -17,7 +17,7 @@ use crate::quickjs::QuickJsEngine as JsEngine;
 
 const SGLEAM_SMAIN: &str = "smain";
 
-pub fn run_interative(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
+pub fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
     if !quiet {
         print!("{}", welcome_message());
     }
@@ -60,7 +60,8 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
 
 pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
-    Ok(copy_files_and_build(&mut project, paths).map(|_| ())?)
+    copy_files_and_build(&mut project, paths)?;
+    Ok(())
 }
 
 pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
@@ -148,7 +149,7 @@ fn copy_files_and_build(
     project: &mut Project,
     paths: &[Utf8PathBuf],
 ) -> Result<Vec<Module>, gleam_core::Error> {
-    for path in paths.iter().filter(|p| validade_path(p)) {
+    for path in paths.iter().filter(|p| validate_path(p)) {
         project.copy_file_to_source(path)?;
     }
     let mut modules = compile(project, false)?;
@@ -157,7 +158,7 @@ fn copy_files_and_build(
     Ok(modules)
 }
 
-fn validade_path(path: &Utf8Path) -> bool {
+fn validate_path(path: &Utf8Path) -> bool {
     let steam = path.file_stem().unwrap_or("");
     if path.extension() != Some("gleam") || steam.is_empty() {
         eprintln!("Ignoring `{path}`: is not a valid gleam file.");

@@ -81,65 +81,103 @@ pub fn interrupt() {
 }
 
 #[cfg(target_arch = "wasm32")]
-mod ffi {
-    extern "C" {
-        pub fn check_interrupt() -> bool;
-        pub fn sleep(ms: u64);
-        pub fn draw_svg(str: *const u8, len: usize);
-        pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
-        pub fn text_width(
-            text: *const u8,
-            text_len: usize,
-            font: *const u8,
-            font_len: usize,
-            font_size: f64,
-        ) -> f64;
-        pub fn text_height(
-            text: *const u8,
-            text_len: usize,
-            font: *const u8,
-            font_len: usize,
-            font_size: f64,
-        ) -> f64;
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn check_interrupt() -> bool {
-    unsafe { ffi::check_interrupt() }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn get_key_event() -> Vec<String> {
-    let mut key = [0u8; 32];
-    let mut modifiers = [false; 5];
-    let result =
-        unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
-    if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
-        let mut ret = vec![
-            (*type_).into(),
-            String::from_utf8_lossy(&key)
-                .trim_matches(char::from(0))
-                .to_string(),
-        ];
-        for (on, key) in modifiers
-            .iter()
-            .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
-        {
-            if *on {
-                ret.push((*key).into())
-            }
+mod wasm {
+    mod ffi {
+        extern "C" {
+            pub fn check_interrupt() -> bool;
+            pub fn sleep(ms: u64);
+            pub fn draw_svg(str: *const u8, len: usize);
+            pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
+            pub fn text_width(
+                text: *const u8,
+                text_len: usize,
+                font: *const u8,
+                font_len: usize,
+                font_size: f64,
+            ) -> f64;
+            pub fn text_height(
+                text: *const u8,
+                text_len: usize,
+                font: *const u8,
+                font_len: usize,
+                font_size: f64,
+            ) -> f64;
         }
-        ret
-    } else {
-        vec![]
+    }
+
+    pub fn check_interrupt() -> bool {
+        unsafe { ffi::check_interrupt() }
+    }
+
+    pub fn sleep(ms: u64) {
+        unsafe { ffi::sleep(ms) };
+    }
+
+    pub fn draw_svg(str: String) {
+        unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
+    }
+
+    pub fn get_key_event() -> Vec<String> {
+        let mut key = [0u8; 32];
+        let mut modifiers = [false; 5];
+        let result =
+            unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
+        if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
+            let mut ret = vec![
+                (*type_).into(),
+                String::from_utf8_lossy(&key)
+                    .trim_matches(char::from(0))
+                    .to_string(),
+            ];
+            for (on, key) in modifiers
+                .iter()
+                .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
+            {
+                if *on {
+                    ret.push((*key).into())
+                }
+            }
+            ret
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn text_width(text: String, font: String, size: f64) -> f64 {
+        unsafe { ffi::text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    }
+
+    pub fn text_height(text: String, font: String, size: f64) -> f64 {
+        unsafe { ffi::text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
     }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-fn check_interrupt() -> bool {
-    STOP.swap(false, Ordering::Relaxed)
+mod native {
+    use super::STOP;
+    use std::sync::atomic::Ordering;
+
+    pub fn check_interrupt() -> bool {
+        STOP.swap(false, Ordering::Relaxed)
+    }
+
+    pub fn sleep(ms: u64) {
+        std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
+
+    pub fn text_width(text: String, _font: String, size: f64) -> f64 {
+        text.len() as f64 * size * 0.6
+    }
+
+    pub fn text_height(_text: String, _font: String, size: f64) -> f64 {
+        size
+    }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+use native::{check_interrupt, sleep, text_height, text_width};
+#[cfg(target_arch = "wasm32")]
+use wasm::{check_interrupt, sleep, text_height, text_width};
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
     let runtime = Runtime::new()?;
@@ -233,12 +271,12 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     #[cfg(target_arch = "wasm32")]
     sgleam.set(
         "draw_svg",
-        Function::new(ctx.clone(), draw_svg)?.with_name("draw_svg")?,
+        Function::new(ctx.clone(), wasm::draw_svg)?.with_name("draw_svg")?,
     )?;
     #[cfg(target_arch = "wasm32")]
     sgleam.set(
         "get_key_event",
-        Function::new(ctx.clone(), get_key_event)?.with_name("get_key_event")?,
+        Function::new(ctx.clone(), wasm::get_key_event)?.with_name("get_key_event")?,
     )?;
     sgleam.set(
         "text_width",
@@ -271,41 +309,6 @@ fn getline() -> Option<String> {
             None
         }
     }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn draw_svg(str: String) {
-    unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
-}
-
-#[cfg(target_arch = "wasm32")]
-fn sleep(ms: u64) {
-    unsafe { ffi::sleep(ms) };
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn sleep(ms: u64) {
-    std::thread::sleep(std::time::Duration::from_millis(ms));
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn text_width(text: String, _font: String, size: f64) -> f64 {
-    text.len() as f64 * size * 0.6
-}
-
-#[cfg(target_arch = "wasm32")]
-fn text_width(text: String, font: String, size: f64) -> f64 {
-    unsafe { ffi::text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn text_height(_text: String, _font: String, size: f64) -> f64 {
-    size
-}
-
-#[cfg(target_arch = "wasm32")]
-fn text_height(text: String, font: String, size: f64) -> f64 {
-    unsafe { ffi::text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
 }
 
 fn log(value: Value) {

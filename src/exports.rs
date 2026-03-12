@@ -30,22 +30,22 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
     String::from_utf8_lossy(slice).into()
 }
 
+fn default_repl() -> Repl<QuickJsEngine> {
+    Repl::new(Project::default(), None).expect("An repl")
+}
+
 #[no_mangle]
 pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
     let source = new_string(str, len);
     if source.trim().is_empty() {
-        return Box::leak(Box::new(
-            Repl::new(Project::default(), None).expect("An repl"),
-        ));
+        return Box::leak(Box::new(default_repl()));
     }
     let mut project = Project::default();
     project.write_source("user.gleam", &source);
     let modules = match compile(&mut project, true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
-            return Box::leak(Box::new(
-                Repl::new(Project::default(), None).expect("An repl"),
-            ));
+            return Box::leak(Box::new(default_repl()));
         }
         Ok(modules) => modules,
     };

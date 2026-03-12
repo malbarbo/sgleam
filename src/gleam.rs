@@ -3,13 +3,12 @@ use gleam_core::{
     ast::{Definition, Function, UntypedDefinition, UntypedExpr},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
-        TargetCodegenConfiguration, Telemetry,
+        TargetCodegenConfiguration,
     },
     config::PackageConfig,
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemReader, FileSystemWriter},
     javascript::is_bigint_enabled,
-    manifest::PackageChanges,
     parse::parse_module,
     type_::{printer::Printer, Type},
     uid::UniqueIdGenerator,
@@ -22,7 +21,7 @@ use std::{
     path::PathBuf,
     rc::Rc,
     sync::Arc,
-    time::{Duration, Instant, SystemTime},
+    time::SystemTime,
 };
 use tar::Archive;
 use termcolor::{Color, ColorSpec, WriteColor};
@@ -273,118 +272,6 @@ fn to_error_stdio(err: std::io::Error) -> Error {
 
 pub fn to_error_nonutf8_path(path: PathBuf) -> Error {
     Error::NonUtf8Path { path }
-}
-
-// The remaining of this file is copied from gleam project
-
-#[derive(Debug, Default, Clone)]
-pub struct Reporter;
-
-impl Reporter {
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Telemetry for Reporter {
-    fn compiled_package(&self, duration: Duration) {
-        print_compiled(duration);
-    }
-
-    fn compiling_package(&self, name: &str) {
-        print_compiling(name);
-    }
-
-    fn checked_package(&self, duration: Duration) {
-        print_checked(duration);
-    }
-
-    fn checking_package(&self, name: &str) {
-        print_checking(name);
-    }
-
-    fn downloading_package(&self, name: &str) {
-        print_downloading(name)
-    }
-
-    fn packages_downloaded(&self, start: Instant, count: usize) {
-        print_packages_downloaded(start, count)
-    }
-
-    fn resolving_package_versions(&self) {
-        print_resolving_versions()
-    }
-
-    fn running(&self, name: &str) {
-        print_running(name);
-    }
-
-    fn waiting_for_build_directory_lock(&self) {
-        print_waiting_for_build_directory_lock()
-    }
-
-    fn resolved_package_versions(&self, _changes: &PackageChanges) {}
-}
-
-pub fn print_published(duration: Duration) {
-    print_colourful_prefix("Published", &format!("in {}", seconds(duration)))
-}
-
-pub fn print_retired(package: &str, version: &str) {
-    print_colourful_prefix("Retired", &format!("{package} {version}"))
-}
-
-pub fn print_unretired(package: &str, version: &str) {
-    print_colourful_prefix("Unretired", &format!("{package} {version}"))
-}
-
-pub fn print_publishing_documentation() {
-    print_colourful_prefix("Publishing", "documentation");
-}
-
-fn print_downloading(text: &str) {
-    print_colourful_prefix("Downloading", text)
-}
-
-fn print_waiting_for_build_directory_lock() {
-    print_colourful_prefix("Waiting", "for build directory lock")
-}
-
-fn print_resolving_versions() {
-    print_colourful_prefix("Resolving", "versions")
-}
-
-fn print_compiling(text: &str) {
-    print_colourful_prefix("Compiling", text)
-}
-
-pub(crate) fn print_checking(text: &str) {
-    print_colourful_prefix("Checking", text)
-}
-
-pub(crate) fn print_compiled(duration: Duration) {
-    print_colourful_prefix("Compiled", &format!("in {}", seconds(duration)))
-}
-
-pub(crate) fn print_checked(duration: Duration) {
-    print_colourful_prefix("Checked", &format!("in {}", seconds(duration)))
-}
-
-pub(crate) fn print_running(text: &str) {
-    print_colourful_prefix("Running", text)
-}
-
-fn print_packages_downloaded(start: Instant, count: usize) {
-    let elapsed = seconds(start.elapsed());
-    let msg = match count {
-        1 => format!("1 package in {elapsed}"),
-        _ => format!("{count} packages in {elapsed}"),
-    };
-    print_colourful_prefix("Downloaded", &msg)
-}
-
-pub fn seconds(duration: Duration) -> String {
-    format!("{:.2}s", duration.as_millis() as f32 / 1000.)
 }
 
 pub fn print_colourful_prefix(prefix: &str, text: &str) {

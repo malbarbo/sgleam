@@ -13,7 +13,7 @@ use sgleam::{
     error::{show_error, SgleamError},
     format,
     gleam::find_imports,
-    run::{run_check, run_interative, run_main, run_test},
+    run::{run_check, run_interactive, run_main, run_test},
 };
 use std::process::exit;
 
@@ -27,9 +27,9 @@ use std::process::exit;
         .literal(styling::AnsiColor::Green.on_default())
 )]
 struct Cli {
-    /// Enter iterative mode.
+    /// Enter interactive mode.
     #[arg(short, group = "cmd")]
-    interative: bool,
+    interactive: bool,
     /// Run tests.
     #[arg(short, group = "cmd")]
     test: bool,
@@ -98,7 +98,7 @@ fn run() -> Result<(), SgleamError> {
     }
 
     if user_files.is_empty() {
-        return run_interative(&user_files, cli.quiet);
+        return run_interactive(&user_files, cli.quiet);
     }
 
     if !cli.check && !cli.test && user_files.len() != 1 {
@@ -112,8 +112,8 @@ fn run() -> Result<(), SgleamError> {
         run_check(&files)
     } else if cli.test {
         run_test(&user_files, &files)
-    } else if cli.interative {
-        run_interative(&files, cli.quiet)
+    } else if cli.interactive {
+        run_interactive(&files, cli.quiet)
     } else {
         run_main(&files)
     }
