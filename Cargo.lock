@@ -1090,7 +1090,7 @@ dependencies = [
 [[package]]
 name = "gleam-core"
 version = "1.14.0"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.7#5d604c6a5a03def9ebd61f3213726b03fc517973"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.7#a35c684c4778ba963b3cbc8e606b3906f0300e93"
 dependencies = [
  "age",
  "askama",
@@ -1108,7 +1108,6 @@ dependencies = [
  "ecow",
  "flate2",
  "futures",
- "globset",
  "hexpm",
  "http",
  "id-arena",
@@ -1124,7 +1123,6 @@ dependencies = [
  "pubgrub",
  "pulldown-cmark",
  "radix_trie",
- "regex",
  "serde",
  "serde_derive",
  "serde_json",
@@ -1152,7 +1150,6 @@ dependencies = [
  "log",
  "regex-automata",
  "regex-syntax",
- "serde",
 ]
 
 [[package]]
@@ -1184,19 +1181,16 @@ checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 [[package]]
 name = "hexpm"
 version = "5.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb9a90fb3fb65d4c27ea357129172a61a1c24f2518d6bcc733b72938043eb0b4"
+source = "git+https://github.com/malbarbo/hexpm-rust.git?branch=sgleam#22206dc0de052ac21373298f072707123aadd700"
 dependencies = [
  "base16",
  "bytes",
  "flate2",
  "http",
  "http-auth-basic",
- "lazy_static",
  "prost",
  "prost-build",
  "pubgrub",
- "regex",
  "ring",
  "serde",
  "serde_json",
@@ -1610,15 +1604,6 @@ dependencies = [
  "serde_json",
  "serde_repr",
  "url",
-]
-
-[[package]]
-name = "matchers"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1525a2a28c7f4fa0fc98bb91ae755d1e2d1505079e05539e35bc876b5d65ae9"
-dependencies = [
- "regex-automata",
 ]
 
 [[package]]
@@ -2943,14 +2928,10 @@ version = "0.3.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f30143827ddab0d256fd843b7a66d164e9f271cfa0dde49142c5ca0ca291f1e"
 dependencies = [
- "matchers",
  "nu-ansi-term",
- "once_cell",
- "regex-automata",
  "sharded-slab",
  "smallvec",
  "thread_local",
- "tracing",
  "tracing-core",
  "tracing-log",
 ]
@@ -3198,7 +3179,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

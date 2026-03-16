@@ -10,6 +10,6 @@ crate-type = ["cdylib"]
 [dependencies]
 sgleam-core = { path = "../sgleam-core" }
 camino = "1.1.9"
-gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.7", features = [
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.7", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
