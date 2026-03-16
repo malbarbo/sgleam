@@ -8,6 +8,7 @@ pub mod engine;
 pub mod error;
 pub mod format;
 pub mod gleam;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod logger;
 pub mod panic;
 pub mod parser;

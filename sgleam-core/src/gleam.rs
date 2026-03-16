@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use flate2::read::GzDecoder;
 use gleam_core::{
     ast::{Definition, Function, UntypedDefinition, UntypedExpr},
     build::{
@@ -47,8 +48,7 @@ impl Default for Project {
             fs: InMemoryFileSystem::new(),
         };
 
-        extract_tar(&mut project.fs, Archive::new(stdlib()), Project::source())
-            .expect("Extract stdlib");
+        extract_tar(&mut project.fs, stdlib(), Project::source()).expect("Extract stdlib");
 
         for path in crate::Sgleam::iter() {
             if let Some(content) = crate::Sgleam::get(&path) {
@@ -240,11 +240,9 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
     Ok(files)
 }
 
-fn extract_tar(
-    fs: &mut InMemoryFileSystem,
-    mut arch: Archive<&[u8]>,
-    to: &Utf8Path,
-) -> Result<(), Error> {
+fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], to: &Utf8Path) -> Result<(), Error> {
+    let decoder = GzDecoder::new(data);
+    let mut arch = Archive::new(decoder);
     let mut buf = vec![];
     for entry in arch.entries().map_err(to_error_stdio)? {
         let mut entry = entry.map_err(to_error_stdio)?;

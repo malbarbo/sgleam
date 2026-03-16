@@ -1,5 +1,5 @@
 WASM_TARGET = wasm32-wasip1
-WASM_BIN    = target/$(WASM_TARGET)/release/sgleam.wasm
+WASM_BIN    = target/$(WASM_TARGET)/release-small/sgleam.wasm
 WEB_DIR     = web
 DIST_DIR    = dist
 
@@ -21,7 +21,7 @@ serve: $(DIST_FILES)
 # WASM binary
 
 $(DIST_DIR)/sgleam.wasm: $(WASM_BIN) | $(DIST_DIR)
-	cp $< $@
+	wasm-opt -Oz $< -o $@
 
 RUST_SRCS = Cargo.toml \
 	$(wildcard sgleam-core/src/*.rs) \
@@ -29,7 +29,7 @@ RUST_SRCS = Cargo.toml \
 	$(wildcard wasm/src/*.rs)
 
 $(WASM_BIN): $(RUST_SRCS)
-	cargo build -p sgleam-wasm --target $(WASM_TARGET) --release
+	cargo build -p sgleam-wasm --target $(WASM_TARGET) --profile release-small
 
 # TypeScript compilation
 

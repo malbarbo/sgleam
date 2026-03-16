@@ -2543,6 +2543,7 @@ dependencies = [
  "ctrlc",
  "dirs",
  "ecow",
+ "flate2",
  "gleam-core",
  "im",
  "indoc",

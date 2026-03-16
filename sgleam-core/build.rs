@@ -57,7 +57,7 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
     let stdlib_src = &stdlib.join("src");
     assert!(Command::new("tar")
         .env("COPYFILE_DISABLE", "1")
-        .arg("cf")
+        .arg("czf")
         .arg(tar)
         .arg("-C")
         .arg(stdlib_src)
