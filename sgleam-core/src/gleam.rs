@@ -97,7 +97,7 @@ impl Project {
             path: input.into(),
             err: Some(err.to_string()),
         })?;
-        self.write_source(input.as_str(), &content);
+        self.write_source(&input.as_str().replace('\\', "/"), &content);
         Ok(())
     }
 
