@@ -55,9 +55,7 @@ jobs:
           deno-version: "2.x"
 
       - name: Build
-        run: |
-          cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
-          wasm-opt -Oz target/wasm32-wasip1/release-small/sgleam.wasm -o target/wasm32-wasip1/release-small/sgleam.wasm
+        run: cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
 
       - name: Bundle
         run: |
