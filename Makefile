@@ -77,6 +77,7 @@ test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
 
 check:
 	cargo clippy -- -D warnings
+	cargo clippy --target $(WASM_TARGET) -p sgleam-wasm -- -D warnings
 	cargo fmt -- --check
 	deno fmt --check
 
