@@ -487,7 +487,7 @@ pub fn radial_starf(
     False -> -90.0
   }
 
-  int.range(0, 2 * point_count, [], fn(acc, i) {
+  int.range(0, point_count, [], fn(acc, i) {
     let theta1 =
       alpha +. 360.0 *. int.to_float(i * 2) /. int.to_float(2 * point_count)
     let theta2 =
