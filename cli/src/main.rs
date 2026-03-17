@@ -76,7 +76,6 @@ fn run() -> Result<(), SgleamError> {
 
     set_bigint_enabled(!cli.number);
 
-    // TODO: include quickjs version
     if cli.version {
         println!("{}", sgleam_core::version());
         return Ok(());
