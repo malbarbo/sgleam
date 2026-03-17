@@ -160,6 +160,40 @@ fn repl_fn() {
 }
 
 #[test]
+fn repl_fn_redefine() {
+    // When f is redefined, g still calls the version of f that existed when g
+    // was defined (functions are stored as runtime values, not recompiled from
+    // source).
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn f() {{ 1 }}
+            fn g() {{ f() }}
+            fn f() {{ 2 }}
+            g()
+            f()"
+        }),
+        "1\n2"
+    );
+}
+
+#[test]
+fn repl_fn_calling_fn() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn double(n) {{ n * 2 }}
+            fn quadruple(n) {{ double(double(n)) }}
+            quadruple(3)"
+        }),
+        "12"
+    );
+    // Mutual recursion (both functions on the same line = same run() call)
+    assert_eq!(
+        repl_exec("fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }\nis_even(4)\nis_odd(3)"),
+        "True\nTrue"
+    );
+}
+
+#[test]
 fn repl_fn_main() {
     assert_eq!(repl_exec("fn main() { 10 }\nmain()"), "10");
 }

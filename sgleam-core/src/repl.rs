@@ -47,7 +47,6 @@ enum NameItem {
     Import,
     Const(String),
     Type(String),
-    Function { body: String },
     Variable { index: usize, type_: String },
 }
 
@@ -55,6 +54,7 @@ enum NameItem {
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
     names: HashMap<String, NameItem>,
+    fn_bodies: HashMap<String, String>,
     project: Project,
     engine: E,
     iter: (usize, usize),
@@ -76,6 +76,7 @@ impl<E: Engine> Repl<E> {
         Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
             names,
+            fn_bodies: HashMap::new(),
             project,
             engine: E::new(fs),
             iter: (0, 0),
@@ -109,6 +110,18 @@ impl<E: Engine> Repl<E> {
             return Ok(ReplOutput::StdOut);
         }
 
+        // Pre-register function names so mutually recursive functions
+        // can reference each other during compilation.
+        for item in &items {
+            if let ReplItem::ReplDefinition(targeted) = item {
+                if let Definition::Function(f) = &targeted.definition {
+                    let name = f.name.clone().expect("function name").1;
+                    let body = get_definition_src(&targeted.definition, input).into();
+                    self.fn_bodies.insert(name.into(), body);
+                }
+            }
+        }
+
         // FIXME: avoid this clone
         // We clone self so we can rollback if the execution fail
         let repl = (*self).clone();
@@ -131,6 +144,7 @@ impl<E: Engine> Repl<E> {
             }
         }
 
+        self.fn_bodies.clear();
         Ok(ReplOutput::StdOut)
     }
 
@@ -333,6 +347,9 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_const(&mut self, name: String, code: String) -> Result<(), Error> {
+        // Remove stale function body to avoid module-level name conflict
+        // (e.g., `fn f() { 1 } const f = 10` in the same input).
+        self.fn_bodies.remove(&name);
         self.names.insert(name, NameItem::Const(code));
         self.run_check()
     }
@@ -343,8 +360,30 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
-        self.names.insert(name, NameItem::Function { body });
-        self.run_check()
+        self.fn_bodies.insert(name.clone(), body);
+        let mut src = self.build_source();
+        src.push_str(&formatdoc! {"
+            pub fn {REPL_MAIN}() {{
+              repl_save({name})
+            }}
+            "
+        });
+        let module = self.compile(&src)?.split_off_first().0;
+        self.engine
+            .run_main(&module.name, MainFunction::ReplMain, false);
+        if self.engine.has_var(self.var_index) {
+            let main = get_function(&module, REPL_MAIN).expect("repl main function");
+            let type_ = type_to_string(&module, &main.return_type);
+            self.names.insert(
+                name,
+                NameItem::Variable {
+                    index: self.var_index,
+                    type_,
+                },
+            );
+            self.var_index += 1;
+        }
+        Ok(())
     }
 
     fn run_use(&mut self, _code: &str) -> Result<(), Error> {
@@ -393,10 +432,8 @@ impl<E: Engine> Repl<E> {
     }
 
     fn add_fns(&self, src: &mut String) {
-        for item in self.names.values() {
-            if let NameItem::Function { body, .. } = item {
-                swriteln!(src, "{body}");
-            }
+        for body in self.fn_bodies.values() {
+            swriteln!(src, "{body}");
         }
     }
 
