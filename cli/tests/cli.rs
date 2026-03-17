@@ -95,8 +95,62 @@ fn repl_let_assert() {
 #[test]
 fn repl_fn_replace_let() {
     assert_eq!(
-        repl_exec("let a = 1 fn a() { 2 } a() let a = 3 a"),
+        repl_exec(&formatdoc! {"
+            let a = 1
+            fn a() {{ 2 }}
+            a()
+            let a = 3
+            a"
+        }),
         "1\n2\n3\n3"
+    );
+}
+
+#[test]
+fn repl_const_redefine() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            const x = 1
+            const x = 2
+            x"
+        }),
+        "2"
+    );
+}
+
+#[test]
+fn repl_type_redefine() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            pub type X {{ A }}
+            pub type X {{ B(Int) }}
+            B(1)"
+        }),
+        "B(1)"
+    );
+}
+
+#[test]
+fn repl_const_replace_let() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 1
+            const x = 2
+            x"
+        }),
+        "1\n2"
+    );
+}
+
+#[test]
+fn repl_let_replace_const() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            const x = 1
+            let x = 2
+            x"
+        }),
+        "2\n2"
     );
 }
 

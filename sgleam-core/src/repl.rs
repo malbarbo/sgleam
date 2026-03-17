@@ -43,13 +43,18 @@ pub fn welcome_message() -> String {
 }
 
 #[derive(Clone)]
+enum NameItem {
+    Import,
+    Const(String),
+    Type(String),
+    Function { body: String },
+    Variable { index: usize, type_: String },
+}
+
+#[derive(Clone)]
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
-    imports: Vec<String>,
-    consts: Vec<String>,
-    types: Vec<String>,
-    fns: HashMap<String, Function>,
-    vars: HashMap<String, Variable>,
+    names: HashMap<String, NameItem>,
     project: Project,
     engine: E,
     iter: (usize, usize),
@@ -61,29 +66,16 @@ pub enum ReplOutput {
     StdOut,
 }
 
-#[derive(Clone)]
-struct Variable {
-    index: usize,
-    type_: String,
-}
-
-#[derive(Clone)]
-struct Function {
-    index: usize,
-    body: String,
-}
-
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let imports = GLEAM_MODULES_NAMES.iter().map(|s| s.to_string()).collect();
+        let names: HashMap<String, NameItem> = GLEAM_MODULES_NAMES
+            .iter()
+            .map(|s| (s.to_string(), NameItem::Import))
+            .collect();
         let fs = project.fs.clone();
         Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
-            imports,
-            consts: vec![],
-            types: vec![],
-            fns: HashMap::new(),
-            vars: HashMap::new(),
+            names,
             project,
             engine: E::new(fs),
             iter: (0, 0),
@@ -188,8 +180,9 @@ impl<E: Engine> Repl<E> {
 
         match &targeted.definition {
             Definition::Import(_) => self.run_import(src),
-            Definition::TypeAlias(_) | Definition::CustomType(_) => self.run_type(src),
-            Definition::ModuleConstant(_) => self.run_const(src),
+            Definition::TypeAlias(t) => self.run_type(t.alias.to_string(), src),
+            Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
+            Definition::ModuleConstant(c) => self.run_const(c.name.to_string(), src),
             Definition::Function(f) => {
                 let lets = self.gen_lets(&get_args_names(f));
 
@@ -294,7 +287,8 @@ impl<E: Engine> Repl<E> {
             for (name, type_) in names.iter().zip(&types) {
                 let index = self.var_index;
                 let type_ = type_to_string(&module, type_);
-                self.vars.insert(name.into(), Variable { index, type_ });
+                self.names
+                    .insert(name.into(), NameItem::Variable { index, type_ });
                 self.var_index += 1;
             }
         } else {
@@ -338,26 +332,18 @@ impl<E: Engine> Repl<E> {
         // -> import gleam/string.{append, inspect}
     }
 
-    fn run_const(&mut self, code: String) -> Result<(), Error> {
-        // TODO: improve error message for const redefinition
-        self.consts.push(code);
+    fn run_const(&mut self, name: String, code: String) -> Result<(), Error> {
+        self.names.insert(name, NameItem::Const(code));
         self.run_check()
     }
 
-    fn run_type(&mut self, code: String) -> Result<(), Error> {
-        // TODO: improve error message for type redefinition
-        self.types.push(code);
+    fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {
+        self.names.insert(name, NameItem::Type(code));
         self.run_check()
     }
 
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
-        self.fns.insert(
-            name,
-            Function {
-                index: self.var_index,
-                body,
-            },
-        );
+        self.names.insert(name, NameItem::Function { body });
         self.run_check()
     }
 
@@ -383,42 +369,47 @@ impl<E: Engine> Repl<E> {
         if let Some(user) = &self.user_import {
             swriteln!(src, "{user}");
         }
-        for import in &self.imports {
-            swriteln!(src, "import {import}");
+        for (name, item) in &self.names {
+            if matches!(item, NameItem::Import) {
+                swriteln!(src, "import {name}");
+            }
         }
     }
 
     fn add_consts(&self, src: &mut String) {
-        for const_ in &self.consts {
-            swriteln!(src, "{const_}");
+        for item in self.names.values() {
+            if let NameItem::Const(code) = item {
+                swriteln!(src, "{code}");
+            }
         }
     }
 
     fn add_types(&self, src: &mut String) {
-        for type_ in &self.types {
-            swriteln!(src, "{type_}");
+        for item in self.names.values() {
+            if let NameItem::Type(code) = item {
+                swriteln!(src, "{code}");
+            }
         }
     }
 
     fn add_fns(&self, src: &mut String) {
-        for fun in self.fns.values() {
-            swriteln!(src, "{}", fun.body);
+        for item in self.names.values() {
+            if let NameItem::Function { body, .. } = item {
+                swriteln!(src, "{body}");
+            }
         }
     }
 
     fn gen_lets(&self, exclude: &[String]) -> String {
         let mut lets = String::new();
-        for (name, Variable { index, type_ }) in &self.vars {
-            let replaced_by_fn = self
-                .fns
-                .get(name)
-                .map(|f| *index < f.index)
-                .unwrap_or(false);
-            if !exclude.contains(name) && !replaced_by_fn {
-                swriteln!(
-                    lets,
-                    r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
-                );
+        for (name, item) in &self.names {
+            if let NameItem::Variable { index, type_ } = item {
+                if !exclude.contains(name) {
+                    swriteln!(
+                        lets,
+                        r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
+                    );
+                }
             }
         }
         lets
