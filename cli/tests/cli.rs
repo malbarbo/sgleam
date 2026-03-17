@@ -248,8 +248,14 @@ fn repl_quit() {
 #[test]
 fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
-    // TODO: check that :type let x = 10 does not create x
     assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
+    // :type does not create variables
+    let (out, err) = run_sgleam_cmd(&["-q"], Some(&format!("{TYPE} let x = 10\nx")));
+    assert_eq!(out.trim(), "Int");
+    assert!(
+        err.contains("is not in scope"),
+        "expected error for undefined x, got: {err}"
+    );
     assert_eq!(repl_exec(&format!("{TYPE} int.add")), "fn(Int, Int) -> Int");
     assert_eq!(
         repl_exec(&format!("{TYPE} list.filter_map")),
