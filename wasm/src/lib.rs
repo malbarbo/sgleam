@@ -1,7 +1,7 @@
 #![allow(clippy::missing_safety_doc)]
 
 use camino::Utf8Path;
-use gleam_core::{build::Module, javascript::set_bigint_enabled};
+use gleam_core::build::Module;
 use sgleam_core::{
     engine::Engine as _,
     error::{self, show_error},
@@ -121,9 +121,4 @@ pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
     unsafe {
         let _ = std::ffi::CString::from_raw(ptr);
     }
-}
-
-#[no_mangle]
-pub extern "C" fn use_bigint(flag: bool) {
-    set_bigint_enabled(flag);
 }
