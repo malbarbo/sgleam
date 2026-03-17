@@ -335,6 +335,9 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
         let buffer_writer = stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         warning.pretty(&mut buffer);
+        #[cfg(feature = "capture")]
+        crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
+        #[cfg(not(feature = "capture"))]
         buffer_writer
             .print(&buffer)
             .expect("Write warning to stderr");

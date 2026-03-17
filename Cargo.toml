@@ -1,5 +1,6 @@
 [workspace]
-members = ["sgleam-core", "cli", "wasm"]
+members = ["sgleam-core", "sgleam-core-tests", "cli", "wasm"]
+default-members = ["sgleam-core", "cli", "wasm"]
 resolver = "2"
 
 [profile.release]

@@ -1,0 +1,9 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
+input_file: cli/tests/inputs/gleam.gleam
+---
+STDOUT
+
+STDERR
+Ignoring `/home/malbarbo/projetos/sgleam/cli/tests/inputs/gleam.gleam`: `gleam` is a reserved module name.

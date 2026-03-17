@@ -91,6 +91,9 @@ pub fn show_error(err: &SgleamError) {
         }
     };
 
+    #[cfg(feature = "capture")]
+    crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
+    #[cfg(not(feature = "capture"))]
     buffer_writer
         .print(&buffer)
         .expect("Write warning to stderr");

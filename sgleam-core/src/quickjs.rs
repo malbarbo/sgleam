@@ -4,10 +4,48 @@ use indoc::formatdoc;
 
 use std::{
     fmt::Write as _,
-    io::Write as _,
     path::{Component, Path, PathBuf},
     sync::atomic::{AtomicBool, Ordering},
 };
+
+#[cfg(feature = "capture")]
+use std::cell::RefCell;
+
+#[cfg(feature = "capture")]
+thread_local! {
+    static STDOUT_BUF: RefCell<String> = RefCell::new(String::new());
+    static STDERR_BUF: RefCell<String> = RefCell::new(String::new());
+}
+
+#[cfg(feature = "capture")]
+pub fn capture_output<F: FnOnce()>(f: F) -> (String, String) {
+    STDOUT_BUF.with(|b| b.borrow_mut().clear());
+    STDERR_BUF.with(|b| b.borrow_mut().clear());
+    f();
+    let out = STDOUT_BUF.with(|b| b.borrow().clone());
+    let err = STDERR_BUF.with(|b| b.borrow().clone());
+    (out, err)
+}
+
+#[cfg(feature = "capture")]
+fn write_stdout(s: &str) {
+    STDOUT_BUF.with(|b| b.borrow_mut().push_str(s));
+}
+
+#[cfg(feature = "capture")]
+pub fn write_stderr(s: &str) {
+    STDERR_BUF.with(|b| b.borrow_mut().push_str(s));
+}
+
+#[cfg(not(feature = "capture"))]
+fn write_stdout(s: &str) {
+    print!("{s}");
+}
+
+#[cfg(not(feature = "capture"))]
+pub fn write_stderr(s: &str) {
+    eprint!("{s}");
+}
 
 use rquickjs::{
     context::EvalOptions,
@@ -33,7 +71,13 @@ pub struct QuickJsEngine {
 impl Engine for QuickJsEngine {
     fn new(fs: InMemoryFileSystem) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
-        ctrlc::set_handler(interrupt).expect("Add ctrlc handlers");
+        {
+            use std::sync::Once;
+            static CTRLC_INIT: Once = Once::new();
+            CTRLC_INIT.call_once(|| {
+                ctrlc::set_handler(interrupt).expect("Add ctrlc handlers");
+            });
+        }
 
         QuickJsEngine {
             context: create_context(fs.clone(), Project::out().into()).unwrap(),
@@ -246,7 +290,7 @@ pub fn run_script(context: &Context, source: String) {
 
 fn js_show_error(err: CaughtError) {
     // TODO: bump the exception up?
-    eprintln!("{}", err);
+    write_stderr(&format!("{err}\n"));
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {
@@ -327,8 +371,9 @@ fn log(value: Value) {
     assert!(!ptr.is_null());
     let len = unsafe { len.assume_init() };
     let bytes: &[u8] = unsafe { std::slice::from_raw_parts(ptr as _, len as _) };
-    std::io::stdout().write_all(bytes).unwrap();
-    println!();
+    let s = std::str::from_utf8(bytes).unwrap_or("");
+    write_stdout(s);
+    write_stdout("\n");
     unsafe { JS_FreeCString(value.ctx.as_raw().as_ptr(), ptr) };
 }
 

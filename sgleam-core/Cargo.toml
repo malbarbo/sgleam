@@ -20,6 +20,9 @@ thiserror = "2.0.3"
 tracing = "0.1.40"
 vec1 = "1.12.1"
 
+[features]
+capture = []
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ctrlc = "3.4.6"
 dirs = "5"

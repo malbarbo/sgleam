@@ -1,0 +1,10 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "formatdoc!\n{\"\n            STDOUT\n            {out}\n            STDERR\n            {err}\"}"
+input_file: cli/tests/inputs/check_approx.gleam
+---
+STDOUT
+Running tests...
+0 tests, 0 success(es), 0 failure(s) and 0 error(s).
+
+STDERR

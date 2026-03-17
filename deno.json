@@ -5,6 +5,12 @@
     },
     "fmt": {
         "indentWidth": 4,
-        "exclude": ["web/sgleam.html", ".github/", ".claude/"]
+        "exclude": [
+            "web/sgleam.html",
+            ".github/",
+            ".claude/",
+            "build/",
+            "sgleam-core-tests/"
+        ]
     }
 }
