@@ -10,7 +10,7 @@ use crate::error::stderr_buffer_writer;
 pub fn add_handler() {
     std::panic::set_hook(Box::new(move |info: &PanicHookInfo<'_>| {
         if print_compiler_bug_message(info).is_err() {
-            println!("Faile to print compiler bug message.");
+            println!("Failed to print compiler bug message.");
         }
     }));
 }
