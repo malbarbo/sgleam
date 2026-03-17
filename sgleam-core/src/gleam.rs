@@ -9,7 +9,6 @@ use gleam_core::{
     config::PackageConfig,
     error::{FileIoAction, FileKind},
     io::{memory::InMemoryFileSystem, FileSystemReader, FileSystemWriter},
-    javascript::is_bigint_enabled,
     parse::parse_module,
     type_::{printer::Printer, Type},
     uid::UniqueIdGenerator,
@@ -38,7 +37,7 @@ pub struct Project {
 
 fn stdlib() -> &'static [u8] {
     #[cfg(not(target_arch = "wasm32"))]
-    if !is_bigint_enabled() {
+    if !gleam_core::javascript::is_bigint_enabled() {
         return GLEAM_STDLIB;
     }
     GLEAM_STDLIB_BIGINT
