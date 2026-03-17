@@ -4,16 +4,26 @@
 
 const ANSI_RE = /\x1b\[([0-9;]*)m/g;
 
-// deno-fmt-ignore
-const STANDARD_COLORS = [
-    "#4d4d4d", "#cc0000", "#4e9a06", "#c4a000",
-    "#3465a4", "#75507b", "#06989a", "#d3d7cf",
+const STANDARD_VARS = [
+    "var(--ansi-black)",
+    "var(--ansi-red)",
+    "var(--ansi-green)",
+    "var(--ansi-yellow)",
+    "var(--ansi-blue)",
+    "var(--ansi-magenta)",
+    "var(--ansi-cyan)",
+    "var(--ansi-white)",
 ];
 
-// deno-fmt-ignore
-const BRIGHT_COLORS = [
-    "#555753", "#ef2929", "#8ae234", "#fce94f",
-    "#729fcf", "#ad7fa8", "#34e2e2", "#eeeeec",
+const BRIGHT_VARS = [
+    "var(--ansi-bright-black)",
+    "var(--ansi-bright-red)",
+    "var(--ansi-bright-green)",
+    "var(--ansi-bright-yellow)",
+    "var(--ansi-bright-blue)",
+    "var(--ansi-bright-magenta)",
+    "var(--ansi-bright-cyan)",
+    "var(--ansi-bright-white)",
 ];
 
 interface Style {
@@ -48,7 +58,7 @@ function applyParams(style: Style, params: string): Style {
         } else if (c === 24) {
             s.underline = false;
         } else if (c >= 30 && c <= 37) {
-            s.fg = STANDARD_COLORS[c - 30];
+            s.fg = STANDARD_VARS[c - 30];
         } else if (c === 38) {
             if (codes[i + 1] === 5 && i + 2 < codes.length) {
                 s.fg = color256(codes[i + 2]);
@@ -60,7 +70,7 @@ function applyParams(style: Style, params: string): Style {
         } else if (c === 39) {
             s.fg = null;
         } else if (c >= 90 && c <= 97) {
-            s.fg = BRIGHT_COLORS[c - 90];
+            s.fg = BRIGHT_VARS[c - 90];
         }
         i++;
     }
@@ -85,8 +95,8 @@ function escapeHtml(text: string): string {
 }
 
 function color256(n: number): string {
-    if (n < 8) return STANDARD_COLORS[n];
-    if (n < 16) return BRIGHT_COLORS[n - 8];
+    if (n < 8) return STANDARD_VARS[n];
+    if (n < 16) return BRIGHT_VARS[n - 8];
     if (n < 232) {
         const v = n - 16;
         const r = Math.floor(v / 36);

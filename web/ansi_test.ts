@@ -32,40 +32,42 @@ Deno.test("underline", () => {
     );
 });
 
+const STANDARD_NAMES = [
+    "black",
+    "red",
+    "green",
+    "yellow",
+    "blue",
+    "magenta",
+    "cyan",
+    "white",
+];
+
+const BRIGHT_NAMES = [
+    "bright-black",
+    "bright-red",
+    "bright-green",
+    "bright-yellow",
+    "bright-blue",
+    "bright-magenta",
+    "bright-cyan",
+    "bright-white",
+];
+
 Deno.test("standard foreground colors", () => {
-    const colors = [
-        "#4d4d4d",
-        "#cc0000",
-        "#4e9a06",
-        "#c4a000",
-        "#3465a4",
-        "#75507b",
-        "#06989a",
-        "#d3d7cf",
-    ];
     for (let i = 0; i < 8; i++) {
         assertEquals(
             ansiToHtml(`${ESC}${30 + i}mtext${ESC}0m`),
-            `<span style="color:${colors[i]}">text</span>`,
+            `<span style="color:var(--ansi-${STANDARD_NAMES[i]})">text</span>`,
         );
     }
 });
 
 Deno.test("bright foreground colors", () => {
-    const colors = [
-        "#555753",
-        "#ef2929",
-        "#8ae234",
-        "#fce94f",
-        "#729fcf",
-        "#ad7fa8",
-        "#34e2e2",
-        "#eeeeec",
-    ];
     for (let i = 0; i < 8; i++) {
         assertEquals(
             ansiToHtml(`${ESC}${90 + i}mtext${ESC}0m`),
-            `<span style="color:${colors[i]}">text</span>`,
+            `<span style="color:var(--ansi-${BRIGHT_NAMES[i]})">text</span>`,
         );
     }
 });
@@ -73,7 +75,7 @@ Deno.test("bright foreground colors", () => {
 Deno.test("combined params: bold + color", () => {
     assertEquals(
         ansiToHtml(`${ESC}1;35mhello${ESC}0m`),
-        `<span style="font-weight:bold;color:#75507b">hello</span>`,
+        `<span style="font-weight:bold;color:var(--ansi-magenta)">hello</span>`,
     );
 });
 
@@ -87,7 +89,7 @@ Deno.test("empty params reset style", () => {
 Deno.test("reset in the middle restores plain text", () => {
     assertEquals(
         ansiToHtml(`${ESC}31mred${ESC}0mnormal`),
-        `<span style="color:#cc0000">red</span>normal`,
+        `<span style="color:var(--ansi-red)">red</span>normal`,
     );
 });
 
@@ -101,14 +103,14 @@ Deno.test("text before and after escape sequence", () => {
 Deno.test("256-color: standard range (0-7)", () => {
     assertEquals(
         ansiToHtml(`${ESC}38;5;1mtext${ESC}0m`),
-        `<span style="color:#cc0000">text</span>`,
+        `<span style="color:var(--ansi-red)">text</span>`,
     );
 });
 
 Deno.test("256-color: bright range (8-15)", () => {
     assertEquals(
         ansiToHtml(`${ESC}38;5;9mtext${ESC}0m`),
-        `<span style="color:#ef2929">text</span>`,
+        `<span style="color:var(--ansi-bright-red)">text</span>`,
     );
 });
 
@@ -146,7 +148,7 @@ Deno.test("truecolor", () => {
 Deno.test("multiple styled segments", () => {
     assertEquals(
         ansiToHtml(`${ESC}31mred${ESC}0m ${ESC}32mgreen${ESC}0m`),
-        `<span style="color:#cc0000">red</span> <span style="color:#4e9a06">green</span>`,
+        `<span style="color:var(--ansi-red)">red</span> <span style="color:var(--ansi-green)">green</span>`,
     );
 });
 
@@ -160,6 +162,6 @@ Deno.test("bold reset with code 22", () => {
 Deno.test("default fg color code 39 resets color", () => {
     assertEquals(
         ansiToHtml(`${ESC}31mred${ESC}39mnormal`),
-        `<span style="color:#cc0000">red</span>normal`,
+        `<span style="color:var(--ansi-red)">red</span>normal`,
     );
 });

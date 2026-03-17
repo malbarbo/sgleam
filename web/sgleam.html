@@ -1,11 +1,111 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="light">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sgleam Playground</title>
     <style>
+        [data-theme="light"] {
+            --bg: #ebebec;
+            --editor-bg: #fafafa;
+            --editor-fg: #242529;
+            --gutter-bg: #ebebec;
+            --repl-bg: #fafafa;
+            --repl-fg: #242529;
+            --toolbar-bg: #dcdcdd;
+            --border: #c9c9ca;
+            --resize-handle: #c9c9ca;
+            --resize-handle-hover: #b0b0b1;
+            --text-muted: #58585a;
+            --prompt: #5c78e2;
+            --caret: #242529;
+            --icon: #242529;
+            --modal-bg: #fafafa;
+            --modal-border: #c9c9ca;
+            --kbd-bg: #ebebec;
+            --kbd-border: #c9c9ca;
+            --scrollbar: #383a414c;
+            --btn-run: #4CAF50;
+            --btn-stop: #f44336;
+            --layout-bg: #ebebec;
+            --syntax-comment: #a2a3a7;
+            --syntax-string: #649f57;
+            --syntax-number: #ad6e25;
+            --syntax-keyword: #a449ab;
+            --syntax-function: #5b79e3;
+            --syntax-operator: #3882b7;
+            --syntax-property: #d3604f;
+            --syntax-punctuation: #242529;
+            --syntax-type: #3882b7;
+            --ansi-black: #000000;
+            --ansi-red: #de3e35;
+            --ansi-green: #3f953a;
+            --ansi-yellow: #d2b67c;
+            --ansi-blue: #2f5af3;
+            --ansi-magenta: #950095;
+            --ansi-cyan: #0997b3;
+            --ansi-white: #bbbbbb;
+            --ansi-bright-black: #000000;
+            --ansi-bright-red: #de3e35;
+            --ansi-bright-green: #3f953a;
+            --ansi-bright-yellow: #d2b67c;
+            --ansi-bright-blue: #2f5af3;
+            --ansi-bright-magenta: #a00095;
+            --ansi-bright-cyan: #0bbcd6;
+            --ansi-bright-white: #ffffff;
+        }
+
+        [data-theme="dark"] {
+            --bg: #2f343e;
+            --editor-bg: #282c33;
+            --editor-fg: #acb2be;
+            --gutter-bg: #2f343e;
+            --repl-bg: #282c33;
+            --repl-fg: #acb2be;
+            --toolbar-bg: #3b414d;
+            --border: #464b57;
+            --resize-handle: #464b57;
+            --resize-handle-hover: #5a6070;
+            --text-muted: #a9afbc;
+            --prompt: #74ade8;
+            --caret: #dce0e5;
+            --icon: #dce0e5;
+            --modal-bg: #2f343e;
+            --modal-border: #464b57;
+            --kbd-bg: #3b414d;
+            --kbd-border: #464b57;
+            --scrollbar: #c8ccd44c;
+            --btn-run: #4CAF50;
+            --btn-stop: #f44336;
+            --layout-bg: #3b414d;
+            --syntax-comment: #5d636f;
+            --syntax-string: #a1c181;
+            --syntax-number: #bf956a;
+            --syntax-keyword: #b477cf;
+            --syntax-function: #73ade9;
+            --syntax-operator: #6eb4bf;
+            --syntax-property: #d07277;
+            --syntax-punctuation: #acb2be;
+            --syntax-type: #6eb4bf;
+            --ansi-black: #282c34;
+            --ansi-red: #e06c75;
+            --ansi-green: #98c379;
+            --ansi-yellow: #e5c07b;
+            --ansi-blue: #61afef;
+            --ansi-magenta: #c678dd;
+            --ansi-cyan: #56b6c2;
+            --ansi-white: #abb2bf;
+            --ansi-bright-black: #636d83;
+            --ansi-bright-red: #ea858b;
+            --ansi-bright-green: #aad581;
+            --ansi-bright-yellow: #ffd885;
+            --ansi-bright-blue: #85c1ff;
+            --ansi-bright-magenta: #d398eb;
+            --ansi-bright-cyan: #6ed5de;
+            --ansi-bright-white: #fafafa;
+        }
+
         body {
             margin: 0;
             font-family: monospace;
@@ -14,6 +114,8 @@
             height: 100vh;
             font-size: 14px;
             overflow: hidden;
+            background-color: var(--bg);
+            color: var(--editor-fg);
         }
 
         #top {
@@ -21,7 +123,8 @@
             display: flex;
             gap: 8px;
             justify-content: flex-end;
-            border-bottom: 1px solid #ccc;
+            border-bottom: 1px solid var(--border);
+            background-color: var(--toolbar-bg);
         }
 
         #main {
@@ -39,17 +142,27 @@
         }
 
         #layout-horizontal,
-        #layout-vertical {
+        #layout-vertical,
+        #theme-toggle {
             padding: 0px;
             padding-top: 4px;
-            background-color: #ffffff;
+            background-color: var(--layout-bg);
             cursor: pointer;
             opacity: 0.4;
+            border: none;
         }
 
         #layout-horizontal:disabled,
         #layout-vertical:disabled {
             cursor: initial;
+            opacity: 1.0;
+        }
+
+        #theme-toggle {
+            opacity: 0.7;
+        }
+
+        #theme-toggle:hover {
             opacity: 1.0;
         }
 
@@ -68,11 +181,11 @@
         }
 
         #run-button {
-            background-color: #4CAF50;
+            background-color: var(--btn-run);
         }
 
         #stop-button {
-            background-color: #f44336;
+            background-color: var(--btn-stop);
         }
 
         #editor-panel {
@@ -80,23 +193,27 @@
             position: relative;
             display: flex;
             overflow: hidden;
+            background-color: var(--editor-bg);
+            color: var(--editor-fg);
         }
 
         #repl-panel {
             flex: 1;
             overflow: hidden;
             display: flex;
+            background-color: var(--repl-bg);
+            color: var(--repl-fg);
         }
 
         #resize-handle {
             width: 8px;
-            background-color: #ddd;
+            background-color: var(--resize-handle);
             cursor: col-resize;
             transition: background-color 0.2s;
         }
 
         #resize-handle:hover {
-            background-color: #bbb;
+            background-color: var(--resize-handle-hover);
         }
 
         #repl-panel {
@@ -116,7 +233,7 @@
         }
 
         .repl-prompt {
-            color: #0074d9;
+            color: var(--prompt);
             margin-right: 8px;
             user-select: none;
         }
@@ -126,18 +243,62 @@
             border: none;
             outline: none;
             font-family: monospace;
-            caret-color: black;
+            caret-color: var(--caret);
             overflow-wrap: break-word;
             white-space: pre-wrap;
+            color: inherit;
+            background: transparent;
         }
 
         .codeflask__flatten {
             font-size: inherit !important;
+            font-family: monospace !important;
         }
 
         .codeflask__textarea {
             font-family: monospace !important;
+            color: transparent !important;
+            caret-color: var(--caret) !important;
         }
+
+        .codeflask__code {
+            font-family: monospace !important;
+        }
+
+        .codeflask {
+            background: var(--editor-bg) !important;
+            color: var(--editor-fg) !important;
+        }
+
+        .codeflask .codeflask__pre {
+            color: var(--editor-fg) !important;
+        }
+
+        .codeflask.codeflask--has-line-numbers::before {
+            background: var(--gutter-bg) !important;
+            z-index: 4 !important;
+        }
+
+        .codeflask__lines {
+            z-index: 5 !important;
+        }
+
+        .codeflask__lines__line {
+            color: var(--text-muted) !important;
+        }
+
+        /* PrismJS syntax highlighting overrides */
+        .token.comment { color: var(--syntax-comment) !important; }
+        .token.string { color: var(--syntax-string) !important; }
+        .token.number { color: var(--syntax-number) !important; }
+        .token.boolean { color: var(--syntax-number) !important; }
+        .token.keyword { color: var(--syntax-keyword) !important; }
+        .token.function { color: var(--syntax-function) !important; }
+        .token.operator { color: var(--syntax-operator) !important; }
+        .token.property { color: var(--syntax-property) !important; }
+        .token.punctuation { color: var(--syntax-punctuation) !important; }
+        .token.class-name { color: var(--syntax-type) !important; }
+        .token.tag { color: var(--syntax-type) !important; }
 
         #help-overlay {
             position: fixed;
@@ -155,10 +316,11 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background-color: white;
+            background-color: var(--modal-bg);
+            color: var(--editor-fg);
             padding: 1rem 1rem;
             border-radius: 12px;
-            border: 1px solid #ccc;
+            border: 1px solid var(--modal-border);
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
             display: none;
             z-index: 1000;
@@ -168,8 +330,8 @@
         }
 
         kbd {
-            background-color: #f3f3f3;
-            border: 1px solid #ccc;
+            background-color: var(--kbd-bg);
+            border: 1px solid var(--kbd-border);
             border-radius: 4px;
             padding: 2px 6px;
             font-family: monospace;
@@ -199,21 +361,36 @@
 
     <div id="top">
         <div id="info">Help (ctrl-?)</div>
-        <button id="run-button" title="Run" disabled>▶ Run</button>
-        <button id="stop-button" title="Stop" disabled>■ Stop</button>
+        <button id="run-button" title="Run" disabled>&#9654; Run</button>
+        <button id="stop-button" title="Stop" disabled>&#9632; Stop</button>
+        <button id="theme-toggle" title="Toggle theme">
+            <svg id="theme-icon" width="6mm" height="5mm" viewBox="0 0 24 20" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="12" cy="10" r="5" fill="none" stroke="var(--icon)" stroke-width="2" />
+                <g stroke="var(--icon)" stroke-width="2" stroke-linecap="round">
+                    <line x1="12" y1="1" x2="12" y2="3" />
+                    <line x1="12" y1="17" x2="12" y2="19" />
+                    <line x1="4" y1="10" x2="6" y2="10" />
+                    <line x1="18" y1="10" x2="20" y2="10" />
+                    <line x1="6.3" y1="3.7" x2="7.8" y2="5.2" />
+                    <line x1="16.2" y1="14.8" x2="17.7" y2="16.3" />
+                    <line x1="6.3" y1="16.3" x2="7.8" y2="14.8" />
+                    <line x1="16.2" y1="5.2" x2="17.7" y2="3.7" />
+                </g>
+            </svg>
+        </button>
         <button id="layout-horizontal" disabled>
             <svg width="6mm" height="5mm" xmlns="http://www.w3.org/2000/svg">
-                <rect style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" width="5mm" height="4mm"
-                    x="0.5mm" y="0.5mm" />
-                <line style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" x1="3mm" y1="0mm"
+                <rect style="fill:none;stroke:var(--icon);stroke-width:1mm;stroke-linejoin:round;" width="5mm"
+                    height="4mm" x="0.5mm" y="0.5mm" />
+                <line style="fill:none;stroke:var(--icon);stroke-width:1mm;stroke-linejoin:round;" x1="3mm" y1="0mm"
                     x2="3mm" y2="5mm" />
             </svg>
         </button>
         <button id="layout-vertical">
             <svg width="6mm" height="5mm" xmlns="http://www.w3.org/2000/svg">
-                <rect style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" width="5mm" height="4mm"
-                    x="0.5mm" y="0.5mm" />
-                <line style="fill:none;stroke:#000000;stroke-width:1mm;stroke-linejoin:round;" x1="0mm" y1="2.5mm"
+                <rect style="fill:none;stroke:var(--icon);stroke-width:1mm;stroke-linejoin:round;" width="5mm"
+                    height="4mm" x="0.5mm" y="0.5mm" />
+                <line style="fill:none;stroke:var(--icon);stroke-width:1mm;stroke-linejoin:round;" x1="0mm" y1="2.5mm"
                     x2="6mm" y2="2.5mm" />
             </svg>
         </button>
