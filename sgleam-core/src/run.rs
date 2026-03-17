@@ -161,12 +161,14 @@ fn copy_files_and_build(
 fn validate_path(path: &Utf8Path) -> bool {
     let steam = path.file_stem().unwrap_or("");
     if path.extension() != Some("gleam") || steam.is_empty() {
-        eprintln!("Ignoring `{path}`: is not a valid gleam file.");
+        crate::quickjs::write_stderr(&format!("Ignoring `{path}`: is not a valid gleam file.\n"));
         return false;
     }
 
     if steam == "gleam" || steam == "sgleam" {
-        eprintln!("Ignoring `{path}`: `{steam}` is a reserved module name.");
+        crate::quickjs::write_stderr(&format!(
+            "Ignoring `{path}`: `{steam}` is a reserved module name.\n"
+        ));
         return false;
     }
 

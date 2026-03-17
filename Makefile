@@ -2,12 +2,11 @@ WASM_TARGET = wasm32-wasip1
 WASM_BIN    = target/$(WASM_TARGET)/release-small/sgleam.wasm
 WEB_DIR     = web
 DIST_DIR    = dist
+BUILD_DIR   = build
 
 DIST_FILES = \
 	$(DIST_DIR)/sgleam.wasm \
 	$(DIST_DIR)/index.html \
-	$(DIST_DIR)/sgleam.js \
-	$(DIST_DIR)/worker.js \
 	$(DIST_DIR)/server.py
 
 .PHONY: all serve test test-web test-rs check clean
@@ -31,30 +30,45 @@ RUST_SRCS = Cargo.toml \
 $(WASM_BIN): $(RUST_SRCS)
 	cargo build -p sgleam-wasm --target $(WASM_TARGET) --profile release-small
 
-# TypeScript compilation
+# TypeScript compilation (intermediate build files)
 
-$(DIST_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/env.ts $(WEB_DIR)/wasi.ts | $(DIST_DIR)
+$(BUILD_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/env.ts $(WEB_DIR)/wasi.ts | $(BUILD_DIR)
 	deno bundle $(WEB_DIR)/worker.ts -o $@
 
-$(DIST_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/ansi.ts | $(DIST_DIR)
+$(BUILD_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/ansi.ts | $(BUILD_DIR)
 	deno bundle $(WEB_DIR)/ui.ts -o $@
+
+# Download CodeFlask
+
+$(BUILD_DIR)/codeflask.min.js: | $(BUILD_DIR)
+	curl -sL "https://unpkg.com/codeflask/build/codeflask.min.js" -o $@
+
+# Inline everything into a single HTML file
+
+$(DIST_DIR)/index.html: $(WEB_DIR)/sgleam.html $(BUILD_DIR)/sgleam.js $(BUILD_DIR)/worker.js $(BUILD_DIR)/codeflask.min.js $(WEB_DIR)/inline.ts | $(DIST_DIR)
+	cp $(BUILD_DIR)/sgleam.js $(DIST_DIR)/sgleam.js
+	cp $(BUILD_DIR)/worker.js $(DIST_DIR)/worker.js
+	deno run --allow-read --allow-write $(WEB_DIR)/inline.ts
+	rm $(DIST_DIR)/sgleam.js $(DIST_DIR)/worker.js
 
 # Static web files
 
-$(DIST_DIR)/index.html: $(WEB_DIR)/sgleam.html | $(DIST_DIR)
+$(DIST_DIR)/server.py: $(WEB_DIR)/server.py | $(DIST_DIR)
 	cp $< $@
+
+# Tests
 
 $(DIST_DIR)/test.js: $(WEB_DIR)/test.ts $(WEB_DIR)/ui_channel.ts | $(DIST_DIR)
 	deno bundle $(WEB_DIR)/test.ts -o $@
-
-# Tests
 
 test: test-rs test-web
 
 test-rs:
 	cargo test
+	cargo test -p sgleam-core-tests
 
-test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/worker.js $(DIST_DIR)/test.js
+test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
+	cp $(BUILD_DIR)/worker.js $(DIST_DIR)/worker.js
 	deno test --allow-read $(WEB_DIR)/channel_test.ts
 	deno test $(WEB_DIR)/ansi_test.ts
 	deno test --allow-read $(DIST_DIR)/test.js
@@ -71,5 +85,8 @@ check:
 $(DIST_DIR):
 	mkdir -p $@
 
+$(BUILD_DIR):
+	mkdir -p $@
+
 clean:
-	rm -rf $(DIST_DIR)
+	rm -rf $(DIST_DIR) $(BUILD_DIR)

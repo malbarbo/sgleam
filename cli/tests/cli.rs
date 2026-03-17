@@ -1,6 +1,6 @@
 use assert_cmd::cargo;
 use indoc::formatdoc;
-use insta::{assert_snapshot, glob};
+use insta::assert_snapshot;
 use sgleam_core::repl::{welcome_message, QUIT, TYPE};
 
 use std::{
@@ -304,40 +304,6 @@ fn repl_exec(s: &str) -> String {
 }
 
 #[test]
-fn run_tests() {
-    glob!("inputs/check*.gleam", |path| {
-        let path = path.as_os_str().to_str().expect("a valid path");
-        if path.contains("stackoverflow") && !cfg!(target_os = "linux") {
-            return;
-        }
-        let (out, err) = run_sgleam_cmd(&["-t", path], None);
-        assert_snapshot!(formatdoc! {"
-            STDOUT
-            {out}
-            STDERR
-            {err}"
-        });
-    });
-}
-
-#[test]
-fn run_file() {
-    glob!("inputs/*.gleam", |path| {
-        let path = path.as_os_str().to_str().expect("a valid path");
-        if path.contains("stackoverflow") && !cfg!(target_os = "linux") {
-            return;
-        }
-        let (out, err) = run_sgleam_cmd(&[&path], None);
-        assert_snapshot!(formatdoc! {"
-            STDOUT
-            {out}
-            STDERR
-            {err}"
-        });
-    });
-}
-
-#[test]
 fn smain_list_string() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -372,16 +338,6 @@ fn smain_string() {
         {out}
         STDERR
         {err}"
-    });
-}
-
-#[cfg(target_os = "linux")]
-#[test]
-fn run_images() {
-    glob!("images/*.gleam", |path| {
-        let path = path.as_os_str().to_str().expect("a valid path");
-        let (out, _) = run_sgleam_cmd(&[path], None);
-        assert_snapshot!(format!("{out}"));
     });
 }
 

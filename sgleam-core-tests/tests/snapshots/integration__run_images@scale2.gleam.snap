@@ -1,0 +1,6 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: cli/tests/images/scale2.gleam
+---
+
