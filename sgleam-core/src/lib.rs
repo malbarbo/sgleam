@@ -86,8 +86,10 @@ macro_rules! swriteln {
     };
 }
 
+pub const QUICKJS_VERSION: &str = "0.11.0";
+
 pub fn version() -> String {
     format!(
-        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION} and stdlib {GLEAM_STDLIB_VERSION})"
+        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {QUICKJS_VERSION})"
     )
 }
