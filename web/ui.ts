@@ -12,6 +12,8 @@ declare class CodeFlask {
         el: HTMLElement,
         options: { language: string; lineNumbers: boolean },
     );
+    // deno-lint-ignore no-explicit-any
+    addLanguage(name: string, grammar: Record<string, any>): void;
     updateCode(code: string): void;
     getCode(): string;
 }
@@ -50,6 +52,8 @@ class App {
     private readonly layoutHorizontal: HTMLButtonElement;
     private readonly layoutVertical: HTMLButtonElement;
 
+    private readonly themeToggle: HTMLButtonElement;
+
     private readonly shortcuts = new Map<string, () => void>([
         ["ctrl+?", () => this.showHelp()],
         ["ctrl+j", () => this.focusEditor()],
@@ -82,9 +86,29 @@ class App {
             "layout-vertical",
         )! as HTMLButtonElement;
 
+        this.themeToggle = document.getElementById(
+            "theme-toggle",
+        )! as HTMLButtonElement;
+
+        const savedTheme = localStorage.getItem("sgleam-theme") ?? "light";
+        document.documentElement.setAttribute("data-theme", savedTheme);
+
         this.flask = new CodeFlask(this.editorPanel, {
-            language: "js",
+            language: "gleam",
             lineNumbers: true,
+        });
+        this.flask.addLanguage("gleam", {
+            "comment": /\/\/.*/,
+            "string": { pattern: /"(?:\\.|[^"\\])*"/, greedy: true },
+            "keyword":
+                /\b(?:as|assert|case|const|else|external|fn|if|import|let|opaque|panic|pub|todo|type|use)\b/,
+            "boolean": /\b(?:True|False|Nil)\b/,
+            "class-name": /\b[A-Z][a-zA-Z0-9_]*\b/,
+            "function": /\b[a-z_][a-z0-9_]*(?=\s*\()/,
+            "number": /\b\d[\d_]*(?:\.[\d_]+)?\b/,
+            "operator":
+                /->|\|>|<>|\.\.|\+\.|-\.|\/\.|<=\.|>=\.|<\.|>\.|==|!=|<=|>=|&&|\|\||[+\-*/%<>|]/,
+            "punctuation": /[{}()\[\]:,.#]/,
         });
         this.flask.updateCode(
             document.getElementById("default-code")?.textContent ?? "",
@@ -101,6 +125,7 @@ class App {
     }
 
     private setupListeners(): void {
+        this.themeToggle.addEventListener("click", () => this.toggleTheme());
         this.runButton.addEventListener("click", () => this.formatThenRun());
         this.stopButton.addEventListener("click", () => this.stop());
         this.layoutHorizontal.addEventListener(
@@ -343,6 +368,14 @@ class App {
         this.state.view = hiding ? "editor" : "split";
         this.render();
         if (hiding) this.focusEditor();
+    }
+
+    private toggleTheme(): void {
+        const current = document.documentElement.getAttribute("data-theme") ??
+            "light";
+        const next = current === "light" ? "dark" : "light";
+        document.documentElement.setAttribute("data-theme", next);
+        localStorage.setItem("sgleam-theme", next);
     }
 
     private toggleLayout(): void {
