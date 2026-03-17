@@ -170,7 +170,9 @@ class App {
                     : {
                         kind: "ready",
                         running: false,
-                        layout: "horizontal",
+                        layout: window.innerWidth >= window.innerHeight
+                            ? "horizontal"
+                            : "vertical",
                         view: "split",
                         splitSize: 50,
                         helpVisible: false,
