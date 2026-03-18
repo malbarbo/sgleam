@@ -77,9 +77,8 @@ pub fn show_error(err: &SgleamError) {
             location: None,
         }
         .write(&mut buffer),
-        // TODO: improve error
         _ => {
-            writeln!(buffer, "{:?}", err).expect("write to buffer");
+            writeln!(buffer, "{err}").expect("write to buffer");
         }
     };
 
