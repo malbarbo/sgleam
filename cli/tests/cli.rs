@@ -8,7 +8,8 @@ use std::{
     process::{Command, Stdio},
 };
 
-// FIXME: do not launch sgleam process if not necessary, use the module functions.
+// These tests launch the sgleam binary as a subprocess. Tests that only need
+// Repl::run() can go in sgleam-core-tests (which uses the capture feature).
 
 #[test]
 fn repl_smoke_test() {
