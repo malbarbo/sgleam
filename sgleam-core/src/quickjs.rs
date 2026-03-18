@@ -51,7 +51,7 @@ use rquickjs::{
     context::EvalOptions,
     loader::{Loader, Resolver},
     module::Declared,
-    qjs::{JSValue, JS_FreeCString, JS_ToCStringLen},
+    qjs::{JS_FreeCString, JS_ToCStringLen},
     Array, CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise,
     Result, Runtime, Value,
 };
@@ -228,7 +228,7 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
     runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
-    runtime.set_loader(FileResolver { base, first: false }, ScriptLoader { fs });
+    runtime.set_loader(FileResolver { base }, ScriptLoader { fs });
     context
         .with(|ctx| {
             add_console(&ctx)?;
@@ -356,40 +356,27 @@ fn getline() -> Option<String> {
 }
 
 fn log(value: Value) {
-    // FIXME: remove unsafe use
-    // adapted from rquickjs::String::to_string
-    pub struct MyValue<'js> {
-        pub ctx: Ctx<'js>,
-        pub value: JSValue,
-    }
-    // the ctx and value fields in Value are pub(crate), so we make
-    // this transmute to access the fields
-    let value: MyValue = unsafe { std::mem::transmute(value) };
+    let ctx_ptr = value.ctx().as_raw().as_ptr();
+    let raw = value.as_raw();
     let mut len = std::mem::MaybeUninit::uninit();
-    let ptr =
-        unsafe { JS_ToCStringLen(value.ctx.as_raw().as_ptr(), len.as_mut_ptr(), value.value) };
+    let ptr = unsafe { JS_ToCStringLen(ctx_ptr, len.as_mut_ptr(), raw) };
     assert!(!ptr.is_null());
     let len = unsafe { len.assume_init() };
     let bytes: &[u8] = unsafe { std::slice::from_raw_parts(ptr as _, len as _) };
     let s = std::str::from_utf8(bytes).unwrap_or("");
     write_stdout(s);
     write_stdout("\n");
-    unsafe { JS_FreeCString(value.ctx.as_raw().as_ptr(), ptr) };
+    unsafe { JS_FreeCString(ctx_ptr, ptr) };
 }
 
 #[derive(Debug)]
 struct FileResolver {
     pub(crate) base: PathBuf,
-    pub(crate) first: bool,
 }
 
 impl Resolver for FileResolver {
     fn resolve(&mut self, _ctx: &Ctx, base: &str, name: &str) -> Result<String> {
-        let result = if self.first {
-            // FIXME: remove this first hack
-            self.first = false;
-            self.base.join(name)
-        } else if base == "eval_script" {
+        let result = if base == "eval_script" {
             self.base.join(name.strip_prefix("./").unwrap_or(name))
         } else {
             resolve_path(
