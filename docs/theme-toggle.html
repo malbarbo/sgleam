@@ -1,0 +1,18 @@
+<button id="theme-toggle" title="Alternar tema" onclick="toggleTheme()">&#9788;</button>
+<script>
+function toggleTheme() {
+    var current = document.documentElement.getAttribute('data-theme');
+    var next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('docs-theme', next);
+    document.getElementById('theme-toggle').textContent = next === 'dark' ? '\u263E' : '\u263C';
+}
+(function() {
+    var saved = localStorage.getItem('docs-theme');
+    if (!saved) {
+        saved = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('theme-toggle').textContent = saved === 'dark' ? '\u263E' : '\u263C';
+})();
+</script>

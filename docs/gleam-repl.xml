@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE language
+[
+	<!ENTITY camel_case "[A-Z][0-9a-zA-Z]*">
+	<!ENTITY snake_case "[_a-z][_0-9a-z]*">
+	<!ENTITY decimal_digits "[0-9]+(?:_[0-9]+)*">
+]>
+<language name="gleam-repl" version="1" kateversion="5.79" section="Sources" extensions="" priority="0" license="MIT">
+<highlighting>
+	<list name="keywords">
+		<item>as</item>
+		<item>case</item>
+		<item>const</item>
+		<item>else</item>
+		<item>fn</item>
+		<item>if</item>
+		<item>let</item>
+		<item>opaque</item>
+		<item>pub</item>
+		<item>type</item>
+		<item>use</item>
+		<item>import</item>
+		<item>assert</item>
+		<item>panic</item>
+		<item>todo</item>
+	</list>
+	<list name="types">
+		<item>Int</item>
+		<item>Float</item>
+		<item>Bool</item>
+		<item>True</item>
+		<item>False</item>
+		<item>Nil</item>
+		<item>String</item>
+		<item>List</item>
+		<item>Result</item>
+		<item>Ok</item>
+		<item>Error</item>
+		<item>Option</item>
+		<item>Some</item>
+		<item>None</item>
+	</list>
+	<contexts>
+		<context attribute="Output" lineEndContext="#stay" name="start">
+			<StringDetect attribute="Prompt" context="gleam code" String="&gt; " firstNonSpace="true" />
+		</context>
+		<context attribute="Normal Text" lineEndContext="#pop" name="gleam code">
+			<DetectSpaces attribute="Normal Text" />
+			<DetectChar attribute="String" context="string" char="&quot;" />
+			<Detect2Chars attribute="Comment" context="comment" char="/" char1="/" />
+			<keyword attribute="Keyword" context="#stay" String="keywords" />
+			<keyword attribute="Type" context="#stay" String="types" />
+			<RegExpr attribute="Type" context="#stay" String="\b&camel_case;\b" />
+			<RegExpr attribute="Function" context="#stay" String="\b&snake_case;(?=\()" />
+			<RegExpr attribute="Float" context="#stay" String="&decimal_digits;\.(?:&decimal_digits;)?" />
+			<RegExpr attribute="Decimal" context="#stay" String="\b&decimal_digits;" />
+			<AnyChar String="#:!,.+-*/%&lt;=&gt;|&amp;(){}[]" attribute="Symbol" context="#stay" />
+		</context>
+		<context attribute="String" lineEndContext="#pop" name="string">
+			<DetectChar attribute="String" context="#pop" char="&quot;" />
+			<DetectChar attribute="EscapeSequence" context="escape" char="\" />
+		</context>
+		<context attribute="EscapeSequence" lineEndContext="#pop" name="escape">
+			<AnyChar attribute="EscapeSequence" context="#pop" String="efnrt&quot;\" />
+			<RegExpr attribute="EscapeSequence" context="#pop" String="u\{[0-9a-fA-F]+\}" />
+		</context>
+		<context attribute="Comment" lineEndContext="#pop" name="comment">
+		</context>
+	</contexts>
+	<itemDatas>
+		<itemData name="Normal Text" defStyleNum="dsNormal" />
+		<itemData name="Output" defStyleNum="dsComment" />
+		<itemData name="Prompt" defStyleNum="dsOthers" bold="true" />
+		<itemData name="Keyword" defStyleNum="dsKeyword" />
+		<itemData name="Type" defStyleNum="dsDataType" />
+		<itemData name="Function" defStyleNum="dsFunction" />
+		<itemData name="String" defStyleNum="dsString" />
+		<itemData name="EscapeSequence" defStyleNum="dsSpecialChar" />
+		<itemData name="Decimal" defStyleNum="dsDecVal" />
+		<itemData name="Float" defStyleNum="dsFloat" />
+		<itemData name="Symbol" defStyleNum="dsOperator" />
+		<itemData name="Comment" defStyleNum="dsComment" />
+	</itemDatas>
+</highlighting>
+<general>
+	<keywords casesensitive="true"/>
+</general>
+</language>

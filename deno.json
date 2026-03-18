@@ -10,7 +10,8 @@
             ".github/",
             ".claude/",
             "build/",
-            "sgleam-core-tests/"
+            "sgleam-core-tests/",
+            "docs/"
         ]
     }
 }
