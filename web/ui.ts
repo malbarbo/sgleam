@@ -7,6 +7,12 @@ import {
     WorkerMessage,
 } from "./ui_channel.ts";
 
+// deno-lint-ignore no-explicit-any
+declare const Prism: {
+    highlight(code: string, grammar: any, language: string): string;
+    languages: Record<string, any>;
+};
+
 declare class CodeFlask {
     constructor(
         el: HTMLElement,
@@ -36,7 +42,7 @@ type AppState =
 class App {
     private state: AppState = { kind: "loading", progress: 0 };
     private runAfterFormat = false;
-    private replInput: HTMLDivElement | null = null;
+    private replInput: HTMLTextAreaElement | null = null;
     private replPrompt: HTMLDivElement | null = null;
     private lastSvg: HTMLDivElement | null = null;
     private lastActive: HTMLElement | null = null;
@@ -525,6 +531,13 @@ class App {
         this.render();
     }
 
+    private highlightGleam(code: string): string {
+        if (Prism.languages.gleam) {
+            return Prism.highlight(code, Prism.languages.gleam, "gleam");
+        }
+        return code;
+    }
+
     private addInputLine(): void {
         const inputContainer = document.createElement("div");
         inputContainer.className = "repl-input-container";
@@ -534,39 +547,39 @@ class App {
         prompt.className = "repl-prompt";
         prompt.textContent = dirty ? "\u25CF >" : ">";
 
-        // TODO: add syntax highlight
-        const input = (this.replInput = document.createElement("div"));
-        input.className = "repl-input";
-        input.contentEditable = "true";
-        input.spellcheck = false;
+        const wrapper = document.createElement("div");
+        wrapper.className = "repl-input-wrapper";
 
+        const highlight = document.createElement("pre");
+        highlight.className = "repl-input-highlight";
+
+        const textarea = (this.replInput = document.createElement("textarea"));
+        textarea.className = "repl-input-edit";
+        textarea.rows = 1;
+        textarea.spellcheck = false;
+
+        wrapper.appendChild(highlight);
+        wrapper.appendChild(textarea);
         inputContainer.appendChild(prompt);
-        inputContainer.appendChild(input);
+        inputContainer.appendChild(wrapper);
         this.replPanel.appendChild(inputContainer);
 
-        input.focus();
+        textarea.focus();
 
-        input.addEventListener("paste", (event: ClipboardEvent) => {
-            event.preventDefault();
-            const selection = window.getSelection();
-            if (!selection?.rangeCount) return;
-            const text = event.clipboardData?.getData("text/plain") ?? "";
-            const range = selection.getRangeAt(0);
-            range.deleteContents();
-            range.insertNode(document.createTextNode(text));
-            selection.collapseToEnd();
-        });
+        const syncHighlight = () => {
+            highlight.innerHTML = this.highlightGleam(textarea.value) || "\n";
+            textarea.style.height = "auto";
+            textarea.style.height = textarea.scrollHeight + "px";
+        };
+        syncHighlight();
+        textarea.addEventListener("input", syncHighlight);
 
-        input.addEventListener("keydown", (e: KeyboardEvent) => {
+        textarea.addEventListener("keydown", (e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
-                const text = input.cloneNode(true) as HTMLElement;
-                text.querySelectorAll("br").forEach((br) =>
-                    br.replaceWith("\n")
-                );
-                const code = text.textContent?.trim() ?? "";
+                const code = textarea.value.trim();
                 if (code) {
-                    input.contentEditable = "false";
+                    textarea.disabled = true;
                     this.postRun(code);
                 }
             }
