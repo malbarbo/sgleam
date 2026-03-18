@@ -111,6 +111,12 @@ fn repl_import() {
 #[test]
 fn repl_let() {
     assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
+    // No name collision with internal repl_main
+    assert_eq!(repl_exec("let repl_main = 10"), "10");
+    assert_eq!(
+        repl_exec("let #(repl_main, b) = #(1, 2)\nrepl_main\nb"),
+        "#(1, 2)\n1\n2"
+    );
 }
 #[test]
 fn repl_let_discard() {
