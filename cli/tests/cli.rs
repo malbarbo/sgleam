@@ -328,6 +328,31 @@ fn repl_quit() {
 }
 
 #[test]
+fn repl_debug() {
+    let (out, _) = run_sgleam_cmd(&["-q"], Some(":debug\nlet x = 1\n:debug\nlet y = 2"));
+    // Debug on: output contains the generated code and the result
+    assert!(
+        out.contains("--- repl2_1.gleam ---"),
+        "expected generated code header"
+    );
+    assert!(
+        out.contains("pub fn repl_main()"),
+        "expected repl_main in generated code"
+    );
+    assert!(
+        out.contains("--- repl2_1.mjs ---"),
+        "expected JS output header"
+    );
+    assert!(out.contains("1"), "expected result");
+    // Debug off: output contains only the result
+    assert!(
+        !out.contains("repl4_1.gleam"),
+        "expected no generated code after :debug off"
+    );
+    assert!(out.contains("2"), "expected result");
+}
+
+#[test]
 fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
     assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
