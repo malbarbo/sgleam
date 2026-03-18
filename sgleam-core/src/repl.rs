@@ -6,7 +6,7 @@ use gleam_core::{
         UntypedStatement,
     },
     build::Module,
-    io::FileSystemWriter,
+    io::{FileSystemReader, FileSystemWriter},
     Error,
 };
 use indoc::formatdoc;
@@ -34,6 +34,7 @@ pub fn repl_print(value: a) -> a
 
 pub const QUIT: &str = ":quit";
 pub const TYPE: &str = ":type ";
+const DEBUG: &str = ":debug";
 
 pub fn welcome_message() -> String {
     format!(
@@ -72,6 +73,7 @@ pub struct Repl<E: Engine> {
     engine: E,
     iter: (usize, usize),
     var_index: usize,
+    debug: bool,
 }
 
 pub enum ReplOutput {
@@ -95,6 +97,7 @@ impl<E: Engine> Repl<E> {
             engine: E::new(fs),
             iter: (0, 0),
             var_index: 0,
+            debug: false,
         })
     }
 
@@ -104,6 +107,12 @@ impl<E: Engine> Repl<E> {
 
         if line_trim == QUIT {
             return Ok(ReplOutput::Quit);
+        }
+
+        if line_trim == DEBUG {
+            self.debug = !self.debug;
+            println!("Debug mode {}.", if self.debug { "on" } else { "off" });
+            return Ok(ReplOutput::StdOut);
         }
 
         let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
@@ -180,7 +189,20 @@ impl<E: Engine> Repl<E> {
         let module_name = self.module_name();
         let file = format!("{module_name}.gleam");
 
-        // TODO: add an option to show the generated code
+        if self.debug {
+            let mut formatted = String::new();
+            if gleam_core::format::pretty(
+                &mut formatted,
+                &code.into(),
+                camino::Utf8Path::new(&file),
+            )
+            .is_ok()
+            {
+                println!("--- {file} ---\n{formatted}---");
+            } else {
+                println!("--- {file} ---\n{code}\n---");
+            }
+        }
         self.project.write_source(&file, code);
 
         let result = compile(&mut self.project, true);
@@ -191,6 +213,13 @@ impl<E: Engine> Repl<E> {
             .expect("To delete repl file");
 
         let mut modules = result?;
+
+        if self.debug {
+            let js_path = format!("/build/{module_name}.mjs");
+            if let Ok(js) = self.project.fs.read(camino::Utf8Path::new(&js_path)) {
+                println!("--- {module_name}.mjs ---\n{js}---");
+            }
+        }
 
         let pos = modules
             .iter()
