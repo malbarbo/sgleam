@@ -407,11 +407,6 @@ impl<E: Engine> Repl<E> {
             }
             Statement::Expression(_) => self.run_expr(&src[start..end]),
             Statement::Assignment(a) => {
-                let assign_name: Option<String> = if let Pattern::Assign { name, .. } = &a.pattern {
-                    Some(name.into())
-                } else {
-                    None
-                };
                 let mut names = vec![];
                 assignment_find_names(&a.pattern, &mut names);
                 if names.is_empty() {
@@ -420,12 +415,7 @@ impl<E: Engine> Repl<E> {
                 } else {
                     let pattern_end = a.pattern.location().end as usize;
                     let value_start = a.value.location().start as usize;
-                    self.run_assignment(
-                        assign_name,
-                        &src[start..pattern_end],
-                        &src[value_start..end],
-                        &names,
-                    )
+                    self.run_assignment(&src[start..pattern_end], &src[value_start..end], &names)
                 }
             }
             Statement::Assert(_) => self.run_assert(&src[start..end]),
@@ -449,7 +439,6 @@ impl<E: Engine> Repl<E> {
 
     fn run_assignment(
         &mut self,
-        assigned_name: Option<String>,
         pattern: &str,
         value: &str,
         names: &[String],
@@ -460,14 +449,8 @@ impl<E: Engine> Repl<E> {
             .map(|name| format!("repl_save({name})"))
             .collect::<Vec<_>>()
             .join("\n  ");
-        let assignment = if let Some(assigned_name) = assigned_name {
-            format!("{pattern} = {value}\n  repl_print({assigned_name})")
-        } else {
-            format!("{pattern} as {REPL_MAIN} = {value}\n  repl_print({REPL_MAIN})")
-        };
-        // FIXME: avoid name collision
         let body = formatdoc! {"
-          {assignment}
+          {pattern} = repl_print({value})
           {save_names}
           #({joined_names})"
         };

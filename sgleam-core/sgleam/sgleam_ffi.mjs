@@ -103,6 +103,7 @@ export function repl_print(value) {
     } else {
         console.log(`${inspect(value)}`);
     }
+    return value;
 }
 
 export function show_svg(svg) {
