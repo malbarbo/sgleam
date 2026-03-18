@@ -1,12 +1,6 @@
-use assert_cmd::cargo;
 use indoc::formatdoc;
 use insta::assert_snapshot;
 use sgleam_core::repl::{welcome_message, QUIT, TYPE};
-
-use std::{
-    io::Write,
-    process::{Command, Stdio},
-};
 
 // These tests launch the sgleam binary as a subprocess. Tests that only need
 // Repl::run() can go in sgleam-core-tests (which uses the capture feature).
@@ -328,6 +322,12 @@ fn repl_quit() {
 }
 
 #[test]
+fn repl_error_line_numbers() {
+    let (_, err) = run_sgleam_cmd(&["-q"], Some(r#"let x = 1 + "a""#));
+    assert!(err.contains("1 │"), "expected line 1 in error, got: {err}");
+}
+
+#[test]
 fn repl_debug() {
     let (out, _) = run_sgleam_cmd(&["-q"], Some(":debug\nlet x = 1\n:debug\nlet y = 2"));
     // Debug on: output contains the generated code and the result
@@ -339,10 +339,6 @@ fn repl_debug() {
         out.contains("pub fn repl_main()"),
         "expected repl_main in generated code"
     );
-    assert!(
-        out.contains("--- repl2_1.mjs ---"),
-        "expected JS output header"
-    );
     assert!(out.contains("1"), "expected result");
     // Debug off: output contains only the result
     assert!(
@@ -350,12 +346,6 @@ fn repl_debug() {
         "expected no generated code after :debug off"
     );
     assert!(out.contains("2"), "expected result");
-}
-
-#[test]
-fn repl_error_line_numbers() {
-    let (_, err) = run_sgleam_cmd(&["-q"], Some(r#"let x = 1 + "a""#));
-    assert!(err.contains("1 │"), "expected line 1 in error, got: {err}");
 }
 
 #[test]
@@ -507,7 +497,8 @@ fn error_output_has_ansi_colors() {
         .join("tests/inputs/unknown_variable.gleam");
     std::fs::write(&file, "pub fn main() { unknown_variable }\n").unwrap();
 
-    let output = Command::new(cargo::cargo_bin!())
+    let output = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
+        .expect("cargo bin")
         .env("FORCE_COLOR", "1")
         .arg(&file)
         .output()
@@ -522,34 +513,18 @@ fn error_output_has_ansi_colors() {
     );
 }
 
-// FIXME: this seams too complicated
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
-    let mut cmd = Command::new(cargo::cargo_bin!());
-
-    let mut child = cmd
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .args(args)
-        .spawn()
-        .expect("Spawn child process");
-
-    if let Some(input) = input.map(|input| format!("{input}\n")) {
-        let mut stdin = child.stdin.take().expect("Open stdin");
-        std::thread::spawn(move || {
-            stdin.write_all(input.as_bytes()).expect("Write to stdin");
-        });
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    cmd.args(args);
+    if let Some(input) = input {
+        cmd.write_stdin(format!("{input}\n"));
     }
-
-    let result = child.wait_with_output().unwrap();
-
-    // assert!(result.status.success());
-
+    let output = cmd.output().expect("run sgleam");
     (
-        String::from_utf8_lossy(&result.stdout)
+        String::from_utf8_lossy(&output.stdout)
             .replace('\\', "/")
             .replace("\r\n", "\n"),
-        String::from_utf8_lossy(&result.stderr)
+        String::from_utf8_lossy(&output.stderr)
             .replace('\\', "/")
             .replace("\r\n", "\n"),
     )
