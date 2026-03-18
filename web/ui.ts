@@ -63,6 +63,7 @@ class App {
         ["ctrl+d", () => this.toggleEditor()],
         ["ctrl+i", () => this.toggleRepl()],
         ["ctrl+l", () => this.toggleLayout()],
+        ["ctrl+t", () => this.toggleTheme()],
     ]);
 
     constructor() {
