@@ -69,6 +69,8 @@ pub struct QuickJsEngine {
 }
 
 impl Engine for QuickJsEngine {
+    // Interrupt uses a global AtomicBool, so only one active engine at a time
+    // is correctly supported. Clones share the same JS context via refcount.
     fn new(fs: InMemoryFileSystem) -> Self {
         #[cfg(not(target_arch = "wasm32"))]
         {
@@ -102,7 +104,6 @@ impl Engine for QuickJsEngine {
         run_tests(&self.context, modules);
     }
 
-    // FIXME: handle more than one instance?
     fn interrupt(&self) {
         interrupt();
     }
