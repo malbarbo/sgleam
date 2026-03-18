@@ -47,7 +47,70 @@ fn repl_constructor_types() {
 
 #[test]
 fn repl_import() {
-    assert_eq!(repl_exec("import something"), "imports are not supported.");
+    // Basic import with unqualified value
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int.{{to_string}}
+            to_string(1)"#
+        }),
+        r#""1""#
+    );
+    // Merge imports from same module
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/int.{{to_string}}
+            import gleam/int.{{add}}
+            import gleam/float.{{to_string}}
+            add(1, 2)
+            to_string(1.0)"
+        }),
+        r#"3
+"1.0""#
+    );
+    // Import with rename
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int.{{to_string as its}}
+            its(42)"#
+        }),
+        r#""42""#
+    );
+    // Function replaces imported name
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int.{{to_string}}
+            fn to_string(_x) {{ "custom" }}
+            to_string(1)"#
+        }),
+        r#""custom""#
+    );
+    // Function replaces renamed imported item
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int.{{to_string as its}}
+            fn its(_x) {{ "custom" }}
+            its(1)"#
+        }),
+        r#""custom""#
+    );
+    // Import type
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/option.{{type Option}}
+            let x: Option(Int) = option.Some(1)
+            x"
+        }),
+        "Some(1)\nSome(1)"
+    );
+    // Type definition replaces imported type
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/option.{{type Option}}
+            type Option {{ Custom }}
+            Custom"
+        }),
+        "Custom"
+    );
 }
 
 #[test]
@@ -127,6 +190,24 @@ fn repl_type_redefine() {
             B(1)"
         }),
         "B(1)"
+    );
+    // Types without pub are automatically made pub in the REPL
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type Color {{ Red Green Blue }}
+            Red"
+        }),
+        "Red"
+    );
+    // Cannot redefine type while variables of that type exist
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type Val {{ A(Int) }}
+            let x = A(42)
+            type Val {{ B(String) }}
+            x"
+        }),
+        "A(42)\nCannot redefine type `Val` while variables of that type exist.\nA(42)"
     );
 }
 
