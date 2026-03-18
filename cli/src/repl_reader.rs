@@ -55,8 +55,7 @@ impl Iterator for ReplReader {
             }
             Err(err) => {
                 if !matches!(err, ReadlineError::Eof) {
-                    // TODO: improve error message
-                    println!("Error: {:?}", err);
+                    eprintln!("Error: {err}");
                 }
                 if let Some(history) = &history_path() {
                     let _ = editor.save_history(history);
