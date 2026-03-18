@@ -27,12 +27,22 @@ const STDERR = 2;
 class ReplSession {
     private readonly exports: WasmExports;
     private readonly ptr: number;
+    readonly hadErrors: boolean;
 
     constructor(exports: WasmExports, input: string) {
         this.exports = exports;
         const [ptr, len] = encodeString(exports, input);
-        this.ptr = exports.repl_new(ptr, len);
+        let replPtr = exports.repl_new(ptr, len);
         exports.string_deallocate(ptr);
+        if (replPtr === 0) {
+            this.hadErrors = true;
+            const [emptyPtr, emptyLen] = encodeString(exports, "");
+            replPtr = exports.repl_new(emptyPtr, emptyLen);
+            exports.string_deallocate(emptyPtr);
+        } else {
+            this.hadErrors = false;
+        }
+        this.ptr = replPtr;
     }
 
     // Returns true if the user typed :quit.
@@ -157,7 +167,7 @@ class Worker {
     initRepl(input: string): void {
         this.session?.destroy();
         this.session = new ReplSession(this.exports, input);
-        this.channel.ready();
+        this.channel.ready(this.session.hadErrors);
     }
 
     async runRepl(input: string): Promise<void> {
