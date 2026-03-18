@@ -47,7 +47,7 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
     let modules = match compile(&mut project, true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
-            return Box::leak(Box::new(default_repl()));
+            return std::ptr::null_mut();
         }
         Ok(modules) => modules,
     };

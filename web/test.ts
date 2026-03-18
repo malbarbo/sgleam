@@ -93,6 +93,56 @@ Deno.test("error output contains ansi codes", async () => {
     });
 });
 
+Deno.test("load with errors sets hadErrors true", async () => {
+    const code = "pub fn f(x) { x + 1 }\npub fn g() { unknown }";
+    return new Promise<void>((resolve, reject) => {
+        const [worker, channel] = makeWorker();
+        let readyCount = 0;
+
+        worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+            const data = event.data;
+            if (data.cmd === "ready") {
+                readyCount++;
+                if (readyCount === 1) {
+                    channel.setBuffer(data.buffer);
+                    channel.load(code);
+                } else {
+                    assertEquals(data.hadErrors, true);
+                    worker.terminate();
+                    resolve();
+                }
+            } else if (data.cmd === "error") {
+                reject(new Error(`Worker error: ${data.data}`));
+            }
+        };
+    });
+});
+
+Deno.test("load without errors sets hadErrors false", async () => {
+    const code = "pub fn f(x: Int) -> Int { x + 1 }";
+    return new Promise<void>((resolve, reject) => {
+        const [worker, channel] = makeWorker();
+        let readyCount = 0;
+
+        worker.onmessage = (event: MessageEvent<WorkerMessage>) => {
+            const data = event.data;
+            if (data.cmd === "ready") {
+                readyCount++;
+                if (readyCount === 1) {
+                    channel.setBuffer(data.buffer);
+                    channel.load(code);
+                } else {
+                    assertEquals(data.hadErrors, false);
+                    worker.terminate();
+                    resolve();
+                }
+            } else if (data.cmd === "error") {
+                reject(new Error(`Worker error: ${data.data}`));
+            }
+        };
+    });
+});
+
 Deno.test("load with examples", async () => {
     const code = `import sgleam/check
 

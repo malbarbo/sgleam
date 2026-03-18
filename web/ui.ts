@@ -16,6 +16,7 @@ declare class CodeFlask {
     addLanguage(name: string, grammar: Record<string, any>): void;
     updateCode(code: string): void;
     getCode(): string;
+    onUpdate(callback: (code: string) => void): void;
 }
 
 type AppState =
@@ -24,6 +25,7 @@ type AppState =
     | {
         kind: "ready";
         running: boolean;
+        dirty: boolean;
         layout: "horizontal" | "vertical";
         view: "split" | "editor" | "repl";
         splitSize: number;
@@ -35,6 +37,7 @@ class App {
     private state: AppState = { kind: "loading", progress: 0 };
     private runAfterFormat = false;
     private replInput: HTMLDivElement | null = null;
+    private replPrompt: HTMLDivElement | null = null;
     private lastSvg: HTMLDivElement | null = null;
     private lastActive: HTMLElement | null = null;
 
@@ -114,6 +117,15 @@ class App {
         this.flask.updateCode(
             document.getElementById("default-code")?.textContent ?? "",
         );
+        this.flask.onUpdate(() => {
+            if (
+                this.state.kind === "ready" && !this.state.running &&
+                !this.state.dirty
+            ) {
+                this.state.dirty = true;
+                this.render();
+            }
+        });
 
         const worker = new Worker("worker.js", { type: "module" });
         worker.onmessage = (e: MessageEvent<WorkerMessage>) =>
@@ -167,10 +179,15 @@ class App {
             case "ready": {
                 const prev = this.state;
                 this.state = prev.kind === "ready"
-                    ? { ...prev, running: false }
+                    ? {
+                        ...prev,
+                        running: false,
+                        dirty: data.hadErrors ? prev.dirty : false,
+                    }
                     : {
                         kind: "ready",
                         running: false,
+                        dirty: true,
                         layout: window.innerWidth >= window.innerHeight
                             ? "horizontal"
                             : "vertical",
@@ -278,6 +295,10 @@ class App {
         } else {
             this.editorPanel.style.width = "100%";
             this.editorPanel.style.height = "100%";
+        }
+
+        if (this.replPrompt) {
+            this.replPrompt.textContent = s.dirty ? "\u25CF >" : ">";
         }
     }
 
@@ -441,9 +462,10 @@ class App {
         const inputContainer = document.createElement("div");
         inputContainer.className = "repl-input-container";
 
-        const prompt = document.createElement("div");
+        const dirty = this.state.kind === "ready" && this.state.dirty;
+        const prompt = (this.replPrompt = document.createElement("div"));
         prompt.className = "repl-prompt";
-        prompt.textContent = ">";
+        prompt.textContent = dirty ? "\u25CF >" : ">";
 
         // TODO: add syntax highlight
         const input = (this.replInput = document.createElement("div"));
