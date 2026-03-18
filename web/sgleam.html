@@ -4,6 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#ffaff3">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon-192.svg">
     <title>Sgleam Playground</title>
     <style>
         [data-theme="light"] {
@@ -461,6 +464,11 @@ pub fn hello_examples() {
 </script>
     <script src="https://unpkg.com/codeflask/build/codeflask.min.js"></script>
     <script type="module" src="sgleam.js"></script>
+    <script>
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.register("service-worker.js");
+        }
+    </script>
 </body>
 
 </html>
