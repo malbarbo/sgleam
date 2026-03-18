@@ -74,6 +74,7 @@ pub struct Repl<E: Engine> {
     iter: (usize, usize),
     var_index: usize,
     debug: bool,
+    template_offset: u32,
 }
 
 pub enum ReplOutput {
@@ -98,6 +99,7 @@ impl<E: Engine> Repl<E> {
             iter: (0, 0),
             var_index: 0,
             debug: false,
+            template_offset: 0,
         })
     }
 
@@ -162,8 +164,11 @@ impl<E: Engine> Repl<E> {
             };
 
             if let Err(err) = result {
+                let template_offset = self.template_offset;
                 *self = repl;
-                return Err(SgleamError::Gleam(err));
+                self.template_offset = template_offset;
+                self.show_gleam_error(&err);
+                return Ok(ReplOutput::StdOut);
             }
         }
 
@@ -171,15 +176,88 @@ impl<E: Engine> Repl<E> {
         Ok(ReplOutput::StdOut)
     }
 
+    // --- Source generation ---
+
     fn build_source(&self) -> String {
         let mut src = String::new();
         src.push_str(REPL_SAVE_LOAD_FNS);
-        self.add_imports(&mut src);
-        self.add_consts(&mut src);
-        self.add_types(&mut src);
-        self.add_fns(&mut src);
+
+        // Imports
+        if let Some(user) = &self.user_import {
+            swriteln!(src, "{user}");
+        }
+        for (module, info) in &self.imports {
+            let mut parts = vec![];
+            for item in &info.unqualified_types {
+                if let Some(alias) = &item.as_name {
+                    parts.push(format!("type {} as {alias}", item.name));
+                } else {
+                    parts.push(format!("type {}", item.name));
+                }
+            }
+            for item in &info.unqualified_values {
+                if let Some(alias) = &item.as_name {
+                    parts.push(format!("{} as {alias}", item.name));
+                } else {
+                    parts.push(item.name.clone());
+                }
+            }
+            let unqualified = if parts.is_empty() {
+                String::new()
+            } else {
+                format!(".{{{}}}", parts.join(", "))
+            };
+            let as_clause = info
+                .as_name
+                .as_ref()
+                .map(|n| format!(" as {n}"))
+                .unwrap_or_default();
+            swriteln!(src, "import {module}{unqualified}{as_clause}");
+        }
+
+        // Consts
+        for item in self.names.values() {
+            if let NameItem::Const(code) = item {
+                swriteln!(src, "{code}");
+            }
+        }
+
+        // Types (auto-pub for REPL visibility)
+        for item in self.names.values() {
+            if let NameItem::Type(code) = item {
+                if code.starts_with("pub ") {
+                    swriteln!(src, "{code}");
+                } else {
+                    swriteln!(src, "pub {code}");
+                }
+            }
+        }
+
+        // Function bodies
+        for body in self.fn_bodies.values() {
+            swriteln!(src, "{body}");
+        }
+
         src
     }
+
+    /// Generates variable load bindings for use inside function bodies.
+    fn var_bindings(&self, exclude: &[String]) -> String {
+        let mut bindings = String::new();
+        for (name, item) in &self.names {
+            if let NameItem::Variable { index, type_ } = item {
+                if !exclude.contains(name) {
+                    swriteln!(
+                        bindings,
+                        r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
+                    );
+                }
+            }
+        }
+        bindings
+    }
+
+    // --- Compilation helpers ---
 
     fn module_name(&self) -> String {
         format!("repl{}_{}", self.iter.0, self.iter.1)
@@ -232,6 +310,69 @@ impl<E: Engine> Repl<E> {
         Ok(modules1)
     }
 
+    /// Compile source with a `repl_main` body appended.
+    /// Variable bindings are automatically included before the body.
+    fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
+        self.compile_main_with_bindings(&self.var_bindings(&[]), body)
+    }
+
+    /// Like `compile_main` but with custom variable bindings (to exclude
+    /// function argument names).
+    fn compile_main_with_bindings(&mut self, bindings: &str, body: &str) -> Result<Module, Error> {
+        let mut src = self.build_source();
+        let header = format!("pub fn {REPL_MAIN}() {{\n{bindings}");
+        self.template_offset = (src.len() + header.len()) as u32;
+        src.push_str(&header);
+        src.push_str(body);
+        src.push_str("\n}\n");
+        Ok(self.compile(&src)?.split_off_first().0)
+    }
+
+    /// Display a compile error with adjusted line numbers.
+    fn show_gleam_error(&self, err: &Error) {
+        use std::io::Write as _;
+        let offset = self.template_offset;
+        let buffer_writer = crate::error::stderr_buffer_writer();
+        let mut buffer = buffer_writer.buffer();
+        for mut diag in err.to_diagnostics() {
+            if let Some(ref mut loc) = diag.location {
+                if loc.label.span.start >= offset {
+                    loc.src = loc.src[offset as usize..].into();
+                    loc.label.span.start -= offset;
+                    loc.label.span.end -= offset;
+                    for extra in &mut loc.extra_labels {
+                        if extra.src_info.is_none() {
+                            extra.label.span.start -= offset;
+                            extra.label.span.end -= offset;
+                        }
+                    }
+                }
+            }
+            diag.write(&mut buffer);
+            writeln!(buffer).expect("write newline");
+        }
+        #[cfg(feature = "capture")]
+        crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
+        #[cfg(not(feature = "capture"))]
+        buffer_writer.print(&buffer).expect("write error");
+    }
+
+    /// Compile and execute a `repl_main` body.
+    fn compile_and_run(&mut self, body: &str) -> Result<Module, Error> {
+        let module = self.compile_main(body)?;
+
+        self.engine
+            .run_main(&module.name, MainFunction::ReplMain, false);
+        Ok(module)
+    }
+
+    /// Compile without a `repl_main` (for checking definitions only).
+    fn run_check(&mut self) -> Result<(), Error> {
+        self.compile(&self.build_source()).map(|_| ())
+    }
+
+    // --- Item handlers ---
+
     fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
         let mut src = get_definition_src(&targeted.definition, src).into();
 
@@ -241,12 +382,12 @@ impl<E: Engine> Repl<E> {
             Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
             Definition::ModuleConstant(c) => self.run_const(c.name.to_string(), src),
             Definition::Function(f) => {
-                let lets = self.gen_lets(&get_args_names(f));
+                let bindings = self.var_bindings(&get_args_names(f));
 
                 src.insert_str(
                     (f.body.first().unwrap().location().start
                         - targeted.definition.location().start) as usize,
-                    &format!("\n  {lets}"),
+                    &format!("\n  {bindings}"),
                 );
 
                 let name = f.name.clone().expect("A function must have a name").1;
@@ -260,7 +401,10 @@ impl<E: Engine> Repl<E> {
         let end = statement.location().end as usize;
 
         match statement {
-            Statement::Use(_) => self.run_use(&src[start..end]),
+            Statement::Use(_) => {
+                println!("use statements are not supported outside blocks.");
+                Ok(())
+            }
             Statement::Expression(_) => self.run_expr(&src[start..end]),
             Statement::Assignment(a) => {
                 let assign_name: Option<String> = if let Pattern::Assign { name, .. } = &a.pattern {
@@ -288,17 +432,19 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
-        let mut src = self.build_source();
-        self.add_expr(&mut src, code);
-        let module = self.compile(&src)?.split_off_first().0;
-        let main = &get_function(&module, REPL_MAIN).expect("repl main function");
-        println!("{}", type_to_string(&module, &main.return_type));
+    fn run_expr(&mut self, expr: &str) -> Result<(), Error> {
+        let body = formatdoc! {"
+          repl_print({{
+            {expr}
+          }})"
+        };
+        self.compile_and_run(&body)?;
         Ok(())
     }
 
-    fn run_check(&mut self) -> Result<(), Error> {
-        self.compile(&self.build_source()).map(|_| ())
+    fn run_assert(&mut self, code: &str) -> Result<(), Error> {
+        self.compile_and_run(code)?;
+        Ok(())
     }
 
     fn run_assignment(
@@ -308,8 +454,6 @@ impl<E: Engine> Repl<E> {
         value: &str,
         names: &[String],
     ) -> Result<(), Error> {
-        let mut src = self.build_source();
-        let lets = self.gen_lets(&[]);
         let joined_names = names.join(", ");
         let save_names = names
             .iter()
@@ -317,25 +461,17 @@ impl<E: Engine> Repl<E> {
             .collect::<Vec<_>>()
             .join("\n  ");
         let assignment = if let Some(assigned_name) = assigned_name {
-            format!("  {pattern} = {value}\n  repl_print({assigned_name})")
+            format!("{pattern} = {value}\n  repl_print({assigned_name})")
         } else {
-            format!("  {pattern} as {REPL_MAIN} = {value}\n  repl_print({REPL_MAIN})")
+            format!("{pattern} as {REPL_MAIN} = {value}\n  repl_print({REPL_MAIN})")
         };
         // FIXME: avoid name collision
-        src.push_str(&formatdoc! {"
-            pub fn {REPL_MAIN}() {{
-              {lets}
-              {assignment}
-              {save_names}
-              #({joined_names})
-            }}
-            "
-        });
-
-        let module = self.compile(&src)?.split_off_first().0;
-
-        self.engine
-            .run_main(&module.name, MainFunction::ReplMain, false);
+        let body = formatdoc! {"
+          {assignment}
+          {save_names}
+          #({joined_names})"
+        };
+        let module = self.compile_and_run(&body)?;
 
         if self.engine.has_var(self.var_index) {
             let main = get_function(&module, REPL_MAIN).expect("repl main function");
@@ -355,43 +491,38 @@ impl<E: Engine> Repl<E> {
         Ok(())
     }
 
-    fn run_expr(&mut self, code: &str) -> Result<(), Error> {
-        let mut src = self.build_source();
-        self.add_expr(&mut src, code);
-        let module = self.compile(&src)?.split_off_first().0;
+    fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
+        self.remove_imported_value(&name);
+        self.fn_bodies.insert(name.clone(), body);
+        let body = format!("repl_save({name})");
+        let module = self.compile_main_with_bindings("", &body)?;
         self.engine
             .run_main(&module.name, MainFunction::ReplMain, false);
+        if self.engine.has_var(self.var_index) {
+            let main = get_function(&module, REPL_MAIN).expect("repl main function");
+            let type_ = type_to_string(&module, &main.return_type);
+            self.names.insert(
+                name,
+                NameItem::Variable {
+                    index: self.var_index,
+                    type_,
+                },
+            );
+            self.var_index += 1;
+        }
         Ok(())
     }
 
-    fn run_assert(&mut self, code: &str) -> Result<(), Error> {
-        let mut src = self.build_source();
-        let lets = self.gen_lets(&[]);
-        src.push_str(&formatdoc! {"
-            pub fn {REPL_MAIN}() {{
-                {lets}
-                {code}
-            }}
-            "
-        });
-        let module = self.compile(&src)?.split_off_first().0;
-        self.engine
-            .run_main(&module.name, MainFunction::ReplMain, false);
+    fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
+        let body = formatdoc! {"
+          repl_print({{
+            {code}
+          }})"
+        };
+        let module = self.compile_main(&body)?;
+        let main = &get_function(&module, REPL_MAIN).expect("repl main function");
+        println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
-    }
-
-    fn remove_imported_value(&mut self, name: &str) {
-        for info in self.imports.values_mut() {
-            info.unqualified_values
-                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
-        }
-    }
-
-    fn remove_imported_type(&mut self, name: &str) {
-        for info in self.imports.values_mut() {
-            info.unqualified_types
-                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
-        }
     }
 
     fn run_import(&mut self, import: &gleam_core::ast::Import<()>) -> Result<(), Error> {
@@ -466,125 +597,18 @@ impl<E: Engine> Repl<E> {
         self.run_check()
     }
 
-    fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
-        self.remove_imported_value(&name);
-        self.fn_bodies.insert(name.clone(), body);
-        let mut src = self.build_source();
-        src.push_str(&formatdoc! {"
-            pub fn {REPL_MAIN}() {{
-              repl_save({name})
-            }}
-            "
-        });
-        let module = self.compile(&src)?.split_off_first().0;
-        self.engine
-            .run_main(&module.name, MainFunction::ReplMain, false);
-        if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, REPL_MAIN).expect("repl main function");
-            let type_ = type_to_string(&module, &main.return_type);
-            self.names.insert(
-                name,
-                NameItem::Variable {
-                    index: self.var_index,
-                    type_,
-                },
-            );
-            self.var_index += 1;
-        }
-        Ok(())
-    }
-
-    fn run_use(&mut self, _code: &str) -> Result<(), Error> {
-        println!("use statements are not supported outside blocks.");
-        Ok(())
-    }
-
-    fn add_expr(&self, src: &mut String, expr: &str) {
-        let lets = self.gen_lets(&[]);
-        src.push_str(&formatdoc! {"
-            pub fn {REPL_MAIN}() {{
-              {lets}
-              repl_print({{
-            {expr}
-              }})
-            }}
-            "
-        });
-    }
-
-    fn add_imports(&self, src: &mut String) {
-        if let Some(user) = &self.user_import {
-            swriteln!(src, "{user}");
-        }
-        for (module, info) in &self.imports {
-            let mut parts = vec![];
-            for item in &info.unqualified_types {
-                if let Some(alias) = &item.as_name {
-                    parts.push(format!("type {} as {alias}", item.name));
-                } else {
-                    parts.push(format!("type {}", item.name));
-                }
-            }
-            for item in &info.unqualified_values {
-                if let Some(alias) = &item.as_name {
-                    parts.push(format!("{} as {alias}", item.name));
-                } else {
-                    parts.push(item.name.clone());
-                }
-            }
-            let unqualified = if parts.is_empty() {
-                String::new()
-            } else {
-                format!(".{{{}}}", parts.join(", "))
-            };
-            let as_clause = info
-                .as_name
-                .as_ref()
-                .map(|n| format!(" as {n}"))
-                .unwrap_or_default();
-            swriteln!(src, "import {module}{unqualified}{as_clause}");
+    fn remove_imported_value(&mut self, name: &str) {
+        for info in self.imports.values_mut() {
+            info.unqualified_values
+                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
         }
     }
 
-    fn add_consts(&self, src: &mut String) {
-        for item in self.names.values() {
-            if let NameItem::Const(code) = item {
-                swriteln!(src, "{code}");
-            }
+    fn remove_imported_type(&mut self, name: &str) {
+        for info in self.imports.values_mut() {
+            info.unqualified_types
+                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
         }
-    }
-
-    fn add_types(&self, src: &mut String) {
-        for item in self.names.values() {
-            if let NameItem::Type(code) = item {
-                if code.starts_with("pub ") {
-                    swriteln!(src, "{code}");
-                } else {
-                    swriteln!(src, "pub {code}");
-                }
-            }
-        }
-    }
-
-    fn add_fns(&self, src: &mut String) {
-        for body in self.fn_bodies.values() {
-            swriteln!(src, "{body}");
-        }
-    }
-
-    fn gen_lets(&self, exclude: &[String]) -> String {
-        let mut lets = String::new();
-        for (name, item) in &self.names {
-            if let NameItem::Variable { index, type_ } = item {
-                if !exclude.contains(name) {
-                    swriteln!(
-                        lets,
-                        r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
-                    );
-                }
-            }
-        }
-        lets
     }
 }
 
