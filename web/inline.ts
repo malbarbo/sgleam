@@ -1,25 +1,11 @@
-// Build script: inlines CodeFlask, sgleam.js (with worker.js embedded) into
-// sgleam.html to produce a single dist/index.html file.
+// Build script: inlines JS (with worker.js embedded) into HTML files
+// to produce single-file dist outputs.
 //
 // Usage: deno run --allow-read --allow-write web/inline.ts
 
-const [htmlPath, sgleamJsPath, workerJsPath, codeflaskPath, outputPath] = [
-    "web/sgleam.html",
-    "dist/sgleam.js",
-    "dist/worker.js",
-    "build/codeflask.min.js",
-    "dist/index.html",
-];
+const workerJs = await Deno.readTextFile("dist/worker.js");
 
-let html = await Deno.readTextFile(htmlPath);
-let sgleamJs = await Deno.readTextFile(sgleamJsPath);
-const workerJs = await Deno.readTextFile(workerJsPath);
-const codeflaskJs = await Deno.readTextFile(codeflaskPath);
-
-// Embed worker.js as a blob URL inside sgleam.js.
-// The main thread computes the absolute wasm URL (since blob workers can't
-// resolve relative paths) and patches it into the worker code before creating
-// the blob.
+// Shared worker embedding logic
 const workerLiteral = "`" + workerJs.replaceAll("\\", "\\\\").replaceAll(
     "`",
     "\\`",
@@ -31,22 +17,41 @@ const workerReplacement = [
     `const worker = new Worker(URL.createObjectURL(new Blob([__workerCode], { type: "application/javascript" })));`,
 ].join("\n    ");
 
-sgleamJs = sgleamJs.replace(
-    `const worker = new Worker("worker.js", {\n      type: "module"\n    });`,
-    workerReplacement,
-);
+function embedWorker(js: string): string {
+    return js.replace(
+        `const worker = new Worker("worker.js", {\n      type: "module"\n    });`,
+        workerReplacement,
+    );
+}
 
-// Replace CodeFlask CDN script with inline
-html = html.replace(
+// --- Playground (index.html) ---
+
+let playgroundHtml = await Deno.readTextFile("web/sgleam.html");
+let sgleamJs = embedWorker(await Deno.readTextFile("dist/sgleam.js"));
+const codeflaskJs = await Deno.readTextFile("build/codeflask.min.js");
+
+playgroundHtml = playgroundHtml.replace(
     /    <script src="https:\/\/unpkg\.com\/codeflask\/build\/codeflask\.min\.js"><\/script>/,
     `    <script>${codeflaskJs}</script>`,
 );
 
-// Replace sgleam.js module script with inline
-html = html.replace(
+playgroundHtml = playgroundHtml.replace(
     /    <script type="module" src="sgleam\.js"><\/script>/,
     `    <script type="module">${sgleamJs}</script>`,
 );
 
-await Deno.writeTextFile(outputPath, html);
-console.log(`Written ${outputPath}`);
+await Deno.writeTextFile("dist/index.html", playgroundHtml);
+console.log("Written dist/index.html");
+
+// --- Player (player.html) ---
+
+let playerHtml = await Deno.readTextFile("web/player.html");
+let playerJs = embedWorker(await Deno.readTextFile("dist/player.js"));
+
+playerHtml = playerHtml.replace(
+    /    <script type="module" src="player\.js"><\/script>/,
+    `    <script type="module">${playerJs}</script>`,
+);
+
+await Deno.writeTextFile("dist/player.html", playerHtml);
+console.log("Written dist/player.html");
