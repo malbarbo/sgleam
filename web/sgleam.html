@@ -244,16 +244,39 @@
             user-select: none;
         }
 
-        .repl-input {
+        .repl-input-wrapper {
+            position: relative;
             flex: 1;
+            font-family: monospace;
+        }
+
+        .repl-input-highlight {
+            margin: 0;
+            padding: 0;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+            font: inherit;
+            color: inherit;
+        }
+
+        .repl-input-edit {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            margin: 0;
+            padding: 0;
             border: none;
             outline: none;
-            font-family: monospace;
-            caret-color: var(--caret);
-            overflow-wrap: break-word;
-            white-space: pre-wrap;
-            color: inherit;
+            resize: none;
+            overflow: hidden;
             background: transparent;
+            color: transparent;
+            caret-color: var(--caret);
+            font: inherit;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
         }
 
         .codeflask__flatten {
