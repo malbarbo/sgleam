@@ -43,8 +43,20 @@ pub fn welcome_message() -> String {
 }
 
 #[derive(Clone)]
+struct UnqualifiedItem {
+    name: String,
+    as_name: Option<String>,
+}
+
+#[derive(Clone, Default)]
+struct ImportInfo {
+    as_name: Option<String>,
+    unqualified_values: Vec<UnqualifiedItem>,
+    unqualified_types: Vec<UnqualifiedItem>,
+}
+
+#[derive(Clone)]
 enum NameItem {
-    Import,
     Const(String),
     Type(String),
     Variable { index: usize, type_: String },
@@ -53,6 +65,7 @@ enum NameItem {
 #[derive(Clone)]
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
+    imports: HashMap<String, ImportInfo>,
     names: HashMap<String, NameItem>,
     fn_bodies: HashMap<String, String>,
     project: Project,
@@ -68,14 +81,15 @@ pub enum ReplOutput {
 
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let names: HashMap<String, NameItem> = GLEAM_MODULES_NAMES
+        let imports: HashMap<String, ImportInfo> = GLEAM_MODULES_NAMES
             .iter()
-            .map(|s| (s.to_string(), NameItem::Import))
+            .map(|s| (s.to_string(), ImportInfo::default()))
             .collect();
         let fs = project.fs.clone();
         Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
-            names,
+            imports,
+            names: HashMap::new(),
             fn_bodies: HashMap::new(),
             project,
             engine: E::new(fs),
@@ -193,7 +207,7 @@ impl<E: Engine> Repl<E> {
         let mut src = get_definition_src(&targeted.definition, src).into();
 
         match &targeted.definition {
-            Definition::Import(_) => self.run_import(src),
+            Definition::Import(import) => self.run_import(import),
             Definition::TypeAlias(t) => self.run_type(t.alias.to_string(), src),
             Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
             Definition::ModuleConstant(c) => self.run_const(c.name.to_string(), src),
@@ -337,13 +351,68 @@ impl<E: Engine> Repl<E> {
         Ok(())
     }
 
-    fn run_import(&mut self, _code: String) -> Result<(), Error> {
-        println!("imports are not supported.");
-        Ok(())
-        // TODO: implement import merge
-        // import gleam/string.{append}
-        // import gleam/string.{inspect}
-        // -> import gleam/string.{append, inspect}
+    fn remove_imported_value(&mut self, name: &str) {
+        for info in self.imports.values_mut() {
+            info.unqualified_values
+                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
+        }
+    }
+
+    fn remove_imported_type(&mut self, name: &str) {
+        for info in self.imports.values_mut() {
+            info.unqualified_types
+                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
+        }
+    }
+
+    fn run_import(&mut self, import: &gleam_core::ast::Import<()>) -> Result<(), Error> {
+        let module = import.module.to_string();
+
+        // Remove unqualified names from other modules to avoid duplicates
+        for uv in &import.unqualified_values {
+            let effective = uv
+                .as_name
+                .as_ref()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| uv.name.to_string());
+            self.remove_imported_value(&effective);
+        }
+        for ut in &import.unqualified_types {
+            let effective = ut
+                .as_name
+                .as_ref()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| ut.name.to_string());
+            self.remove_imported_type(&effective);
+        }
+
+        let entry = self.imports.entry(module).or_default();
+
+        if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
+            entry.as_name = Some(name.to_string());
+        }
+
+        for uv in &import.unqualified_values {
+            let name = uv.name.to_string();
+            if !entry.unqualified_values.iter().any(|i| i.name == name) {
+                entry.unqualified_values.push(UnqualifiedItem {
+                    name,
+                    as_name: uv.as_name.as_ref().map(|n| n.to_string()),
+                });
+            }
+        }
+
+        for ut in &import.unqualified_types {
+            let name = ut.name.to_string();
+            if !entry.unqualified_types.iter().any(|i| i.name == name) {
+                entry.unqualified_types.push(UnqualifiedItem {
+                    name,
+                    as_name: ut.as_name.as_ref().map(|n| n.to_string()),
+                });
+            }
+        }
+
+        self.run_check()
     }
 
     fn run_const(&mut self, name: String, code: String) -> Result<(), Error> {
@@ -355,11 +424,21 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {
+        if self
+            .names
+            .values()
+            .any(|item| matches!(item, NameItem::Variable { type_, .. } if type_.contains(&name)))
+        {
+            println!("Cannot redefine type `{name}` while variables of that type exist.");
+            return Ok(());
+        }
+        self.remove_imported_type(&name);
         self.names.insert(name, NameItem::Type(code));
         self.run_check()
     }
 
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
+        self.remove_imported_value(&name);
         self.fn_bodies.insert(name.clone(), body);
         let mut src = self.build_source();
         src.push_str(&formatdoc! {"
@@ -408,10 +487,33 @@ impl<E: Engine> Repl<E> {
         if let Some(user) = &self.user_import {
             swriteln!(src, "{user}");
         }
-        for (name, item) in &self.names {
-            if matches!(item, NameItem::Import) {
-                swriteln!(src, "import {name}");
+        for (module, info) in &self.imports {
+            let mut parts = vec![];
+            for item in &info.unqualified_types {
+                if let Some(alias) = &item.as_name {
+                    parts.push(format!("type {} as {alias}", item.name));
+                } else {
+                    parts.push(format!("type {}", item.name));
+                }
             }
+            for item in &info.unqualified_values {
+                if let Some(alias) = &item.as_name {
+                    parts.push(format!("{} as {alias}", item.name));
+                } else {
+                    parts.push(item.name.clone());
+                }
+            }
+            let unqualified = if parts.is_empty() {
+                String::new()
+            } else {
+                format!(".{{{}}}", parts.join(", "))
+            };
+            let as_clause = info
+                .as_name
+                .as_ref()
+                .map(|n| format!(" as {n}"))
+                .unwrap_or_default();
+            swriteln!(src, "import {module}{unqualified}{as_clause}");
         }
     }
 
@@ -426,7 +528,11 @@ impl<E: Engine> Repl<E> {
     fn add_types(&self, src: &mut String) {
         for item in self.names.values() {
             if let NameItem::Type(code) = item {
-                swriteln!(src, "{code}");
+                if code.starts_with("pub ") {
+                    swriteln!(src, "{code}");
+                } else {
+                    swriteln!(src, "pub {code}");
+                }
             }
         }
     }
