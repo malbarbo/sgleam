@@ -147,9 +147,10 @@ impl<E: Engine> Repl<E> {
             }
         }
 
-        // FIXME: avoid this clone
-        // We clone self so we can rollback if the execution fail
-        let repl = (*self).clone();
+        // Snapshot for rollback: if any item fails, all changes from this
+        // input are reverted. The clone is cheap — engine and project use
+        // reference counting internally (Rc), so only the HashMaps are copied.
+        let snapshot = (*self).clone();
 
         for item in items {
             self.iter.1 += 1;
@@ -165,7 +166,7 @@ impl<E: Engine> Repl<E> {
 
             if let Err(err) = result {
                 let template_offset = self.template_offset;
-                *self = repl;
+                *self = snapshot;
                 self.template_offset = template_offset;
                 self.show_gleam_error(&err);
                 return Ok(ReplOutput::StdOut);

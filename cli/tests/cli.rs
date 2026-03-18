@@ -151,6 +151,20 @@ fn repl_let_nested_pattern() {
 }
 
 #[test]
+fn repl_rollback() {
+    // When the second item in the same input fails, the first is rolled back
+    let (_, err) = run_sgleam_cmd(&["-q"], Some("let x = 1 let y = x + \"a\"\nx"));
+    assert!(
+        err.contains("Type mismatch"),
+        "expected type error for y, got: {err}"
+    );
+    assert!(
+        err.contains("is not in scope"),
+        "x should be rolled back, got: {err}"
+    );
+}
+
+#[test]
 fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
