@@ -9,7 +9,7 @@ DIST_FILES = \
 	$(DIST_DIR)/index.html \
 	$(DIST_DIR)/server.py
 
-.PHONY: all serve test test-web test-rs check clean
+.PHONY: all serve test test-web test-rs check clean docs
 
 all: $(DIST_FILES)
 
@@ -88,6 +88,9 @@ $(DIST_DIR):
 
 $(BUILD_DIR):
 	mkdir -p $@
+
+docs:
+	bash docs/build-docs.sh
 
 clean:
 	rm -rf $(DIST_DIR) $(BUILD_DIR)
