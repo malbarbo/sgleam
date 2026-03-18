@@ -68,7 +68,7 @@ impl Iterator for ReplReader {
 }
 
 fn history_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|p| p.join(HISTORY_FILE))
+    dirs::home_dir().map(|p: PathBuf| p.join(HISTORY_FILE))
 }
 
 #[derive(Completer, Helper, Highlighter, Hinter, Validator)]
