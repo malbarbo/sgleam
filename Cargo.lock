@@ -2514,9 +2514,11 @@ dependencies = [
  "assert_cmd",
  "camino",
  "clap",
+ "dirs",
  "gleam-core",
  "indoc",
  "insta",
+ "rustyline",
  "sgleam-core",
 ]
 
@@ -2526,7 +2528,6 @@ version = "0.7.0"
 dependencies = [
  "camino",
  "ctrlc",
- "dirs",
  "ecow",
  "flate2",
  "gleam-core",
@@ -2534,7 +2535,6 @@ dependencies = [
  "indoc",
  "rquickjs",
  "rust-embed",
- "rustyline",
  "tar",
  "termcolor",
  "thiserror 2.0.18",

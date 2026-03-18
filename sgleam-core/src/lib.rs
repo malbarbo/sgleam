@@ -16,14 +16,7 @@ pub mod quickjs;
 pub mod repl;
 pub mod run;
 
-#[cfg(target_arch = "wasm32")]
-pub(crate) mod repl_reader_wasm;
-#[cfg(target_arch = "wasm32")]
-pub(crate) use repl_reader_wasm as repl_reader;
 use rust_embed::Embed;
-
-#[cfg(not(target_arch = "wasm32"))]
-pub(crate) mod repl_reader;
 
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 

@@ -7,40 +7,13 @@ use gleam_core::{
 
 use crate::{
     engine::{Engine, MainFunction},
-    error::{show_error, SgleamError},
+    error::SgleamError,
     gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
-    repl::{welcome_message, Repl, ReplOutput},
-    repl_reader::ReplReader,
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
 
 const SGLEAM_SMAIN: &str = "smain";
-
-pub fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
-    if !quiet {
-        print!("{}", welcome_message());
-    }
-
-    let mut project = Project::default();
-    let modules = copy_files_and_build(&mut project, paths)?;
-    let module = paths.first().and_then(|input| {
-        let name = input.with_extension("");
-        let name = name.as_str().replace('\\', "/");
-        get_module(&modules, &name)
-    });
-
-    let mut repl = Repl::<JsEngine>::new(project, module)?;
-    for input in ReplReader::new()? {
-        match repl.run(&input) {
-            Err(err) => show_error(&err),
-            Ok(ReplOutput::Quit) => break,
-            _ => continue,
-        }
-    }
-
-    Ok(())
-}
 
 pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
@@ -145,7 +118,7 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
-fn copy_files_and_build(
+pub fn copy_files_and_build(
     project: &mut Project,
     paths: &[Utf8PathBuf],
 ) -> Result<Vec<Module>, gleam_core::Error> {

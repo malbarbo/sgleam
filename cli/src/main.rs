@@ -3,6 +3,8 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("The cli crate does not support wasm32. Use `cargo build -p sgleam-wasm --target wasm32-wasip1` instead.");
 
+mod repl_reader;
+
 use camino::Utf8PathBuf;
 use clap::{
     builder::{styling, Styles},
@@ -15,8 +17,10 @@ use gleam_core::{
 use sgleam_core::{
     error::{show_error, SgleamError},
     format,
-    gleam::find_imports,
-    run::{run_check, run_interactive, run_main, run_test},
+    gleam::{find_imports, get_module, Project},
+    quickjs::QuickJsEngine,
+    repl::{welcome_message, Repl, ReplOutput},
+    run::{copy_files_and_build, run_check, run_main, run_test},
 };
 use std::process::exit;
 
@@ -140,4 +144,30 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
     })?;
     Utf8PathBuf::from_path_buf(curr_dir.clone())
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
+}
+
+fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
+    if !quiet {
+        print!("{}", welcome_message());
+    }
+
+    let mut project = Project::default();
+    let modules = copy_files_and_build(&mut project, paths)?;
+    let module = paths.first().and_then(|input| {
+        let name = input.with_extension("");
+        let name = name.as_str().replace('\\', "/");
+        get_module(&modules, &name)
+    });
+
+    let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
+    let reader = repl_reader::ReplReader::new().map_err(|e| SgleamError::Other(e.into()))?;
+    for input in reader {
+        match repl.run(&input) {
+            Err(err) => show_error(&err),
+            Ok(ReplOutput::Quit) => break,
+            _ => continue,
+        }
+    }
+
+    Ok(())
 }
