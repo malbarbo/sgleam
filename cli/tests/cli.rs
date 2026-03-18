@@ -353,6 +353,12 @@ fn repl_debug() {
 }
 
 #[test]
+fn repl_error_line_numbers() {
+    let (_, err) = run_sgleam_cmd(&["-q"], Some(r#"let x = 1 + "a""#));
+    assert!(err.contains("1 │"), "expected line 1 in error, got: {err}");
+}
+
+#[test]
 fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
     assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
