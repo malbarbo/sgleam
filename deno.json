@@ -8,6 +8,9 @@
         "exclude": [
             "web/sgleam.html",
             "web/player.html",
+            "web/manifest.json",
+            "web/service-worker.js",
+            "web/icon-*.svg",
             ".github/",
             ".claude/",
             "build/",

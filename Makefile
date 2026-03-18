@@ -8,6 +8,10 @@ DIST_FILES = \
 	$(DIST_DIR)/sgleam.wasm \
 	$(DIST_DIR)/index.html \
 	$(DIST_DIR)/player.html \
+	$(DIST_DIR)/manifest.json \
+	$(DIST_DIR)/service-worker.js \
+	$(DIST_DIR)/icon-192.svg \
+	$(DIST_DIR)/icon-512.svg \
 	$(DIST_DIR)/server.py
 
 .PHONY: all serve test test-web test-rs check clean docs
@@ -59,6 +63,18 @@ $(DIST_DIR)/index.html $(DIST_DIR)/player.html: $(WEB_DIR)/sgleam.html $(WEB_DIR
 # Static web files
 
 $(DIST_DIR)/server.py: $(WEB_DIR)/server.py | $(DIST_DIR)
+	cp $< $@
+
+$(DIST_DIR)/manifest.json: $(WEB_DIR)/manifest.json | $(DIST_DIR)
+	cp $< $@
+
+$(DIST_DIR)/service-worker.js: $(WEB_DIR)/service-worker.js | $(DIST_DIR)
+	cp $< $@
+
+$(DIST_DIR)/icon-192.svg: $(WEB_DIR)/icon-192.svg | $(DIST_DIR)
+	cp $< $@
+
+$(DIST_DIR)/icon-512.svg: $(WEB_DIR)/icon-512.svg | $(DIST_DIR)
 	cp $< $@
 
 # Tests
