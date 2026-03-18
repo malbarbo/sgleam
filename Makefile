@@ -7,6 +7,7 @@ BUILD_DIR   = build
 DIST_FILES = \
 	$(DIST_DIR)/sgleam.wasm \
 	$(DIST_DIR)/index.html \
+	$(DIST_DIR)/player.html \
 	$(DIST_DIR)/server.py
 
 .PHONY: all serve test test-web test-rs check clean docs
@@ -38,6 +39,9 @@ $(BUILD_DIR)/worker.js: $(WEB_DIR)/worker.ts $(WEB_DIR)/worker_channel.ts $(WEB_
 $(BUILD_DIR)/sgleam.js: $(WEB_DIR)/ui.ts $(WEB_DIR)/ui_channel.ts $(WEB_DIR)/ansi.ts | $(BUILD_DIR)
 	deno bundle $(WEB_DIR)/ui.ts -o $@
 
+$(BUILD_DIR)/player.js: $(WEB_DIR)/player.ts $(WEB_DIR)/ui_channel.ts | $(BUILD_DIR)
+	deno bundle $(WEB_DIR)/player.ts -o $@
+
 # Download CodeFlask
 
 $(BUILD_DIR)/codeflask.min.js: | $(BUILD_DIR)
@@ -45,11 +49,12 @@ $(BUILD_DIR)/codeflask.min.js: | $(BUILD_DIR)
 
 # Inline everything into a single HTML file
 
-$(DIST_DIR)/index.html: $(WEB_DIR)/sgleam.html $(BUILD_DIR)/sgleam.js $(BUILD_DIR)/worker.js $(BUILD_DIR)/codeflask.min.js $(WEB_DIR)/inline.ts | $(DIST_DIR)
+$(DIST_DIR)/index.html $(DIST_DIR)/player.html: $(WEB_DIR)/sgleam.html $(WEB_DIR)/player.html $(BUILD_DIR)/sgleam.js $(BUILD_DIR)/player.js $(BUILD_DIR)/worker.js $(BUILD_DIR)/codeflask.min.js $(WEB_DIR)/inline.ts | $(DIST_DIR)
 	cp $(BUILD_DIR)/sgleam.js $(DIST_DIR)/sgleam.js
+	cp $(BUILD_DIR)/player.js $(DIST_DIR)/player.js
 	cp $(BUILD_DIR)/worker.js $(DIST_DIR)/worker.js
 	deno run --allow-read --allow-write $(WEB_DIR)/inline.ts
-	rm $(DIST_DIR)/sgleam.js $(DIST_DIR)/worker.js
+	rm $(DIST_DIR)/sgleam.js $(DIST_DIR)/player.js $(DIST_DIR)/worker.js
 
 # Static web files
 
