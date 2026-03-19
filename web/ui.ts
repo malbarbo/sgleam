@@ -257,6 +257,9 @@ class App {
             case "svg":
                 this.addSvg(data.data);
                 break;
+            case "input":
+                this.addInputPrompt();
+                break;
         }
     }
 
@@ -641,6 +644,38 @@ class App {
         output.innerHTML = html;
         this.replPanel.appendChild(output);
         this.replPanel.scrollTop = this.replPanel.scrollHeight;
+    }
+
+    private addInputPrompt(): void {
+        const input = document.createElement("span");
+        input.style.color = "var(--prompt)";
+        input.contentEditable = "true";
+        input.spellcheck = false;
+        input.style.outline = "none";
+        input.style.minWidth = "1em";
+        input.style.display = "inline-block";
+
+        // Append to the last output line (e.g., input("Name: ") prompt)
+        const lastChild = this.replPanel.lastElementChild;
+        if (lastChild && lastChild.classList.contains("repl-line")) {
+            lastChild.appendChild(input);
+        } else {
+            const container = document.createElement("div");
+            container.className = "repl-line";
+            container.appendChild(input);
+            this.replPanel.appendChild(container);
+        }
+        input.focus();
+        this.replPanel.scrollTop = this.replPanel.scrollHeight;
+
+        input.addEventListener("keydown", (e: KeyboardEvent) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                const text = input.textContent ?? "";
+                input.contentEditable = "false";
+                this.channel.submitInput(text);
+            }
+        });
     }
 
     private addSvg(svg: string): void {

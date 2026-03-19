@@ -1,5 +1,6 @@
 import { assertEquals } from "jsr:@std/assert";
 import {
+    KEY_EVENT_CAPACITY,
     KEYDOWN,
     type KeyEvent,
     KEYPRESS,
@@ -68,15 +69,16 @@ Deno.test("modifier flags are preserved", () => {
 });
 
 Deno.test("enqueue returns false when buffer is full", () => {
-    const [ui] = makeChannels(2);
+    const [ui] = makeChannels();
     const e = event();
-    assertEquals(ui.enqueueKeyEvent(e), true);
-    assertEquals(ui.enqueueKeyEvent(e), true);
+    for (let i = 0; i < KEY_EVENT_CAPACITY; i++) {
+        assertEquals(ui.enqueueKeyEvent(e), true);
+    }
     assertEquals(ui.enqueueKeyEvent(e), false);
 });
 
 Deno.test("buffer can be reused after dequeue", () => {
-    const [ui, worker] = makeChannels(1);
+    const [ui, worker] = makeChannels();
     const e = event({ key: "z" });
     ui.enqueueKeyEvent(e);
     worker.dequeueKeyEvent();

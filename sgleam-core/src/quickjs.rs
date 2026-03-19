@@ -310,6 +310,10 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         Function::new(ctx.clone(), getline)?.with_name("getline")?,
     )?;
     sgleam.set(
+        "print",
+        Function::new(ctx.clone(), print_no_newline)?.with_name("print")?,
+    )?;
+    sgleam.set(
         "sleep",
         Function::new(ctx.clone(), sleep)?.with_name("sleep")?,
     )?;
@@ -368,6 +372,15 @@ fn log(value: Value) {
     write_stdout(s);
     write_stdout("\n");
     unsafe { JS_FreeCString(ctx_ptr, ptr) };
+}
+
+fn print_no_newline(s: String) {
+    write_stdout(&s);
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        use std::io::Write;
+        let _ = std::io::stdout().flush();
+    }
 }
 
 #[derive(Debug)]

@@ -12,6 +12,7 @@ const WASI_EBADF = 8;
 export interface WasiOptions {
     getBuffer(): ArrayBuffer;
     write(fd: number, text: string): void;
+    readStdin?: () => string;
     args?: string[];
     env?: string[];
 }
@@ -137,7 +138,45 @@ export function makeWasi(options: WasiOptions) {
             }
         },
         fd_seek: (): number => 0,
-        fd_read: (): number => 0,
+        fd_read: (
+            fd: number,
+            iovsPtr: number,
+            iovsLen: number,
+            nreadPtr: number,
+        ): number => {
+            if (fd !== 0 || !options.readStdin) return WASI_EBADF;
+            try {
+                const text = options.readStdin();
+                const encoded = encoder.encode(text);
+                const dataView = new DataView(buf());
+                const memory = new Uint8Array(buf());
+                let totalRead = 0;
+                let srcOffset = 0;
+                for (
+                    let i = 0;
+                    i < iovsLen && srcOffset < encoded.length;
+                    i++
+                ) {
+                    const iovPtr = iovsPtr + i * 8;
+                    const bufPtr = dataView.getInt32(iovPtr, true);
+                    const bufLen = dataView.getInt32(iovPtr + 4, true);
+                    const toCopy = Math.min(
+                        bufLen,
+                        encoded.length - srcOffset,
+                    );
+                    memory.set(
+                        encoded.subarray(srcOffset, srcOffset + toCopy),
+                        bufPtr,
+                    );
+                    srcOffset += toCopy;
+                    totalRead += toCopy;
+                }
+                dataView.setInt32(nreadPtr, totalRead, true);
+                return WASI_ESUCCESS;
+            } catch {
+                return WASI_ENOSYS;
+            }
+        },
         fd_close: (): number => 0,
         fd_fdstat_get: (fd: number, statPtr: number): number => {
             if (fd === STDOUT || fd === STDERR) {

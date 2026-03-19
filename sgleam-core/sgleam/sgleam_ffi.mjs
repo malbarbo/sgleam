@@ -281,3 +281,10 @@ export function text_width(text, font, size) {
 export function text_height(text, font, size) {
     return sgleam.text_height(text, font, size);
 }
+
+export function input(prompt) {
+    if (prompt !== "") {
+        sgleam.print(prompt);
+    }
+    return sgleam.getline() ?? "";
+}

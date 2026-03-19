@@ -137,6 +137,7 @@ class Worker {
             wasi_snapshot_preview1: makeWasi({
                 getBuffer: () => this.getBuffer(),
                 write: (fd, text) => this.channel.write(fd, text),
+                readStdin: () => this.channel.waitForInput(),
                 env: ["RUST_BACKTRACE=1"],
             }),
         });
