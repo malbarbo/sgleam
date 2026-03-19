@@ -159,6 +159,8 @@ class App {
             .addEventListener("click", () => this.loadFile());
         document.getElementById("save-button")!
             .addEventListener("click", () => this.saveFile());
+        document.getElementById("help-button")!
+            .addEventListener("click", () => this.showHelp());
         this.runButton.addEventListener("click", () => this.formatThenRun());
         this.stopButton.addEventListener("click", () => this.stop());
         this.layoutHorizontal.addEventListener(
@@ -433,8 +435,10 @@ class App {
                 await writable.write(blob);
                 await writable.close();
                 return;
-            } catch {
-                // User cancelled or API not available
+            } catch (e) {
+                if (e instanceof DOMException && e.name === "AbortError") {
+                    return;
+                }
             }
         }
 
