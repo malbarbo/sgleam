@@ -48,6 +48,8 @@ class App {
     private replPrompt: HTMLDivElement | null = null;
     private lastSvg: HTMLDivElement | null = null;
     private lastActive: HTMLElement | null = null;
+    private history: string[] = [];
+    private historyIndex = -1;
 
     private readonly flask: CodeFlask;
     private readonly channel: UIChannel;
@@ -591,14 +593,39 @@ class App {
         syncHighlight();
         textarea.addEventListener("input", syncHighlight);
 
+        let savedInput = "";
         textarea.addEventListener("keydown", (e: KeyboardEvent) => {
             if (e.key === "Enter" && !e.shiftKey) {
                 e.preventDefault();
                 const code = textarea.value.trim();
                 if (code) {
+                    this.history.push(code);
+                    this.historyIndex = -1;
                     textarea.disabled = true;
                     this.postRun(code);
                 }
+            } else if (e.key === "ArrowUp") {
+                if (this.history.length === 0) return;
+                e.preventDefault();
+                if (this.historyIndex === -1) {
+                    savedInput = textarea.value;
+                    this.historyIndex = this.history.length - 1;
+                } else if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                }
+                textarea.value = this.history[this.historyIndex];
+                syncHighlight();
+            } else if (e.key === "ArrowDown") {
+                if (this.historyIndex === -1) return;
+                e.preventDefault();
+                if (this.historyIndex < this.history.length - 1) {
+                    this.historyIndex++;
+                    textarea.value = this.history[this.historyIndex];
+                } else {
+                    this.historyIndex = -1;
+                    textarea.value = savedInput;
+                }
+                syncHighlight();
             }
         });
     }
