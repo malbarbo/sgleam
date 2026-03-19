@@ -1,3 +1,4 @@
+use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use rustyline::{
@@ -5,14 +6,14 @@ use rustyline::{
     highlight::Highlighter,
     history::FileHistory,
     validate::{ValidationContext, ValidationResult, Validator},
-    Completer, Editor, Helper, Hinter, Result, Validator,
+    Cmd, Completer, ConditionalEventHandler, Editor, Event, EventContext, EventHandler, Helper,
+    Hinter, KeyCode, KeyEvent, Modifiers, RepeatCount, Result, Validator,
 };
 
 const PROMPT: &str = "> ";
 const HISTORY_FILE: &str = ".sgleam_history";
 
-// TODO: add auto ident
-// TODO: add completation
+// TODO: add completion
 pub struct ReplReader {
     // We use Option to implement Iterator which ends after the first None.
     editor: Option<Editor<InputValidator, FileHistory>>,
@@ -22,9 +23,21 @@ impl ReplReader {
     pub fn new() -> Result<ReplReader> {
         let mut editor = Editor::new()?;
 
+        let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
+
         editor.set_helper(Some(InputValidator {
             validator: BracketsStringValidador {},
+            color,
         }));
+
+        editor.bind_sequence(
+            KeyEvent(KeyCode::Enter, Modifiers::NONE),
+            EventHandler::Conditional(Box::new(AutoIndentHandler)),
+        );
+        editor.bind_sequence(
+            KeyEvent(KeyCode::Tab, Modifiers::NONE),
+            EventHandler::Simple(Cmd::Insert(1, "  ".into())),
+        );
 
         if let Some(history) = &history_path() {
             let _ = editor.load_history(history);
@@ -75,6 +88,7 @@ fn history_path() -> Option<PathBuf> {
 struct InputValidator {
     #[rustyline(Validator)]
     validator: BracketsStringValidador,
+    color: bool,
 }
 
 // ANSI color codes matching the web editor's One Light theme.
@@ -93,11 +107,29 @@ const KEYWORDS: &[&str] = &[
 
 impl Highlighter for InputValidator {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> std::borrow::Cow<'l, str> {
-        std::borrow::Cow::Owned(highlight_gleam(line))
+        if self.color {
+            std::borrow::Cow::Owned(highlight_gleam(line))
+        } else {
+            std::borrow::Cow::Borrowed(line)
+        }
+    }
+
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
+        &'s self,
+        prompt: &'p str,
+        default: bool,
+    ) -> std::borrow::Cow<'b, str> {
+        if !default {
+            std::borrow::Cow::Borrowed("  ")
+        } else if self.color {
+            std::borrow::Cow::Owned(format!("{BLUE}>{RESET} "))
+        } else {
+            std::borrow::Cow::Borrowed(prompt)
+        }
     }
 
     fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
-        true
+        self.color
     }
 }
 
@@ -259,6 +291,53 @@ fn validade_brackets_and_string(string: &str) -> ValidationResult {
 
 fn bracket_match(a: char, b: char) -> bool {
     matches!([a, b], ['(', ')'] | ['[', ']'] | ['{', '}'])
+}
+
+fn nesting_depth(input: &str) -> usize {
+    let mut depth: i32 = 0;
+    let mut in_string = false;
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if in_string {
+            if c == '\\' {
+                chars.next();
+            } else if c == '"' {
+                in_string = false;
+            }
+        } else {
+            match c {
+                '"' => in_string = true,
+                '{' => depth += 1,
+                '}' => depth -= 1,
+                _ => {}
+            }
+        }
+    }
+    depth.max(0) as usize
+}
+
+struct AutoIndentHandler;
+
+impl ConditionalEventHandler for AutoIndentHandler {
+    fn handle(
+        &self,
+        _evt: &Event,
+        _n: RepeatCount,
+        _positive: bool,
+        ctx: &EventContext,
+    ) -> Option<Cmd> {
+        let input = ctx.line();
+        if matches!(
+            validade_brackets_and_string(input),
+            ValidationResult::Incomplete
+        ) {
+            let depth = nesting_depth(input);
+            let indent = "  ".repeat(depth);
+            Some(Cmd::Insert(1, format!("\n{indent}")))
+        } else {
+            None // default behavior (accept line)
+        }
+    }
 }
 
 #[cfg(test)]
