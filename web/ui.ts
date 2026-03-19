@@ -1,4 +1,5 @@
 import { ansiToHtml } from "./ansi.ts";
+import { DirtyTracker } from "./dirty.ts";
 import {
     KEYDOWN,
     KEYPRESS,
@@ -42,7 +43,7 @@ type AppState =
 class App {
     private state: AppState = { kind: "loading", progress: 0 };
     private runAfterFormat = false;
-    private cleanCode = "";
+    private readonly dirtyTracker = new DirtyTracker();
     private replInput: HTMLTextAreaElement | null = null;
     private replPrompt: HTMLDivElement | null = null;
     private lastSvg: HTMLDivElement | null = null;
@@ -137,9 +138,9 @@ class App {
         );
         this.flask.onUpdate((code: string) => {
             if (this.state.kind === "ready" && !this.state.running) {
-                const dirty = code !== this.cleanCode;
-                if (dirty !== this.state.dirty) {
-                    this.state.dirty = dirty;
+                this.dirtyTracker.onEdit(code);
+                if (this.dirtyTracker.dirty !== this.state.dirty) {
+                    this.state.dirty = this.dirtyTracker.dirty;
                     this.render();
                 }
             }
@@ -202,13 +203,19 @@ class App {
                 break;
             case "ready": {
                 const prev = this.state;
-                this.state = prev.kind === "ready"
-                    ? {
+                this.dirtyTracker.onReady(
+                    data.hadErrors,
+                    this.flask.getCode(),
+                );
+                if (prev.kind === "ready") {
+                    this.state = {
                         ...prev,
                         running: false,
-                        dirty: data.hadErrors ? prev.dirty : false,
-                    }
-                    : {
+                        dirty: this.dirtyTracker.dirty,
+                    };
+                } else {
+                    this.dirtyTracker.onEdit(this.flask.getCode());
+                    this.state = {
                         kind: "ready",
                         running: false,
                         dirty: true,
@@ -220,8 +227,6 @@ class App {
                         helpVisible: false,
                         resizing: false,
                     };
-                if (!this.state.dirty) {
-                    this.cleanCode = this.flask.getCode();
                 }
                 this.render();
                 this.lastSvg = null;
@@ -233,11 +238,7 @@ class App {
                 break;
             }
             case "formatted":
-                if (
-                    this.state.kind === "ready" && !this.state.dirty
-                ) {
-                    this.cleanCode = data.data;
-                }
+                this.dirtyTracker.onFormatted(data.data);
                 this.flask.updateCode(data.data);
                 if (this.runAfterFormat) {
                     this.runAfterFormat = false;
@@ -337,6 +338,7 @@ class App {
     private postLoad(): void {
         if (this.state.kind !== "ready") return;
         this.state.running = true;
+        this.dirtyTracker.onLoad(this.flask.getCode());
         this.render();
         this.channel.load(this.flask.getCode());
     }
@@ -344,6 +346,7 @@ class App {
     private postRun(code: string): void {
         if (this.state.kind !== "ready") return;
         this.state.running = true;
+        this.dirtyTracker.onRun();
         this.render();
         this.channel.run(code);
     }
