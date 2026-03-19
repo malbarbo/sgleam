@@ -106,6 +106,63 @@ fn repl_import() {
         }),
         "Custom"
     );
+    // Import with same short name renames the old one with as _
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/io.{{println}}
+            import sgleam/io
+            io.input("") <> "ok""#
+        }),
+        r#""ok""#
+    );
+    // Unqualified names from the renamed import still work
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            import gleam/io.{{println}}
+            import sgleam/io
+            println("hello")"#
+        }),
+    );
+    assert!(
+        out.contains("hello"),
+        "expected println to work after auto-rename, got: {out}"
+    );
+    // Explicit as avoids conflict
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import sgleam/io as sio
+            sio.input("") <> "ok""#
+        }),
+        r#""ok""#
+    );
+    // Re-importing the renamed module restores its short name
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            import gleam/io.{{println}}
+            import sgleam/io
+            import gleam/io
+            io.println("hello")"#
+        }),
+    );
+    assert!(
+        out.contains("hello"),
+        "expected io.println to work after re-import, got: {out}"
+    );
+    // Verify auto-rename generates "as _"
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            :debug
+            import sgleam/io
+            io.input("") <> "ok""#
+        }),
+    );
+    assert!(
+        out.contains("import gleam/io as _"),
+        "expected 'import gleam/io as _' in debug output, got: {out}"
+    );
 }
 
 #[test]

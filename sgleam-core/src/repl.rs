@@ -530,10 +530,25 @@ impl<E: Engine> Repl<E> {
             self.remove_imported_type(&effective);
         }
 
+        // Rename any existing import with the same short name to avoid conflicts
+        if import.as_name.is_none() {
+            let short = module.rsplit('/').next().unwrap_or(&module);
+            for (m, info) in &mut self.imports {
+                if *m != module
+                    && info.as_name.is_none()
+                    && m.rsplit('/').next().unwrap_or(m) == short
+                {
+                    info.as_name = Some("_".into());
+                }
+            }
+        }
+
         let entry = self.imports.entry(module).or_default();
 
         if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
             entry.as_name = Some(name.to_string());
+        } else {
+            entry.as_name = None;
         }
 
         for uv in &import.unqualified_values {

@@ -376,11 +376,8 @@ fn log(value: Value) {
 
 fn print_no_newline(s: String) {
     write_stdout(&s);
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        use std::io::Write;
-        let _ = std::io::stdout().flush();
-    }
+    use std::io::Write;
+    let _ = std::io::stdout().flush();
 }
 
 #[derive(Debug)]

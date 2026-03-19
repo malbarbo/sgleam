@@ -653,7 +653,6 @@ class App {
         input.spellcheck = false;
         input.style.outline = "none";
         input.style.minWidth = "1em";
-        input.style.display = "inline-block";
 
         // Append to the last output line (e.g., input("Name: ") prompt)
         const lastChild = this.replPanel.lastElementChild;
