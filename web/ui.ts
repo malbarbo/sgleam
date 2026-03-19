@@ -216,6 +216,10 @@ class App {
                         dirty: this.dirtyTracker.dirty,
                     };
                 } else {
+                    if (data.version) {
+                        document.getElementById("help-version")!
+                            .textContent = data.version;
+                    }
                     this.dirtyTracker.onEdit(this.flask.getCode());
                     this.state = {
                         kind: "ready",

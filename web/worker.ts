@@ -14,6 +14,7 @@ interface WasmExports {
     string_deallocate(ptr: number): void;
     format(ptr: number, len: number): number;
     cstr_deallocate(ptr: number): void;
+    version(): number;
     use_bigint?(flag: boolean): void;
 }
 
@@ -71,6 +72,7 @@ class Worker {
     private exports!: WasmExports;
     private session: ReplSession | null = null;
     private channel = new WorkerChannel();
+    private version = "";
 
     constructor() {
         this.loadWasm();
@@ -140,6 +142,11 @@ class Worker {
         });
         this.exports = instance.exports as unknown as WasmExports;
         this.exports.use_bigint?.(true);
+        const vPtr = this.exports.version();
+        if (vPtr !== 0) {
+            this.version = readCstr(this.exports, vPtr);
+            this.exports.cstr_deallocate(vPtr);
+        }
         self.onmessage = (e) => this.processMsg(e);
         this.initRepl("");
     }
@@ -167,7 +174,7 @@ class Worker {
     initRepl(input: string): void {
         this.session?.destroy();
         this.session = new ReplSession(this.exports, input);
-        this.channel.ready(this.session.hadErrors);
+        this.channel.ready(this.session.hadErrors, this.version);
     }
 
     async runRepl(input: string): Promise<void> {

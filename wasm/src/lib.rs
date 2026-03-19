@@ -122,3 +122,11 @@ pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
         let _ = std::ffi::CString::from_raw(ptr);
     }
 }
+
+#[no_mangle]
+pub extern "C" fn version() -> *mut std::ffi::c_char {
+    match std::ffi::CString::new(sgleam_core::version()) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}

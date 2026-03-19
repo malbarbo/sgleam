@@ -33,7 +33,12 @@ export type UIMessage =
     | { cmd: "format"; data: string };
 
 export type WorkerMessage =
-    | { cmd: "ready"; buffer: SharedArrayBuffer; hadErrors: boolean }
+    | {
+        cmd: "ready";
+        buffer: SharedArrayBuffer;
+        hadErrors: boolean;
+        version: string;
+    }
     | { cmd: "error"; data: string }
     | { cmd: "progress"; data: number }
     | { cmd: "write"; fd: number; data: string }
