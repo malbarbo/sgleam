@@ -67,6 +67,7 @@ class App {
 
     private readonly shortcuts = new Map<string, () => void>([
         ["ctrl+?", () => this.showHelp()],
+        ["F1", () => this.showHelp()],
         ["ctrl+j", () => this.focusEditor()],
         ["ctrl+k", () => this.focusRepl()],
         ["ctrl+r", () => this.formatThenRun()],

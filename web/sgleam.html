@@ -357,8 +357,8 @@
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
             display: none;
             z-index: 1000;
-            width: 80%;
-            max-width: 450px;
+            width: fit-content;
+            max-width: 90vw;
             font-family: initial;
         }
 
@@ -370,6 +370,22 @@
             font-family: monospace;
             font-size: 0.95em;
         }
+
+        #help table {
+            border-collapse: collapse;
+        }
+
+        #help td {
+            padding: 5px 8px;
+        }
+
+        #help td:first-child {
+            white-space: nowrap;
+        }
+
+        #help tr.sep td {
+            padding: 4px 0;
+        }
     </style>
 </head>
 
@@ -378,21 +394,23 @@
     <div id="help-overlay"></div>
     <div id="help">
         <h1>Help</h1>
-        <p><kbd>Ctrl</kbd> + <kbd>r</kbd>: Run the definitions</p>
-        <p><kbd>Ctrl</kbd> + <kbd>f</kbd>: Format the code</p>
-        <p><kbd>Ctrl</kbd> + <kbd>s</kbd>: Save file</p>
-        <p><kbd>Ctrl</kbd> + <kbd>o</kbd>: Open file</p>
-        <br>
-        <p><kbd>Ctrl</kbd> + <kbd>j</kbd>: Focuses the definition panel if it is visible</p>
-        <p><kbd>Ctrl</kbd> + <kbd>k</kbd>: Focuses the iteration panel if it is visible</p>
-        <br>
-        <p><kbd>Ctrl</kbd> + <kbd>d</kbd>: Toggles between showing and hiding the definition panel</p>
-        <p><kbd>Ctrl</kbd> + <kbd>i</kbd>: Toggles between showing and hiding the iteration panel</p>
-        <p><kbd>Ctrl</kbd> + <kbd>l</kbd>: Toggles between horizontal and vertical layouts</p>
-        <p><kbd>Ctrl</kbd> + <kbd>t</kbd>: Toggles between light and dark themes</p>
-        <br>
-        <p><kbd>Ctrl</kbd> + <kbd>?</kbd>: Show this windows</p>
-        <p><kbd>Esc</kbd>: Close this windows</p>
+        <table>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>r</kbd></td><td>Run the definitions</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>f</kbd></td><td>Format the code</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>s</kbd></td><td>Save file</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>o</kbd></td><td>Open file</td></tr>
+            <tr class="sep"><td colspan="2"></td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>j</kbd></td><td>Focus the definition panel</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>k</kbd></td><td>Focus the iteration panel</td></tr>
+            <tr class="sep"><td colspan="2"></td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>d</kbd></td><td>Toggle the definition panel</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>i</kbd></td><td>Toggle the iteration panel</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>l</kbd></td><td>Toggle horizontal/vertical layout</td></tr>
+            <tr><td><kbd>Ctrl</kbd> + <kbd>t</kbd></td><td>Toggle light/dark theme</td></tr>
+            <tr class="sep"><td colspan="2"></td></tr>
+            <tr><td><kbd>F1</kbd> or <kbd>Ctrl</kbd> + <kbd>?</kbd></td><td>Show this help</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Close this help</td></tr>
+        </table>
     </div>
 
     <div id="top">
@@ -440,7 +458,7 @@
         <div id="spacer"></div>
         <button id="run-button" title="Run (Ctrl+R)" disabled>&#9654; Run</button>
         <button id="stop-button" title="Stop" disabled>&#9632; Stop</button>
-        <button id="help-button" title="Help (Ctrl+?)">
+        <button id="help-button" title="Help (F1)">
             <svg width="6mm" height="6mm" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
                 <circle cx="10" cy="10" r="8" fill="none" stroke="var(--icon)" stroke-width="1.5" />
                 <text x="10" y="14" text-anchor="middle" fill="var(--icon)" font-size="11" font-family="serif" font-weight="bold">?</text>
