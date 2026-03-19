@@ -3,14 +3,13 @@ use std::path::PathBuf;
 
 use rustyline::{
     error::ReadlineError,
-    highlight::Highlighter,
+    highlight::{CmdKind, Highlighter},
     history::FileHistory,
     validate::{ValidationContext, ValidationResult, Validator},
     Cmd, Completer, ConditionalEventHandler, Editor, Event, EventContext, EventHandler, Helper,
-    Hinter, KeyCode, KeyEvent, Modifiers, RepeatCount, Result, Validator,
+    Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
 };
 
-const PROMPT: &str = "> ";
 const HISTORY_FILE: &str = ".sgleam_history";
 
 // TODO: add completion
@@ -38,6 +37,14 @@ impl ReplReader {
             KeyEvent(KeyCode::Tab, Modifiers::NONE),
             EventHandler::Simple(Cmd::Insert(1, "  ".into())),
         );
+        editor.bind_sequence(
+            KeyEvent(KeyCode::Backspace, Modifiers::NONE),
+            EventHandler::Conditional(Box::new(SmartBackspace)),
+        );
+        editor.bind_sequence(
+            KeyEvent(KeyCode::Char('}'), Modifiers::NONE),
+            EventHandler::Conditional(Box::new(AutoDedent)),
+        );
 
         if let Some(history) = &history_path() {
             let _ = editor.load_history(history);
@@ -49,13 +56,37 @@ impl ReplReader {
     }
 }
 
+struct ReplPrompt {
+    color: bool,
+}
+
+impl Prompt for ReplPrompt {
+    fn raw(&self) -> &str {
+        "> "
+    }
+
+    fn styled(&self) -> &str {
+        if self.color {
+            "\x1b[34m>\x1b[0m "
+        } else {
+            "> "
+        }
+    }
+
+    fn continuation_raw(&self) -> &str {
+        "  "
+    }
+}
+
 impl Iterator for ReplReader {
     type Item = String;
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut editor = self.editor.take()?;
+        let color = editor.helper().is_some_and(|h| h.color);
+        let prompt = ReplPrompt { color };
 
-        match editor.readline(PROMPT) {
+        match editor.readline(&prompt) {
             Ok(input) => {
                 if !input.trim().is_empty() {
                     let _ = editor.add_history_entry(&input);
@@ -114,21 +145,7 @@ impl Highlighter for InputValidator {
         }
     }
 
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(
-        &'s self,
-        prompt: &'p str,
-        default: bool,
-    ) -> std::borrow::Cow<'b, str> {
-        if !default {
-            std::borrow::Cow::Borrowed("  ")
-        } else if self.color {
-            std::borrow::Cow::Owned(format!("{BLUE}>{RESET} "))
-        } else {
-            std::borrow::Cow::Borrowed(prompt)
-        }
-    }
-
-    fn highlight_char(&self, _line: &str, _pos: usize, _forced: bool) -> bool {
+    fn highlight_char(&self, _line: &str, _pos: usize, _forced: CmdKind) -> bool {
         self.color
     }
 }
@@ -327,6 +344,7 @@ impl ConditionalEventHandler for AutoIndentHandler {
         ctx: &EventContext,
     ) -> Option<Cmd> {
         let input = ctx.line();
+        let at_end = ctx.pos() == input.len();
         if matches!(
             validade_brackets_and_string(input),
             ValidationResult::Incomplete
@@ -334,8 +352,61 @@ impl ConditionalEventHandler for AutoIndentHandler {
             let depth = nesting_depth(input);
             let indent = "  ".repeat(depth);
             Some(Cmd::Insert(1, format!("\n{indent}")))
+        } else if !at_end {
+            Some(Cmd::Newline)
         } else {
             None // default behavior (accept line)
+        }
+    }
+}
+
+/// Smart backspace: on continuation lines with only spaces, snap to 2-space
+/// indent boundaries.
+struct SmartBackspace;
+
+impl ConditionalEventHandler for SmartBackspace {
+    fn handle(
+        &self,
+        _evt: &Event,
+        _n: RepeatCount,
+        _positive: bool,
+        ctx: &EventContext,
+    ) -> Option<Cmd> {
+        let line = ctx.line();
+        let pos = ctx.pos();
+        let line_start = line[..pos].rfind('\n').map_or(0, |i| i + 1);
+        let current_line = &line[line_start..pos];
+        // Only on continuation lines where cursor is in leading whitespace
+        if line_start > 0 && current_line.len() > 1 && current_line.bytes().all(|b| b == b' ') {
+            let spaces = current_line.len();
+            let remove = if spaces.is_multiple_of(2) { 2 } else { 1 };
+            Some(Cmd::Kill(Movement::BackwardChar(remove)))
+        } else {
+            None
+        }
+    }
+}
+
+/// When `}` is typed on a continuation line with only whitespace, removes one
+/// indent level (2 spaces) before inserting `}`.
+struct AutoDedent;
+
+impl ConditionalEventHandler for AutoDedent {
+    fn handle(
+        &self,
+        _evt: &Event,
+        _n: RepeatCount,
+        _positive: bool,
+        ctx: &EventContext,
+    ) -> Option<Cmd> {
+        let line = ctx.line();
+        let pos = ctx.pos();
+        let line_start = line[..pos].rfind('\n').map_or(0, |i| i + 1);
+        let current_line = &line[line_start..pos];
+        if line_start > 0 && current_line.len() >= 2 && current_line.bytes().all(|b| b == b' ') {
+            Some(Cmd::Replace(Movement::BackwardChar(2), Some("}".into())))
+        } else {
+            None
         }
     }
 }
