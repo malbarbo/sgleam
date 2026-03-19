@@ -153,7 +153,7 @@ fn repl_let_nested_pattern() {
 #[test]
 fn repl_rollback() {
     // When the second item in the same input fails, the first is rolled back
-    let (_, err) = run_sgleam_cmd(&["-q"], Some("let x = 1 let y = x + \"a\"\nx"));
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 let y = x + \"a\"\nx"));
     assert!(
         err.contains("Type mismatch"),
         "expected type error for y, got: {err}"
@@ -343,13 +343,16 @@ fn repl_quit() {
 
 #[test]
 fn repl_error_line_numbers() {
-    let (_, err) = run_sgleam_cmd(&["-q"], Some(r#"let x = 1 + "a""#));
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"let x = 1 + "a""#));
     assert!(err.contains("1 │"), "expected line 1 in error, got: {err}");
 }
 
 #[test]
 fn repl_debug() {
-    let (out, _) = run_sgleam_cmd(&["-q"], Some(":debug\nlet x = 1\n:debug\nlet y = 2"));
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(":debug\nlet x = 1\n:debug\nlet y = 2"),
+    );
     // Debug on: output contains the generated code and the result
     assert!(
         out.contains("--- repl2_1.gleam ---"),
@@ -373,7 +376,7 @@ fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
     assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
     // :type does not create variables
-    let (out, err) = run_sgleam_cmd(&["-q"], Some(&format!("{TYPE} let x = 10\nx")));
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TYPE} let x = 10\nx")));
     assert_eq!(out.trim(), "Int");
     assert!(
         err.contains("is not in scope"),
@@ -420,7 +423,7 @@ fn repl_user_module_import() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     assert_eq!(
         run_sgleam_cmd_stdout(
-            &["-q", "-i", input],
+            &["repl", "-q", input],
             Some(&formatdoc! { "
                 one
                 two()
@@ -436,7 +439,7 @@ fn repl_user_module_import() {
 fn format_stdin() {
     assert_eq!(
         run_sgleam_cmd_stdout(
-            &["-f"],
+            &["format"],
             Some(&formatdoc! {r#"
             import gleam / io.{{ debug , }}
             fn main() {{
@@ -460,7 +463,7 @@ fn repl_welcome_message() {
 }
 
 fn repl_exec(s: &str) -> String {
-    run_sgleam_cmd_stdout(&["-q"], Some(s))
+    run_sgleam_cmd_stdout(&["repl", "-q"], Some(s))
         .strip_suffix('\n')
         .unwrap_or("")
         .into()
@@ -473,7 +476,7 @@ fn smain_list_string() {
         "/tests/inputs/smain_list_string.gleam"
     );
     let (out, err) = run_sgleam_cmd(
-        &[input],
+        &["run", input],
         Some(&formatdoc! {
             "
             An example
@@ -495,7 +498,7 @@ fn smain_string() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/smain_string.gleam"
     );
-    let (out, err) = run_sgleam_cmd(&[input], Some("hello\nworld"));
+    let (out, err) = run_sgleam_cmd(&["run", input], Some("hello\nworld"));
     assert_snapshot!(formatdoc! {"
         STDOUT
         {out}
@@ -520,6 +523,7 @@ fn error_output_has_ansi_colors() {
     let output = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .expect("cargo bin")
         .env("FORCE_COLOR", "1")
+        .arg("run")
         .arg(&file)
         .output()
         .unwrap();

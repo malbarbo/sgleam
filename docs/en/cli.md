@@ -111,7 +111,7 @@ pub fn double_examples() {
 You can use the `double`{.gleam} function in the REPL:
 
 ```sh
-sgleam -i double.gleam
+sgleam repl double.gleam
 ```
 
 ```gleam-repl
@@ -168,7 +168,7 @@ Imports are supported and automatically merged:
 To run the tests of a file:
 
 ```sh
-sgleam -t file.gleam
+sgleam test file.gleam
 ```
 
 Tests are functions whose names end with `_examples` and use the `sgleam/check`{.gleam} module.
@@ -191,7 +191,7 @@ pub fn double_examples() {
 ```
 
 ```sh
-sgleam -t test.gleam
+sgleam test test.gleam
 ```
 
 ```
@@ -210,13 +210,13 @@ In this case, the test `check.eq(2 * 4, 9)`{.gleam} failed because `2 * 4`{.glea
 To format source code:
 
 ```sh
-sgleam -f file.gleam
+sgleam format file.gleam
 ```
 
 Or to format from standard input:
 
 ```sh
-sgleam -f < file.gleam
+sgleam format < file.gleam
 ```
 
 
@@ -225,20 +225,28 @@ sgleam -f < file.gleam
 To check that the code compiles correctly (type checking and syntax errors) without running it:
 
 ```sh
-sgleam -c file.gleam
+sgleam check file.gleam
 ```
 
 If there are no errors, no output is produced. Otherwise, the errors are displayed.
 
 
+# Commands
+
+| Command | Description |
+|---------|-------------|
+| `sgleam [file]` | Run the file (shorthand for `sgleam run`) |
+| `sgleam repl [file]` | Interactive mode (REPL) |
+| `sgleam run file` | Run the file |
+| `sgleam test file` | Run tests |
+| `sgleam format [files]` | Format code (reads stdin if no files given) |
+| `sgleam check file` | Check code (compile only) |
+| `sgleam help` | Show help |
+
 # Options
 
 | Option | Description |
 |--------|-------------|
-| `-i` | Interactive mode (REPL) |
-| `-t` | Run tests |
-| `-f` | Format code |
-| `-c` | Check code |
 | `-n` | Use Number instead of BigInt for integers |
 | `-q` | Don't print welcome message in REPL |
-| `-v, --version` | Print version |
+| `--version` | Print version |

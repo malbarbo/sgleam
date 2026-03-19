@@ -86,3 +86,11 @@ pub fn version() -> String {
         "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {QUICKJS_VERSION})"
     )
 }
+
+/// Version string without the "sgleam" prefix, for use with clap's `--version`
+/// (which prepends the binary name automatically).
+pub fn version_for_clap() -> String {
+    format!(
+        "{SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {QUICKJS_VERSION})"
+    )
+}

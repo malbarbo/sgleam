@@ -111,7 +111,7 @@ pub fn dobro_examples() {
 Podemos usar a função `dobro`{.gleam} no REPL:
 
 ```sh
-sgleam -i dobro.gleam
+sgleam repl dobro.gleam
 ```
 
 ```gleam-repl
@@ -170,7 +170,7 @@ Importações são suportadas e mescladas automaticamente:
 Para executar os testes de um arquivo:
 
 ```sh
-sgleam -t arquivo.gleam
+sgleam test arquivo.gleam
 ```
 
 Os testes são funções cujo nome termina com `_examples` e usam o módulo `sgleam/check`{.gleam}.
@@ -193,7 +193,7 @@ pub fn dobro_examples() {
 ```
 
 ```sh
-sgleam -t teste.gleam
+sgleam test teste.gleam
 ```
 
 ```
@@ -212,13 +212,13 @@ Neste caso, o teste `check.eq(2 * 4, 9)`{.gleam} falhou porque `2 * 4`{.gleam} �
 Para formatar o código fonte:
 
 ```sh
-sgleam -f arquivo.gleam
+sgleam format arquivo.gleam
 ```
 
 Ou para formatar a entrada padrão:
 
 ```sh
-sgleam -f < arquivo.gleam
+sgleam format < arquivo.gleam
 ```
 
 
@@ -227,20 +227,28 @@ sgleam -f < arquivo.gleam
 Para verificar se o código compila corretamente (verificação de tipos e erros de sintaxe) sem executá-lo:
 
 ```sh
-sgleam -c arquivo.gleam
+sgleam check arquivo.gleam
 ```
 
 Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros são exibidos.
 
 
+# Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `sgleam [arquivo]` | Executa o arquivo (atalho para `sgleam run`) |
+| `sgleam repl [arquivo]` | Modo interativo (REPL) |
+| `sgleam run arquivo` | Executa o arquivo |
+| `sgleam test arquivo` | Executa os testes |
+| `sgleam format [arquivos]` | Formata o código (lê stdin se nenhum arquivo for dado) |
+| `sgleam check arquivo` | Verifica o código (apenas compilação) |
+| `sgleam help` | Exibe ajuda |
+
 # Opções
 
 | Opção | Descrição |
 |-------|-----------|
-| `-i` | Modo interativo (REPL) |
-| `-t` | Executar testes |
-| `-f` | Formatar código |
-| `-c` | Verificar código |
 | `-n` | Usar Number ao invés de BigInt para inteiros |
 | `-q` | Não exibir mensagem de boas-vindas no REPL |
-| `-v, --version` | Exibir versão |
+| `--version` | Exibir versão |

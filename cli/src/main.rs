@@ -8,7 +8,7 @@ mod repl_reader;
 use camino::Utf8PathBuf;
 use clap::{
     builder::{styling, Styles},
-    Parser,
+    CommandFactory, FromArgMatches, Parser,
 };
 use gleam_core::{
     error::{FileIoAction, FileKind},
@@ -22,41 +22,63 @@ use sgleam_core::{
     repl::{welcome_message, Repl, ReplOutput},
     run::{copy_files_and_build, run_check, run_main, run_test},
 };
-use std::process::exit;
+
+const STYLES: Styles = Styles::styled()
+    .header(styling::AnsiColor::Yellow.on_default())
+    .usage(styling::AnsiColor::Yellow.on_default())
+    .literal(styling::AnsiColor::Green.on_default());
 
 /// The student version of gleam.
 #[derive(Parser)]
 #[command(
+    name = "sgleam",
     about,
-    styles = Styles::styled()
-        .header(styling::AnsiColor::Yellow.on_default())
-        .usage(styling::AnsiColor::Yellow.on_default())
-        .literal(styling::AnsiColor::Green.on_default())
+    styles = STYLES,
+    args_conflicts_with_subcommands = true,
+    disable_help_flag = true,
 )]
 struct Cli {
-    /// Enter interactive mode.
-    #[arg(short, group = "cmd")]
-    interactive: bool,
-    /// Run tests.
-    #[arg(short, group = "cmd")]
-    test: bool,
-    /// Format source code.
-    #[arg(short, group = "cmd")]
-    format: bool,
-    /// Check source code.
-    #[arg(short, group = "cmd")]
-    check: bool,
-    /// Use Number instead of BigInt for integers
-    #[arg(short)]
+    #[command(subcommand)]
+    command: Option<Command>,
+
+    /// Use Number instead of BigInt for integers.
+    #[arg(short, global = true)]
     number: bool,
-    /// Don't print welcome message on entering interactive mode.
-    #[arg(short)]
-    quiet: bool,
-    /// Print version.
-    #[arg(short, long)]
-    version: bool,
-    /// Input files.
-    paths: Vec<String>,
+
+    /// File to run (shorthand for `sgleam run FILE`).
+    file: Option<String>,
+}
+
+#[derive(clap::Subcommand)]
+enum Command {
+    /// Start interactive REPL (default).
+    Repl {
+        /// File to load before the REPL starts.
+        file: Option<String>,
+        /// Suppress welcome message.
+        #[arg(short)]
+        quiet: bool,
+    },
+    /// Execute a program.
+    Run {
+        /// Gleam file to run.
+        file: String,
+    },
+    /// Run tests.
+    Test {
+        /// Gleam file to test.
+        file: String,
+    },
+    /// Format source code (reads stdin if no files given).
+    Format {
+        /// Files to format.
+        files: Vec<String>,
+    },
+    /// Check source code (compile only).
+    Check {
+        /// Gleam file to check.
+        file: String,
+    },
 }
 
 fn main() {
@@ -76,44 +98,53 @@ fn main() {
 }
 
 fn run() -> Result<(), SgleamError> {
-    let cli = Cli::parse();
+    let version: Box<str> = sgleam_core::version_for_clap().into();
+    let version: &'static str = Box::leak(version);
+    let cli = Cli::command().version(version).get_matches();
+    let cli = Cli::from_arg_matches(&cli).expect("valid args");
 
     set_bigint_enabled(!cli.number);
 
-    if cli.version {
-        println!("{}", sgleam_core::version());
-        return Ok(());
-    }
+    let command = match (cli.command, cli.file) {
+        (Some(cmd), _) => cmd,
+        (None, Some(file)) => Command::Run { file },
+        (None, None) => Command::Repl {
+            file: None,
+            quiet: false,
+        },
+    };
 
-    let user_files = cli
-        .paths
-        .into_iter()
-        .map(|path| make_relative_to_current_dir(path.into()))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    if cli.format {
-        return Ok(format::run(false, user_files)?);
-    }
-
-    if user_files.is_empty() {
-        return run_interactive(&user_files, cli.quiet);
-    }
-
-    if !cli.check && !cli.test && user_files.len() != 1 {
-        eprintln!("Specify at most one.");
-        exit(1);
-    }
-
-    let files = find_imports(user_files.clone())?;
-
-    if cli.check {
-        run_check(&files)
-    } else if cli.test {
-        run_test(&user_files, &files)
-    } else if cli.interactive {
-        run_interactive(&files, cli.quiet)
-    } else {
-        run_main(&files)
+    match command {
+        Command::Repl { file, quiet } => {
+            let paths = file
+                .map(|f| make_relative_to_current_dir(f.into()))
+                .transpose()?;
+            let paths = paths.as_slice();
+            run_interactive(paths, quiet)
+        }
+        Command::Run { file } => {
+            let file = make_relative_to_current_dir(file.into())?;
+            let files = find_imports(vec![file])?;
+            run_main(&files)
+        }
+        Command::Test { file } => {
+            let file = make_relative_to_current_dir(file.into())?;
+            let user_files = vec![file];
+            let files = find_imports(user_files.clone())?;
+            run_test(&user_files, &files)
+        }
+        Command::Format { files } => {
+            let paths = files
+                .into_iter()
+                .map(|f| make_relative_to_current_dir(f.into()))
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(format::run(false, paths)?)
+        }
+        Command::Check { file } => {
+            let file = make_relative_to_current_dir(file.into())?;
+            let files = find_imports(vec![file])?;
+            run_check(&files)
+        }
     }
 }
 
