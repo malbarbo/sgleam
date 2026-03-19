@@ -42,6 +42,7 @@ type AppState =
 class App {
     private state: AppState = { kind: "loading", progress: 0 };
     private runAfterFormat = false;
+    private cleanCode = "";
     private replInput: HTMLTextAreaElement | null = null;
     private replPrompt: HTMLDivElement | null = null;
     private lastSvg: HTMLDivElement | null = null;
@@ -133,13 +134,13 @@ class App {
         this.flask.updateCode(
             document.getElementById("default-code")?.textContent ?? "",
         );
-        this.flask.onUpdate(() => {
-            if (
-                this.state.kind === "ready" && !this.state.running &&
-                !this.state.dirty
-            ) {
-                this.state.dirty = true;
-                this.render();
+        this.flask.onUpdate((code: string) => {
+            if (this.state.kind === "ready" && !this.state.running) {
+                const dirty = code !== this.cleanCode;
+                if (dirty !== this.state.dirty) {
+                    this.state.dirty = dirty;
+                    this.render();
+                }
             }
         });
 
@@ -218,6 +219,9 @@ class App {
                         helpVisible: false,
                         resizing: false,
                     };
+                if (!this.state.dirty) {
+                    this.cleanCode = this.flask.getCode();
+                }
                 this.render();
                 this.lastSvg = null;
                 if (prev.kind !== "ready") {
@@ -228,6 +232,11 @@ class App {
                 break;
             }
             case "formatted":
+                if (
+                    this.state.kind === "ready" && !this.state.dirty
+                ) {
+                    this.cleanCode = data.data;
+                }
                 this.flask.updateCode(data.data);
                 if (this.runAfterFormat) {
                     this.runAfterFormat = false;
