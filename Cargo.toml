@@ -1,5 +1,5 @@
 [workspace]
-members = ["sgleam-core", "sgleam-core-tests", "cli", "wasm"]
+members = ["sgleam-core", "sgleam-core-tests", "cli", "wasm", "desktop"]
 default-members = ["sgleam-core", "cli", "wasm"]
 resolver = "2"
 

@@ -1,0 +1,10 @@
+[package]
+name = "sgleam-desktop"
+version = "0.7.0"
+edition = "2021"
+
+[dependencies]
+eframe = "0.33"
+camino = "1.1.9"
+sgleam-core = { path = "../sgleam-core", features = ["capture"] }
+egui-file-dialog = "0.12"

@@ -14,7 +14,7 @@ DIST_FILES = \
 	$(DIST_DIR)/icon-512.svg \
 	$(DIST_DIR)/server.py
 
-.PHONY: all serve test test-web test-rs check clean docs
+.PHONY: all serve test test-web test-rs check clean docs desktop
 
 all: $(DIST_FILES)
 
@@ -101,6 +101,11 @@ check:
 	cargo clippy --target $(WASM_TARGET) -p sgleam-wasm -- -D warnings
 	cargo fmt -- --check
 	deno fmt --check
+
+# Desktop
+
+desktop: $(DIST_FILES)
+	cargo build -p sgleam-desktop --release
 
 # Utility
 

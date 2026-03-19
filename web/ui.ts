@@ -149,6 +149,16 @@ class App {
 
         this.channel = new UIChannel(worker);
 
+        // Handle IPC responses from desktop app
+        // deno-lint-ignore no-explicit-any
+        (window as any).__ipcResponse = (
+            msg: { cmd: string; data?: string },
+        ) => {
+            if (msg.cmd === "file-content" && msg.data) {
+                this.loadCode(msg.data);
+            }
+        };
+
         this.setupListeners();
         this.render();
     }
@@ -414,10 +424,23 @@ class App {
         if (hiding) this.focusEditor();
     }
 
+    // deno-lint-ignore no-explicit-any
+    private isDesktop(): boolean {
+        return typeof (window as any).ipc !== "undefined";
+    }
+
     private async saveFile(): Promise<void> {
         const code = this.flask.getCode();
-        const blob = new Blob([code], { type: "text/plain" });
 
+        if (this.isDesktop()) {
+            // deno-lint-ignore no-explicit-any
+            (window as any).ipc.postMessage(
+                JSON.stringify({ cmd: "save-file", data: code }),
+            );
+            return;
+        }
+
+        const blob = new Blob([code], { type: "text/plain" });
         // deno-lint-ignore no-explicit-any
         if (typeof (globalThis as any).showSaveFilePicker === "function") {
             try {
@@ -447,6 +470,13 @@ class App {
     }
 
     private loadFile(): void {
+        if (this.isDesktop()) {
+            // deno-lint-ignore no-explicit-any
+            (window as any).ipc.postMessage(
+                JSON.stringify({ cmd: "open-file" }),
+            );
+            return;
+        }
         this.fileInput.click();
     }
 
@@ -456,15 +486,19 @@ class App {
         const reader = new FileReader();
         reader.onload = () => {
             if (typeof reader.result === "string") {
-                this.flask.updateCode(reader.result);
-                if (this.state.kind === "ready") {
-                    this.state.dirty = true;
-                    this.render();
-                }
+                this.loadCode(reader.result);
             }
         };
         reader.readAsText(file);
         this.fileInput.value = "";
+    }
+
+    private loadCode(code: string): void {
+        this.flask.updateCode(code);
+        if (this.state.kind === "ready") {
+            this.state.dirty = true;
+            this.render();
+        }
     }
 
     private toggleTheme(): void {
