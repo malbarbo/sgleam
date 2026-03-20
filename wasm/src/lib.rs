@@ -33,7 +33,7 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
 }
 
 fn default_repl() -> Repl<QuickJsEngine> {
-    Repl::new(Project::default(), None).expect("An repl")
+    Repl::new(Project::default(), None).expect("A repl")
 }
 
 #[no_mangle]
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
     if module.map(has_examples).unwrap_or(false) {
         QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
     }
-    Box::leak(Box::new(Repl::new(project, module).expect("An repl")))
+    Box::leak(Box::new(Repl::new(project, module).expect("A repl")))
 }
 
 fn has_examples(module: &Module) -> bool {

@@ -4,6 +4,8 @@
 import { KeyEvent, KEYNONE } from "./ui_channel.ts";
 
 const IS_DENO = "Deno" in globalThis;
+const encoder = encoder;
+const decoder = decoder;
 
 export interface EnvOptions {
     getBuffer(): ArrayBuffer;
@@ -21,7 +23,7 @@ export function makeEnv(options: EnvOptions) {
         sleep: (ms: bigint): void => options.sleep(ms),
         draw_svg: (ptr: number, len: number): void => {
             const b = new Uint8Array(buf());
-            options.svg(new TextDecoder().decode(b.slice(ptr, ptr + len)));
+            options.svg(decoder.decode(b.slice(ptr, ptr + len)));
         },
         get_key_event: (
             ptr: number,
@@ -33,7 +35,7 @@ export function makeEnv(options: EnvOptions) {
                 return KEYNONE;
             }
             const b = new Uint8Array(buf());
-            const encoded = new TextEncoder().encode(event.key);
+            const encoded = encoder.encode(event.key);
             b.set(encoded.subarray(0, len), ptr);
             b.fill(0, ptr + encoded.length, ptr + len);
             b[mods + 0] = event.alt ? 1 : 0;
@@ -54,10 +56,10 @@ export function makeEnv(options: EnvOptions) {
                 return fontLen;
             }
             const b = new Uint8Array(buf());
-            const jtext = new TextDecoder().decode(
+            const jtext = decoder.decode(
                 b.slice(text, text + textLen),
             );
-            const jfont = new TextDecoder().decode(
+            const jfont = decoder.decode(
                 b.slice(font, font + fontLen),
             );
             // deno-lint-ignore no-undef
@@ -80,10 +82,10 @@ export function makeEnv(options: EnvOptions) {
                 return 0.6 * fontLen * textLen;
             }
             const b = new Uint8Array(buf());
-            const jtext = new TextDecoder().decode(
+            const jtext = decoder.decode(
                 b.slice(text, text + textLen),
             );
-            const jfont = new TextDecoder().decode(
+            const jfont = decoder.decode(
                 b.slice(font, font + fontLen),
             );
             // deno-lint-ignore no-undef

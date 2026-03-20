@@ -27,7 +27,7 @@ const DEBUG: &str = ":debug";
 
 pub fn welcome_message() -> String {
     format!(
-        "Welcome to {}.\nType ctrl-d ou \"{QUIT}\" to exit.\n",
+        "Welcome to {}.\nType ctrl-d or \"{QUIT}\" to exit.\n",
         crate::version()
     )
 }

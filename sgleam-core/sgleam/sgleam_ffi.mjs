@@ -228,8 +228,7 @@ function show_error(err) {
             }
         }
     } else if (err.message == "stack overflow") {
-        let stack = err.stack.split("\n");
-        stack = stack.slice(-20, -3).reverse();
+        const stack = err.stack.split("\n").slice(-20, -3).reverse();
         stack.push("    ...");
         console.log("Stack overflow");
         for (const f of stack) {

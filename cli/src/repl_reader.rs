@@ -25,7 +25,7 @@ impl ReplReader {
         let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
 
         editor.set_helper(Some(InputValidator {
-            validator: BracketsStringValidador {},
+            validator: BracketsStringValidator {},
             color,
         }));
 
@@ -118,7 +118,7 @@ fn history_path() -> Option<PathBuf> {
 #[derive(Completer, Helper, Hinter, Validator)]
 struct InputValidator {
     #[rustyline(Validator)]
-    validator: BracketsStringValidador,
+    validator: BracketsStringValidator,
     color: bool,
 }
 
@@ -259,15 +259,15 @@ fn highlight_gleam(input: &str) -> String {
     out
 }
 
-struct BracketsStringValidador {}
+struct BracketsStringValidator {}
 
-impl Validator for BracketsStringValidador {
+impl Validator for BracketsStringValidator {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult> {
-        Ok(validade_brackets_and_string(ctx.input()))
+        Ok(validate_brackets_and_string(ctx.input()))
     }
 }
 
-fn validade_brackets_and_string(string: &str) -> ValidationResult {
+fn validate_brackets_and_string(string: &str) -> ValidationResult {
     let mut stack = Vec::new();
     let mut chars = string.chars();
 
@@ -346,7 +346,7 @@ impl ConditionalEventHandler for AutoIndentHandler {
         let input = ctx.line();
         let at_end = ctx.pos() == input.len();
         if matches!(
-            validade_brackets_and_string(input),
+            validate_brackets_and_string(input),
             ValidationResult::Incomplete
         ) {
             let depth = nesting_depth(input);
@@ -415,28 +415,28 @@ impl ConditionalEventHandler for AutoDedent {
 mod tests {
     use rustyline::validate::ValidationResult;
 
-    use crate::repl_reader::validade_brackets_and_string;
+    use crate::repl_reader::validate_brackets_and_string;
 
     #[test]
     fn test_brackets_and_string_ok() {
         assert!(matches!(
-            validade_brackets_and_string("4 + (3 * { [4] - 2 })"),
+            validate_brackets_and_string("4 + (3 * { [4] - 2 })"),
             ValidationResult::Valid(None)
         ));
         assert!(matches!(
-            validade_brackets_and_string("\"ca\\\"sa\""),
+            validate_brackets_and_string("\"ca\\\"sa\""),
             ValidationResult::Valid(None)
         ));
         assert!(matches!(
-            validade_brackets_and_string("\"ca\"sa\""),
+            validate_brackets_and_string("\"ca\"sa\""),
             ValidationResult::Incomplete
         ));
         assert!(matches!(
-            validade_brackets_and_string("4 + 3 * { 4 - 2 })"),
+            validate_brackets_and_string("4 + 3 * { 4 - 2 })"),
             ValidationResult::Invalid(None)
         ));
         assert!(matches!(
-            validade_brackets_and_string("4 + (3 * { 4 - 2 )"),
+            validate_brackets_and_string("4 + (3 * { 4 - 2 )"),
             ValidationResult::Invalid(None)
         ));
     }
