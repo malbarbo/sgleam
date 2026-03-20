@@ -3,12 +3,13 @@ use camino::{Utf8Path, Utf8PathBuf};
 use gleam_core::{
     ast::TypedFunction,
     build::{Module, Origin, Target},
+    type_,
 };
 
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{compile, fn_type_to_string, get_module, type_to_string, Project},
+    gleam::{compile, fn_type_to_string, get_module, Project},
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -97,13 +98,12 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
         .into());
     }
 
+    let string_type = type_::string();
+    let list_string_type = type_::list(type_::string());
     match &smain.arguments[..] {
         [] => Ok(MainFunction::Smain),
-        // TODO: make the signatures generic, also in show_error
-        [arg] if type_to_string(module, &arg.type_) == "String" => Ok(MainFunction::SmainStdin),
-        [arg] if type_to_string(module, &arg.type_) == "List(String)" => {
-            Ok(MainFunction::SmainStdinLines)
-        }
+        [arg] if arg.type_.same_as(&string_type) => Ok(MainFunction::SmainStdin),
+        [arg] if arg.type_.same_as(&list_string_type) => Ok(MainFunction::SmainStdinLines),
         _ => Err(SgleamError::InvalidSMain {
             module: module.name.clone(),
             signature: {

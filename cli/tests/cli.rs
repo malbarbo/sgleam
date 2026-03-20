@@ -734,6 +734,16 @@ fn smain_string() {
     });
 }
 
+#[test]
+fn smain_type_alias() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/smain_alias.gleam"
+    );
+    let (out, _err) = run_sgleam_cmd(&["run", input], Some("hello"));
+    assert_eq!(out.trim(), "hello");
+}
+
 fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
     run_sgleam_cmd(args, input).0
 }
