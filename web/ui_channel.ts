@@ -28,6 +28,7 @@ export const TOTAL_INT32S = INPUT_DATA_INDEX + Math.ceil(INPUT_MAX_BYTES / 4);
 export const KEYPRESS = 0;
 export const KEYDOWN = 1;
 export const KEYUP = 2;
+export const KEYNONE = 3;
 
 export interface KeyEvent {
     type: number;

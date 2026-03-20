@@ -589,11 +589,9 @@ pub fn {print}(value: a) -> a"#
     }
 
     fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {
-        if self
-            .names
-            .values()
-            .any(|item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(&name, type_)))
-        {
+        if self.names.values().any(
+            |item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(&name, type_)),
+        ) {
             println!("Cannot redefine type `{name}` while variables of that type exist.");
             return Ok(());
         }

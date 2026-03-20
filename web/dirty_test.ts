@@ -24,7 +24,7 @@ Deno.test("load then ready clears dirty", () => {
     const t = new DirtyTracker();
     t.onEdit("code");
     assertEquals(t.dirty, true);
-    t.onLoad("code");
+    t.onLoad();
     t.onReady(false, "code");
     assertEquals(t.dirty, false);
 });
@@ -32,7 +32,7 @@ Deno.test("load then ready clears dirty", () => {
 Deno.test("load with errors keeps dirty", () => {
     const t = new DirtyTracker();
     t.onEdit("code");
-    t.onLoad("code");
+    t.onLoad();
     t.onReady(true, "code");
     assertEquals(t.dirty, true);
 });
@@ -59,7 +59,7 @@ Deno.test("initial edit then repl run stays dirty", () => {
 
 Deno.test("successful load updates clean code", () => {
     const t = new DirtyTracker();
-    t.onLoad("code");
+    t.onLoad();
     t.onReady(false, "code");
     assertEquals(t.dirty, false);
     t.onEdit("code");
@@ -70,7 +70,7 @@ Deno.test("successful load updates clean code", () => {
 
 Deno.test("format updates clean code when not dirty", () => {
     const t = new DirtyTracker();
-    t.onLoad("code");
+    t.onLoad();
     t.onReady(false, "code");
     t.onFormatted("formatted");
     assertEquals(t.dirty, false);
@@ -80,7 +80,7 @@ Deno.test("format updates clean code when not dirty", () => {
 
 Deno.test("format does not update clean code when dirty", () => {
     const t = new DirtyTracker();
-    t.onLoad("code");
+    t.onLoad();
     t.onReady(false, "code");
     t.onEdit("changed");
     t.onFormatted("formatted-changed");

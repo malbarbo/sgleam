@@ -15,7 +15,7 @@ export class DirtyTracker {
     }
 
     /// Called when a load (Run) is initiated.
-    onLoad(code: string): void {
+    onLoad(): void {
         this._loading = true;
     }
 

@@ -28,7 +28,10 @@ use termcolor::{Color, ColorSpec, WriteColor};
 
 #[cfg(not(target_arch = "wasm32"))]
 use crate::GLEAM_STDLIB;
-use crate::{error::{flush_buffer, stderr_buffer_writer}, GLEAM_STDLIB_BIGINT};
+use crate::{
+    error::{flush_buffer, stderr_buffer_writer},
+    GLEAM_STDLIB_BIGINT,
+};
 
 #[derive(Clone)]
 pub struct Project {

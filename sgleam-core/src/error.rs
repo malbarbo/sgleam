@@ -89,9 +89,7 @@ pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
     #[cfg(feature = "capture")]
     crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
     #[cfg(not(feature = "capture"))]
-    buffer_writer
-        .print(buffer)
-        .expect("Write to stderr");
+    buffer_writer.print(buffer).expect("Write to stderr");
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {

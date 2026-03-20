@@ -1,7 +1,7 @@
 // Host environment imports for the REPL ABI (env namespace).
 // Provides the env import namespace for WASM modules.
 
-import { KeyEvent } from "./ui_channel.ts";
+import { KeyEvent, KEYNONE } from "./ui_channel.ts";
 
 const IS_DENO = "Deno" in globalThis;
 
@@ -30,7 +30,7 @@ export function makeEnv(options: EnvOptions) {
         ): number => {
             const event = options.dequeueKeyEvent();
             if (event === null) {
-                return 3;
+                return KEYNONE;
             }
             const b = new Uint8Array(buf());
             const encoded = new TextEncoder().encode(event.key);

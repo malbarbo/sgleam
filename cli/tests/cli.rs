@@ -236,8 +236,7 @@ fn repl_import_fn_shadows_alias_then_reimport() {
         fn io() {{ 1 }}
         io()
         import gleam/io
-        io.println("restored")"#}
-    ));
+        io.println("restored")"#}));
 }
 
 #[test]
@@ -247,8 +246,7 @@ fn repl_import_let_shadows_alias() {
         let int = 42
         int
         import gleam/int
-        int.add(1, 2)"#}
-    ));
+        int.add(1, 2)"#}));
 }
 
 #[test]
@@ -256,8 +254,7 @@ fn repl_import_alias_shadows_module() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
         io.println("before")
         import gleam/int as io
-        io.to_string(1)"#}
-    ));
+        io.to_string(1)"#}));
 }
 
 #[test]

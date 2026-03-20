@@ -347,7 +347,7 @@ class App {
     private postLoad(): void {
         if (this.state.kind !== "ready") return;
         this.state.running = true;
-        this.dirtyTracker.onLoad(this.flask.getCode());
+        this.dirtyTracker.onLoad();
         this.render();
         this.channel.load(this.flask.getCode());
     }

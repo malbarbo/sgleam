@@ -86,15 +86,17 @@ export function repl_load(index) {
     return globalThis.repl_vars[index];
 }
 
+const IMAGE_CONSTRUCTORS = [
+    rectangle(0.0, 0.0).constructor, // Rectangle
+    ellipse(0.0, 0.0).constructor, // Ellipse
+    line(0.0, 0.0).constructor, // Polygon
+    beside(empty, empty).constructor, // Combination
+    text("", 0.0).constructor, // Text
+    crop(empty).constructor, // Crop
+];
+
 export function repl_print(value) {
-    if (
-        value && (value.constructor == rectangle(0.0, 0.0).constructor ||
-            value.constructor == ellipse(0.0, 0.0).constructor ||
-            value.constructor == line(0.0, 0.0).constructor || // Polygon
-            value.constructor == beside(empty, empty).constructor || // Combinatin
-            value.constructor == text("", 0.0).constructor ||
-            value.constructor == crop(empty).constructor)
-    ) {
+    if (value && IMAGE_CONSTRUCTORS.includes(value.constructor)) {
         if (sgleam.draw_svg) {
             sgleam.draw_svg(`${to_svg(value)}`);
         } else {
@@ -200,9 +202,8 @@ function show_check_error(err, path, function_name, line_number) {
 function location(file, fname, line_number) {
     if (fname !== "") {
         return `${file} (${fname}:${line_number})`;
-    } else {
-        return `${file}`;
     }
+    return `${file}`;
 }
 
 function show_error(err) {
@@ -259,8 +260,8 @@ export function next_clip_id() {
 
 export function sleep(ms) {
     // spend time on the interpreter so check_interrupt is called
-    let msn = Number(ms);
-    let start = Date.now();
+    const msn = Number(ms);
+    const start = Date.now();
     while (msn > (Date.now() - start)) {
         sgleam.sleep(1);
     }

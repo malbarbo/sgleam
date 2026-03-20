@@ -213,8 +213,11 @@ class Worker {
 
 // --- Memory helpers ---
 
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
+
 function encodeString(exports: WasmExports, str: string): [number, number] {
-    const encoded = new TextEncoder().encode(str);
+    const encoded = encoder.encode(str);
     const ptr = exports.string_allocate(encoded.length);
     new Uint8Array(exports.memory.buffer, ptr, encoded.length).set(encoded);
     return [ptr, encoded.length];
@@ -224,7 +227,7 @@ function readCstr(exports: WasmExports, ptr: number): string {
     const buffer = new Uint8Array(exports.memory.buffer);
     let end = ptr;
     while (buffer[end] !== 0) end++;
-    return new TextDecoder().decode(buffer.slice(ptr, end));
+    return decoder.decode(buffer.slice(ptr, end));
 }
 
 // --- Init ---
