@@ -1097,6 +1097,8 @@ fn to_svg_(img: Image, level: Int) -> String {
     ) -> {
       let original_width = system.text_width(text, font.family, font.size)
       let original_height = system.text_height(text, font.family, font.size)
+      let x_offset = system.text_x_offset(text, font.family, font.size)
+      let y_offset = system.text_y_offset(text, font.family, font.size)
       let scale_x =
         width
         /. original_width
@@ -1117,10 +1119,10 @@ fn to_svg_(img: Image, level: Int) -> String {
         }
       indent(level)
       <> "<text "
-      <> attribs("dominant-baseline", "middle")
-      <> attribs("text-anchor", "middle")
-      <> attrib("x", 0.0)
-      <> attrib("y", 0.0)
+      <> attribs("dominant-baseline", "alphabetic")
+      <> attribs("text-anchor", "start")
+      <> attrib("x", x_offset)
+      <> attrib("y", y_offset)
       <> attribs("font-family", font.family)
       <> attrib("font-size", font.size)
       <> attribs(

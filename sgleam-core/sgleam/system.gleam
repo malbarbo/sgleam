@@ -12,3 +12,9 @@ pub fn text_width(text: String, font: String, size: Float) -> Float
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "text_height")
 pub fn text_height(text: String, font: String, size: Float) -> Float
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "text_x_offset")
+pub fn text_x_offset(text: String, font: String, size: Float) -> Float
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "text_y_offset")
+pub fn text_y_offset(text: String, font: String, size: Float) -> Float

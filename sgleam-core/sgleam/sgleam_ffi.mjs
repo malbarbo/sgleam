@@ -282,6 +282,14 @@ export function text_height(text, font, size) {
     return sgleam.text_height(text, font, size);
 }
 
+export function text_x_offset(text, font, size) {
+    return sgleam.text_x_offset(text, font, size);
+}
+
+export function text_y_offset(text, font, size) {
+    return sgleam.text_y_offset(text, font, size);
+}
+
 export function input(prompt) {
     if (prompt !== "") {
         sgleam.print(prompt);

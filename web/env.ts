@@ -3,9 +3,8 @@
 
 import { KeyEvent, KEYNONE } from "./ui_channel.ts";
 
-const IS_DENO = "Deno" in globalThis;
-const encoder = encoder;
-const decoder = decoder;
+const encoder = new TextEncoder();
+const decoder = new TextDecoder();
 
 export interface EnvOptions {
     getBuffer(): ArrayBuffer;
@@ -15,8 +14,56 @@ export interface EnvOptions {
     dequeueKeyEvent(): KeyEvent | null;
 }
 
+export function computeTextWidth(m: TextMetrics): number {
+    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    return w > 0 ? w : m.width;
+}
+
+export function computeTextHeight(m: TextMetrics): number {
+    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    return h > 0 ? h : m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+}
+
+export function computeTextXOffset(m: TextMetrics): number {
+    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
+    return w > 0 ? m.actualBoundingBoxLeft - w / 2 : 0;
+}
+
+export function computeTextYOffset(m: TextMetrics): number {
+    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
+    return h > 0 ? m.actualBoundingBoxAscent - h / 2 : 0;
+}
+
+function measureText(
+    buffer: ArrayBuffer,
+    text: number,
+    textLen: number,
+    font: number,
+    fontLen: number,
+    size: number,
+): TextMetrics {
+    const b = new Uint8Array(buffer);
+    const jtext = decoder.decode(b.slice(text, text + textLen));
+    const jfont = decoder.decode(b.slice(font, font + fontLen));
+    // deno-lint-ignore no-undef
+    const offscreen = new OffscreenCanvas(1, 1);
+    const ctx = offscreen.getContext("2d")!;
+    ctx.font = `${size}px ${jfont}`;
+    return ctx.measureText(jtext);
+}
+
 export function makeEnv(options: EnvOptions) {
     const buf = () => options.getBuffer();
+
+    function textFn(compute: (m: TextMetrics) => number) {
+        return (
+            text: number,
+            textLen: number,
+            font: number,
+            fontLen: number,
+            size: number,
+        ) => compute(measureText(buf(), text, textLen, font, fontLen, size));
+    }
 
     return {
         check_interrupt: (): number => options.checkInterrupt() ? 1 : 0,
@@ -45,54 +92,9 @@ export function makeEnv(options: EnvOptions) {
             b[mods + 4] = event.repeat ? 1 : 0;
             return event.type;
         },
-        text_height: (
-            text: number,
-            textLen: number,
-            font: number,
-            fontLen: number,
-            size: number,
-        ): number => {
-            if (IS_DENO) {
-                return fontLen;
-            }
-            const b = new Uint8Array(buf());
-            const jtext = decoder.decode(
-                b.slice(text, text + textLen),
-            );
-            const jfont = decoder.decode(
-                b.slice(font, font + fontLen),
-            );
-            // deno-lint-ignore no-undef
-            const offscreen = new OffscreenCanvas(1, 1);
-            const ctx = offscreen.getContext("2d")!;
-            ctx.font = `${size}px ${jfont}`;
-            const metrics = ctx.measureText(jtext);
-            // TODO: why actual doesnt work?
-            return metrics.fontBoundingBoxAscent +
-                metrics.fontBoundingBoxDescent;
-        },
-        text_width: (
-            text: number,
-            textLen: number,
-            font: number,
-            fontLen: number,
-            size: number,
-        ): number => {
-            if (IS_DENO) {
-                return 0.6 * fontLen * textLen;
-            }
-            const b = new Uint8Array(buf());
-            const jtext = decoder.decode(
-                b.slice(text, text + textLen),
-            );
-            const jfont = decoder.decode(
-                b.slice(font, font + fontLen),
-            );
-            // deno-lint-ignore no-undef
-            const offscreen = new OffscreenCanvas(1, 1);
-            const ctx = offscreen.getContext("2d")!;
-            ctx.font = `${size}px ${jfont}`;
-            return ctx.measureText(jtext).width;
-        },
+        text_width: textFn(computeTextWidth),
+        text_height: textFn(computeTextHeight),
+        text_x_offset: textFn(computeTextXOffset),
+        text_y_offset: textFn(computeTextYOffset),
     };
 }

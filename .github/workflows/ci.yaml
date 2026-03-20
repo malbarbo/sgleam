@@ -35,7 +35,7 @@ jobs:
         run: deno fmt --check
 
       - name: Check TypeScript types
-        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/ansi_test.ts web/test.ts
+        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/ansi_test.ts web/dirty_test.ts web/wasi_test.ts web/env_test.ts web/test.ts
 
   wasm:
     name: Test wasm
@@ -68,6 +68,9 @@ jobs:
         run: |
           deno test --allow-read web/channel_test.ts
           deno test web/ansi_test.ts
+          deno test web/dirty_test.ts
+          deno test web/wasi_test.ts
+          deno test --allow-run --allow-read --allow-write --allow-env web/env_test.ts
           deno test --allow-read dist/test.js
 
   test:

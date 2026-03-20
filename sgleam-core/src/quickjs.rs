@@ -147,6 +147,20 @@ mod wasm {
                 font_len: usize,
                 font_size: f64,
             ) -> f64;
+            pub fn text_x_offset(
+                text: *const u8,
+                text_len: usize,
+                font: *const u8,
+                font_len: usize,
+                font_size: f64,
+            ) -> f64;
+            pub fn text_y_offset(
+                text: *const u8,
+                text_len: usize,
+                font: *const u8,
+                font_len: usize,
+                font_size: f64,
+            ) -> f64;
         }
     }
 
@@ -195,6 +209,14 @@ mod wasm {
     pub fn text_height(text: String, font: String, size: f64) -> f64 {
         unsafe { ffi::text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
     }
+
+    pub fn text_x_offset(text: String, font: String, size: f64) -> f64 {
+        unsafe { ffi::text_x_offset(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    }
+
+    pub fn text_y_offset(text: String, font: String, size: f64) -> f64 {
+        unsafe { ffi::text_y_offset(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -217,12 +239,20 @@ mod native {
     pub fn text_height(_text: String, _font: String, size: f64) -> f64 {
         size
     }
+
+    pub fn text_x_offset(_text: String, _font: String, _size: f64) -> f64 {
+        0.0
+    }
+
+    pub fn text_y_offset(_text: String, _font: String, _size: f64) -> f64 {
+        0.0
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-use native::{check_interrupt, sleep, text_height, text_width};
+use native::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
 #[cfg(target_arch = "wasm32")]
-use wasm::{check_interrupt, sleep, text_height, text_width};
+use wasm::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
     let runtime = Runtime::new()?;
@@ -341,6 +371,14 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     sgleam.set(
         "text_height",
         Function::new(ctx.clone(), text_height)?.with_name("text_height")?,
+    )?;
+    sgleam.set(
+        "text_x_offset",
+        Function::new(ctx.clone(), text_x_offset)?.with_name("text_x_offset")?,
+    )?;
+    sgleam.set(
+        "text_y_offset",
+        Function::new(ctx.clone(), text_y_offset)?.with_name("text_y_offset")?,
     )?;
     global.set("sgleam", sgleam)?;
     Ok(())
