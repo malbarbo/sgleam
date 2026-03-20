@@ -82,12 +82,16 @@ pub fn show_error(err: &SgleamError) {
         }
     };
 
+    flush_buffer(&buffer_writer, &buffer);
+}
+
+pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
     #[cfg(feature = "capture")]
     crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
     #[cfg(not(feature = "capture"))]
     buffer_writer
-        .print(&buffer)
-        .expect("Write warning to stderr");
+        .print(buffer)
+        .expect("Write to stderr");
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {
@@ -96,11 +100,7 @@ pub fn stderr_buffer_writer() -> BufferWriter {
 }
 
 fn colour_forced() -> bool {
-    if let Ok(force) = std::env::var("FORCE_COLOR") {
-        !force.is_empty()
-    } else {
-        false
-    }
+    std::env::var("FORCE_COLOR").is_ok_and(|v| !v.is_empty())
 }
 
 fn color_choice() -> ColorChoice {

@@ -71,15 +71,14 @@ pub fn get_function<'a>(module: &'a Module, name: &str) -> Option<&'a TypedFunct
 }
 
 pub fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
-    let main = match get_smain(module) {
-        r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => return r,
-        _ => module
+    match get_smain(module) {
+        r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
+        _ => Ok(module
             .ast
             .type_info
             .get_main_function(Target::JavaScript)
-            .map(|_| MainFunction::Main)?,
-    };
-    Ok(main)
+            .map(|_| MainFunction::Main)?),
+    }
 }
 
 pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
@@ -133,15 +132,15 @@ pub fn copy_files_and_build(
 }
 
 fn validate_path(path: &Utf8Path) -> bool {
-    let steam = path.file_stem().unwrap_or("");
-    if path.extension() != Some("gleam") || steam.is_empty() {
+    let stem = path.file_stem().unwrap_or("");
+    if path.extension() != Some("gleam") || stem.is_empty() {
         crate::quickjs::write_stderr(&format!("Ignoring `{path}`: is not a valid gleam file.\n"));
         return false;
     }
 
-    if steam == "gleam" || steam == "sgleam" {
+    if stem == "gleam" || stem == "sgleam" {
         crate::quickjs::write_stderr(&format!(
-            "Ignoring `{path}`: `{steam}` is a reserved module name.\n"
+            "Ignoring `{path}`: `{stem}` is a reserved module name.\n"
         ));
         return false;
     }

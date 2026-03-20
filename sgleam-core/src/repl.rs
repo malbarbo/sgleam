@@ -369,10 +369,7 @@ pub fn {print}(value: a) -> a"#
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
         }
-        #[cfg(feature = "capture")]
-        crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
-        #[cfg(not(feature = "capture"))]
-        buffer_writer.print(&buffer).expect("write error");
+        crate::error::flush_buffer(&buffer_writer, &buffer);
     }
 
     /// Compile and execute a `repl_main` body.
@@ -595,7 +592,7 @@ pub fn {print}(value: a) -> a"#
         if self
             .names
             .values()
-            .any(|item| matches!(item, NameEntry::Variable { type_, .. } if type_.contains(&name)))
+            .any(|item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(&name, type_)))
         {
             println!("Cannot redefine type `{name}` while variables of that type exist.");
             return Ok(());
@@ -655,6 +652,23 @@ fn bit_array_size_find_names(bit_array_size: &BitArraySize<()>, names: &mut Vec<
             bit_array_size_find_names(right, names);
         }
     }
+}
+
+/// Check if a type string mentions a type name as a whole word.
+/// E.g. `type_mentions("Option", "Option(Int)")` is true,
+/// but `type_mentions("In", "Int")` is false.
+fn type_mentions(name: &str, type_: &str) -> bool {
+    let mut rest = type_;
+    while let Some(pos) = rest.find(name) {
+        let before_ok = pos == 0 || !rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
+        let end = pos + name.len();
+        let after_ok = end >= rest.len() || !rest.as_bytes()[end].is_ascii_alphanumeric();
+        if before_ok && after_ok {
+            return true;
+        }
+        rest = &rest[pos + name.len()..];
+    }
+    false
 }
 
 fn import_public_types_and_values(module: &Module) -> String {

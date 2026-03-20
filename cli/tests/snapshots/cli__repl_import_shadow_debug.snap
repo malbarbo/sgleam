@@ -33,8 +33,10 @@ import gleam/uri
 import sgleam/check
 import sgleam/color
 import sgleam/fill
+import sgleam/font
 import sgleam/image
 import sgleam/io
+import sgleam/math
 import sgleam/stroke
 import sgleam/style
 import sgleam/system
@@ -63,8 +65,10 @@ import * as $uri from "./gleam/uri.mjs";
 import * as $check from "./sgleam/check.mjs";
 import * as $color from "./sgleam/color.mjs";
 import * as $fill from "./sgleam/fill.mjs";
+import * as $font from "./sgleam/font.mjs";
 import * as $image from "./sgleam/image.mjs";
 import * as $io from "./sgleam/io.mjs";
+import * as $math from "./sgleam/math.mjs";
 import {
   repl_save as repl_save_XXXXXXXX,
   repl_load as repl_load_XXXXXXXX,
@@ -109,8 +113,10 @@ import gleam/uri
 import sgleam/check
 import sgleam/color
 import sgleam/fill
+import sgleam/font
 import sgleam/image
 import sgleam/io
+import sgleam/math
 import sgleam/stroke
 import sgleam/style
 import sgleam/system
@@ -143,8 +149,10 @@ import * as $uri from "./gleam/uri.mjs";
 import * as $check from "./sgleam/check.mjs";
 import * as $color from "./sgleam/color.mjs";
 import * as $fill from "./sgleam/fill.mjs";
+import * as $font from "./sgleam/font.mjs";
 import * as $image from "./sgleam/image.mjs";
 import * as $io from "./sgleam/io.mjs";
+import * as $math from "./sgleam/math.mjs";
 import {
   repl_save as repl_save_XXXXXXXX,
   repl_load as repl_load_XXXXXXXX,

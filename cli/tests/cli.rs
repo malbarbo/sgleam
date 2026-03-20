@@ -398,6 +398,16 @@ fn repl_type_redefine() {
         }),
         "A(42)\nCannot redefine type `Val` while variables of that type exist.\nA(42)"
     );
+    // Type with name that is substring of another type (e.g. In vs Int)
+    // should NOT be blocked by variables of the longer type
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 42
+            type In {{ Inner }}
+            Inner"
+        }),
+        "42\nInner"
+    );
 }
 
 #[test]
