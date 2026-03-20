@@ -93,6 +93,7 @@ test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
 	deno test --allow-read $(WEB_DIR)/channel_test.ts
 	deno test $(WEB_DIR)/ansi_test.ts
 	deno test $(WEB_DIR)/dirty_test.ts
+	deno test $(WEB_DIR)/wasi_test.ts
 	deno test --allow-read $(DIST_DIR)/test.js
 
 # Check

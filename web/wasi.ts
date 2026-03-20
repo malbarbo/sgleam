@@ -69,16 +69,13 @@ export function makeWasi(options: WasiOptions) {
                 const dataView = new DataView(buf());
                 const envPtrs: number[] = [];
                 let currentBufPtr = environBufPtr;
+                const byteView = new Uint8Array(buf());
                 for (const envVar of env) {
                     envPtrs.push(currentBufPtr);
-                    // FIXME: what about encoding?
-                    for (let i = 0; i < envVar.length; i++) {
-                        dataView.setUint8(
-                            currentBufPtr++,
-                            envVar.charCodeAt(i),
-                        );
-                    }
-                    dataView.setUint8(currentBufPtr++, 0); // null terminator
+                    const encoded = encoder.encode(envVar);
+                    byteView.set(encoded, currentBufPtr);
+                    currentBufPtr += encoded.length;
+                    byteView[currentBufPtr++] = 0; // null terminator
                 }
                 for (let i = 0; i < envPtrs.length; i++) {
                     dataView.setInt32(environPtr + i * 4, envPtrs[i], true);
@@ -98,7 +95,7 @@ export function makeWasi(options: WasiOptions) {
                 const dataView = new DataView(buf());
                 let environBufSize = 0;
                 for (const envVar of env) {
-                    environBufSize += envVar.length + 1;
+                    environBufSize += encoder.encode(envVar).length + 1;
                 }
                 dataView.setInt32(environCountPtr, env.length, true);
                 dataView.setInt32(environBufSizePtr, environBufSize, true);
@@ -196,7 +193,7 @@ export function makeWasi(options: WasiOptions) {
             try {
                 let argvBufSize = 0;
                 for (const arg of args) {
-                    argvBufSize += arg.length + 1;
+                    argvBufSize += encoder.encode(arg).length + 1;
                 }
                 const dataView = new DataView(buf());
                 dataView.setInt32(argcPtr, args.length, true);
