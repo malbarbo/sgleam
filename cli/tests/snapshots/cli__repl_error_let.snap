@@ -1,0 +1,19 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Type mismatch
+  ┌─ /src/repl1_1.gleam:1:33
+  │
+1 │ let x = repl_print_XXXXXXXX(1 + "a")
+  │                                 ^^^
+
+The + operator expects arguments of this type:
+
+    Int
+
+But this argument has this type:
+
+    String
+
+Hint: Strings can be joined using the `<>` operator.

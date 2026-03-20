@@ -1,11 +1,9 @@
 use gleam_core::io::memory::InMemoryFileSystem;
 
-pub const REPL_MAIN: &str = "repl_main";
-
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
-    ReplMain,
+    ReplMain(String),
     Smain,
     SmainStdin,
     SmainStdinLines,
@@ -15,7 +13,7 @@ impl MainFunction {
     pub fn name(&self) -> &str {
         match self {
             MainFunction::Main => "main",
-            MainFunction::ReplMain => REPL_MAIN,
+            MainFunction::ReplMain(name) => name,
             _ => "smain",
         }
     }

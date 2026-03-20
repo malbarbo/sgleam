@@ -2,6 +2,27 @@ use indoc::formatdoc;
 use insta::assert_snapshot;
 use sgleam_core::repl::{welcome_message, QUIT, TYPE};
 
+/// Strip the random 8-hex suffix from internal REPL names so snapshot tests
+/// are deterministic.
+fn strip_repl_suffix(s: &str) -> String {
+    let mut result = s.to_string();
+    for prefix in ["repl_main_", "repl_print_", "repl_save_", "repl_load_"] {
+        while let Some(pos) = result.find(prefix) {
+            let suffix_start = pos + prefix.len();
+            if suffix_start + 8 <= result.len()
+                && result[suffix_start..suffix_start + 8]
+                    .chars()
+                    .all(|c| c.is_ascii_hexdigit())
+            {
+                result.replace_range(suffix_start..suffix_start + 8, "XXXXXXXX");
+            } else {
+                break;
+            }
+        }
+    }
+    result
+}
+
 // These tests launch the sgleam binary as a subprocess. Tests that only need
 // Repl::run() can go in sgleam-core-tests (which uses the capture feature).
 
@@ -399,9 +420,55 @@ fn repl_quit() {
 }
 
 #[test]
-fn repl_error_line_numbers() {
+fn repl_error_expr() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("a"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_let() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"let x = 1 + "a""#));
-    assert!(err.contains("1 │"), "expected line 1 in error, got: {err}");
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_no_collision_with_internal_names() {
+    // User variable named repl_print doesn't break expressions
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let repl_print = 10
+            repl_print
+            1 + 2"}),
+        "10\n10\n3"
+    );
+    // User variable named repl_save doesn't break let bindings
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let repl_save = 10
+            let x = 1
+            x"}),
+        "10\n1\n1"
+    );
+    // User function named repl_print works
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn repl_print(x) {{ x + 1 }}
+            repl_print(10)"}),
+        "11"
+    );
+    // User variable named repl_main works
+    assert_eq!(repl_exec("let repl_main = 42\nrepl_main"), "42\n42");
+}
+
+#[test]
+fn repl_error_multiline_expr() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            1 + 2
+            a"}),
+    );
+    assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
@@ -416,7 +483,7 @@ fn repl_debug() {
         "expected generated code header"
     );
     assert!(
-        out.contains("pub fn repl_main()"),
+        out.contains("pub fn repl_main_"),
         "expected repl_main in generated code"
     );
     assert!(out.contains("1"), "expected result");

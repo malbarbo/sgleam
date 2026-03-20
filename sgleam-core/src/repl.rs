@@ -13,24 +13,13 @@ use indoc::formatdoc;
 use vec1::Vec1;
 
 use crate::{
-    engine::{Engine, MainFunction, REPL_MAIN},
+    engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
     parser::{self, ReplItem},
     run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
 };
-
-const REPL_SAVE_LOAD_FNS: &str = r#"
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
-pub fn repl_save(value: a) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
-pub fn repl_load(index: Int) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
-pub fn repl_print(value: a) -> a
-"#;
 
 pub const QUIT: &str = ":quit";
 pub const TYPE: &str = ":type ";
@@ -75,6 +64,11 @@ pub struct Repl<E: Engine> {
     var_index: usize,
     debug: bool,
     template_offset: u32,
+    // Internal function names with random suffix to avoid collisions with user code.
+    repl_main: String,
+    repl_print: String,
+    repl_save: String,
+    repl_load: String,
 }
 
 pub enum ReplOutput {
@@ -89,6 +83,13 @@ impl<E: Engine> Repl<E> {
             .map(|s| (s.to_string(), ImportInfo::default()))
             .collect();
         let fs = project.fs.clone();
+        let suffix = format!(
+            "{:08x}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .subsec_nanos()
+        );
         Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
             imports,
@@ -100,6 +101,10 @@ impl<E: Engine> Repl<E> {
             var_index: 0,
             debug: false,
             template_offset: 0,
+            repl_main: format!("repl_main_{suffix}"),
+            repl_print: format!("repl_print_{suffix}"),
+            repl_save: format!("repl_save_{suffix}"),
+            repl_load: format!("repl_load_{suffix}"),
         })
     }
 
@@ -181,7 +186,19 @@ impl<E: Engine> Repl<E> {
 
     fn build_source(&self) -> String {
         let mut src = String::new();
-        src.push_str(REPL_SAVE_LOAD_FNS);
+        let (save, load, print) = (&self.repl_save, &self.repl_load, &self.repl_print);
+        swriteln!(
+            src,
+            r#"
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
+pub fn {save}(value: a) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
+pub fn {load}(index: Int) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+pub fn {print}(value: a) -> a"#
+        );
 
         // Imports
         if let Some(user) = &self.user_import {
@@ -248,9 +265,10 @@ impl<E: Engine> Repl<E> {
         for (name, item) in &self.names {
             if let NameItem::Variable { index, type_ } = item {
                 if !exclude.contains(name) {
+                    let load = &self.repl_load;
                     swriteln!(
                         bindings,
-                        r#"  let {name} = fn () -> {type_} {{ repl_load({index}) }} ()"#
+                        "  let {name} = fn () -> {type_} {{ {load}({index}) }} ()"
                     );
                 }
             }
@@ -313,16 +331,24 @@ impl<E: Engine> Repl<E> {
 
     /// Compile source with a `repl_main` body appended.
     /// Variable bindings are automatically included before the body.
-    fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
-        self.compile_main_with_bindings(&self.var_bindings(&[]), body)
+    /// `body_prefix` is the number of bytes in `body` before the user's code
+    /// (e.g., the `repl_print({ ` wrapper), used to adjust error positions.
+    fn compile_main(&mut self, body: &str, body_prefix: usize) -> Result<Module, Error> {
+        self.compile_main_with_bindings(&self.var_bindings(&[]), body, body_prefix)
     }
 
     /// Like `compile_main` but with custom variable bindings (to exclude
     /// function argument names).
-    fn compile_main_with_bindings(&mut self, bindings: &str, body: &str) -> Result<Module, Error> {
+    fn compile_main_with_bindings(
+        &mut self,
+        bindings: &str,
+        body: &str,
+        body_prefix: usize,
+    ) -> Result<Module, Error> {
         let mut src = self.build_source();
-        let header = format!("pub fn {REPL_MAIN}() {{\n{bindings}");
-        self.template_offset = (src.len() + header.len()) as u32;
+        let repl_main = &self.repl_main;
+        let header = format!("pub fn {repl_main}() {{\n{bindings}");
+        self.template_offset = (src.len() + header.len() + body_prefix) as u32;
         src.push_str(&header);
         src.push_str(body);
         src.push_str("\n}\n");
@@ -359,11 +385,14 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Compile and execute a `repl_main` body.
-    fn compile_and_run(&mut self, body: &str) -> Result<Module, Error> {
-        let module = self.compile_main(body)?;
+    fn compile_and_run(&mut self, body: &str, body_prefix: usize) -> Result<Module, Error> {
+        let module = self.compile_main(body, body_prefix)?;
 
-        self.engine
-            .run_main(&module.name, MainFunction::ReplMain, false);
+        self.engine.run_main(
+            &module.name,
+            MainFunction::ReplMain(self.repl_main.clone()),
+            false,
+        );
         Ok(module)
     }
 
@@ -424,17 +453,15 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_expr(&mut self, expr: &str) -> Result<(), Error> {
-        let body = formatdoc! {"
-          repl_print({{
-            {expr}
-          }})"
-        };
-        self.compile_and_run(&body)?;
+        let print = &self.repl_print;
+        let prefix = format!("{print}({{\n");
+        let body = format!("{prefix}{expr}\n}})");
+        self.compile_and_run(&body, prefix.len())?;
         Ok(())
     }
 
     fn run_assert(&mut self, code: &str) -> Result<(), Error> {
-        self.compile_and_run(code)?;
+        self.compile_and_run(code, 0)?;
         Ok(())
     }
 
@@ -445,20 +472,21 @@ impl<E: Engine> Repl<E> {
         names: &[String],
     ) -> Result<(), Error> {
         let joined_names = names.join(", ");
+        let (save, print) = (&self.repl_save, &self.repl_print);
         let save_names = names
             .iter()
-            .map(|name| format!("repl_save({name})"))
+            .map(|name| format!("{save}({name})"))
             .collect::<Vec<_>>()
             .join("\n  ");
         let body = formatdoc! {"
-          {pattern} = repl_print({value})
+          {pattern} = {print}({value})
           {save_names}
           #({joined_names})"
         };
-        let module = self.compile_and_run(&body)?;
+        let module = self.compile_and_run(&body, 0)?;
 
         if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, REPL_MAIN).expect("repl main function");
+            let main = get_function(&module, &self.repl_main).expect("repl main function");
             let types = main.return_type.tuple_types().unwrap();
             assert_eq!(types.len(), names.len());
             for (name, type_) in names.iter().zip(&types) {
@@ -478,12 +506,16 @@ impl<E: Engine> Repl<E> {
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
         self.remove_imported_value(&name);
         self.fn_bodies.insert(name.clone(), body);
-        let body = format!("repl_save({name})");
-        let module = self.compile_main_with_bindings("", &body)?;
-        self.engine
-            .run_main(&module.name, MainFunction::ReplMain, false);
+        let save = &self.repl_save;
+        let body = format!("{save}({name})");
+        let module = self.compile_main_with_bindings("", &body, 0)?;
+        self.engine.run_main(
+            &module.name,
+            MainFunction::ReplMain(self.repl_main.clone()),
+            false,
+        );
         if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, REPL_MAIN).expect("repl main function");
+            let main = get_function(&module, &self.repl_main).expect("repl main function");
             let type_ = type_to_string(&module, &main.return_type);
             self.names.insert(
                 name,
@@ -498,13 +530,14 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
+        let print = &self.repl_print;
         let body = formatdoc! {"
-          repl_print({{
+          {print}({{
             {code}
           }})"
         };
-        let module = self.compile_main(&body)?;
-        let main = &get_function(&module, REPL_MAIN).expect("repl main function");
+        let module = self.compile_main(&body, 0)?;
+        let main = &get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
     }

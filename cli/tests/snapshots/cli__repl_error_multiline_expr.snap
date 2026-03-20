@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Unknown variable
+  ┌─ /src/repl2_1.gleam:1:1
+  │
+1 │ a
+  │ ^
+
+The name `a` is not in scope here.

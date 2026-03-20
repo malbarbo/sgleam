@@ -240,10 +240,17 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
 
 pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output: bool) {
     let name = main.name();
+    let kind = match &main {
+        MainFunction::Main => "Main",
+        MainFunction::ReplMain(_) => "ReplMain",
+        MainFunction::Smain => "Smain",
+        MainFunction::SmainStdin => "SmainStdin",
+        MainFunction::SmainStdinLines => "SmainStdinLines",
+    };
     let code = formatdoc! {r#"
         import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
         import {{ {name} }} from "./{module}.mjs";
-        try_main({name}, "{main:?}", {show_output});
+        try_main({name}, "{kind}", {show_output});
         "#
     };
     run_script(context, code)
