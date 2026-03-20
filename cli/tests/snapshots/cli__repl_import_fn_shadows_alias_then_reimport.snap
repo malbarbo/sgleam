@@ -1,0 +1,9 @@
+---
+source: cli/tests/cli.rs
+expression: "repl_exec(&formatdoc!\n{r#\"\n        io.println(\"before\")\n        fn io() {{ 1 }}\n        io()\n        import gleam/io\n        io.println(\"restored\")\"#})"
+---
+before
+Nil
+1
+restored
+Nil

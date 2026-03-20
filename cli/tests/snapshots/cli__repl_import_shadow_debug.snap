@@ -1,0 +1,166 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&out)
+---
+Debug mode on.
+--- repl2_1.gleam ---
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
+pub fn repl_save_XXXXXXXX(value: a) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
+pub fn repl_load_XXXXXXXX(index: Int) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+pub fn repl_print_XXXXXXXX(value: a) -> a
+
+import gleam/bit_array
+import gleam/bool
+import gleam/bytes_tree
+import gleam/dict
+import gleam/dynamic
+import gleam/float
+import gleam/function
+import gleam/int
+import gleam/list
+import gleam/option
+import gleam/order
+import gleam/pair
+import gleam/result
+import gleam/set
+import gleam/string
+import gleam/string_tree
+import gleam/uri
+import sgleam/check
+import sgleam/color
+import sgleam/fill
+import sgleam/image
+import sgleam/io
+import sgleam/stroke
+import sgleam/style
+import sgleam/system
+import sgleam/world
+import sgleam/xplace
+import sgleam/yplace
+---
+--- repl2_1.mjs ---
+import * as $bit_array from "./gleam/bit_array.mjs";
+import * as $bool from "./gleam/bool.mjs";
+import * as $bytes_tree from "./gleam/bytes_tree.mjs";
+import * as $dict from "./gleam/dict.mjs";
+import * as $dynamic from "./gleam/dynamic.mjs";
+import * as $float from "./gleam/float.mjs";
+import * as $function from "./gleam/function.mjs";
+import * as $int from "./gleam/int.mjs";
+import * as $list from "./gleam/list.mjs";
+import * as $option from "./gleam/option.mjs";
+import * as $order from "./gleam/order.mjs";
+import * as $pair from "./gleam/pair.mjs";
+import * as $result from "./gleam/result.mjs";
+import * as $set from "./gleam/set.mjs";
+import * as $string from "./gleam/string.mjs";
+import * as $string_tree from "./gleam/string_tree.mjs";
+import * as $uri from "./gleam/uri.mjs";
+import * as $check from "./sgleam/check.mjs";
+import * as $color from "./sgleam/color.mjs";
+import * as $fill from "./sgleam/fill.mjs";
+import * as $image from "./sgleam/image.mjs";
+import * as $io from "./sgleam/io.mjs";
+import {
+  repl_save as repl_save_XXXXXXXX,
+  repl_load as repl_load_XXXXXXXX,
+  repl_print as repl_print_XXXXXXXX,
+} from "./sgleam/sgleam_ffi.mjs";
+import * as $stroke from "./sgleam/stroke.mjs";
+import * as $style from "./sgleam/style.mjs";
+import * as $system from "./sgleam/system.mjs";
+import * as $world from "./sgleam/world.mjs";
+import * as $xplace from "./sgleam/xplace.mjs";
+import * as $yplace from "./sgleam/yplace.mjs";
+
+export { repl_load_XXXXXXXX, repl_print_XXXXXXXX, repl_save_XXXXXXXX };
+---
+--- repl3_1.gleam ---
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
+pub fn repl_save_XXXXXXXX(value: a) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
+pub fn repl_load_XXXXXXXX(index: Int) -> a
+
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+pub fn repl_print_XXXXXXXX(value: a) -> a
+
+import gleam/bit_array
+import gleam/bool
+import gleam/bytes_tree
+import gleam/dict
+import gleam/dynamic
+import gleam/float
+import gleam/function
+import gleam/int
+import gleam/list
+import gleam/option
+import gleam/order
+import gleam/pair
+import gleam/result
+import gleam/set
+import gleam/string
+import gleam/string_tree
+import gleam/uri
+import sgleam/check
+import sgleam/color
+import sgleam/fill
+import sgleam/image
+import sgleam/io
+import sgleam/stroke
+import sgleam/style
+import sgleam/system
+import sgleam/world
+import sgleam/xplace
+import sgleam/yplace
+
+pub fn repl_main_XXXXXXXX() {
+  repl_print_XXXXXXXX({ io.input("") <> "ok" })
+}
+---
+--- repl3_1.mjs ---
+import * as $bit_array from "./gleam/bit_array.mjs";
+import * as $bool from "./gleam/bool.mjs";
+import * as $bytes_tree from "./gleam/bytes_tree.mjs";
+import * as $dict from "./gleam/dict.mjs";
+import * as $dynamic from "./gleam/dynamic.mjs";
+import * as $float from "./gleam/float.mjs";
+import * as $function from "./gleam/function.mjs";
+import * as $int from "./gleam/int.mjs";
+import * as $list from "./gleam/list.mjs";
+import * as $option from "./gleam/option.mjs";
+import * as $order from "./gleam/order.mjs";
+import * as $pair from "./gleam/pair.mjs";
+import * as $result from "./gleam/result.mjs";
+import * as $set from "./gleam/set.mjs";
+import * as $string from "./gleam/string.mjs";
+import * as $string_tree from "./gleam/string_tree.mjs";
+import * as $uri from "./gleam/uri.mjs";
+import * as $check from "./sgleam/check.mjs";
+import * as $color from "./sgleam/color.mjs";
+import * as $fill from "./sgleam/fill.mjs";
+import * as $image from "./sgleam/image.mjs";
+import * as $io from "./sgleam/io.mjs";
+import {
+  repl_save as repl_save_XXXXXXXX,
+  repl_load as repl_load_XXXXXXXX,
+  repl_print as repl_print_XXXXXXXX,
+} from "./sgleam/sgleam_ffi.mjs";
+import * as $stroke from "./sgleam/stroke.mjs";
+import * as $style from "./sgleam/style.mjs";
+import * as $system from "./sgleam/system.mjs";
+import * as $world from "./sgleam/world.mjs";
+import * as $xplace from "./sgleam/xplace.mjs";
+import * as $yplace from "./sgleam/yplace.mjs";
+
+export { repl_load_XXXXXXXX, repl_print_XXXXXXXX, repl_save_XXXXXXXX };
+
+export function repl_main_XXXXXXXX() {
+  return repl_print_XXXXXXXX(($io.input("") + "ok"));
+}
+---
+"ok"

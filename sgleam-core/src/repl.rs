@@ -33,30 +33,25 @@ pub fn welcome_message() -> String {
 }
 
 #[derive(Clone)]
-struct UnqualifiedItem {
-    name: String,
-    as_name: Option<String>,
-}
-
-#[derive(Clone, Default)]
-struct ImportInfo {
-    as_name: Option<String>,
-    unqualified_values: Vec<UnqualifiedItem>,
-    unqualified_types: Vec<UnqualifiedItem>,
-}
-
-#[derive(Clone)]
-enum NameItem {
+enum NameEntry {
+    /// `import gleam/int as i` → key "i"
+    ModuleAlias(String),
+    /// `import gleam/int.{to_string}` → key "to_string"
+    UnqualifiedValue { module: String, original: String },
+    /// `import gleam/option.{type Option}` → key "Option"
+    UnqualifiedType { module: String, original: String },
+    /// `const x = 1`
     Const(String),
+    /// `type Color { Red }`
     Type(String),
+    /// `let x = 10` or `fn f() { 1 }` (runtime value)
     Variable { index: usize, type_: String },
 }
 
 #[derive(Clone)]
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
-    imports: HashMap<String, ImportInfo>,
-    names: HashMap<String, NameItem>,
+    names: HashMap<String, NameEntry>,
     fn_bodies: HashMap<String, String>,
     project: Project,
     engine: E,
@@ -78,9 +73,12 @@ pub enum ReplOutput {
 
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let imports: HashMap<String, ImportInfo> = GLEAM_MODULES_NAMES
+        let names: HashMap<String, NameEntry> = GLEAM_MODULES_NAMES
             .iter()
-            .map(|s| (s.to_string(), ImportInfo::default()))
+            .map(|s| {
+                let short = s.rsplit('/').next().unwrap_or(s);
+                (short.to_string(), NameEntry::ModuleAlias(s.to_string()))
+            })
             .collect();
         let fs = project.fs.clone();
         let suffix = format!(
@@ -92,8 +90,7 @@ impl<E: Engine> Repl<E> {
         );
         Ok(Repl {
             user_import: user_module.map(import_public_types_and_values),
-            imports,
-            names: HashMap::new(),
+            names,
             fn_bodies: HashMap::new(),
             project,
             engine: E::new(fs),
@@ -204,45 +201,39 @@ pub fn {print}(value: a) -> a"#
         if let Some(user) = &self.user_import {
             swriteln!(src, "{user}");
         }
-        for (module, info) in &self.imports {
-            let mut parts = vec![];
-            for item in &info.unqualified_types {
-                if let Some(alias) = &item.as_name {
-                    parts.push(format!("type {} as {alias}", item.name));
-                } else {
-                    parts.push(format!("type {}", item.name));
+        for (name, entry) in &self.names {
+            match entry {
+                NameEntry::ModuleAlias(module) => {
+                    swriteln!(src, "import {module} as {name}");
                 }
-            }
-            for item in &info.unqualified_values {
-                if let Some(alias) = &item.as_name {
-                    parts.push(format!("{} as {alias}", item.name));
-                } else {
-                    parts.push(item.name.clone());
+                NameEntry::UnqualifiedValue { module, original } => {
+                    if name == original {
+                        swriteln!(src, "import {module}.{{{original}}} as _");
+                    } else {
+                        swriteln!(src, "import {module}.{{{original} as {name}}} as _");
+                    }
                 }
+                NameEntry::UnqualifiedType { module, original } => {
+                    if name == original {
+                        swriteln!(src, "import {module}.{{type {original}}} as _");
+                    } else {
+                        swriteln!(src, "import {module}.{{type {original} as {name}}} as _");
+                    }
+                }
+                _ => {}
             }
-            let unqualified = if parts.is_empty() {
-                String::new()
-            } else {
-                format!(".{{{}}}", parts.join(", "))
-            };
-            let as_clause = info
-                .as_name
-                .as_ref()
-                .map(|n| format!(" as {n}"))
-                .unwrap_or_default();
-            swriteln!(src, "import {module}{unqualified}{as_clause}");
         }
 
         // Consts
         for item in self.names.values() {
-            if let NameItem::Const(code) = item {
+            if let NameEntry::Const(code) = item {
                 swriteln!(src, "{code}");
             }
         }
 
         // Types (auto-pub for REPL visibility)
         for item in self.names.values() {
-            if let NameItem::Type(code) = item {
+            if let NameEntry::Type(code) = item {
                 if code.starts_with("pub ") {
                     swriteln!(src, "{code}");
                 } else {
@@ -263,7 +254,7 @@ pub fn {print}(value: a) -> a"#
     fn var_bindings(&self, exclude: &[String]) -> String {
         let mut bindings = String::new();
         for (name, item) in &self.names {
-            if let NameItem::Variable { index, type_ } = item {
+            if let NameEntry::Variable { index, type_ } = item {
                 if !exclude.contains(name) {
                     let load = &self.repl_load;
                     swriteln!(
@@ -493,7 +484,7 @@ pub fn {print}(value: a) -> a"#
                 let index = self.var_index;
                 let type_ = type_to_string(&module, type_);
                 self.names
-                    .insert(name.into(), NameItem::Variable { index, type_ });
+                    .insert(name.into(), NameEntry::Variable { index, type_ });
                 self.var_index += 1;
             }
         } else {
@@ -504,7 +495,9 @@ pub fn {print}(value: a) -> a"#
     }
 
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
-        self.remove_imported_value(&name);
+        // Remove any existing name entry to avoid conflicts during compilation
+        // (e.g., an unqualified import for the same name).
+        self.names.remove(&name);
         self.fn_bodies.insert(name.clone(), body);
         let save = &self.repl_save;
         let body = format!("{save}({name})");
@@ -519,7 +512,7 @@ pub fn {print}(value: a) -> a"#
             let type_ = type_to_string(&module, &main.return_type);
             self.names.insert(
                 name,
-                NameItem::Variable {
+                NameEntry::Variable {
                     index: self.var_index,
                     type_,
                 },
@@ -545,63 +538,46 @@ pub fn {print}(value: a) -> a"#
     fn run_import(&mut self, import: &gleam_core::ast::Import<()>) -> Result<(), Error> {
         let module = import.module.to_string();
 
-        // Remove unqualified names from other modules to avoid duplicates
+        // Handle module alias / short name
+        if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
+            self.names
+                .insert(name.to_string(), NameEntry::ModuleAlias(module.clone()));
+        } else {
+            let short = module.rsplit('/').next().unwrap_or(&module).to_string();
+            self.names
+                .insert(short, NameEntry::ModuleAlias(module.clone()));
+        }
+
+        // Handle unqualified values
         for uv in &import.unqualified_values {
             let effective = uv
                 .as_name
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| uv.name.to_string());
-            self.remove_imported_value(&effective);
+            self.names.insert(
+                effective,
+                NameEntry::UnqualifiedValue {
+                    module: module.clone(),
+                    original: uv.name.to_string(),
+                },
+            );
         }
+
+        // Handle unqualified types
         for ut in &import.unqualified_types {
             let effective = ut
                 .as_name
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| ut.name.to_string());
-            self.remove_imported_type(&effective);
-        }
-
-        // Rename any existing import with the same short name to avoid conflicts
-        if import.as_name.is_none() {
-            let short = module.rsplit('/').next().unwrap_or(&module);
-            for (m, info) in &mut self.imports {
-                if *m != module
-                    && info.as_name.is_none()
-                    && m.rsplit('/').next().unwrap_or(m) == short
-                {
-                    info.as_name = Some("_".into());
-                }
-            }
-        }
-
-        let entry = self.imports.entry(module).or_default();
-
-        if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
-            entry.as_name = Some(name.to_string());
-        } else {
-            entry.as_name = None;
-        }
-
-        for uv in &import.unqualified_values {
-            let name = uv.name.to_string();
-            if !entry.unqualified_values.iter().any(|i| i.name == name) {
-                entry.unqualified_values.push(UnqualifiedItem {
-                    name,
-                    as_name: uv.as_name.as_ref().map(|n| n.to_string()),
-                });
-            }
-        }
-
-        for ut in &import.unqualified_types {
-            let name = ut.name.to_string();
-            if !entry.unqualified_types.iter().any(|i| i.name == name) {
-                entry.unqualified_types.push(UnqualifiedItem {
-                    name,
-                    as_name: ut.as_name.as_ref().map(|n| n.to_string()),
-                });
-            }
+            self.names.insert(
+                effective,
+                NameEntry::UnqualifiedType {
+                    module: module.clone(),
+                    original: ut.name.to_string(),
+                },
+            );
         }
 
         self.run_check()
@@ -611,7 +587,7 @@ pub fn {print}(value: a) -> a"#
         // Remove stale function body to avoid module-level name conflict
         // (e.g., `fn f() { 1 } const f = 10` in the same input).
         self.fn_bodies.remove(&name);
-        self.names.insert(name, NameItem::Const(code));
+        self.names.insert(name, NameEntry::Const(code));
         self.run_check()
     }
 
@@ -619,28 +595,13 @@ pub fn {print}(value: a) -> a"#
         if self
             .names
             .values()
-            .any(|item| matches!(item, NameItem::Variable { type_, .. } if type_.contains(&name)))
+            .any(|item| matches!(item, NameEntry::Variable { type_, .. } if type_.contains(&name)))
         {
             println!("Cannot redefine type `{name}` while variables of that type exist.");
             return Ok(());
         }
-        self.remove_imported_type(&name);
-        self.names.insert(name, NameItem::Type(code));
+        self.names.insert(name, NameEntry::Type(code));
         self.run_check()
-    }
-
-    fn remove_imported_value(&mut self, name: &str) {
-        for info in self.imports.values_mut() {
-            info.unqualified_values
-                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
-        }
-    }
-
-    fn remove_imported_type(&mut self, name: &str) {
-        for info in self.imports.values_mut() {
-            info.unqualified_types
-                .retain(|i| i.name != name && i.as_name.as_deref() != Some(name));
-        }
     }
 }
 

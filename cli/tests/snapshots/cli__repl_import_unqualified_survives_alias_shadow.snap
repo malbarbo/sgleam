@@ -1,0 +1,6 @@
+---
+source: cli/tests/cli.rs
+expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/io.{{println}}\n        import sgleam/io\n        println(\"hello\")\"#})"
+---
+hello
+Nil

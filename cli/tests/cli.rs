@@ -7,17 +7,18 @@ use sgleam_core::repl::{welcome_message, QUIT, TYPE};
 fn strip_repl_suffix(s: &str) -> String {
     let mut result = s.to_string();
     for prefix in ["repl_main_", "repl_print_", "repl_save_", "repl_load_"] {
-        while let Some(pos) = result.find(prefix) {
-            let suffix_start = pos + prefix.len();
+        let mut start = 0;
+        while let Some(pos) = result[start..].find(prefix) {
+            let abs_pos = start + pos;
+            let suffix_start = abs_pos + prefix.len();
             if suffix_start + 8 <= result.len()
                 && result[suffix_start..suffix_start + 8]
                     .chars()
                     .all(|c| c.is_ascii_hexdigit())
             {
                 result.replace_range(suffix_start..suffix_start + 8, "XXXXXXXX");
-            } else {
-                break;
             }
+            start = suffix_start;
         }
     }
     result
@@ -127,7 +128,7 @@ fn repl_import() {
         }),
         "Custom"
     );
-    // Import with same short name renames the old one with as _
+    // Import with same short name shadows the old alias
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/io.{{println}}
@@ -135,19 +136,6 @@ fn repl_import() {
             io.input("") <> "ok""#
         }),
         r#""ok""#
-    );
-    // Unqualified names from the renamed import still work
-    let (out, _) = run_sgleam_cmd(
-        &["repl", "-q"],
-        Some(&formatdoc! {r#"
-            import gleam/io.{{println}}
-            import sgleam/io
-            println("hello")"#
-        }),
-    );
-    assert!(
-        out.contains("hello"),
-        "expected println to work after auto-rename, got: {out}"
     );
     // Explicit as avoids conflict
     assert_eq!(
@@ -157,21 +145,59 @@ fn repl_import() {
         }),
         r#""ok""#
     );
-    // Re-importing the renamed module restores its short name
-    let (out, _) = run_sgleam_cmd(
-        &["repl", "-q"],
-        Some(&formatdoc! {r#"
-            import gleam/io.{{println}}
-            import sgleam/io
-            import gleam/io
-            io.println("hello")"#
+    // Multiple import aliases used together
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int as i
+            import gleam/float as f
+            i.to_string(1)
+            f.to_string(1.0)"#
         }),
+        r#""1"
+"1.0""#
     );
-    assert!(
-        out.contains("hello"),
-        "expected io.println to work after re-import, got: {out}"
+    // Alias that conflicts with another module's short name
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int as io
+            io.to_string(1)"#
+        }),
+        r#""1""#
     );
-    // Verify auto-rename generates "as _"
+    // Multiple aliases for the same module
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/int as i
+            import gleam/int as j
+            i.to_string(1)
+            j.to_string(2)"#
+        }),
+        r#""1"
+"2""#
+    );
+}
+
+#[test]
+fn repl_import_unqualified_survives_alias_shadow() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/io.{{println}}
+        import sgleam/io
+        println("hello")"#
+    }));
+}
+
+#[test]
+fn repl_import_re_import_restores_name() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/io.{{println}}
+        import sgleam/io
+        import gleam/io
+        io.println("hello")"#
+    }));
+}
+
+#[test]
+fn repl_import_shadow_debug() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {r#"
@@ -180,10 +206,80 @@ fn repl_import() {
             io.input("") <> "ok""#
         }),
     );
-    assert!(
-        out.contains("import gleam/io as _"),
-        "expected 'import gleam/io as _' in debug output, got: {out}"
-    );
+    assert_snapshot!(strip_repl_suffix(&out));
+}
+
+#[test]
+fn repl_import_var_shadows_unqualified() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/int.{{to_string}}
+        to_string(1)
+        let to_string = 42
+        to_string"#
+    }));
+}
+
+#[test]
+fn repl_import_const_shadows_unqualified() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/int.{{to_string}}
+        to_string(1)
+        const to_string = "hi"
+        to_string"#
+    }));
+}
+
+#[test]
+fn repl_import_fn_shadows_alias_then_reimport() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        io.println("before")
+        fn io() {{ 1 }}
+        io()
+        import gleam/io
+        io.println("restored")"#}
+    ));
+}
+
+#[test]
+fn repl_import_let_shadows_alias() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        int.to_string(1)
+        let int = 42
+        int
+        import gleam/int
+        int.add(1, 2)"#}
+    ));
+}
+
+#[test]
+fn repl_import_alias_shadows_module() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        io.println("before")
+        import gleam/int as io
+        io.to_string(1)"#}
+    ));
+}
+
+#[test]
+fn repl_import_alias_then_unqualified() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/int as i
+        i.to_string(1)
+        import gleam/int.{{add}}
+        add(2, 3)
+        i.to_string(10)"#
+    }));
+}
+
+#[test]
+fn repl_import_unqualified_then_alias() {
+    assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/int.{{to_string}}
+        to_string(1)
+        import gleam/int as i
+        i.to_string(2)
+        to_string(3)"#
+    }));
 }
 
 #[test]

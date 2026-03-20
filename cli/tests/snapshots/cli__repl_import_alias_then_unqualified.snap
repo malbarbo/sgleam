@@ -1,0 +1,7 @@
+---
+source: cli/tests/cli.rs
+expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/int as i\n        i.to_string(1)\n        import gleam/int.{{add}}\n        add(2, 3)\n        i.to_string(10)\"#})"
+---
+"1"
+5
+"10"
