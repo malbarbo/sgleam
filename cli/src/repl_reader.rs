@@ -290,9 +290,9 @@ fn validate_brackets_and_string(string: &str) -> ValidationResult {
             '(' | '[' | '{' => stack.push(c),
 
             ')' | ']' | '}' => {
-                // FIXME: can we stop the prompt?
                 if !bracket_match(stack.pop().unwrap_or(' '), c) {
-                    return ValidationResult::Invalid(None);
+                    // Mismatched bracket: submit as-is and let the compiler report the error.
+                    return ValidationResult::Valid(None);
                 }
             }
             _ => {}
@@ -433,11 +433,11 @@ mod tests {
         ));
         assert!(matches!(
             validate_brackets_and_string("4 + 3 * { 4 - 2 })"),
-            ValidationResult::Invalid(None)
+            ValidationResult::Valid(None)
         ));
         assert!(matches!(
             validate_brackets_and_string("4 + (3 * { 4 - 2 )"),
-            ValidationResult::Invalid(None)
+            ValidationResult::Valid(None)
         ));
     }
 }
