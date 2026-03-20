@@ -1,7 +1,6 @@
 import gleam/float
 import gleam/int
 import gleam/list
-import gleam/result
 import gleam/string
 import sgleam/color.{type Color}
 
@@ -14,8 +13,8 @@ type Attribute {
   FillOpacity(Float)
   FillRule(String)
   Stroke(Color)
-  StokeLineCap(String)
-  StokeLineJoin(String)
+  StrokeLineCap(String)
+  StrokeLineJoin(String)
   StrokeWidth(Float)
   StrokeOpacity(Float)
   StrokeDashArray(List(Int))
@@ -75,25 +74,21 @@ pub fn to_svg(style: Style) -> String {
 }
 
 fn has_fill(style: Style) -> Bool {
-  style.attributes
-  |> list.find(fn(s) {
+  list.any(style.attributes, fn(s) {
     case s {
       Fill(_) -> True
       _ -> False
     }
   })
-  |> result.is_ok
 }
 
 fn has_outline(style: Style) -> Bool {
-  style.attributes
-  |> list.find(fn(s) {
+  list.any(style.attributes, fn(s) {
     case s {
       Stroke(_) -> True
       _ -> False
     }
   })
-  |> result.is_ok
 }
 
 fn attribute_to_svg(style: Attribute) -> String {
@@ -102,8 +97,8 @@ fn attribute_to_svg(style: Attribute) -> String {
     FillOpacity(v) -> attrib("fill-opacity", v)
     FillRule(v) -> attribs("fill-rule", v)
     Stroke(c) -> attribs("stroke", color.to_svg(c))
-    StokeLineCap(s) -> attribs("stroke-linecap", s)
-    StokeLineJoin(s) -> attribs("stroke-linejoin", s)
+    StrokeLineCap(s) -> attribs("stroke-linecap", s)
+    StrokeLineJoin(s) -> attribs("stroke-linejoin", s)
     StrokeDashArray(values) ->
       attribs(
         "stroke-dasharray",
@@ -442,17 +437,17 @@ pub const fill_yellowgreen = Style([Fill(color.yellowgreen)])
 // * Stroke
 // **************************
 
-pub const stroke_linecap_butt = Style([StokeLineCap("butt")])
+pub const stroke_linecap_butt = Style([StrokeLineCap("butt")])
 
-pub const stroke_linecap_round = Style([StokeLineCap("round")])
+pub const stroke_linecap_round = Style([StrokeLineCap("round")])
 
-pub const stroke_linecap_square = Style([StokeLineCap("square")])
+pub const stroke_linecap_square = Style([StrokeLineCap("square")])
 
-pub const stroke_linejoin_bevel = Style([StokeLineJoin("bevel")])
+pub const stroke_linejoin_bevel = Style([StrokeLineJoin("bevel")])
 
-pub const stroke_linejoin_miter = Style([StokeLineJoin("miter")])
+pub const stroke_linejoin_miter = Style([StrokeLineJoin("miter")])
 
-pub const stroke_linejoin_round = Style([StokeLineJoin("round")])
+pub const stroke_linejoin_round = Style([StrokeLineJoin("round")])
 
 pub fn stroke_rgb(red: Int, green: Int, blue: Int) -> Style {
   Style([Stroke(color.rgb(red, green, blue))])

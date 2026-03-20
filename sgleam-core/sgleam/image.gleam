@@ -14,7 +14,7 @@ import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 // FIXME: adjuste figure with outline only (https://docs.racket-lang.org/teachpack/2htdpimage-guide.html#%28part._nitty-gritty%29)
 // TODO: add constants for dash
 // TODO: wedge
-// TODO: all curve funtions
+// TODO: all curve functions
 // TODO: all text functions
 // TODO: triangle/sa...
 // TODO: pulled_regular_polygon
@@ -246,13 +246,14 @@ fn box(img: Image) -> #(Pointf, Pointf) {
         Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
       )
     }
-    Polygon(points:, ..) -> {
-      let min_x = list.fold(points, 0.0, fn(min, p) { float.min(min, p.x) })
-      let min_y = list.fold(points, 0.0, fn(min, p) { float.min(min, p.y) })
-      let max_x = list.fold(points, 0.0, fn(max, p) { float.max(max, p.x) })
-      let max_y = list.fold(points, 0.0, fn(max, p) { float.max(max, p.y) })
+    Polygon(points: [first, ..rest], ..) -> {
+      let min_x = list.fold(rest, first.x, fn(min, p) { float.min(min, p.x) })
+      let min_y = list.fold(rest, first.y, fn(min, p) { float.min(min, p.y) })
+      let max_x = list.fold(rest, first.x, fn(max, p) { float.max(max, p.x) })
+      let max_y = list.fold(rest, first.y, fn(max, p) { float.max(max, p.y) })
       #(Pointf(min_x, min_y), Pointf(max_x, max_y))
     }
+    Polygon(points: [], ..) -> #(Pointf(0.0, 0.0), Pointf(0.0, 0.0))
     Crop(box:, ..) -> box_box(box)
     Text(box:, ..) -> box_box(box)
   }
@@ -1009,7 +1010,7 @@ pub fn to_svg(img: Image) -> String {
 fn to_svg_(img: Image, level: Int) -> String {
   case img {
     Rectangle(style:, box: Box(center:, width:, height:, angle:)) -> {
-      ident(level)
+      indent(level)
       <> "<rect "
       <> attrib("x", center.x -. width /. 2.0)
       <> attrib("y", center.y -. height /. 2.0)
@@ -1020,7 +1021,7 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> "/>\n"
     }
     Ellipse(style:, box: Box(center:, width:, height:, angle:)) -> {
-      ident(level)
+      indent(level)
       <> "<ellipse "
       <> attrib("cx", center.x)
       <> attrib("cy", center.y)
@@ -1031,7 +1032,7 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> "/>\n"
     }
     Polygon(style:, points: [p1, p2]) -> {
-      ident(level)
+      indent(level)
       <> "<line "
       <> attrib("x1", p1.x)
       <> attrib("y1", p1.y)
@@ -1047,18 +1048,18 @@ fn to_svg_(img: Image, level: Int) -> String {
           float.to_string(p.x) <> "," <> float.to_string(p.y)
         })
         |> string.join(" ")
-      ident(level)
+      indent(level)
       <> "<polygon "
       <> attribs("points", points)
       <> style.to_svg(style)
       <> "/>\n"
     }
     Combination(a, b) ->
-      ident(level)
+      indent(level)
       <> "<g>\n"
       <> to_svg_(a, level + 1)
       <> to_svg_(b, level + 1)
-      <> ident(level)
+      <> indent(level)
       <> "</g>\n"
     Crop(box: Box(center:, width:, height:, angle:), image:) -> {
       let clipid = "clip" <> int.to_string(next_clip_id())
@@ -1070,7 +1071,7 @@ fn to_svg_(img: Image, level: Int) -> String {
         <> attrib("height", height)
         <> attribs("transform", rotate_str(angle, center))
         <> "/>"
-      ident(level)
+      indent(level)
       <> "<defs>"
       <> "<clipPath "
       <> attribs("id", clipid)
@@ -1078,12 +1079,12 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> rect
       <> "</clipPath>"
       <> "</defs>\n"
-      <> ident(level)
+      <> indent(level)
       <> "<g "
       <> attribs("clip-path", "url(#" <> clipid <> ")")
       <> ">\n"
       <> to_svg_(image, level + 1)
-      <> ident(level)
+      <> indent(level)
       <> "</g>\n"
     }
     Text(
@@ -1114,7 +1115,7 @@ fn to_svg_(img: Image, level: Int) -> String {
             False -> 1.0
           }
         }
-      ident(level)
+      indent(level)
       <> "<text "
       <> attribs("dominant-baseline", "middle")
       <> attribs("text-anchor", "middle")
@@ -1156,7 +1157,7 @@ fn translate_str(x: Float, y: Float) -> String {
   "translate(" <> float.to_string(x) <> "," <> float.to_string(y) <> ")"
 }
 
-fn ident(level: Int) -> String {
+fn indent(level: Int) -> String {
   string.repeat(" ", 2 * level)
 }
 

@@ -89,7 +89,7 @@ const max_tick_rate = 1000
 
 const default_tick_rate = 28
 
-const key_event_pooling_delay = 10
+const key_event_polling_delay = 10
 
 pub opaque type World(a) {
   World(
@@ -156,7 +156,7 @@ fn run_loop(world: World(a), time_out: Int) {
       show_svg(world)
       #(world, max_tick_rate / world.rate)
     }
-    False -> #(world, time_out - key_event_pooling_delay)
+    False -> #(world, time_out - key_event_polling_delay)
   }
   let event = get_key_event()
   let world = case world.on_key_down, event {
@@ -177,7 +177,7 @@ fn run_loop(world: World(a), time_out: Int) {
   case world.stop_when |> option.map(fn(f) { f(world.state) }) {
     Some(True) -> show_svg(world)
     _ -> {
-      system.sleep(key_event_pooling_delay)
+      system.sleep(key_event_polling_delay)
       run_loop(world, time_out)
     }
   }

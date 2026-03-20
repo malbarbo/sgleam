@@ -767,6 +767,30 @@ fn error_output_has_ansi_colors() {
     );
 }
 
+#[test]
+fn examples_compile() {
+    let project_root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."))
+        .canonicalize()
+        .expect("canonicalize project root");
+    let examples_dir = project_root.join("examples");
+    for entry in std::fs::read_dir(&examples_dir).expect("read examples dir") {
+        let path = entry.expect("read entry").path();
+        if path.extension().and_then(|e| e.to_str()) == Some("gleam") {
+            let output = assert_cmd::cargo::cargo_bin_cmd!()
+                .current_dir(&project_root)
+                .args(["check", path.to_str().unwrap()])
+                .output()
+                .expect("run sgleam check");
+            let err = String::from_utf8_lossy(&output.stderr);
+            assert!(
+                !err.contains("error:"),
+                "example {} failed to compile:\n{err}",
+                path.display()
+            );
+        }
+    }
+}
+
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     cmd.args(args);

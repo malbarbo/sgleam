@@ -3,15 +3,13 @@ import gleam/list
 import sgleam/color
 import sgleam/fill
 import sgleam/image
-import sgleam/stroke
-import sgleam/style
 import sgleam/yplace
 
 pub fn main() {
   color.all
   |> list.sized_chunk(21)
   |> list.map(stamp)
-  |> list.fold(image.empty, fn(a, b) { image.beside_align(yplace.Top, a, b) })
+  |> list.fold(image.empty, fn(a, b) { image.beside_align(a, yplace.Top, b) })
   |> image.to_svg()
   |> io.println()
 }
