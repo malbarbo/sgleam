@@ -1,8 +1,10 @@
 use std::{
-    env,
+    env, fs,
     path::{Path, PathBuf},
     process::Command,
 };
+
+use flate2::{write::GzEncoder, Compression};
 
 pub fn main() {
     println!("cargo::rerun-if-changed=build.rs");
@@ -53,16 +55,16 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
         .unwrap()
         .success());
 
-    // FIXME: use tar crate
-    let stdlib_src = &stdlib.join("src");
-    assert!(Command::new("tar")
-        .env("COPYFILE_DISABLE", "1")
-        .arg("czf")
-        .arg(tar)
-        .arg("-C")
-        .arg(stdlib_src)
-        .arg(".")
-        .status()
-        .unwrap()
-        .success());
+    let stdlib_src = stdlib.join("src");
+    let tar_file = fs::File::create(&tar).expect("create tar file");
+    let encoder = GzEncoder::new(tar_file, Compression::best());
+    let mut archive = tar::Builder::new(encoder);
+    archive
+        .append_dir_all(".", &stdlib_src)
+        .expect("append stdlib to tar");
+    archive
+        .into_inner()
+        .expect("finish tar")
+        .finish()
+        .expect("finish gzip");
 }

@@ -20,6 +20,10 @@ thiserror = "2.0.3"
 tracing = "0.1.40"
 vec1 = "1.12.1"
 
+[build-dependencies]
+flate2 = "1"
+tar = "0.4.41"
+
 [features]
 capture = []
 
