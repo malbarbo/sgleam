@@ -240,6 +240,11 @@ class App {
                     this.replPanel.replaceChildren();
                 }
                 this.channel.setBuffer(data.buffer);
+                if (
+                    data.hadErrors && prev.kind === "ready" && this.replPrompt
+                ) {
+                    this.replPrompt.classList.add("repl-prompt-error");
+                }
                 this.addInputLine();
                 break;
             }

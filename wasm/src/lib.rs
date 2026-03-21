@@ -81,12 +81,10 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, 
 
     let mut repl = unsafe { Box::from_raw(repl) };
     let ret = match repl.run(&new_string(str, len)) {
-        Ok(ReplOutput::Quit) => 2,
-        Ok(ReplOutput::StdOut) => 0,
-        Ok(ReplOutput::Error) => 1,
+        Ok(output) => output as u32,
         Err(err) => {
             show_error(&err);
-            1
+            ReplOutput::Error as u32
         }
     };
 

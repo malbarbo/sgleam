@@ -7,7 +7,7 @@ import { makeWasi } from "./wasi.ts";
 interface WasmExports {
     memory: WebAssembly.Memory;
     repl_new(ptr: number, len: number): number;
-    repl_run(repl: number, ptr: number, len: number): boolean;
+    repl_run(repl: number, ptr: number, len: number): number;
     repl_destroy(repl: number): void;
     repl_stop(): void;
     string_allocate(size: number): number;
@@ -22,6 +22,11 @@ interface WasmExports {
 
 const STDOUT = 1;
 const STDERR = 2;
+
+// ReplOutput values from repl.rs
+const REPL_OK = 0;
+const REPL_ERROR = 1;
+const REPL_QUIT = 2;
 
 // --- Repl session ---
 
@@ -46,8 +51,7 @@ class ReplSession {
         this.ptr = replPtr;
     }
 
-    // Returns true if the user typed :quit.
-    run(input: string): boolean {
+    run(input: string): number {
         const [ptr, len] = encodeString(this.exports, input);
         try {
             return this.exports.repl_run(this.ptr, ptr, len);
@@ -180,12 +184,12 @@ class Worker {
 
     async runRepl(input: string): Promise<void> {
         try {
-            if (this.session!.run(input)) {
-                // :quit
+            const result = this.session!.run(input);
+            if (result === REPL_QUIT) {
                 this.channel.write(STDOUT, "Reloading the repl.");
                 this.initRepl("");
             } else {
-                this.channel.ready();
+                this.channel.ready(result === REPL_ERROR);
             }
         } catch (err) {
             console.log(err);
