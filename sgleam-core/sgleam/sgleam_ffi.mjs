@@ -1,15 +1,6 @@
 import { isEqual, List } from "../gleam.mjs";
 import { inspect } from "../gleam/string.mjs";
-import {
-    beside,
-    crop,
-    ellipse,
-    empty,
-    line,
-    rectangle,
-    text,
-    to_svg,
-} from "../sgleam/image.mjs";
+import { to_svg } from "../sgleam/image.mjs";
 
 export function try_main(main, input_kind, show_output) {
     try {
@@ -87,17 +78,17 @@ export function repl_load(index) {
     return globalThis.repl_vars[index];
 }
 
-const IMAGE_CONSTRUCTORS = [
-    rectangle(0.0, 0.0).constructor, // Rectangle
-    ellipse(0.0, 0.0).constructor, // Ellipse
-    line(0.0, 0.0).constructor, // Polygon
-    beside(empty, empty).constructor, // Combination
-    text("", 0.0).constructor, // Text
-    crop(empty).constructor, // Crop
-];
+const IMAGE_TYPE_NAMES = new Set([
+    "Rectangle",
+    "Ellipse",
+    "Polygon",
+    "Combination",
+    "Crop",
+    "Text",
+]);
 
 export function repl_print(value) {
-    if (value && IMAGE_CONSTRUCTORS.includes(value.constructor)) {
+    if (value && IMAGE_TYPE_NAMES.has(value.constructor?.name)) {
         if (sgleam.draw_svg) {
             sgleam.draw_svg(`${to_svg(value)}`);
         } else {
