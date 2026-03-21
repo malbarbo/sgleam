@@ -2,6 +2,8 @@ use camino::Utf8Path;
 use gleam_core::io::{memory::InMemoryFileSystem, FileSystemReader};
 use indoc::formatdoc;
 
+use crate::error::SgleamError;
+
 use std::{
     fmt::Write as _,
     path::{Component, Path, PathBuf},
@@ -87,8 +89,13 @@ impl Engine for QuickJsEngine {
         }
     }
 
-    fn run_main(&self, module: &str, main: MainFunction, show_output: bool) {
-        run_main(&self.context, module, main, show_output);
+    fn run_main(
+        &self,
+        module: &str,
+        main: MainFunction,
+        show_output: bool,
+    ) -> std::result::Result<(), SgleamError> {
+        run_main(&self.context, module, main, show_output)
     }
 
     fn has_var(&self, index: usize) -> bool {
@@ -100,8 +107,8 @@ impl Engine for QuickJsEngine {
         })
     }
 
-    fn run_tests(&self, modules: &[&str]) {
-        run_tests(&self.context, modules);
+    fn run_tests(&self, modules: &[&str]) -> std::result::Result<(), SgleamError> {
+        run_tests(&self.context, modules)
     }
 
     fn interrupt(&self) {
@@ -268,7 +275,12 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
         .map(|_| context)
 }
 
-pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output: bool) {
+pub fn run_main(
+    context: &Context,
+    module: &str,
+    main: MainFunction,
+    show_output: bool,
+) -> std::result::Result<(), SgleamError> {
     let name = main.name();
     let kind = match &main {
         MainFunction::Main => "Main",
@@ -286,7 +298,7 @@ pub fn run_main(context: &Context, module: &str, main: MainFunction, show_output
     run_script(context, code)
 }
 
-pub fn run_tests(context: &Context, modules: &[&str]) {
+pub fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), SgleamError> {
     let mut src = String::new();
     swriteln!(
         &mut src,
@@ -303,32 +315,20 @@ pub fn run_tests(context: &Context, modules: &[&str]) {
     run_script(context, src)
 }
 
-pub fn run_script(context: &Context, source: String) {
+pub fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
-        match ctx
-            .eval_with_options::<Promise, _>(source, options)
-            .catch(&ctx)
-        {
-            Err(err) => js_show_error(err),
-            Ok(v) => match v.finish::<Value>().catch(&ctx) {
-                Err(CaughtError::Exception(value))
-                    if value.message() == Some("interrupted".into()) =>
-                {
-                    println!("Interrupted.");
-                }
-                Err(err) => js_show_error(err),
-
-                Ok(_) => (),
-            },
+        let promise = ctx.eval_with_options::<Promise, _>(source, options)?;
+        match promise.finish::<Value>().catch(&ctx) {
+            Err(CaughtError::Exception(value)) if value.message() == Some("interrupted".into()) => {
+                Err(SgleamError::Interrupted)
+            }
+            Err(CaughtError::Error(err)) => Err(err.into()),
+            Err(_) => Err(SgleamError::UserProgramRuntimeError),
+            Ok(_) => Ok(()),
         }
-    });
-}
-
-fn js_show_error(err: CaughtError) {
-    // TODO: bump the exception up?
-    write_stderr(&format!("{err}\n"));
+    })
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {

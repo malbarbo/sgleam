@@ -27,6 +27,13 @@ pub enum SgleamError {
     #[error("quickjs error")]
     QuickJs(rquickjs::Error),
 
+    /// A JS runtime error that was already displayed by the JS side.
+    #[error("runtime error")]
+    UserProgramRuntimeError,
+
+    #[error("interrupted")]
+    Interrupted,
+
     #[error(transparent)]
     Other(Box<dyn std::error::Error>),
 }
@@ -77,7 +84,15 @@ pub fn show_error(err: &SgleamError) {
             location: None,
         }
         .write(&mut buffer),
-        _ => {
+        // Already displayed by the JS runtime.
+        SgleamError::UserProgramRuntimeError => return,
+        SgleamError::Interrupted => {
+            writeln!(buffer, "Interrupted.").expect("write to buffer");
+        }
+        SgleamError::QuickJs(err) => {
+            writeln!(buffer, "{err}").expect("write to buffer");
+        }
+        SgleamError::Other(err) => {
             writeln!(buffer, "{err}").expect("write to buffer");
         }
     };
@@ -85,11 +100,11 @@ pub fn show_error(err: &SgleamError) {
     flush_buffer(&buffer_writer, &buffer);
 }
 
-pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
+pub fn flush_buffer(_buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
     #[cfg(feature = "capture")]
     crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
     #[cfg(not(feature = "capture"))]
-    buffer_writer.print(buffer).expect("Write to stderr");
+    _buffer_writer.print(buffer).expect("Write to stderr");
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {

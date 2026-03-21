@@ -1,5 +1,7 @@
 use gleam_core::io::memory::InMemoryFileSystem;
 
+use crate::error::SgleamError;
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
@@ -22,11 +24,16 @@ impl MainFunction {
 pub trait Engine: Clone {
     fn new(fs: InMemoryFileSystem) -> Self;
 
-    fn run_main(&self, module: &str, main: MainFunction, show_output: bool);
+    fn run_main(
+        &self,
+        module: &str,
+        main: MainFunction,
+        show_output: bool,
+    ) -> Result<(), SgleamError>;
 
     fn has_var(&self, index: usize) -> bool;
 
-    fn run_tests(&self, modules: &[&str]);
+    fn run_tests(&self, modules: &[&str]) -> Result<(), SgleamError>;
 
     fn interrupt(&self);
 }

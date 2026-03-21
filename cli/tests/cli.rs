@@ -798,6 +798,22 @@ fn examples_compile() {
     }
 }
 
+#[test]
+fn runtime_error_exits_with_nonzero() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/runtime_panic.gleam"
+    );
+    let output = assert_cmd::cargo::cargo_bin_cmd!()
+        .args(["run", input])
+        .output()
+        .expect("run sgleam");
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit code for runtime error"
+    );
+}
+
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     cmd.args(args);

@@ -25,7 +25,7 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     if let Some(module) = get_module(&modules, &name) {
         let main = get_main(module)?;
         let show_output = main != MainFunction::Main;
-        JsEngine::new(project.fs.clone()).run_main(&module.name, main, show_output);
+        JsEngine::new(project.fs.clone()).run_main(&module.name, main, show_output)?;
     } else {
         // The compiler ignored the file because of the name and printed a warning.
     }
@@ -58,7 +58,7 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
         })
         .collect();
 
-    JsEngine::new(project.fs.clone()).run_tests(&modules);
+    JsEngine::new(project.fs.clone()).run_tests(&modules)?;
     Ok(())
 }
 

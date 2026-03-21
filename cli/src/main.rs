@@ -85,16 +85,21 @@ fn main() {
     sgleam_core::panic::add_handler();
     sgleam_core::logger::initialise_logger();
     // Error is handled by the panic hook.
-    let _ = std::thread::Builder::new()
+    let result = std::thread::Builder::new()
         .stack_size(sgleam_core::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {
                 show_error(&err);
+                return false;
             }
+            true
         })
         .expect("Create the run thread")
         .join();
+    if !matches!(result, Ok(true)) {
+        std::process::exit(1);
+    }
 }
 
 fn run() -> Result<(), SgleamError> {

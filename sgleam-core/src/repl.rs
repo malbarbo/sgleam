@@ -58,6 +58,7 @@ pub struct Repl<E: Engine> {
     iter: (usize, usize),
     var_index: usize,
     debug: bool,
+    had_runtime_error: bool,
     template_offset: u32,
     // Internal function names with random suffix to avoid collisions with user code.
     repl_main: String,
@@ -69,6 +70,7 @@ pub struct Repl<E: Engine> {
 pub enum ReplOutput {
     Quit,
     StdOut,
+    Error,
 }
 
 impl<E: Engine> Repl<E> {
@@ -97,6 +99,7 @@ impl<E: Engine> Repl<E> {
             iter: (0, 0),
             var_index: 0,
             debug: false,
+            had_runtime_error: false,
             template_offset: 0,
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
@@ -106,6 +109,7 @@ impl<E: Engine> Repl<E> {
     }
 
     pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
+        self.had_runtime_error = false;
         self.iter = (self.iter.0 + 1, 0);
         let line_trim = input.trim();
 
@@ -171,12 +175,16 @@ impl<E: Engine> Repl<E> {
                 *self = snapshot;
                 self.template_offset = template_offset;
                 self.show_gleam_error(&err);
-                return Ok(ReplOutput::StdOut);
+                return Ok(ReplOutput::Error);
             }
         }
 
         self.fn_bodies.clear();
-        Ok(ReplOutput::StdOut)
+        if self.had_runtime_error {
+            Ok(ReplOutput::Error)
+        } else {
+            Ok(ReplOutput::StdOut)
+        }
     }
 
     // --- Source generation ---
@@ -376,11 +384,14 @@ pub fn {print}(value: a) -> a"#
     fn compile_and_run(&mut self, body: &str, body_prefix: usize) -> Result<Module, Error> {
         let module = self.compile_main(body, body_prefix)?;
 
-        self.engine.run_main(
+        if let Err(err) = self.engine.run_main(
             &module.name,
             MainFunction::ReplMain(self.repl_main.clone()),
             false,
-        );
+        ) {
+            crate::error::show_error(&err);
+            self.had_runtime_error = true;
+        }
         Ok(module)
     }
 
@@ -499,11 +510,14 @@ pub fn {print}(value: a) -> a"#
         let save = &self.repl_save;
         let body = format!("{save}({name})");
         let module = self.compile_main_with_bindings("", &body, 0)?;
-        self.engine.run_main(
+        if let Err(err) = self.engine.run_main(
             &module.name,
             MainFunction::ReplMain(self.repl_main.clone()),
             false,
-        );
+        ) {
+            crate::error::show_error(&err);
+            self.had_runtime_error = true;
+        }
         if self.engine.has_var(self.var_index) {
             let main = get_function(&module, &self.repl_main).expect("repl main function");
             let type_ = type_to_string(&module, &main.return_type);

@@ -53,7 +53,7 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
     };
     let module = get_module(&modules, "user");
     if module.map(has_examples).unwrap_or(false) {
-        QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
+        let _ = QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
     }
     Box::leak(Box::new(Repl::new(project, module).expect("A repl")))
 }
@@ -76,21 +76,18 @@ pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
 }
 
 #[no_mangle]
-pub unsafe extern "C" fn repl_run(
-    repl: *mut Repl<QuickJsEngine>,
-    str: *mut u8,
-    len: usize,
-) -> bool {
+pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, len: usize) -> u32 {
     assert!(!repl.is_null());
 
     let mut repl = unsafe { Box::from_raw(repl) };
     let ret = match repl.run(&new_string(str, len)) {
-        Ok(ReplOutput::Quit) => true,
+        Ok(ReplOutput::Quit) => 2,
+        Ok(ReplOutput::StdOut) => 0,
+        Ok(ReplOutput::Error) => 1,
         Err(err) => {
             show_error(&err);
-            false
+            1
         }
-        _ => false,
     };
 
     Box::leak(repl);

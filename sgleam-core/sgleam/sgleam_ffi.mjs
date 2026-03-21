@@ -30,6 +30,7 @@ export function try_main(main, input_kind, show_output) {
         }
     } catch (err) {
         show_error(err);
+        throw err;
     }
 }
 
