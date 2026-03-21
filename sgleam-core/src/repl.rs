@@ -18,7 +18,7 @@ use vec1::Vec1;
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{compile_with_modules, get_args_names, get_definition_src, type_to_string, Project},
+    gleam::{get_args_names, get_definition_src, type_to_string, Project},
     parser::{self, ReplItem},
     run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
@@ -339,8 +339,7 @@ pub fn {print}(value: a) -> a"#
         }
         self.project.write_source(&file, code);
 
-        let result = compile_with_modules(
-            &mut self.project,
+        let result = self.project.compile_with_modules(
             true,
             &mut self.existing_modules,
             &mut self.defined_modules,

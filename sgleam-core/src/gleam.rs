@@ -123,6 +123,52 @@ impl Project {
             std::fs::write(&path, self.fs.read_bytes(&path).unwrap()).unwrap();
         }
     }
+
+    pub fn compile(&mut self, repl: bool) -> Result<Vec<Module>, Error> {
+        self.compile_with_modules(repl, &mut im::HashMap::new(), &mut im::HashMap::new())
+    }
+
+    pub fn compile_with_modules(
+        &mut self,
+        repl: bool,
+        existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
+        defined_modules: &mut im::HashMap<EcoString, Utf8PathBuf>,
+    ) -> Result<Vec<Module>, Error> {
+        let config = PackageConfig {
+            target: Target::JavaScript,
+            ..Default::default()
+        };
+
+        let target = TargetCodegenConfiguration::JavaScript {
+            emit_typescript_definitions: false,
+            prelude_location: Project::prelude().into(),
+        };
+
+        let mut compiler = PackageCompiler::new(
+            &config,
+            Mode::Dev,
+            Project::root(),
+            Project::out(),
+            Project::out(),
+            &target,
+            UniqueIdGenerator::new(),
+            self.fs.clone(),
+        );
+
+        compiler.write_metadata = true;
+
+        compiler
+            .compile(
+                &WarningEmitter::new(Rc::new(ConsoleWarningEmitter::with_repl(repl))),
+                existing_modules,
+                defined_modules,
+                &mut StaleTracker::default(),
+                &mut HashSet::new(),
+                &NullTelemetry,
+            )
+            .map(|out| out.modules)
+            .into_result()
+    }
 }
 
 pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
@@ -161,58 +207,6 @@ pub fn get_args_names(fun: &Function<(), UntypedExpr>) -> Vec<String> {
         .iter()
         .filter_map(|arg| arg.names.get_variable_name().map(String::from))
         .collect()
-}
-
-// TODO: move this function to Project
-pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> {
-    compile_with_modules(
-        project,
-        repl,
-        &mut im::HashMap::new(),
-        &mut im::HashMap::new(),
-    )
-}
-
-pub fn compile_with_modules(
-    project: &mut Project,
-    repl: bool,
-    existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
-    defined_modules: &mut im::HashMap<EcoString, Utf8PathBuf>,
-) -> Result<Vec<Module>, Error> {
-    let config = PackageConfig {
-        target: Target::JavaScript,
-        ..Default::default()
-    };
-
-    let target = TargetCodegenConfiguration::JavaScript {
-        emit_typescript_definitions: false,
-        prelude_location: Project::prelude().into(),
-    };
-
-    let mut compiler = PackageCompiler::new(
-        &config,
-        Mode::Dev,
-        Project::root(),
-        Project::out(),
-        Project::out(),
-        &target,
-        UniqueIdGenerator::new(),
-        project.fs.clone(),
-    );
-
-    compiler.write_metadata = true;
-
-    compiler
-        .compile(
-            &WarningEmitter::new(Rc::new(ConsoleWarningEmitter::with_repl(repl))),
-            existing_modules,
-            defined_modules,
-            &mut StaleTracker::default(),
-            &mut HashSet::new(),
-            &NullTelemetry,
-        )
-        .map(|out| out.modules)
-        .into_result()
 }
 
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {

@@ -9,7 +9,7 @@ use gleam_core::{
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{compile, fn_type_to_string, get_module, Project},
+    gleam::{fn_type_to_string, get_module, Project},
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -125,7 +125,7 @@ pub fn copy_files_and_build(
     for path in paths.iter().filter(|p| validate_path(p)) {
         project.copy_file_to_source(path)?;
     }
-    let mut modules = compile(project, false)?;
+    let mut modules = project.compile(false)?;
     modules
         .retain(|module| !module.name.starts_with("gleam/") && !module.name.starts_with("sgleam/"));
     Ok(modules)

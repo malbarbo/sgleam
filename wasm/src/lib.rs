@@ -5,7 +5,7 @@ use gleam_core::build::Module;
 use sgleam_core::{
     engine::Engine as _,
     error::{self, show_error},
-    gleam::{compile, get_module, Project},
+    gleam::{get_module, Project},
     quickjs::QuickJsEngine,
     repl::{Repl, ReplOutput},
 };
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJs
     }
     let mut project = Project::default();
     project.write_source("user.gleam", &source);
-    let modules = match compile(&mut project, true) {
+    let modules = match project.compile(true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
             return std::ptr::null_mut();
