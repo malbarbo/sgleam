@@ -126,7 +126,7 @@
         "Information": {
             "text-color": "#a2a3a7",
             "background-color": null,
-            "bold": false,
+            "bold": true,
             "italic": true,
             "underline": false
         },
