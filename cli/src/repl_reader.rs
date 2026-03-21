@@ -1,31 +1,39 @@
+use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use rustyline::{
+    completion::{self, Completer},
     error::ReadlineError,
     highlight::{CmdKind, Highlighter},
     history::FileHistory,
     validate::{ValidationContext, ValidationResult, Validator},
-    Cmd, Completer, ConditionalEventHandler, Editor, Event, EventContext, EventHandler, Helper,
+    Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
     Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
 };
 
 const HISTORY_FILE: &str = ".sgleam_history";
 
-// TODO: add completion
+pub type Completions = Rc<RefCell<Vec<String>>>;
+
 pub struct ReplReader {
     // We use Option to implement Iterator which ends after the first None.
-    editor: Option<Editor<InputValidator, FileHistory>>,
+    editor: Option<Editor<InputHelper, FileHistory>>,
 }
 
 impl ReplReader {
-    pub fn new() -> Result<ReplReader> {
-        let mut editor = Editor::new()?;
+    pub fn new(completions: Completions) -> Result<ReplReader> {
+        let config = rustyline::Config::builder()
+            .completion_type(rustyline::CompletionType::List)
+            .build();
+        let mut editor = Editor::with_config(config)?;
 
         let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
 
-        editor.set_helper(Some(InputValidator {
+        editor.set_helper(Some(InputHelper {
             validator: BracketsStringValidator {},
+            completions,
             color,
         }));
 
@@ -35,7 +43,7 @@ impl ReplReader {
         );
         editor.bind_sequence(
             KeyEvent(KeyCode::Tab, Modifiers::NONE),
-            EventHandler::Simple(Cmd::Insert(1, "  ".into())),
+            EventHandler::Conditional(Box::new(TabHandler)),
         );
         editor.bind_sequence(
             KeyEvent(KeyCode::Backspace, Modifiers::NONE),
@@ -115,11 +123,35 @@ fn history_path() -> Option<PathBuf> {
     dirs::home_dir().map(|p: PathBuf| p.join(HISTORY_FILE))
 }
 
-#[derive(Completer, Helper, Hinter, Validator)]
-struct InputValidator {
+#[derive(Helper, Hinter, Validator)]
+struct InputHelper {
     #[rustyline(Validator)]
     validator: BracketsStringValidator,
+    completions: Completions,
     color: bool,
+}
+
+fn is_break_char(c: char) -> bool {
+    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
+}
+
+impl Completer for InputHelper {
+    type Candidate = String;
+
+    fn complete(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> Result<(usize, Vec<String>)> {
+        let (start, prefix) = completion::extract_word(line, pos, None, is_break_char);
+        if prefix.is_empty() {
+            return Ok((start, vec![]));
+        }
+        let candidates = self
+            .completions
+            .borrow()
+            .iter()
+            .filter(|name| name.starts_with(prefix))
+            .cloned()
+            .collect();
+        Ok((start, candidates))
+    }
 }
 
 // ANSI color codes matching the web editor's One Light theme.
@@ -136,7 +168,7 @@ const KEYWORDS: &[&str] = &[
     "panic", "pub", "todo", "type", "use",
 ];
 
-impl Highlighter for InputValidator {
+impl Highlighter for InputHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> std::borrow::Cow<'l, str> {
         if self.color {
             std::borrow::Cow::Owned(highlight_gleam(line))
@@ -356,6 +388,31 @@ impl ConditionalEventHandler for AutoIndentHandler {
             Some(Cmd::Newline)
         } else {
             None // default behavior (accept line)
+        }
+    }
+}
+
+/// Tab handler: insert 2 spaces for indentation, or trigger completion.
+struct TabHandler;
+
+impl ConditionalEventHandler for TabHandler {
+    fn handle(
+        &self,
+        _evt: &Event,
+        _n: RepeatCount,
+        _positive: bool,
+        ctx: &EventContext,
+    ) -> Option<Cmd> {
+        let line = ctx.line();
+        let pos = ctx.pos();
+        // If at start of line or only whitespace before cursor, insert indentation
+        let before = &line[..pos];
+        let line_start = before.rfind('\n').map_or(0, |i| i + 1);
+        if before[line_start..].chars().all(|c| c.is_whitespace()) {
+            Some(Cmd::Insert(1, "  ".into()))
+        } else {
+            // Trigger completion
+            Some(Cmd::Complete)
         }
     }
 }

@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     ast::{Definition, Function, UntypedDefinition, UntypedExpr},
@@ -164,6 +165,20 @@ pub fn get_args_names(fun: &Function<(), UntypedExpr>) -> Vec<String> {
 
 // TODO: move this function to Project
 pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> {
+    compile_with_modules(
+        project,
+        repl,
+        &mut im::HashMap::new(),
+        &mut im::HashMap::new(),
+    )
+}
+
+pub fn compile_with_modules(
+    project: &mut Project,
+    repl: bool,
+    existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
+    defined_modules: &mut im::HashMap<EcoString, Utf8PathBuf>,
+) -> Result<Vec<Module>, Error> {
     let config = PackageConfig {
         target: Target::JavaScript,
         ..Default::default()
@@ -190,8 +205,8 @@ pub fn compile(project: &mut Project, repl: bool) -> Result<Vec<Module>, Error> 
     compiler
         .compile(
             &WarningEmitter::new(Rc::new(ConsoleWarningEmitter::with_repl(repl))),
-            &mut im::HashMap::new(),
-            &mut im::HashMap::new(),
+            existing_modules,
+            defined_modules,
             &mut StaleTracker::default(),
             &mut HashSet::new(),
             &NullTelemetry,

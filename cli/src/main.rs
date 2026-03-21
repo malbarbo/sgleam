@@ -182,6 +182,13 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
 }
 
+const COMPLETION_EXTRAS: &[&str] = &[
+    // REPL commands
+    ":quit", ":type ", ":debug", // Keywords and builtins
+    "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
+    "False", "Nil", "Ok", "Error", "panic", "todo",
+];
+
 fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
     if !quiet {
         print!("{}", welcome_message());
@@ -196,14 +203,26 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     });
 
     let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
-    let reader = repl_reader::ReplReader::new().map_err(|e| SgleamError::Other(e.into()))?;
+    let completions = repl_reader::Completions::default();
+    update_completions(&repl, &completions);
+    let reader = repl_reader::ReplReader::new(completions.clone())
+        .map_err(|e| SgleamError::Other(e.into()))?;
     for input in reader {
         match repl.run(&input) {
             Err(err) => show_error(&err),
             Ok(ReplOutput::Quit) => break,
-            _ => continue,
+            _ => {}
         }
+        update_completions(&repl, &completions);
     }
 
     Ok(())
+}
+
+fn update_completions(repl: &Repl<QuickJsEngine>, completions: &repl_reader::Completions) {
+    let mut names = repl.completions();
+    names.extend(COMPLETION_EXTRAS.iter().map(|s| s.to_string()));
+    names.sort();
+    names.dedup();
+    *completions.borrow_mut() = names;
 }

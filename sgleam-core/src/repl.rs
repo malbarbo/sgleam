@@ -1,5 +1,7 @@
 use std::{collections::HashMap, fmt::Write};
 
+use camino::Utf8PathBuf;
+use ecow::EcoString;
 use gleam_core::{
     ast::{
         BitArraySize, Definition, Pattern, Statement, TargetedDefinition, UntypedPattern,
@@ -7,6 +9,7 @@ use gleam_core::{
     },
     build::Module,
     io::{FileSystemReader, FileSystemWriter},
+    type_::ModuleInterface,
     Error,
 };
 use indoc::formatdoc;
@@ -15,7 +18,7 @@ use vec1::Vec1;
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{compile, get_args_names, get_definition_src, type_to_string, Project},
+    gleam::{compile_with_modules, get_args_names, get_definition_src, type_to_string, Project},
     parser::{self, ReplItem},
     run::get_function,
     swrite, swriteln, GLEAM_MODULES_NAMES,
@@ -35,7 +38,7 @@ pub fn welcome_message() -> String {
 #[derive(Clone)]
 enum NameEntry {
     /// `import gleam/int as i` → key "i"
-    ModuleAlias(String),
+    ModuleAlias { path: String, members: Vec<String> },
     /// `import gleam/int.{to_string}` → key "to_string"
     UnqualifiedValue { module: String, original: String },
     /// `import gleam/option.{type Option}` → key "Option"
@@ -54,6 +57,8 @@ pub struct Repl<E: Engine> {
     names: HashMap<String, NameEntry>,
     fn_bodies: HashMap<String, String>,
     project: Project,
+    existing_modules: im::HashMap<EcoString, ModuleInterface>,
+    defined_modules: im::HashMap<EcoString, Utf8PathBuf>,
     engine: E,
     iter: (usize, usize),
     var_index: usize,
@@ -67,10 +72,11 @@ pub struct Repl<E: Engine> {
     repl_load: String,
 }
 
+#[repr(u32)]
 pub enum ReplOutput {
-    Quit,
-    StdOut,
-    Error,
+    StdOut = 0,
+    Error = 1,
+    Quit = 2,
 }
 
 impl<E: Engine> Repl<E> {
@@ -79,7 +85,13 @@ impl<E: Engine> Repl<E> {
             .iter()
             .map(|s| {
                 let short = s.rsplit('/').next().unwrap_or(s);
-                (short.to_string(), NameEntry::ModuleAlias(s.to_string()))
+                (
+                    short.to_string(),
+                    NameEntry::ModuleAlias {
+                        path: s.to_string(),
+                        members: vec![],
+                    },
+                )
             })
             .collect();
         let fs = project.fs.clone();
@@ -90,11 +102,13 @@ impl<E: Engine> Repl<E> {
                 .unwrap()
                 .subsec_nanos()
         );
-        Ok(Repl {
+        let mut repl = Repl {
             user_import: user_module.map(import_public_types_and_values),
             names,
             fn_bodies: HashMap::new(),
             project,
+            existing_modules: im::HashMap::new(),
+            defined_modules: im::HashMap::new(),
             engine: E::new(fs),
             iter: (0, 0),
             var_index: 0,
@@ -105,7 +119,31 @@ impl<E: Engine> Repl<E> {
             repl_print: format!("repl_print_{suffix}"),
             repl_save: format!("repl_save_{suffix}"),
             repl_load: format!("repl_load_{suffix}"),
-        })
+        };
+        // Initial compilation to populate module_members cache.
+        let _ = repl.run_check();
+        Ok(repl)
+    }
+
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        self.names.keys().map(String::as_str)
+    }
+
+    /// Returns all completion candidates: unqualified names, qualified
+    /// module.member names, and does NOT include keywords/commands (those
+    /// are added by the CLI).
+    pub fn completions(&self) -> Vec<String> {
+        let mut result: Vec<String> = self.names.keys().cloned().collect();
+        for (alias, entry) in &self.names {
+            if let NameEntry::ModuleAlias { members, .. } = entry {
+                for member in members {
+                    result.push(format!("{alias}.{member}"));
+                }
+            }
+        }
+        result.sort();
+        result.dedup();
+        result
     }
 
     pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
@@ -211,7 +249,7 @@ pub fn {print}(value: a) -> a"#
         }
         for (name, entry) in &self.names {
             match entry {
-                NameEntry::ModuleAlias(module) => {
+                NameEntry::ModuleAlias { path: module, .. } => {
                     swriteln!(src, "import {module} as {name}");
                 }
                 NameEntry::UnqualifiedValue { module, original } => {
@@ -301,7 +339,12 @@ pub fn {print}(value: a) -> a"#
         }
         self.project.write_source(&file, code);
 
-        let result = compile(&mut self.project, true);
+        let result = compile_with_modules(
+            &mut self.project,
+            true,
+            &mut self.existing_modules,
+            &mut self.defined_modules,
+        );
 
         self.project
             .fs
@@ -309,6 +352,23 @@ pub fn {print}(value: a) -> a"#
             .expect("To delete repl file");
 
         let mut modules = result?;
+
+        // Fill in empty members for ModuleAlias entries from compiled module interfaces.
+        for entry in self.names.values_mut() {
+            if let NameEntry::ModuleAlias { path, members } = entry {
+                if members.is_empty() {
+                    if let Some(iface) = self.existing_modules.get(path.as_str()) {
+                        *members = iface
+                            .public_value_names()
+                            .into_iter()
+                            .map(String::from)
+                            .chain(iface.public_type_names().into_iter().map(String::from))
+                            .collect();
+                        members.sort();
+                    }
+                }
+            }
+        }
 
         if self.debug {
             let js_path = format!("/build/{module_name}.mjs");
@@ -549,14 +609,17 @@ pub fn {print}(value: a) -> a"#
     fn run_import(&mut self, import: &gleam_core::ast::Import<()>) -> Result<(), Error> {
         let module = import.module.to_string();
 
-        // Handle module alias / short name
+        // Handle module alias / short name.
+        // Members are populated after the next compile() call.
+        let alias_entry = NameEntry::ModuleAlias {
+            path: module.clone(),
+            members: vec![],
+        };
         if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
-            self.names
-                .insert(name.to_string(), NameEntry::ModuleAlias(module.clone()));
+            self.names.insert(name.to_string(), alias_entry);
         } else {
             let short = module.rsplit('/').next().unwrap_or(&module).to_string();
-            self.names
-                .insert(short, NameEntry::ModuleAlias(module.clone()));
+            self.names.insert(short, alias_entry);
         }
 
         // Handle unqualified values
