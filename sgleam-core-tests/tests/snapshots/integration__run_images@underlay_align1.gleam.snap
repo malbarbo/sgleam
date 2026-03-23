@@ -3,4 +3,9 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: cli/tests/images/underlay_align1.gleam
 ---
-
+<svg width="60.0" height="60.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 0.0 0.0 L 30.0 0.0 L 30.0 60.0 L 0.0 60.0 Z" fill="rgba(255, 165, 0, 1.0)" />
+    <path d="M 60.0 30.0 A 30.0 15.0 0.0 0 1 0.0 30.0 A 30.0 15.0 0.0 0 1 60.0 30.0 Z" fill="rgba(128, 0, 128, 1.0)" />
+  </g>
+</svg>

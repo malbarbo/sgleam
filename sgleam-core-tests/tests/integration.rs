@@ -2,11 +2,12 @@ use camino::Utf8PathBuf;
 use indoc::formatdoc;
 use insta::{assert_snapshot, glob};
 use sgleam_core::{
+    engine::Engine,
     error::show_error,
-    gleam::Project,
+    gleam::{get_module, Project},
     quickjs::{capture_output, QuickJsEngine},
     repl::Repl,
-    run::{run_main, run_test},
+    run::{get_main, run_main, run_test},
 };
 
 const INPUTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/tests/inputs");
@@ -69,9 +70,38 @@ fn run_tests() {
 fn run_images() {
     glob!(IMAGES_DIR, "*.gleam", |path| {
         let path = path.as_os_str().to_str().expect("a valid path");
-        let (out, _) = run_file_captured(path);
+        let (out, _) = run_image_captured(path);
         assert_snapshot!(format!("{out}"));
     });
+}
+
+fn run_image_captured(path: &str) -> (String, String) {
+    let path = camino::Utf8Path::new(path);
+    let name = path.file_name().expect("a valid filename");
+    let content = std::fs::read_to_string(path).expect("read file");
+    capture_output(|| {
+        let mut project = Project::default();
+        project.write_source(name, &content);
+        let modules = match project.compile(false) {
+            Ok(m) => m,
+            Err(err) => {
+                show_error(&err.into());
+                return;
+            }
+        };
+        let stem = path.file_stem().unwrap_or("");
+        if let Some(module) = get_module(&modules, stem) {
+            match get_main(module) {
+                Ok(main) => {
+                    let engine = QuickJsEngine::new(project.fs.clone());
+                    if let Err(err) = engine.run_main(&module.name, main, false) {
+                        show_error(&err);
+                    }
+                }
+                Err(err) => show_error(&err),
+            }
+        }
+    })
 }
 
 // --- Completion tests ---

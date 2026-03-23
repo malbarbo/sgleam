@@ -3,4 +3,9 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: cli/tests/images/scale2.gleam
 ---
-
+<svg width="600.0" height="400.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 0.0 0.0 L 200.0 0.0 L 200.0 400.0 L 0.0 400.0 Z" fill="rgba(0, 0, 0, 1.0)" />
+    <path d="M 200.0 100.0 L 600.0 100.0 L 600.0 300.0 L 200.0 300.0 Z" fill="rgba(0, 0, 255, 1.0)" />
+  </g>
+</svg>

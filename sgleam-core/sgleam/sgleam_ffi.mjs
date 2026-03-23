@@ -79,9 +79,7 @@ export function repl_load(index) {
 }
 
 const IMAGE_TYPE_NAMES = new Set([
-    "Rectangle",
-    "Ellipse",
-    "Polygon",
+    "Path",
     "Combination",
     "Crop",
     "Text",
@@ -241,6 +239,22 @@ export function sin_deg(angle) {
 
 export function hypot(a, b) {
     return Math.hypot(a, b);
+}
+
+export function cos(angle) {
+    return Math.cos(angle);
+}
+
+export function sin(angle) {
+    return Math.sin(angle);
+}
+
+export function atan2(y, x) {
+    return Math.atan2(y, x);
+}
+
+export function sqrt(x) {
+    return Math.sqrt(x);
 }
 
 let clipid = 0;

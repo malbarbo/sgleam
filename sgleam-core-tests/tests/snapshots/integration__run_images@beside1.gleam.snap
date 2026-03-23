@@ -3,4 +3,15 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: cli/tests/images/beside1.gleam
 ---
-
+<svg width="80.0" height="70.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <g>
+        <path d="M 20.0 35.0 A 10.0 35.0 0.0 0 1 0.0 35.0 A 10.0 35.0 0.0 0 1 20.0 35.0 Z" fill="rgba(211, 211, 211, 1.0)" />
+        <path d="M 40.0 35.0 A 10.0 25.0 0.0 0 1 20.0 35.0 A 10.0 25.0 0.0 0 1 40.0 35.0 Z" fill="rgba(169, 169, 169, 1.0)" />
+      </g>
+      <path d="M 60.0 35.0 A 10.0 15.0 0.0 0 1 40.0 35.0 A 10.0 15.0 0.0 0 1 60.0 35.0 Z" fill="rgba(105, 105, 105, 1.0)" />
+    </g>
+    <path d="M 80.0 35.0 A 10.0 5.0 0.0 0 1 60.0 35.0 A 10.0 5.0 0.0 0 1 80.0 35.0 Z" fill="rgba(0, 0, 0, 1.0)" />
+  </g>
+</svg>

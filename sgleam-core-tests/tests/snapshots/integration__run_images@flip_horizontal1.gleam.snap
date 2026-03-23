@@ -3,4 +3,9 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: cli/tests/images/flip_horizontal1.gleam
 ---
-
+<svg width="136.60254037844388" height="68.30127018922194" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 0.0 25.0 L 43.30127018922194 0.0 L 68.30127018922194 43.30127018922194 L 24.999999999999996 68.30127018922194 Z" fill="rgba(255, 0, 0, 1.0)" />
+    <path d="M 136.60254037844388 25.0 L 93.30127018922194 0.0 L 68.30127018922194 43.30127018922194 L 111.60254037844388 68.30127018922194 Z" fill="rgba(0, 0, 255, 1.0)" />
+  </g>
+</svg>

@@ -5,19 +5,16 @@ import gleam/list
 import gleam/string
 import sgleam/color.{type Color}
 import sgleam/font.{type Font, Font}
-import sgleam/math.{cos_deg, hypot, sin_deg}
+import sgleam/math.{atan2, cos_deg, cos, pi, sin_deg, sin, sqrt}
 import sgleam/style.{type Style}
 import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
-// FIXME: adjuste figure with outline only (https://docs.racket-lang.org/teachpack/2htdpimage-guide.html#%28part._nitty-gritty%29)
+// FIXME: adjust figure with outline only (https://docs.racket-lang.org/teachpack/2htdpimage-guide.html#%28part._nitty-gritty%29)
 // TODO: add constants for dash
-// TODO: wedge
-// TODO: all curve functions
 // TODO: all text functions
 // TODO: triangle/sa...
-// TODO: pulled_regular_polygon
 // TODO: place_images
 // TODO: place_images_align
 // TODO: bitmap...
@@ -69,35 +66,11 @@ fn pointf_to_point(p: Pointf) -> Point {
 }
 
 // **************************
-// * Align
+// * Utilities
 // **************************
 
-fn x_place_dx(x_place: XPlace, wa: Float, wb: Float) -> #(Float, Float) {
-  case x_place {
-    Left -> #(0.0, 0.0)
-    Center -> {
-      let wm = float.max(wa, wb)
-      #(mid(wm, wa), mid(wm, wb))
-    }
-    Right -> {
-      let wm = float.max(wa, wb)
-      #(wm -. wa, wm -. wb)
-    }
-  }
-}
-
-fn y_place_dy(y_place: YPlace, ha: Float, hb: Float) -> #(Float, Float) {
-  case y_place {
-    Top -> #(0.0, 0.0)
-    Middle -> {
-      let hm = float.max(ha, hb)
-      #(mid(hm, ha), mid(hm, hb))
-    }
-    Bottom -> {
-      let hm = float.max(ha, hb)
-      #(hm -. ha, hm -. hb)
-    }
-  }
+fn positive(n: Float) -> Float {
+  float.max(0.0, n)
 }
 
 fn mid(a: Float, b: Float) -> Float {
@@ -105,13 +78,69 @@ fn mid(a: Float, b: Float) -> Float {
 }
 
 // **************************
+// * PathCmd
+// **************************
+
+pub opaque type PathCmd {
+  MoveTo(Pointf)
+  LineTo(Pointf)
+  QuadTo(control: Pointf, end: Pointf)
+  CubicTo(c1: Pointf, c2: Pointf, end: Pointf)
+  ArcTo(
+    rx: Float,
+    ry: Float,
+    rotation: Float,
+    large_arc: Bool,
+    sweep: Bool,
+    end: Pointf,
+  )
+}
+
+pub fn move_to(x: Float, y: Float) -> PathCmd {
+  MoveTo(Pointf(x, y))
+}
+
+pub fn line_to(x: Float, y: Float) -> PathCmd {
+  LineTo(Pointf(x, y))
+}
+
+pub fn quad_to(cx: Float, cy: Float, x: Float, y: Float) -> PathCmd {
+  QuadTo(Pointf(cx, cy), Pointf(x, y))
+}
+
+pub fn cubic_to(
+  c1x: Float,
+  c1y: Float,
+  c2x: Float,
+  c2y: Float,
+  x: Float,
+  y: Float,
+) -> PathCmd {
+  CubicTo(Pointf(c1x, c1y), Pointf(c2x, c2y), Pointf(x, y))
+}
+
+pub fn arc_to(
+  rx: Float,
+  ry: Float,
+  rotation: Float,
+  large_arc: Bool,
+  sweep: Bool,
+  x: Float,
+  y: Float,
+) -> PathCmd {
+  ArcTo(rx, ry, rotation, large_arc, sweep, Pointf(x, y))
+}
+
+pub fn pathf(commands: List(PathCmd), closed: Bool, style: Style) -> Image {
+  Path(style, commands, closed) |> fix_position
+}
+
+// **************************
 // * Image
 // **************************
 
 pub opaque type Image {
-  Rectangle(style: Style, box: Box)
-  Ellipse(style: Style, box: Box)
-  Polygon(style: Style, points: List(Pointf))
+  Path(style: Style, commands: List(PathCmd), closed: Bool)
   Combination(Image, Image)
   Crop(box: Box, image: Image)
   Text(
@@ -166,7 +195,7 @@ fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
   Box(..box, center: point_flip(box.center), angle: 0.0 -. box.angle)
 }
 
-pub const empty = Rectangle(style.none, Box(Pointf(0.0, 0.0), 0.0, 0.0, 0.0))
+pub const empty = Path(style.none, [], True)
 
 pub fn widthf(img: Image) -> Float {
   let #(min, max) = box(img)
@@ -208,10 +237,8 @@ pub fn center(img: Image) -> Point {
 fn translate(img: Image, dx: Float, dy: Float) -> Image {
   use <- bool.guard(dx == 0.0 && dy == 0.0, img)
   case img {
-    Rectangle(box:, ..) -> Rectangle(..img, box: box_translate(box, dx, dy))
-    Ellipse(box:, ..) -> Ellipse(..img, box: box_translate(box, dx, dy))
-    Polygon(points:, ..) ->
-      Polygon(..img, points: list.map(points, point_translate(_, dx, dy)))
+    Path(style:, commands:, closed:) ->
+      Path(style, list.map(commands, cmd_translate(_, dx, dy)), closed)
     Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
     Crop(box:, image:) ->
       Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
@@ -227,16 +254,16 @@ fn fix_position(img: Image) -> Image {
   }
 }
 
+// **************************
+// * Bounding box
+// **************************
+
 fn box(img: Image) -> #(Pointf, Pointf) {
   case img {
-    Rectangle(box:, ..) -> box_box(box)
-    Ellipse(box: Box(center:, width:, height:, angle:), ..) -> {
-      let dx = hypot(width *. cos_deg(angle), height *. sin_deg(angle))
-      let dy = hypot(width *. sin_deg(angle), height *. cos_deg(angle))
-      #(
-        point_translate(center, 0.0 -. dx, 0.0 -. dy),
-        point_translate(center, dx, dy),
-      )
+    Path(commands: [], ..) -> #(Pointf(0.0, 0.0), Pointf(0.0, 0.0))
+    Path(commands: [first, ..rest], ..) -> {
+      let p = cmd_endpoint(first)
+      path_box(rest, p, p.x, p.y, p.x, p.y)
     }
     Combination(a, b) -> {
       let #(amin, amax) = box(a)
@@ -246,16 +273,536 @@ fn box(img: Image) -> #(Pointf, Pointf) {
         Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
       )
     }
-    Polygon(points: [first, ..rest], ..) -> {
-      let min_x = list.fold(rest, first.x, fn(min, p) { float.min(min, p.x) })
-      let min_y = list.fold(rest, first.y, fn(min, p) { float.min(min, p.y) })
-      let max_x = list.fold(rest, first.x, fn(max, p) { float.max(max, p.x) })
-      let max_y = list.fold(rest, first.y, fn(max, p) { float.max(max, p.y) })
-      #(Pointf(min_x, min_y), Pointf(max_x, max_y))
-    }
-    Polygon(points: [], ..) -> #(Pointf(0.0, 0.0), Pointf(0.0, 0.0))
     Crop(box:, ..) -> box_box(box)
     Text(box:, ..) -> box_box(box)
+  }
+}
+
+fn path_box(
+  commands: List(PathCmd),
+  prev: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Pointf, Pointf) {
+  case commands {
+    [] -> #(Pointf(min_x, min_y), Pointf(max_x, max_y))
+    [cmd, ..rest] -> {
+      let #(min_x, min_y, max_x, max_y) =
+        cmd_box(cmd, prev, min_x, min_y, max_x, max_y)
+      path_box(rest, cmd_endpoint(cmd), min_x, min_y, max_x, max_y)
+    }
+  }
+}
+
+fn cmd_box(
+  cmd: PathCmd,
+  prev: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  case cmd {
+    MoveTo(p) -> update_bounds(p, min_x, min_y, max_x, max_y)
+    LineTo(p) -> update_bounds(p, min_x, min_y, max_x, max_y)
+    QuadTo(c, e) -> quad_box(prev, c, e, min_x, min_y, max_x, max_y)
+    CubicTo(c1, c2, e) ->
+      cubic_box(prev, c1, c2, e, min_x, min_y, max_x, max_y)
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      arc_box(prev, rx, ry, rot, la, sw, e, min_x, min_y, max_x, max_y)
+  }
+}
+
+fn update_bounds(
+  p: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  #(
+    float.min(min_x, p.x),
+    float.min(min_y, p.y),
+    float.max(max_x, p.x),
+    float.max(max_y, p.y),
+  )
+}
+
+// Quadratic bezier bounding box
+fn quad_box(
+  p0: Pointf,
+  c: Pointf,
+  e: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  let #(min_x, min_y, max_x, max_y) =
+    update_bounds(e, min_x, min_y, max_x, max_y)
+  let #(min_x, max_x) = quad_axis_extrema(p0.x, c.x, e.x, min_x, max_x)
+  let #(min_y, max_y) = quad_axis_extrema(p0.y, c.y, e.y, min_y, max_y)
+  #(min_x, min_y, max_x, max_y)
+}
+
+fn quad_axis_extrema(
+  p0: Float,
+  c: Float,
+  e: Float,
+  min: Float,
+  max: Float,
+) -> #(Float, Float) {
+  // B'(t) = 0 => t = (p0 - c) / (p0 - 2c + e)
+  let denom = p0 -. 2.0 *. c +. e
+  case denom == 0.0 {
+    True -> #(min, max)
+    False -> {
+      let t = { p0 -. c } /. denom
+      case t >. 0.0 && t <. 1.0 {
+        True -> {
+          let v = quad_at(t, p0, c, e)
+          #(float.min(min, v), float.max(max, v))
+        }
+        False -> #(min, max)
+      }
+    }
+  }
+}
+
+fn quad_at(t: Float, p0: Float, c: Float, e: Float) -> Float {
+  let mt = 1.0 -. t
+  mt *. mt *. p0 +. 2.0 *. mt *. t *. c +. t *. t *. e
+}
+
+// Cubic bezier bounding box
+fn cubic_box(
+  p0: Pointf,
+  c1: Pointf,
+  c2: Pointf,
+  e: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  let #(min_x, min_y, max_x, max_y) =
+    update_bounds(e, min_x, min_y, max_x, max_y)
+  let #(min_x, max_x) =
+    cubic_axis_extrema(p0.x, c1.x, c2.x, e.x, min_x, max_x)
+  let #(min_y, max_y) =
+    cubic_axis_extrema(p0.y, c1.y, c2.y, e.y, min_y, max_y)
+  #(min_x, min_y, max_x, max_y)
+}
+
+fn cubic_axis_extrema(
+  p0: Float,
+  c1: Float,
+  c2: Float,
+  e: Float,
+  min: Float,
+  max: Float,
+) -> #(Float, Float) {
+  // B'(t) = 3[a*t^2 + b*t + c] where:
+  let a = 0.0 -. p0 +. 3.0 *. c1 -. 3.0 *. c2 +. e
+  let b = 2.0 *. { p0 -. 2.0 *. c1 +. c2 }
+  let c = c1 -. p0
+  case a == 0.0 {
+    True ->
+      // Linear: t = -c/b
+      case b == 0.0 {
+        True -> #(min, max)
+        False -> {
+          let t = 0.0 -. c /. b
+          case t >. 0.0 && t <. 1.0 {
+            True -> {
+              let v = cubic_at(t, p0, c1, c2, e)
+              #(float.min(min, v), float.max(max, v))
+            }
+            False -> #(min, max)
+          }
+        }
+      }
+    False -> {
+      let disc = b *. b -. 4.0 *. a *. c
+      case disc <. 0.0 {
+        True -> #(min, max)
+        False -> {
+          let sq = sqrt(disc)
+          let t1 = { 0.0 -. b +. sq } /. { 2.0 *. a }
+          let t2 = { 0.0 -. b -. sq } /. { 2.0 *. a }
+          let #(min, max) = case t1 >. 0.0 && t1 <. 1.0 {
+            True -> {
+              let v = cubic_at(t1, p0, c1, c2, e)
+              #(float.min(min, v), float.max(max, v))
+            }
+            False -> #(min, max)
+          }
+          case t2 >. 0.0 && t2 <. 1.0 {
+            True -> {
+              let v = cubic_at(t2, p0, c1, c2, e)
+              #(float.min(min, v), float.max(max, v))
+            }
+            False -> #(min, max)
+          }
+        }
+      }
+    }
+  }
+}
+
+fn cubic_at(t: Float, p0: Float, c1: Float, c2: Float, e: Float) -> Float {
+  let mt = 1.0 -. t
+  mt
+  *. mt
+  *. mt
+  *. p0
+  +. 3.0
+  *. mt
+  *. mt
+  *. t
+  *. c1
+  +. 3.0
+  *. mt
+  *. t
+  *. t
+  *. c2
+  +. t
+  *. t
+  *. t
+  *. e
+}
+
+// Elliptical arc bounding box (SVG spec F.6.5)
+fn arc_box(
+  p1: Pointf,
+  rx: Float,
+  ry: Float,
+  phi_deg: Float,
+  large_arc: Bool,
+  sweep: Bool,
+  p2: Pointf,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  let #(min_x, min_y, max_x, max_y) =
+    update_bounds(p2, min_x, min_y, max_x, max_y)
+  let rx = float.absolute_value(rx)
+  let ry = float.absolute_value(ry)
+  case rx == 0.0 || ry == 0.0 {
+    True -> #(min_x, min_y, max_x, max_y)
+    False -> {
+      let phi = phi_deg *. pi /. 180.0
+      let cos_phi = cos(phi)
+      let sin_phi = sin(phi)
+      // Step 1: compute (x1', y1')
+      let dx = { p1.x -. p2.x } /. 2.0
+      let dy = { p1.y -. p2.y } /. 2.0
+      let x1p = cos_phi *. dx +. sin_phi *. dy
+      let y1p = 0.0 -. sin_phi *. dx +. cos_phi *. dy
+      // Correct radii if too small
+      let lambda =
+        x1p *. x1p /. { rx *. rx } +. y1p *. y1p /. { ry *. ry }
+      let #(rx, ry) = case lambda >. 1.0 {
+        True -> {
+          let s = sqrt(lambda)
+          #(rx *. s, ry *. s)
+        }
+        False -> #(rx, ry)
+      }
+      // Step 2: compute center'
+      let num =
+        float.max(
+          0.0,
+          rx
+            *. rx
+            *. ry
+            *. ry
+            -. rx
+            *. rx
+            *. y1p
+            *. y1p
+            -. ry
+            *. ry
+            *. x1p
+            *. x1p,
+        )
+      let den =
+        rx *. rx *. y1p *. y1p +. ry *. ry *. x1p *. x1p
+      let sq = case den == 0.0 {
+        True -> 0.0
+        False -> sqrt(num /. den)
+      }
+      let sign = case large_arc == sweep {
+        True -> -1.0
+        False -> 1.0
+      }
+      let cxp = sign *. sq *. rx *. y1p /. ry
+      let cyp = sign *. sq *. { 0.0 -. ry } *. x1p /. rx
+      // Step 3: compute center
+      let cx =
+        cos_phi *. cxp -. sin_phi *. cyp +. { p1.x +. p2.x } /. 2.0
+      let cy =
+        sin_phi *. cxp +. cos_phi *. cyp +. { p1.y +. p2.y } /. 2.0
+      // Step 4: compute theta1 and dtheta
+      let theta1 =
+        angle_vec(
+          1.0,
+          0.0,
+          { x1p -. cxp } /. rx,
+          { y1p -. cyp } /. ry,
+        )
+      let dtheta_raw =
+        angle_vec(
+          { x1p -. cxp } /. rx,
+          { y1p -. cyp } /. ry,
+          { 0.0 -. x1p -. cxp } /. rx,
+          { 0.0 -. y1p -. cyp } /. ry,
+        )
+      let dtheta = case sweep {
+        False ->
+          case dtheta_raw >. 0.0 {
+            True -> dtheta_raw -. 2.0 *. pi
+            False -> dtheta_raw
+          }
+        True ->
+          case dtheta_raw <. 0.0 {
+            True -> dtheta_raw +. 2.0 *. pi
+            False -> dtheta_raw
+          }
+      }
+      // Find extrema: x at theta_x + k*pi, y at theta_y + k*pi
+      let theta_x = atan2(0.0 -. ry *. sin_phi, rx *. cos_phi)
+      let theta_y = atan2(ry *. cos_phi, rx *. sin_phi)
+      arc_check_extrema(
+        cx,
+        cy,
+        rx,
+        ry,
+        cos_phi,
+        sin_phi,
+        theta1,
+        dtheta,
+        theta_x,
+        theta_y,
+        min_x,
+        min_y,
+        max_x,
+        max_y,
+      )
+    }
+  }
+}
+
+fn arc_check_extrema(
+  cx: Float,
+  cy: Float,
+  rx: Float,
+  ry: Float,
+  cos_phi: Float,
+  sin_phi: Float,
+  theta1: Float,
+  dtheta: Float,
+  theta_x: Float,
+  theta_y: Float,
+  min_x: Float,
+  min_y: Float,
+  max_x: Float,
+  max_y: Float,
+) -> #(Float, Float, Float, Float) {
+  // Check x-extrema at theta_x + k*pi for k in -1, 0, 1, 2
+  let #(min_x, min_y, max_x, max_y) =
+    list.fold([-1, 0, 1, 2], #(min_x, min_y, max_x, max_y), fn(b, k) {
+      let theta = theta_x +. int.to_float(k) *. pi
+      case angle_in_range(theta, theta1, dtheta) {
+        True -> {
+          let #(px, _) =
+            ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
+          let #(bmin_x, bmin_y, bmax_x, bmax_y) = b
+          #(float.min(bmin_x, px), bmin_y, float.max(bmax_x, px), bmax_y)
+        }
+        False -> b
+      }
+    })
+  // Check y-extrema at theta_y + k*pi for k in -1, 0, 1, 2
+  list.fold([-1, 0, 1, 2], #(min_x, min_y, max_x, max_y), fn(b, k) {
+    let theta = theta_y +. int.to_float(k) *. pi
+    case angle_in_range(theta, theta1, dtheta) {
+      True -> {
+        let #(_, py) =
+          ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
+        let #(bmin_x, bmin_y, bmax_x, bmax_y) = b
+        #(bmin_x, float.min(bmin_y, py), bmax_x, float.max(bmax_y, py))
+      }
+      False -> b
+    }
+  })
+}
+
+fn angle_in_range(theta: Float, theta1: Float, dtheta: Float) -> Bool {
+  case dtheta >=. 0.0 {
+    True -> {
+      let t = normalize_angle(theta -. theta1)
+      t <=. dtheta
+    }
+    False -> {
+      let t = normalize_angle(theta1 -. theta)
+      t <=. float.absolute_value(dtheta)
+    }
+  }
+}
+
+fn normalize_angle(a: Float) -> Float {
+  let two_pi = 2.0 *. pi
+  case a <. 0.0 {
+    True -> normalize_angle(a +. two_pi)
+    False ->
+      case a >=. two_pi {
+        True -> normalize_angle(a -. two_pi)
+        False -> a
+      }
+  }
+}
+
+fn ellipse_point(
+  cx: Float,
+  cy: Float,
+  rx: Float,
+  ry: Float,
+  cos_phi: Float,
+  sin_phi: Float,
+  theta: Float,
+) -> #(Float, Float) {
+  let ct = cos(theta)
+  let st = sin(theta)
+  #(
+    cx +. rx *. ct *. cos_phi -. ry *. st *. sin_phi,
+    cy +. rx *. ct *. sin_phi +. ry *. st *. cos_phi,
+  )
+}
+
+fn angle_vec(ux: Float, uy: Float, vx: Float, vy: Float) -> Float {
+  atan2(ux *. vy -. uy *. vx, ux *. vx +. uy *. vy)
+}
+
+// **************************
+// * PathCmd transforms
+// **************************
+
+fn cmd_endpoint(cmd: PathCmd) -> Pointf {
+  case cmd {
+    MoveTo(p) -> p
+    LineTo(p) -> p
+    QuadTo(_, end) -> end
+    CubicTo(_, _, end) -> end
+    ArcTo(_, _, _, _, _, end) -> end
+  }
+}
+
+fn cmd_translate(cmd: PathCmd, dx: Float, dy: Float) -> PathCmd {
+  case cmd {
+    MoveTo(p) -> MoveTo(point_translate(p, dx, dy))
+    LineTo(p) -> LineTo(point_translate(p, dx, dy))
+    QuadTo(c, e) ->
+      QuadTo(point_translate(c, dx, dy), point_translate(e, dx, dy))
+    CubicTo(c1, c2, e) ->
+      CubicTo(
+        point_translate(c1, dx, dy),
+        point_translate(c2, dx, dy),
+        point_translate(e, dx, dy),
+      )
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      ArcTo(rx, ry, rot, la, sw, point_translate(e, dx, dy))
+  }
+}
+
+fn cmd_rotate(cmd: PathCmd, center: Pointf, angle: Float) -> PathCmd {
+  case cmd {
+    MoveTo(p) -> MoveTo(point_rotate(p, center, angle))
+    LineTo(p) -> LineTo(point_rotate(p, center, angle))
+    QuadTo(c, e) ->
+      QuadTo(point_rotate(c, center, angle), point_rotate(e, center, angle))
+    CubicTo(c1, c2, e) ->
+      CubicTo(
+        point_rotate(c1, center, angle),
+        point_rotate(c2, center, angle),
+        point_rotate(e, center, angle),
+      )
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      ArcTo(rx, ry, rot +. angle, la, sw, point_rotate(e, center, angle))
+  }
+}
+
+fn cmd_scale(cmd: PathCmd, x_factor: Float, y_factor: Float) -> PathCmd {
+  let sp = fn(p: Pointf) { Pointf(p.x *. x_factor, p.y *. y_factor) }
+  case cmd {
+    MoveTo(p) -> MoveTo(sp(p))
+    LineTo(p) -> LineTo(sp(p))
+    QuadTo(c, e) -> QuadTo(sp(c), sp(e))
+    CubicTo(c1, c2, e) -> CubicTo(sp(c1), sp(c2), sp(e))
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      ArcTo(rx *. x_factor, ry *. y_factor, rot, la, sw, sp(e))
+  }
+}
+
+fn cmd_flip(cmd: PathCmd, pf: fn(Pointf) -> Pointf) -> PathCmd {
+  case cmd {
+    MoveTo(p) -> MoveTo(pf(p))
+    LineTo(p) -> LineTo(pf(p))
+    QuadTo(c, e) -> QuadTo(pf(c), pf(e))
+    CubicTo(c1, c2, e) -> CubicTo(pf(c1), pf(c2), pf(e))
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      ArcTo(rx, ry, 0.0 -. rot, la, !sw, pf(e))
+  }
+}
+
+fn points_to_path(points: List(Pointf), style: Style) -> Image {
+  case points {
+    [] -> Path(style, [], False)
+    [p] -> Path(style, [MoveTo(p)], False)
+    [first, second] ->
+      Path(style, [MoveTo(first), LineTo(second)], False)
+    [first, ..rest] ->
+      Path(
+        style,
+        [MoveTo(first), ..list.map(rest, fn(p) { LineTo(p) })],
+        True,
+      )
+  }
+}
+
+// **************************
+// * Align
+// **************************
+
+fn x_place_dx(x_place: XPlace, wa: Float, wb: Float) -> #(Float, Float) {
+  case x_place {
+    Left -> #(0.0, 0.0)
+    Center -> {
+      let wm = float.max(wa, wb)
+      #(mid(wm, wa), mid(wm, wb))
+    }
+    Right -> {
+      let wm = float.max(wa, wb)
+      #(wm -. wa, wm -. wb)
+    }
+  }
+}
+
+fn y_place_dy(y_place: YPlace, ha: Float, hb: Float) -> #(Float, Float) {
+  case y_place {
+    Top -> #(0.0, 0.0)
+    Middle -> {
+      let hm = float.max(ha, hb)
+      #(mid(hm, ha), mid(hm, hb))
+    }
+    Bottom -> {
+      let hm = float.max(ha, hb)
+      #(hm -. ha, hm -. hb)
+    }
   }
 }
 
@@ -266,7 +813,16 @@ fn box(img: Image) -> #(Pointf, Pointf) {
 pub fn rectanglef(width: Float, height: Float, style: Style) -> Image {
   let width = positive(width)
   let height = positive(height)
-  Rectangle(style, Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0))
+  Path(
+    style,
+    [
+      MoveTo(Pointf(0.0, 0.0)),
+      LineTo(Pointf(width, 0.0)),
+      LineTo(Pointf(width, height)),
+      LineTo(Pointf(0.0, height)),
+    ],
+    True,
+  )
 }
 
 pub fn rectangle(width: Int, height: Int, style: Style) -> Image {
@@ -282,9 +838,19 @@ pub fn square(side: Int, style: Style) -> Image {
 }
 
 pub fn ellipsef(width: Float, height: Float, style: Style) -> Image {
-  let hw = positive(width) /. 2.0
-  let hh = positive(height) /. 2.0
-  Ellipse(style, Box(Pointf(hw, hh), hw, hh, 0.0))
+  let w = positive(width)
+  let h = positive(height)
+  let rx = w /. 2.0
+  let ry = h /. 2.0
+  Path(
+    style,
+    [
+      MoveTo(Pointf(w, ry)),
+      ArcTo(rx, ry, 0.0, False, True, Pointf(0.0, ry)),
+      ArcTo(rx, ry, 0.0, False, True, Pointf(w, ry)),
+    ],
+    True,
+  )
 }
 
 pub fn ellipse(width: Int, height: Int, style: Style) -> Image {
@@ -300,41 +866,12 @@ pub fn circle(radius: Int, style: Style) -> Image {
 }
 
 pub fn linef(x: Float, y: Float, style: Style) -> Image {
-  Polygon(style, [Pointf(0.0, 0.0), Pointf(x, y)]) |> fix_position
+  Path(style, [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(x, y))], False)
+  |> fix_position
 }
 
 pub fn line(x: Int, y: Int, style: Style) -> Image {
   linef(int.to_float(x), int.to_float(y), style)
-}
-
-pub fn add_linef(
-  img: Image,
-  x1: Float,
-  y1: Float,
-  x2: Float,
-  y2: Float,
-  style: Style,
-) -> Image {
-  Combination(img, Polygon(style, [Pointf(x1, y1), Pointf(x2, y2)]))
-  |> fix_position
-}
-
-pub fn add_line(
-  img: Image,
-  x1: Int,
-  y1: Int,
-  x2: Int,
-  y2: Int,
-  style: Style,
-) -> Image {
-  add_linef(
-    img,
-    int.to_float(x1),
-    int.to_float(y1),
-    int.to_float(x2),
-    int.to_float(y2),
-    style,
-  )
 }
 
 // **************************
@@ -345,11 +882,10 @@ pub fn trianglef(side: Float, style: Style) -> Image {
   let side = positive(side)
   // side *. sqrt(3.0) /. 2.0
   let height = side *. 0.8660254037844386
-  Polygon(style, [
-    Pointf(side /. 2.0, 0.0),
-    Pointf(side, height),
-    Pointf(0.0, height),
-  ])
+  points_to_path(
+    [Pointf(side /. 2.0, 0.0), Pointf(side, height), Pointf(0.0, height)],
+    style,
+  )
 }
 
 pub fn triangle(side: Int, style: Style) -> Image {
@@ -359,7 +895,10 @@ pub fn triangle(side: Int, style: Style) -> Image {
 pub fn right_trianglef(side1: Float, side2: Float, style: Style) -> Image {
   let side1 = positive(side1)
   let side2 = positive(side2)
-  Polygon(style, [Pointf(0.0, 0.0), Pointf(0.0, side2), Pointf(side1, side2)])
+  points_to_path(
+    [Pointf(0.0, 0.0), Pointf(0.0, side2), Pointf(side1, side2)],
+    style,
+  )
 }
 
 pub fn right_triangle(side1: Int, side2: Int, style: Style) -> Image {
@@ -373,14 +912,20 @@ pub fn isosceles_trianglef(
 ) -> Image {
   let side_length = positive(side_length)
   let hangle = angle /. 2.0
-  Polygon(style, [
-    Pointf(side_length *. sin_deg(hangle), side_length *. cos_deg(hangle)),
-    Pointf(0.0, 0.0),
-    Pointf(
-      0.0 -. side_length *. sin_deg(hangle),
-      side_length *. cos_deg(hangle),
-    ),
-  ])
+  points_to_path(
+    [
+      Pointf(
+        side_length *. sin_deg(hangle),
+        side_length *. cos_deg(hangle),
+      ),
+      Pointf(0.0, 0.0),
+      Pointf(
+        0.0 -. side_length *. sin_deg(hangle),
+        side_length *. cos_deg(hangle),
+      ),
+    ],
+    style,
+  )
   |> fix_position
 }
 
@@ -392,12 +937,15 @@ pub fn rhombusf(side_length: Float, angle: Float, style: Style) -> Image {
   let side_length = positive(side_length)
   let height = 2.0 *. side_length *. cos_deg(angle /. 2.0)
   let width = 2.0 *. side_length *. sin_deg(angle /. 2.0)
-  Polygon(style, [
-    Pointf(0.0, height /. 2.0),
-    Pointf(width /. 2.0, 0.0),
-    Pointf(width, height /. 2.0),
-    Pointf(width /. 2.0, height),
-  ])
+  points_to_path(
+    [
+      Pointf(0.0, height /. 2.0),
+      Pointf(width /. 2.0, 0.0),
+      Pointf(width, height /. 2.0),
+      Pointf(width /. 2.0, height),
+    ],
+    style,
+  )
 }
 
 pub fn rhombus(side_length: Int, angle: Int, style: Style) -> Image {
@@ -417,19 +965,11 @@ pub fn regular_polygon(side_length: Int, side_count: Int, style: Style) -> Image
 }
 
 pub fn polygonf(points: List(Pointf), style: Style) -> Image {
-  Polygon(style, points) |> fix_position
+  points_to_path(points, style) |> fix_position
 }
 
 pub fn polygon(points: List(Point), style: Style) -> Image {
   polygonf(list.map(points, point_to_pointf), style)
-}
-
-pub fn add_polygonf(img: Image, points: List(Pointf), style: Style) -> Image {
-  Combination(img, Polygon(style, points)) |> fix_position
-}
-
-pub fn add_polygon(img: Image, points: List(Point), style: Style) -> Image {
-  add_polygonf(img, list.map(points, point_to_pointf), style)
 }
 
 pub fn star_polygonf(
@@ -441,9 +981,10 @@ pub fn star_polygonf(
   let side_count = int.max(1, side_count)
   let side_countf = int.to_float(side_count)
   let step_count = int.max(1, step_count)
-  let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
+  let radius =
+    positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
   let alpha = case int.is_even(side_count) {
-    True -> -180.0 /. side_countf
+    True -> 90.0 +. 180.0 /. side_countf
     False -> -90.0
   }
 
@@ -453,7 +994,7 @@ pub fn star_polygonf(
     [Pointf(radius *. cos_deg(theta), radius *. sin_deg(theta)), ..acc]
   })
   |> list.reverse
-  |> Polygon(style, _)
+  |> points_to_path(style)
   |> fix_position
 }
 
@@ -484,7 +1025,7 @@ pub fn radial_starf(
   let inner_radius = positive(inner_radius)
   let outer_radius = positive(outer_radius)
   let alpha = case int.is_even(point_count) {
-    True -> -180.0 /. int.to_float(point_count)
+    True -> 90.0 +. 180.0 /. int.to_float(point_count)
     False -> -90.0
   }
 
@@ -500,7 +1041,7 @@ pub fn radial_starf(
     ]
   })
   |> list.reverse
-  |> Polygon(style, _)
+  |> points_to_path(style)
   |> fix_position
 }
 
@@ -518,8 +1059,121 @@ pub fn radial_star(
   )
 }
 
-fn positive(n: Float) -> Float {
-  float.max(0.0, n)
+pub fn pulled_regular_polygonf(
+  side_length: Float,
+  side_count: Int,
+  pull: Float,
+  angle: Float,
+  style: Style,
+) -> Image {
+  let side_count = int.max(3, side_count)
+  let side_countf = int.to_float(side_count)
+  let radius =
+    positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
+  let alpha = case int.is_even(side_count) {
+    True -> 90.0 +. 180.0 /. side_countf
+    False -> -90.0
+  }
+  let vertices =
+    int.range(0, side_count, [], fn(acc, i) {
+      let theta = alpha +. 360.0 *. int.to_float(i) /. side_countf
+      [Pointf(radius *. cos_deg(theta), radius *. sin_deg(theta)), ..acc]
+    })
+    |> list.reverse
+  case vertices {
+    [first, ..] -> {
+      let edges = pulled_edges(vertices, first, pull, angle)
+      Path(style, [MoveTo(first), ..edges], True) |> fix_position
+    }
+    _ -> empty
+  }
+}
+
+pub fn pulled_regular_polygon(
+  side_length: Int,
+  side_count: Int,
+  pull: Float,
+  angle: Float,
+  style: Style,
+) -> Image {
+  pulled_regular_polygonf(
+    int.to_float(side_length),
+    side_count,
+    pull,
+    angle,
+    style,
+  )
+}
+
+fn pulled_edges(
+  vertices: List(Pointf),
+  first: Pointf,
+  pull: Float,
+  angle: Float,
+) -> List(PathCmd) {
+  case vertices {
+    [] -> []
+    [last] -> [edge_cubic(last, first, pull, angle)]
+    [a, b, ..rest] -> [
+      edge_cubic(a, b, pull, angle),
+      ..pulled_edges([b, ..rest], first, pull, angle)
+    ]
+  }
+}
+
+fn edge_cubic(
+  from: Pointf,
+  to: Pointf,
+  pull: Float,
+  angle: Float,
+) -> PathCmd {
+  let dx = to.x -. from.x
+  let dy = to.y -. from.y
+  let dist = sqrt(dx *. dx +. dy *. dy)
+  let edge_rad = atan2(dy, dx)
+  let angle_rad = angle *. pi /. 180.0
+  let c1 =
+    Pointf(
+      from.x +. pull *. dist *. cos(edge_rad +. angle_rad),
+      from.y +. pull *. dist *. sin(edge_rad +. angle_rad),
+    )
+  let c2 =
+    Pointf(
+      to.x -. pull *. dist *. cos(edge_rad -. angle_rad),
+      to.y -. pull *. dist *. sin(edge_rad -. angle_rad),
+    )
+  CubicTo(c1, c2, to)
+}
+
+// **************************
+// * Wedge
+// **************************
+
+pub fn wedgef(radius: Float, angle: Float, style: Style) -> Image {
+  wedge_path(radius, angle, style) |> fix_position
+}
+
+pub fn wedge(radius: Int, angle: Int, style: Style) -> Image {
+  wedgef(int.to_float(radius), int.to_float(angle), style)
+}
+
+fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
+  let r = positive(radius)
+  let x1 = r
+  let y1 = 0.0
+  let x2 = r *. cos_deg(angle)
+  let y2 = 0.0 -. r *. sin_deg(angle)
+  let large_arc = float.absolute_value(angle) >. 180.0
+  let sweep_flag = angle <. 0.0
+  Path(
+    style,
+    [
+      MoveTo(Pointf(0.0, 0.0)),
+      LineTo(Pointf(x1, y1)),
+      ArcTo(r, r, 0.0, large_arc, sweep_flag, Pointf(x2, y2)),
+    ],
+    True,
+  )
 }
 
 // **************************
@@ -566,10 +1220,8 @@ pub fn rotate(img: Image, angle: Int) -> Image {
 
 fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
   case img {
-    Rectangle(box:, ..) -> Rectangle(..img, box: box_rotate(box, center, angle))
-    Ellipse(box:, ..) -> Ellipse(..img, box: box_rotate(box, center, angle))
-    Polygon(points:, ..) ->
-      Polygon(..img, points: list.map(points, point_rotate(_, center, angle)))
+    Path(style:, commands:, closed:) ->
+      Path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
     Combination(a, b) ->
       Combination(
         rotate_around(a, center, angle),
@@ -596,15 +1248,11 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
   let x_factor = positive(x_factor)
   let y_factor = positive(y_factor)
   case img {
-    Rectangle(box:, ..) ->
-      Rectangle(..img, box: box_scale(box, x_factor, y_factor))
-    Ellipse(box:, ..) -> Ellipse(..img, box: box_scale(box, x_factor, y_factor))
-    Polygon(points:, ..) ->
-      Polygon(
-        ..img,
-        points: list.map(points, fn(p) {
-          Pointf(p.x *. x_factor, p.y *. y_factor)
-        }),
+    Path(style:, commands:, closed:) ->
+      Path(
+        style,
+        list.map(commands, cmd_scale(_, x_factor, y_factor)),
+        closed,
       )
     Combination(a, b) ->
       Combination(
@@ -639,9 +1287,8 @@ fn flip(
   flip_vertical: Bool,
 ) -> Image {
   case img {
-    Rectangle(box:, ..) -> Rectangle(..img, box: box_flip(box, point_flip))
-    Ellipse(box:, ..) -> Ellipse(..img, box: box_flip(box, point_flip))
-    Polygon(points:, ..) -> Polygon(..img, points: list.map(points, point_flip))
+    Path(style:, commands:, closed:) ->
+      Path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
     Combination(a, b) ->
       Combination(
         flip(a, point_flip, flip_horizontal, flip_vertical),
@@ -953,7 +1600,10 @@ pub fn place_linef(
   y2: Float,
   style: Style,
 ) -> Image {
-  Combination(scene, Polygon(style, [Pointf(x1, y1), Pointf(x2, y2)]))
+  Combination(
+    scene,
+    Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+  )
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
 }
@@ -977,7 +1627,7 @@ pub fn place_line(
 }
 
 pub fn place_polygonf(scene: Image, points: List(Pointf), style: Style) -> Image {
-  Combination(scene, Polygon(style, points))
+  Combination(scene, points_to_path(points, style))
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
 }
@@ -986,12 +1636,296 @@ pub fn place_polygon(scene: Image, points: List(Point), style: Style) -> Image {
   place_polygonf(scene, list.map(points, point_to_pointf), style)
 }
 
+pub fn place_curvef(
+  scene: Image,
+  x1: Float,
+  y1: Float,
+  angle1: Float,
+  pull1: Float,
+  x2: Float,
+  y2: Float,
+  angle2: Float,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  let #(c1, c2) =
+    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  Combination(
+    scene,
+    Path(
+      style,
+      [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
+      False,
+    ),
+  )
+  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
+  |> fix_position
+}
+
+pub fn place_curve(
+  scene: Image,
+  x1: Int,
+  y1: Int,
+  angle1: Int,
+  pull1: Float,
+  x2: Int,
+  y2: Int,
+  angle2: Int,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  place_curvef(
+    scene,
+    int.to_float(x1),
+    int.to_float(y1),
+    int.to_float(angle1),
+    pull1,
+    int.to_float(x2),
+    int.to_float(y2),
+    int.to_float(angle2),
+    pull2,
+    style,
+  )
+}
+
+pub fn place_wedgef(
+  scene: Image,
+  x: Float,
+  y: Float,
+  radius: Float,
+  angle: Float,
+  style: Style,
+) -> Image {
+  Combination(scene, translate(wedge_path(radius, angle, style), x, y))
+  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
+  |> fix_position
+}
+
+pub fn place_wedge(
+  scene: Image,
+  x: Int,
+  y: Int,
+  radius: Int,
+  angle: Int,
+  style: Style,
+) -> Image {
+  place_wedgef(
+    scene,
+    int.to_float(x),
+    int.to_float(y),
+    int.to_float(radius),
+    int.to_float(angle),
+    style,
+  )
+}
+
 pub fn put_imagef(scene: Image, x: Float, y: Float, img: Image) -> Image {
   place_imagef(scene, x, heightf(scene) -. y, img)
 }
 
 pub fn put_image(scene: Image, x: Int, y: Int, img: Image) -> Image {
   put_imagef(scene, int.to_float(x), int.to_float(y), img)
+}
+
+// **************************
+// * Adding
+// **************************
+
+pub fn add_linef(
+  img: Image,
+  x1: Float,
+  y1: Float,
+  x2: Float,
+  y2: Float,
+  style: Style,
+) -> Image {
+  Combination(
+    img,
+    Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+  )
+  |> fix_position
+}
+
+pub fn add_line(
+  img: Image,
+  x1: Int,
+  y1: Int,
+  x2: Int,
+  y2: Int,
+  style: Style,
+) -> Image {
+  add_linef(
+    img,
+    int.to_float(x1),
+    int.to_float(y1),
+    int.to_float(x2),
+    int.to_float(y2),
+    style,
+  )
+}
+
+pub fn add_polygonf(img: Image, points: List(Pointf), style: Style) -> Image {
+  Combination(img, points_to_path(points, style)) |> fix_position
+}
+
+pub fn add_polygon(img: Image, points: List(Point), style: Style) -> Image {
+  add_polygonf(img, list.map(points, point_to_pointf), style)
+}
+
+pub fn add_curvef(
+  img: Image,
+  x1: Float,
+  y1: Float,
+  angle1: Float,
+  pull1: Float,
+  x2: Float,
+  y2: Float,
+  angle2: Float,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  let #(c1, c2) =
+    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  Combination(
+    img,
+    Path(
+      style,
+      [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
+      False,
+    ),
+  )
+  |> fix_position
+}
+
+pub fn add_curve(
+  img: Image,
+  x1: Int,
+  y1: Int,
+  angle1: Int,
+  pull1: Float,
+  x2: Int,
+  y2: Int,
+  angle2: Int,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  add_curvef(
+    img,
+    int.to_float(x1),
+    int.to_float(y1),
+    int.to_float(angle1),
+    pull1,
+    int.to_float(x2),
+    int.to_float(y2),
+    int.to_float(angle2),
+    pull2,
+    style,
+  )
+}
+
+pub fn add_solid_curvef(
+  img: Image,
+  x1: Float,
+  y1: Float,
+  angle1: Float,
+  pull1: Float,
+  x2: Float,
+  y2: Float,
+  angle2: Float,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  let #(c1, c2) =
+    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  Combination(
+    img,
+    Path(
+      style,
+      [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
+      True,
+    ),
+  )
+  |> fix_position
+}
+
+pub fn add_solid_curve(
+  img: Image,
+  x1: Int,
+  y1: Int,
+  angle1: Int,
+  pull1: Float,
+  x2: Int,
+  y2: Int,
+  angle2: Int,
+  pull2: Float,
+  style: Style,
+) -> Image {
+  add_solid_curvef(
+    img,
+    int.to_float(x1),
+    int.to_float(y1),
+    int.to_float(angle1),
+    pull1,
+    int.to_float(x2),
+    int.to_float(y2),
+    int.to_float(angle2),
+    pull2,
+    style,
+  )
+}
+
+pub fn add_wedgef(
+  img: Image,
+  x: Float,
+  y: Float,
+  radius: Float,
+  angle: Float,
+  style: Style,
+) -> Image {
+  Combination(img, translate(wedge_path(radius, angle, style), x, y))
+  |> fix_position
+}
+
+pub fn add_wedge(
+  img: Image,
+  x: Int,
+  y: Int,
+  radius: Int,
+  angle: Int,
+  style: Style,
+) -> Image {
+  add_wedgef(
+    img,
+    int.to_float(x),
+    int.to_float(y),
+    int.to_float(radius),
+    int.to_float(angle),
+    style,
+  )
+}
+
+fn curve_controls(
+  x1: Float,
+  y1: Float,
+  angle1: Float,
+  pull1: Float,
+  x2: Float,
+  y2: Float,
+  angle2: Float,
+  pull2: Float,
+) -> #(Pointf, Pointf) {
+  let dist = sqrt({ x2 -. x1 } *. { x2 -. x1 } +. { y2 -. y1 } *. { y2 -. y1 })
+  let c1 =
+    Pointf(
+      x1 +. pull1 *. dist *. cos_deg(angle1),
+      y1 -. pull1 *. dist *. sin_deg(angle1),
+    )
+  let c2 =
+    Pointf(
+      x2 -. pull2 *. dist *. cos_deg(angle2),
+      y2 +. pull2 *. dist *. sin_deg(angle2),
+    )
+  #(c1, c2)
 }
 
 // **************************
@@ -1009,49 +1943,13 @@ pub fn to_svg(img: Image) -> String {
 
 fn to_svg_(img: Image, level: Int) -> String {
   case img {
-    Rectangle(style:, box: Box(center:, width:, height:, angle:)) -> {
-      indent(level)
-      <> "<rect "
-      <> attrib("x", center.x -. width /. 2.0)
-      <> attrib("y", center.y -. height /. 2.0)
-      <> attrib("width", width)
-      <> attrib("height", height)
-      <> attribs("transform", rotate_str(angle, center))
-      <> style.to_svg(style)
-      <> "/>\n"
-    }
-    Ellipse(style:, box: Box(center:, width:, height:, angle:)) -> {
-      indent(level)
-      <> "<ellipse "
-      <> attrib("cx", center.x)
-      <> attrib("cy", center.y)
-      <> attrib("rx", width)
-      <> attrib("ry", height)
-      <> attribs("transform", rotate_str(angle, center))
-      <> style.to_svg(style)
-      <> "/>\n"
-    }
-    Polygon(style:, points: [p1, p2]) -> {
-      indent(level)
-      <> "<line "
-      <> attrib("x1", p1.x)
-      <> attrib("y1", p1.y)
-      <> attrib("x2", p2.x)
-      <> attrib("y2", p2.y)
-      <> style.to_svg(style)
-      <> "/>\n"
-    }
-    Polygon(style:, points:) -> {
-      let points =
-        points
-        |> list.map(fn(p) {
-          float.to_string(p.x) <> "," <> float.to_string(p.y)
-        })
-        |> string.join(" ")
-      indent(level)
-      <> "<polygon "
-      <> attribs("points", points)
-      <> style.to_svg(style)
+    Path(style:, commands:, closed:) -> {
+      let d = commands_to_d(commands)
+      let d = case closed {
+        True -> d <> " Z"
+        False -> d
+      }
+      indent(level) <> "<path " <> attribs("d", d) <> style.to_svg(style)
       <> "/>\n"
     }
     Combination(a, b) ->
@@ -1138,6 +2036,60 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> text
       <> "</text>\n"
     }
+  }
+}
+
+fn commands_to_d(commands: List(PathCmd)) -> String {
+  commands
+  |> list.map(cmd_to_d)
+  |> string.join(" ")
+}
+
+fn cmd_to_d(cmd: PathCmd) -> String {
+  case cmd {
+    MoveTo(p) -> "M " <> fs(p.x) <> " " <> fs(p.y)
+    LineTo(p) -> "L " <> fs(p.x) <> " " <> fs(p.y)
+    QuadTo(c, e) ->
+      "Q " <> fs(c.x) <> " " <> fs(c.y) <> " " <> fs(e.x) <> " " <> fs(e.y)
+    CubicTo(c1, c2, e) ->
+      "C "
+      <> fs(c1.x)
+      <> " "
+      <> fs(c1.y)
+      <> " "
+      <> fs(c2.x)
+      <> " "
+      <> fs(c2.y)
+      <> " "
+      <> fs(e.x)
+      <> " "
+      <> fs(e.y)
+    ArcTo(rx, ry, rot, la, sw, e) ->
+      "A "
+      <> fs(rx)
+      <> " "
+      <> fs(ry)
+      <> " "
+      <> fs(rot)
+      <> " "
+      <> bool01(la)
+      <> " "
+      <> bool01(sw)
+      <> " "
+      <> fs(e.x)
+      <> " "
+      <> fs(e.y)
+  }
+}
+
+fn fs(v: Float) -> String {
+  float.to_string(v)
+}
+
+fn bool01(b: Bool) -> String {
+  case b {
+    True -> "1"
+    False -> "0"
   }
 }
 

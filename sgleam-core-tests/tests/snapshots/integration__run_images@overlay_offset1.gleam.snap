@@ -3,4 +3,9 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: cli/tests/images/overlay_offset1.gleam
 ---
-
+<svg width="90.0" height="90.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 90.0 50.0 A 40.0 40.0 0.0 0 1 10.0 50.0 A 40.0 40.0 0.0 0 1 90.0 50.0 Z" fill="rgba(0, 0, 255, 1.0)" />
+    <path d="M 80.0 40.0 A 40.0 40.0 0.0 0 1 0.0 40.0 A 40.0 40.0 0.0 0 1 80.0 40.0 Z" fill="rgba(255, 0, 0, 1.0)" />
+  </g>
+</svg>
