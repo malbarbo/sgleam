@@ -104,6 +104,7 @@ fn run_image_captured(path: &str) -> (String, String) {
     })
 }
 
+
 // --- Completion tests ---
 
 fn new_repl() -> Repl<QuickJsEngine> {

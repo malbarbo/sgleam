@@ -814,6 +814,28 @@ fn runtime_error_exits_with_nonzero() {
     );
 }
 
+// world.run() calls sleep, which requires BigInt-compatible FFI (1n not 1).
+// Regression test for the rquickjs 0.9→0.11 BigInt change.
+#[test]
+fn world_run_in_repl_bigint() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/world1.gleam");
+    assert_cmd::cargo::cargo_bin_cmd!()
+        .args(["repl", "-q", input])
+        .write_stdin("main()\n")
+        .assert()
+        .success();
+}
+
+#[test]
+fn world_run_in_repl_number() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/world1.gleam");
+    assert_cmd::cargo::cargo_bin_cmd!()
+        .args(["repl", "-n", "-q", input])
+        .write_stdin("main()\n")
+        .assert()
+        .success();
+}
+
 fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     cmd.args(args);
