@@ -165,7 +165,9 @@ async function runInBrowser(gleamCode: string): Promise<Result> {
         {
             signal: ac.signal,
             port: 0,
-            onListen: (addr) => { port = addr.port; },
+            onListen: (addr) => {
+                port = addr.port;
+            },
         },
         async (req) => {
             const url = new URL(req.url);
@@ -292,7 +294,9 @@ Deno.test({
         assertEquals(
             result.ok,
             true,
-            `Crashed after ${result.svgCount} frames.\nErrors: ${result.errors.join("\n")}\nStderr: ${result.stderr.join("")}`,
+            `Crashed after ${result.svgCount} frames.\nErrors: ${
+                result.errors.join("\n")
+            }\nStderr: ${result.stderr.join("")}`,
         );
     },
     sanitizeOps: false,

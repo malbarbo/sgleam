@@ -281,7 +281,9 @@ Deno.test("move_square survives long run", async () => {
     assertEquals(
         result.error,
         null,
-        `Crashed: ${result.error}\nframes: ${result.stdout.join("")}\nstderr: ${result.stderr.join("")}`,
+        `Crashed: ${result.error}\nframes: ${result.stdout.join("")}\nstderr: ${
+            result.stderr.join("")
+        }`,
     );
 });
 
