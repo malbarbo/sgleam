@@ -1,0 +1,29 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/crop_align4.gleam
+---
+<svg width="80.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 20.0)" /></clipPath></defs>
+      <g clip-path="url(#clip0)" >
+        <path d="M 40.0 0.0 A 40.0 40.0 0.0 0 1 -40.0 0.0 A 40.0 40.0 0.0 0 1 40.0 0.0 Z" fill="rgba(219, 112, 147, 1.0)" />
+      </g>
+      <defs><clipPath id="clip1" ><rect x="40.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 60.0 20.0)" /></clipPath></defs>
+      <g clip-path="url(#clip1)" >
+        <path d="M 120.0 0.0 A 40.0 40.0 0.0 0 1 40.0 0.0 A 40.0 40.0 0.0 0 1 120.0 0.0 Z" fill="rgba(240, 128, 128, 1.0)" />
+      </g>
+    </g>
+    <g>
+      <defs><clipPath id="clip2" ><rect x="0.0" y="40.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 60.0)" /></clipPath></defs>
+      <g clip-path="url(#clip2)" >
+        <path d="M 40.0 80.0 A 40.0 40.0 0.0 0 1 -40.0 80.0 A 40.0 40.0 0.0 0 1 40.0 80.0 Z" fill="rgba(240, 128, 128, 1.0)" />
+      </g>
+      <defs><clipPath id="clip3" ><rect x="40.0" y="40.0" width="40.0" height="40.0" transform="rotate(0.0 60.0 60.0)" /></clipPath></defs>
+      <g clip-path="url(#clip3)" >
+        <path d="M 120.0 80.0 A 40.0 40.0 0.0 0 1 40.0 80.0 A 40.0 40.0 0.0 0 1 120.0 80.0 Z" fill="rgba(219, 112, 147, 1.0)" />
+      </g>
+    </g>
+  </g>
+</svg>

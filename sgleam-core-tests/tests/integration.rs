@@ -11,7 +11,7 @@ use sgleam_core::{
 };
 
 const INPUTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/tests/inputs");
-const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/tests/images");
+const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images");
 
 fn run_file_captured(path: &str) -> (String, String) {
     let path = Utf8PathBuf::from(path);
@@ -103,7 +103,6 @@ fn run_image_captured(path: &str) -> (String, String) {
         }
     })
 }
-
 
 // --- Completion tests ---
 

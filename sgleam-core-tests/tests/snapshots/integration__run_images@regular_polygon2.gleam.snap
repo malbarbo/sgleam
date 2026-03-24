@@ -1,0 +1,8 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/regular_polygon2.gleam
+---
+<svg width="40.00000000000003" height="40.00000000000001" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 3.552713678800501e-15 40.00000000000001 L 0.0 3.552713678800501e-15 L 40.0 0.0 L 40.00000000000003 39.999999999999986 Z" fill="rgba(0, 0, 255, 1.0)" />
+</svg>

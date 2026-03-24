@@ -1,7 +1,7 @@
 ---
 source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: cli/tests/images/overlay_align_offset1.gleam
+input_file: sgleam-core-tests/tests/images/overlay_align_offset1.gleam
 ---
 <svg width="136.2750302935009" height="136.27503029350086" xmlns="http://www.w3.org/2000/svg">
   <g>

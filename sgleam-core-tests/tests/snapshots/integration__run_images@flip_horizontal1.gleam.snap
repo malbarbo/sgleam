@@ -1,7 +1,7 @@
 ---
 source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: cli/tests/images/flip_horizontal1.gleam
+input_file: sgleam-core-tests/tests/images/flip_horizontal1.gleam
 ---
 <svg width="136.60254037844388" height="68.30127018922194" xmlns="http://www.w3.org/2000/svg">
   <g>

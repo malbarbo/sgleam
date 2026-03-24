@@ -1,7 +1,7 @@
 ---
 source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: cli/tests/images/world1.gleam
+input_file: sgleam-core-tests/tests/images/world1.gleam
 ---
 Image
 Image

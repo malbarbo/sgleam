@@ -1,0 +1,11 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/add_line2.gleam
+---
+<svg width="60.0" height="60.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 10.0 10.0 L 50.0 10.0 L 50.0 50.0 L 10.0 50.0 Z" fill="rgba(128, 128, 128, 1.0)" />
+    <path d="M 0.0 60.0 L 60.0 0.0" fill="none" stroke="rgba(128, 0, 0, 1.0)" />
+  </g>
+</svg>

@@ -1,0 +1,8 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/star_polygon2.gleam
+---
+<svg width="89.87918414869868" height="87.62572535069646" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 44.93959207434934 0.0 L 64.93959207434935 87.62572535069646 L 8.900837358252573 17.355349564702333 L 89.87918414869868 56.35246605197528 L 0.0 56.35246605197528 L 80.97834679044611 17.355349564702326 L 24.939592074349324 87.62572535069646 Z" fill="none" stroke="rgba(139, 0, 0, 1.0)" />
+</svg>

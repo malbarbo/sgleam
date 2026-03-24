@@ -1,0 +1,32 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/place_image3.gleam
+---
+<svg width="24.0" height="24.0" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="24.0" height="24.0" transform="rotate(0.0 12.0 12.0)" /></clipPath></defs>
+  <g clip-path="url(#clip0)" >
+    <g>
+      <defs><clipPath id="clip1" ><rect x="0.0" y="0.0" width="24.0" height="24.0" transform="rotate(0.0 12.0 12.0)" /></clipPath></defs>
+      <g clip-path="url(#clip1)" >
+        <g>
+          <defs><clipPath id="clip2" ><rect x="0.0" y="0.0" width="24.0" height="24.0" transform="rotate(0.0 12.0 12.0)" /></clipPath></defs>
+          <g clip-path="url(#clip2)" >
+            <g>
+              <defs><clipPath id="clip3" ><rect x="0.0" y="0.0" width="24.0" height="24.0" transform="rotate(0.0 12.0 12.0)" /></clipPath></defs>
+              <g clip-path="url(#clip3)" >
+                <g>
+                  <path d="M 0.0 0.0 L 24.0 0.0 L 24.0 24.0 L 0.0 24.0 Z" fill="rgba(218, 165, 32, 1.0)" />
+                  <path d="M 12.0 14.0 A 4.0 4.0 0.0 0 1 4.0 14.0 A 4.0 4.0 0.0 0 1 12.0 14.0 Z" fill="rgba(255, 255, 255, 1.0)" />
+                </g>
+              </g>
+              <path d="M 18.0 2.0 A 4.0 4.0 0.0 0 1 10.0 2.0 A 4.0 4.0 0.0 0 1 18.0 2.0 Z" fill="rgba(255, 255, 255, 1.0)" />
+            </g>
+          </g>
+          <path d="M 4.0 6.0 A 4.0 4.0 0.0 0 1 -4.0 6.0 A 4.0 4.0 0.0 0 1 4.0 6.0 Z" fill="rgba(255, 255, 255, 1.0)" />
+        </g>
+      </g>
+      <path d="M 22.0 20.0 A 4.0 4.0 0.0 0 1 14.0 20.0 A 4.0 4.0 0.0 0 1 22.0 20.0 Z" fill="rgba(255, 255, 255, 1.0)" />
+    </g>
+  </g>
+</svg>

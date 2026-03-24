@@ -1,0 +1,17 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/above_align2.gleam
+---
+<svg width="70.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <g>
+        <path d="M 70.0 10.0 A 35.0 10.0 0.0 0 1 0.0 10.0 A 35.0 10.0 0.0 0 1 70.0 10.0 Z" fill="rgba(255, 215, 0, 1.0)" />
+        <path d="M 50.0 30.0 A 25.0 10.0 0.0 0 1 0.0 30.0 A 25.0 10.0 0.0 0 1 50.0 30.0 Z" fill="rgba(218, 165, 32, 1.0)" />
+      </g>
+      <path d="M 30.0 50.0 A 15.0 10.0 0.0 0 1 0.0 50.0 A 15.0 10.0 0.0 0 1 30.0 50.0 Z" fill="rgba(184, 134, 11, 1.0)" />
+    </g>
+    <path d="M 10.0 70.0 A 5.0 10.0 0.0 0 1 0.0 70.0 A 5.0 10.0 0.0 0 1 10.0 70.0 Z" fill="rgba(160, 82, 45, 1.0)" />
+  </g>
+</svg>

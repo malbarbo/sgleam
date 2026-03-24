@@ -1,0 +1,6 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/underlay_align3.gleam
+---
+

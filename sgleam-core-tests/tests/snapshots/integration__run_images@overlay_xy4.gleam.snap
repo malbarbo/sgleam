@@ -1,0 +1,14 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/overlay_xy4.gleam
+---
+<svg width="40.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 30.0 20.0 A 5.0 5.0 0.0 0 1 20.0 20.0 A 5.0 5.0 0.0 0 1 30.0 20.0 Z" fill="rgba(34, 139, 34, 1.0)" />
+    <g>
+      <path d="M 20.0 20.0 A 5.0 5.0 0.0 0 1 10.0 20.0 A 5.0 5.0 0.0 0 1 20.0 20.0 Z" fill="rgba(34, 139, 34, 1.0)" />
+      <path d="M 40.0 20.0 A 20.0 20.0 0.0 0 1 0.0 20.0 A 20.0 20.0 0.0 0 1 40.0 20.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
+    </g>
+  </g>
+</svg>

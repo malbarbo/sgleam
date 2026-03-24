@@ -1,0 +1,11 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/crop_align2.gleam
+---
+<svg width="40.0" height="60.0" xmlns="http://www.w3.org/2000/svg">
+  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="40.0" height="60.0" transform="rotate(0.0 20.0 30.0)" /></clipPath></defs>
+  <g clip-path="url(#clip0)" >
+    <path d="M 40.0 0.0 A 40.0 60.0 0.0 0 1 -40.0 0.0 A 40.0 60.0 0.0 0 1 40.0 0.0 Z" fill="rgba(30, 144, 255, 1.0)" />
+  </g>
+</svg>

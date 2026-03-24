@@ -1,0 +1,14 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/overlay_offset2.gleam
+---
+<svg width="140.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <path d="M 140.0 20.0 A 20.0 20.0 0.0 0 1 100.0 20.0 A 20.0 20.0 0.0 0 1 140.0 20.0 Z" fill="rgba(255, 140, 0, 1.0)" />
+    <g>
+      <path d="M 40.0 20.0 A 20.0 20.0 0.0 0 1 0.0 20.0 A 20.0 20.0 0.0 0 1 40.0 20.0 Z" fill="rgba(255, 140, 0, 1.0)" />
+      <path d="M 40.0 10.0 L 100.0 10.0 L 100.0 30.0 L 40.0 30.0 Z" fill="rgba(0, 0, 0, 1.0)" />
+    </g>
+  </g>
+</svg>

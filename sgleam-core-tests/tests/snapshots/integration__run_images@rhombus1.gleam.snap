@@ -1,7 +1,7 @@
 ---
 source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: cli/tests/images/rhombus1.gleam
+input_file: sgleam-core-tests/tests/images/rhombus1.gleam
 ---
 <svg width="30.614674589207183" height="73.91036260090294" xmlns="http://www.w3.org/2000/svg">
   <path d="M 0.0 36.95518130045147 L 15.307337294603592 0.0 L 30.614674589207183 36.95518130045147 L 15.307337294603592 73.91036260090294 Z" fill="rgba(255, 0, 255, 1.0)" />

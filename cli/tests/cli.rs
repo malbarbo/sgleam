@@ -818,9 +818,10 @@ fn runtime_error_exits_with_nonzero() {
 // Regression test for the rquickjs 0.9→0.11 BigInt change.
 #[test]
 fn world_run_in_repl_bigint() {
-    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/world1.gleam");
+    let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
-        .args(["repl", "-q", input])
+        .current_dir(&root)
+        .args(["repl", "-q", "sgleam-core-tests/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();
@@ -828,9 +829,15 @@ fn world_run_in_repl_bigint() {
 
 #[test]
 fn world_run_in_repl_number() {
-    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images/world1.gleam");
+    let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
-        .args(["repl", "-n", "-q", input])
+        .current_dir(&root)
+        .args([
+            "repl",
+            "-n",
+            "-q",
+            "sgleam-core-tests/tests/images/world1.gleam",
+        ])
         .write_stdin("main()\n")
         .assert()
         .success();

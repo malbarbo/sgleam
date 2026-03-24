@@ -1,0 +1,8 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/rhombus2.gleam
+---
+<svg width="154.54813220625093" height="41.41104721640332" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0.0 20.70552360820166 L 77.27406610312546 0.0 L 154.54813220625093 20.70552360820166 L 77.27406610312546 41.41104721640332 Z" fill="rgba(147, 112, 219, 1.0)" />
+</svg>

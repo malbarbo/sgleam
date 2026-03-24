@@ -1,7 +1,7 @@
 ---
 source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: cli/tests/images/scale2.gleam
+input_file: sgleam-core-tests/tests/images/scale2.gleam
 ---
 <svg width="600.0" height="400.0" xmlns="http://www.w3.org/2000/svg">
   <g>
