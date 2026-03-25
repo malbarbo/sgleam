@@ -814,8 +814,9 @@ fn runtime_error_exits_with_nonzero() {
     );
 }
 
-// world.run() calls sleep, which requires BigInt-compatible FFI (1n not 1).
-// Regression test for the rquickjs 0.9→0.11 BigInt change.
+// world.run() calls sleep via sgleam_ffi.mjs → sgleam.sleep (rquickjs).
+// Regression test: the WASM import was renamed from "sleep" to "sgleam_sleep"
+// to avoid collision with the POSIX sleep symbol in wasm32-wasip1.
 #[test]
 fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));

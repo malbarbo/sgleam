@@ -268,7 +268,7 @@ export function sleep(ms) {
     const msn = Number(ms);
     const start = Date.now();
     while (msn > (Date.now() - start)) {
-        sgleam.sleep(1n);
+        sgleam.sleep(1);
     }
 }
 

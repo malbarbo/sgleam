@@ -135,6 +135,7 @@ pub fn interrupt() {
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     mod ffi {
+        #[link(wasm_import_module = "env")]
         extern "C" {
             pub fn check_interrupt() -> bool;
             pub fn sleep(ms: u64);

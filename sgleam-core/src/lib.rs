@@ -20,7 +20,6 @@ use rust_embed::Embed;
 
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 
-#[cfg(not(target_arch = "wasm32"))]
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_STDLIB_BIGINT: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib-bigint.tar"));

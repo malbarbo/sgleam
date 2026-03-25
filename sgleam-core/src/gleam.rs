@@ -27,11 +27,9 @@ use std::{
 use tar::Archive;
 use termcolor::{Color, ColorSpec, WriteColor};
 
-#[cfg(not(target_arch = "wasm32"))]
-use crate::GLEAM_STDLIB;
 use crate::{
     error::{flush_buffer, stderr_buffer_writer},
-    GLEAM_STDLIB_BIGINT,
+    GLEAM_STDLIB, GLEAM_STDLIB_BIGINT,
 };
 
 #[derive(Clone)]
@@ -40,7 +38,6 @@ pub struct Project {
 }
 
 fn stdlib() -> &'static [u8] {
-    #[cfg(not(target_arch = "wasm32"))]
     if !gleam_core::javascript::is_bigint_enabled() {
         return GLEAM_STDLIB;
     }
@@ -49,9 +46,6 @@ fn stdlib() -> &'static [u8] {
 
 impl Default for Project {
     fn default() -> Project {
-        #[cfg(target_arch = "wasm32")]
-        gleam_core::javascript::set_bigint_enabled(true);
-
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
         };

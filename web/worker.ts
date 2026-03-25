@@ -146,7 +146,8 @@ class Worker {
             }),
         });
         this.exports = instance.exports as unknown as WasmExports;
-        this.exports.use_bigint?.(true);
+        const params = new URL(import.meta.url).searchParams;
+        this.exports.use_bigint?.(params.get("bigint") !== "false");
         const vPtr = this.exports.version();
         if (vPtr !== 0) {
             this.version = readCstr(this.exports, vPtr);

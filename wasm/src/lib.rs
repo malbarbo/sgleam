@@ -119,6 +119,11 @@ pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
 }
 
 #[no_mangle]
+pub extern "C" fn use_bigint(flag: bool) {
+    gleam_core::javascript::set_bigint_enabled(flag);
+}
+
+#[no_mangle]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
     match std::ffi::CString::new(sgleam_core::version()) {
         Ok(cstr) => cstr.into_raw(),
