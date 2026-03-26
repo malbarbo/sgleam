@@ -65,12 +65,26 @@ pub fn stroke_dash_array(values: List(Int)) -> Style {
 }
 
 pub fn to_svg(style: Style) -> String {
-  case has_outline(style) && !has_fill(style) {
+  let attrs = case has_outline(style) && !has_fill(style) {
     False -> style.attributes
     True -> [Fill(color.none), ..style.attributes]
   }
-  |> list.map(attribute_to_svg)
-  |> string.join("")
+  let svg = attrs |> list.map(attribute_to_svg) |> string.join("")
+  // Add default stroke-linecap and stroke-linejoin for outline-only
+  // shapes without explicit settings, matching HtDP's aligned mode.
+  case has_outline(style) && !has_stroke_line_cap(style) {
+    True -> svg <> attribs("stroke-linecap", "round")
+    False -> svg
+  }
+  |> fn(s) {
+    case has_outline(style) && !has_stroke_line_join(style) {
+      True ->
+        s
+        <> attribs("stroke-linejoin", "miter")
+        <> attrib("stroke-miterlimit", 10.0)
+      False -> s
+    }
+  }
 }
 
 fn has_fill(style: Style) -> Bool {
@@ -89,6 +103,44 @@ fn has_outline(style: Style) -> Bool {
       _ -> False
     }
   })
+}
+
+fn has_stroke_line_cap(style: Style) -> Bool {
+  list.any(style.attributes, fn(s) {
+    case s {
+      StrokeLineCap(_) -> True
+      _ -> False
+    }
+  })
+}
+
+fn has_stroke_line_join(style: Style) -> Bool {
+  list.any(style.attributes, fn(s) {
+    case s {
+      StrokeLineJoin(_) -> True
+      _ -> False
+    }
+  })
+}
+
+fn has_stroke_width(style: Style) -> Bool {
+  list.any(style.attributes, fn(s) {
+    case s {
+      StrokeWidth(_) -> True
+      _ -> False
+    }
+  })
+}
+
+/// Returns the outline offset for this style. When a shape has only a
+/// stroke (no fill) and no explicit stroke width, the path should be
+/// offset by 0.5 so the default 1px stroke is fully visible within
+/// the nominal bounding box. This matches HtDP's "outline" mode.
+pub fn outline_offset(style: Style) -> Float {
+  case has_outline(style) && !has_fill(style) && !has_stroke_width(style) {
+    True -> 0.5
+    False -> 0.0
+  }
 }
 
 fn attribute_to_svg(style: Attribute) -> String {

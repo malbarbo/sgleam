@@ -3,6 +3,6 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: sgleam-core-tests/tests/images/rotate2.gleam
 ---
-<svg width="54.167522041970194" height="54.16752204197019" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 0.0 4.357787137382907 L 49.80973490458728 0.0 L 54.167522041970194 49.80973490458728 L 4.357787137382909 54.16752204197019 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
+<svg width="55.0" height="55.0" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0.5 4.5 L 49.5 0.5 L 54.5 49.5 L 4.5 54.5 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
 </svg>

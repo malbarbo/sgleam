@@ -3,7 +3,7 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: sgleam-core-tests/tests/images/overlay3.gleam
 ---
-<svg width="71.19349550499537" height="67.70903781785557" xmlns="http://www.w3.org/2000/svg">
+<svg width="72.0" height="68.0" xmlns="http://www.w3.org/2000/svg">
   <g>
     <path d="M 35.596747752497684 0.0 L 71.19349550499537 25.86255110086882 L 57.596747752497684 67.70903781785557 L 13.596747752497688 67.70903781785557 L 0.0 25.862551100868806 Z" fill="rgba(250, 250, 255, 1.0)" />
     <g>

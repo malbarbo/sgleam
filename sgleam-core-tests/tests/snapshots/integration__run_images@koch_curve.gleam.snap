@@ -3,7 +3,7 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: sgleam-core-tests/tests/images/koch_curve.gleam
 ---
-<svg width="452.5781477158343" height="130.64805770653953" xmlns="http://www.w3.org/2000/svg">
+<svg width="453.0" height="131.0" xmlns="http://www.w3.org/2000/svg">
   <g>
     <g>
       <g>

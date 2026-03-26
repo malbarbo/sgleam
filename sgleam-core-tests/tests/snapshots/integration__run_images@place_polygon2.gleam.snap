@@ -8,7 +8,7 @@ input_file: sgleam-core-tests/tests/images/place_polygon2.gleam
   <g clip-path="url(#clip0)" >
     <g>
       <path d="M 0.0 0.0 L 180.0 0.0 L 180.0 180.0 L 0.0 180.0 Z" fill="rgba(255, 255, 0, 1.0)" />
-      <path d="M 109.0 160.0 L 26.0 148.0 L 46.0 36.0 L 93.0 44.0 L 89.0 68.0 L 122.0 72.0 Z" fill="none" stroke="rgba(0, 0, 139, 1.0)" />
+      <path d="M 109.5 160.5 L 26.5 148.5 L 46.5 36.5 L 93.5 44.5 L 89.5 68.5 L 122.5 72.5 Z" fill="none" stroke="rgba(0, 0, 139, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
     </g>
   </g>
 </svg>

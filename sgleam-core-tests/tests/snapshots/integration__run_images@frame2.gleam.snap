@@ -8,9 +8,12 @@ input_file: sgleam-core-tests/tests/images/frame2.gleam
     <g>
       <g>
         <path d="M 20.0 35.0 A 10.0 35.0 0.0 0 1 0.0 35.0 A 10.0 35.0 0.0 0 1 20.0 35.0 Z" fill="rgba(176, 196, 222, 1.0)" />
-        <g>
-          <path d="M 20.0 10.0 L 40.0 10.0 L 40.0 60.0 L 20.0 60.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
-          <path d="M 40.0 35.0 A 10.0 25.0 0.0 0 1 20.0 35.0 A 10.0 25.0 0.0 0 1 40.0 35.0 Z" fill="rgba(123, 104, 238, 1.0)" />
+        <defs><clipPath id="clip0" ><rect x="20.0" y="10.0" width="20.0" height="50.0" transform="rotate(0.0 30.0 35.0)" /></clipPath></defs>
+        <g clip-path="url(#clip0)" >
+          <g>
+            <path d="M 40.0 35.0 A 10.0 25.0 0.0 0 1 20.0 35.0 A 10.0 25.0 0.0 0 1 40.0 35.0 Z" fill="rgba(123, 104, 238, 1.0)" />
+            <path d="M 20.0 10.0 L 40.0 10.0 L 40.0 60.0 L 20.0 60.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+          </g>
         </g>
       </g>
       <path d="M 60.0 35.0 A 10.0 15.0 0.0 0 1 40.0 35.0 A 10.0 15.0 0.0 0 1 60.0 35.0 Z" fill="rgba(106, 90, 205, 1.0)" />

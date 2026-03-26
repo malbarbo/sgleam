@@ -7,8 +7,11 @@ input_file: sgleam-core-tests/tests/images/place_curve1.gleam
   <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="100.0" height="100.0" transform="rotate(0.0 50.0 50.0)" /></clipPath></defs>
   <g clip-path="url(#clip0)" >
     <g>
-      <path d="M 0.0 0.0 L 100.0 0.0 L 100.0 100.0 L 0.0 100.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
-      <path d="M 10.0 50.0 C 10.000000000000002 10.0 90.0 90.0 90.0 50.0" fill="none" stroke="rgba(0, 0, 255, 1.0)" />
+      <defs><clipPath id="clip1" ><rect x="0.0" y="0.0" width="100.0" height="100.0" transform="rotate(0.0 50.0 50.0)" /></clipPath></defs>
+      <g clip-path="url(#clip1)" >
+        <path d="M 0.0 0.0 L 100.0 0.0 L 100.0 100.0 L 0.0 100.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+      </g>
+      <path d="M 10.5 50.5 C 10.5 10.5 90.5 90.5 90.5 50.5" fill="none" stroke="rgba(0, 0, 255, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
     </g>
   </g>
 </svg>

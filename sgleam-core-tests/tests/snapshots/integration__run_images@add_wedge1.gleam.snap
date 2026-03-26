@@ -5,7 +5,7 @@ input_file: sgleam-core-tests/tests/images/add_wedge1.gleam
 ---
 <svg width="80.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
   <g>
-    <path d="M 80.0 40.0 A 40.0 40.0 0.0 0 1 0.0 40.0 A 40.0 40.0 0.0 0 1 80.0 40.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" />
+    <path d="M 80.5 40.5 A 40.0 40.0 0.0 0 1 0.5 40.5 A 40.0 40.0 0.0 0 1 80.5 40.5 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
     <path d="M 40.0 40.0 L 80.0 40.0 A 40.0 40.0 0.0 0 0 40.0 0.0 Z" fill="rgba(255, 0, 0, 1.0)" />
   </g>
 </svg>

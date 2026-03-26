@@ -7,8 +7,8 @@ input_file: sgleam-core-tests/tests/images/place_line1.gleam
   <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 20.0)" /></clipPath></defs>
   <g clip-path="url(#clip0)" >
     <g>
-      <path d="M 40.0 20.0 A 20.0 20.0 0.0 0 1 0.0 20.0 A 20.0 20.0 0.0 0 1 40.0 20.0 Z" fill="none" stroke="rgba(128, 0, 0, 1.0)" />
-      <path d="M 0.0 40.0 L 40.0 0.0" fill="none" stroke="rgba(128, 0, 0, 1.0)" />
+      <path d="M 40.5 20.5 A 20.0 20.0 0.0 0 1 0.5 20.5 A 20.0 20.0 0.0 0 1 40.5 20.5 Z" fill="none" stroke="rgba(128, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+      <path d="M 0.5 40.5 L 40.5 0.5" fill="none" stroke="rgba(128, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
     </g>
   </g>
 </svg>

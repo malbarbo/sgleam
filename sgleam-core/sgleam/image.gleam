@@ -1320,7 +1320,10 @@ pub fn frame(img: Image) -> Image {
 }
 
 pub fn color_frame(img: Image, color: Color) -> Image {
-  overlay(img, rectanglef(widthf(img), heightf(img), style.stroke(color)))
+  let w = widthf(img)
+  let h = heightf(img)
+  let frame_style = style.join([style.stroke(color), style.stroke_widthf(2.0)])
+  cropf(overlay(rectanglef(w, h, frame_style), img), 0.0, 0.0, w, h)
 }
 
 pub fn cropf(
@@ -1536,7 +1539,8 @@ pub fn empty_scene(width: Int, height: Int) -> Image {
 }
 
 pub fn empty_scene_colorf(width: Float, height: Float, color: Color) -> Image {
-  rectanglef(width, height, style.stroke(color))
+  let frame_style = style.join([style.stroke(color), style.stroke_widthf(2.0)])
+  cropf(rectanglef(width, height, frame_style), 0.0, 0.0, width, height)
 }
 
 pub fn empty_scene_color(width: Int, height: Int, color: Color) -> Image {
@@ -1934,8 +1938,8 @@ fn curve_controls(
 
 pub fn to_svg(img: Image) -> String {
   "<svg "
-  <> attrib("width", widthf(img))
-  <> attrib("height", heightf(img))
+  <> attrib("width", float.ceiling(widthf(img)))
+  <> attrib("height", float.ceiling(heightf(img)))
   <> "xmlns=\"http://www.w3.org/2000/svg\">\n"
   <> to_svg_(img, 1)
   <> "</svg>"
@@ -1944,12 +1948,13 @@ pub fn to_svg(img: Image) -> String {
 fn to_svg_(img: Image, level: Int) -> String {
   case img {
     Path(style:, commands:, closed:) -> {
-      let d = commands_to_d(commands)
-      let d = case closed {
-        True -> d <> " Z"
-        False -> d
+      let aligned = style.outline_offset(style) >. 0.0
+      let path_d = commands_to_d(commands, aligned)
+      let path_d = case closed {
+        True -> path_d <> " Z"
+        False -> path_d
       }
-      indent(level) <> "<path " <> attribs("d", d) <> style.to_svg(style)
+      indent(level) <> "<path " <> attribs("d", path_d) <> style.to_svg(style)
       <> "/>\n"
     }
     Combination(a, b) ->
@@ -2039,31 +2044,37 @@ fn to_svg_(img: Image, level: Int) -> String {
   }
 }
 
-fn commands_to_d(commands: List(PathCmd)) -> String {
+fn commands_to_d(commands: List(PathCmd), aligned: Bool) -> String {
+  // For outline-only paths, round coordinates to pixel boundaries
+  // (floor + 0.5) to match HtDP's aligned drawing mode.
+  let c = case aligned {
+    True -> align
+    False -> fs
+  }
   commands
-  |> list.map(cmd_to_d)
+  |> list.map(cmd_to_d(_, c))
   |> string.join(" ")
 }
 
-fn cmd_to_d(cmd: PathCmd) -> String {
+fn cmd_to_d(cmd: PathCmd, c: fn(Float) -> String) -> String {
   case cmd {
-    MoveTo(p) -> "M " <> fs(p.x) <> " " <> fs(p.y)
-    LineTo(p) -> "L " <> fs(p.x) <> " " <> fs(p.y)
-    QuadTo(c, e) ->
-      "Q " <> fs(c.x) <> " " <> fs(c.y) <> " " <> fs(e.x) <> " " <> fs(e.y)
+    MoveTo(p) -> "M " <> c(p.x) <> " " <> c(p.y)
+    LineTo(p) -> "L " <> c(p.x) <> " " <> c(p.y)
+    QuadTo(ctrl, e) ->
+      "Q " <> c(ctrl.x) <> " " <> c(ctrl.y) <> " " <> c(e.x) <> " " <> c(e.y)
     CubicTo(c1, c2, e) ->
       "C "
-      <> fs(c1.x)
+      <> c(c1.x)
       <> " "
-      <> fs(c1.y)
+      <> c(c1.y)
       <> " "
-      <> fs(c2.x)
+      <> c(c2.x)
       <> " "
-      <> fs(c2.y)
+      <> c(c2.y)
       <> " "
-      <> fs(e.x)
+      <> c(e.x)
       <> " "
-      <> fs(e.y)
+      <> c(e.y)
     ArcTo(rx, ry, rot, la, sw, e) ->
       "A "
       <> fs(rx)
@@ -2076,14 +2087,25 @@ fn cmd_to_d(cmd: PathCmd) -> String {
       <> " "
       <> bool01(sw)
       <> " "
-      <> fs(e.x)
+      <> c(e.x)
       <> " "
-      <> fs(e.y)
+      <> c(e.y)
   }
 }
 
 fn fs(v: Float) -> String {
   float.to_string(v)
+}
+
+/// Pixel-aligned coordinate for HtDP's aligned drawing mode.
+/// Rounds to nearest integer (floor) then adds 0.5 to center
+/// the 1px stroke on the pixel boundary. A small epsilon
+/// compensates for floating-point rounding errors (e.g.
+/// 9.999999999999998 should be treated as 10.0).
+const fp_epsilon = 1.0e-10
+
+fn align(v: Float) -> String {
+  float.to_string(float.floor(v +. fp_epsilon) +. 0.5)
 }
 
 fn bool01(b: Bool) -> String {

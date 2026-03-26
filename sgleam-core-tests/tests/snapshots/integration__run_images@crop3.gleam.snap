@@ -3,7 +3,7 @@ source: sgleam-core-tests/tests/integration.rs
 expression: "format!(\"{out}\")"
 input_file: sgleam-core-tests/tests/images/crop3.gleam
 ---
-<svg width="109.28203230275508" height="109.28203230275508" xmlns="http://www.w3.org/2000/svg">
+<svg width="110.0" height="110.0" xmlns="http://www.w3.org/2000/svg">
   <g>
     <g>
       <defs><clipPath id="clip0" ><rect x="7.320508075688771" y="27.320508075688764" width="40.0" height="40.0" transform="rotate(-30.0 27.32050807568877 47.320508075688764)" /></clipPath></defs>

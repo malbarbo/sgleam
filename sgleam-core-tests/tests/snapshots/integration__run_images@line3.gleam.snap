@@ -4,5 +4,5 @@ expression: "format!(\"{out}\")"
 input_file: sgleam-core-tests/tests/images/line3.gleam
 ---
 <svg width="30.0" height="20.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 0.0 20.0 L 30.0 0.0" fill="none" stroke="rgba(255, 0, 0, 1.0)" />
+  <path d="M 0.5 20.5 L 30.5 0.5" fill="none" stroke="rgba(255, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
 </svg>
