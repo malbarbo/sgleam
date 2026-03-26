@@ -1,0 +1,8 @@
+---
+source: sgleam-core-tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: sgleam-core-tests/tests/images/triangle_sas1.gleam
+---
+<svg width="100.0" height="11.0" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0.0 0.0 L 100.0 0.0 L 40.91153481926752 10.418890660015803 Z" fill="rgba(46, 139, 87, 1.0)" />
+</svg>

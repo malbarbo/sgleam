@@ -11,12 +11,8 @@ import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
-// FIXME: adjust figure with outline only (https://docs.racket-lang.org/teachpack/2htdpimage-guide.html#%28part._nitty-gritty%29)
 // TODO: add constants for dash
 // TODO: all text functions
-// TODO: triangle/sa...
-// TODO: place_images
-// TODO: place_images_align
 // TODO: bitmap...
 // TODO: freeze
 // TODO: create pen?
@@ -933,6 +929,237 @@ pub fn isosceles_triangle(side_length: Int, angle: Int, style: Style) -> Image {
   isosceles_trianglef(int.to_float(side_length), int.to_float(angle), style)
 }
 
+// Triangle by sides and angles. Uses HtDP vertex convention:
+// A=top-left, B=top-right, C=bottom. Side a opposite A, etc.
+// Side c (A→B) is placed horizontally at the top.
+fn triangle_from_sides_angle(
+  side_b: Float,
+  side_c: Float,
+  angle_a: Float,
+  style: Style,
+) -> Image {
+  // Place A at origin, B at (side_c, 0)
+  // C is at angle_a from A, distance side_b from A
+  let cx = side_b *. cos_deg(angle_a)
+  let cy = side_b *. sin_deg(angle_a)
+  points_to_path([Pointf(0.0, 0.0), Pointf(side_c, 0.0), Pointf(cx, cy)], style)
+  |> fix_position
+}
+
+// Solve triangle from two sides and included angle using law of cosines
+fn solve_side(a: Float, b: Float, angle_c: Float) -> Float {
+  sqrt(a *. a +. b *. b -. 2.0 *. a *. b *. cos_deg(angle_c))
+}
+
+// Solve angle from three sides using law of cosines
+fn solve_angle(opposite: Float, adj1: Float, adj2: Float) -> Float {
+  let cos_val =
+    float.clamp(
+      { adj1 *. adj1 +. adj2 *. adj2 -. opposite *. opposite }
+        /. { 2.0 *. adj1 *. adj2 },
+      -1.0,
+      1.0,
+    )
+  // acos in degrees
+  atan2(sqrt(1.0 -. cos_val *. cos_val), cos_val) *. 180.0 /. pi
+}
+
+/// Triangle by three side lengths.
+pub fn triangle_sssf(
+  side_a: Float,
+  side_b: Float,
+  side_c: Float,
+  style: Style,
+) -> Image {
+  let side_a = positive(side_a)
+  let side_b = positive(side_b)
+  let side_c = positive(side_c)
+  let angle_a = solve_angle(side_a, side_b, side_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_sss(
+  side_a: Int,
+  side_b: Int,
+  side_c: Int,
+  style: Style,
+) -> Image {
+  triangle_sssf(
+    int.to_float(side_a),
+    int.to_float(side_b),
+    int.to_float(side_c),
+    style,
+  )
+}
+
+/// Triangle by side-angle-side (side a, angle B, side c).
+pub fn triangle_sasf(
+  side_a: Float,
+  angle_b: Float,
+  side_c: Float,
+  style: Style,
+) -> Image {
+  let side_a = positive(side_a)
+  let side_c = positive(side_c)
+  let side_b = solve_side(side_a, side_c, angle_b)
+  let angle_a = solve_angle(side_a, side_b, side_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_sas(
+  side_a: Int,
+  angle_b: Int,
+  side_c: Int,
+  style: Style,
+) -> Image {
+  triangle_sasf(
+    int.to_float(side_a),
+    int.to_float(angle_b),
+    int.to_float(side_c),
+    style,
+  )
+}
+
+/// Triangle by side-side-angle (side a, side b, angle C).
+pub fn triangle_ssaf(
+  side_a: Float,
+  side_b: Float,
+  angle_c: Float,
+  style: Style,
+) -> Image {
+  let side_a = positive(side_a)
+  let side_b = positive(side_b)
+  let side_c = solve_side(side_a, side_b, angle_c)
+  let angle_a = solve_angle(side_a, side_b, side_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_ssa(
+  side_a: Int,
+  side_b: Int,
+  angle_c: Int,
+  style: Style,
+) -> Image {
+  triangle_ssaf(
+    int.to_float(side_a),
+    int.to_float(side_b),
+    int.to_float(angle_c),
+    style,
+  )
+}
+
+/// Triangle by angle-angle-side (angle A, angle B, side c).
+pub fn triangle_aasf(
+  angle_a: Float,
+  angle_b: Float,
+  side_c: Float,
+  style: Style,
+) -> Image {
+  let side_c = positive(side_c)
+  let angle_c = 180.0 -. angle_a -. angle_b
+  // Law of sines: side / sin(angle) = side_c / sin(angle_c)
+  let ratio = side_c /. sin_deg(angle_c)
+  let side_b = ratio *. sin_deg(angle_b)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_aas(
+  angle_a: Int,
+  angle_b: Int,
+  side_c: Int,
+  style: Style,
+) -> Image {
+  triangle_aasf(
+    int.to_float(angle_a),
+    int.to_float(angle_b),
+    int.to_float(side_c),
+    style,
+  )
+}
+
+/// Triangle by angle-side-side (angle A, side b, side c).
+pub fn triangle_assf(
+  angle_a: Float,
+  side_b: Float,
+  side_c: Float,
+  style: Style,
+) -> Image {
+  let side_b = positive(side_b)
+  let side_c = positive(side_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_ass(
+  angle_a: Int,
+  side_b: Int,
+  side_c: Int,
+  style: Style,
+) -> Image {
+  triangle_assf(
+    int.to_float(angle_a),
+    int.to_float(side_b),
+    int.to_float(side_c),
+    style,
+  )
+}
+
+/// Triangle by angle-side-angle (angle A, side b, angle C).
+pub fn triangle_asaf(
+  angle_a: Float,
+  side_b: Float,
+  angle_c: Float,
+  style: Style,
+) -> Image {
+  let side_b = positive(side_b)
+  let angle_b = 180.0 -. angle_a -. angle_c
+  let ratio = side_b /. sin_deg(angle_b)
+  let side_c = ratio *. sin_deg(angle_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_asa(
+  angle_a: Int,
+  side_b: Int,
+  angle_c: Int,
+  style: Style,
+) -> Image {
+  triangle_asaf(
+    int.to_float(angle_a),
+    int.to_float(side_b),
+    int.to_float(angle_c),
+    style,
+  )
+}
+
+/// Triangle by side-angle-angle (side a, angle B, angle C).
+pub fn triangle_saaf(
+  side_a: Float,
+  angle_b: Float,
+  angle_c: Float,
+  style: Style,
+) -> Image {
+  let side_a = positive(side_a)
+  let angle_a = 180.0 -. angle_b -. angle_c
+  let ratio = side_a /. sin_deg(angle_a)
+  let side_b = ratio *. sin_deg(angle_b)
+  let side_c = ratio *. sin_deg(angle_c)
+  triangle_from_sides_angle(side_b, side_c, angle_a, style)
+}
+
+pub fn triangle_saa(
+  side_a: Int,
+  angle_b: Int,
+  angle_c: Int,
+  style: Style,
+) -> Image {
+  triangle_saaf(
+    int.to_float(side_a),
+    int.to_float(angle_b),
+    int.to_float(angle_c),
+    style,
+  )
+}
+
 pub fn rhombusf(side_length: Float, angle: Float, style: Style) -> Image {
   let side_length = positive(side_length)
   let height = 2.0 *. side_length *. cos_deg(angle /. 2.0)
@@ -1593,6 +1820,66 @@ pub fn place_image_align(
     x_place,
     y_place,
     img,
+  )
+}
+
+pub fn place_imagesf(
+  scene: Image,
+  positions: List(Pointf),
+  images: List(Image),
+) -> Image {
+  case positions, images {
+    [pos, ..rest_pos], [img, ..rest_imgs] ->
+      place_imagesf(
+        place_imagef(scene, pos.x, pos.y, img),
+        rest_pos,
+        rest_imgs,
+      )
+    _, _ -> scene
+  }
+}
+
+pub fn place_images(
+  scene: Image,
+  positions: List(Point),
+  images: List(Image),
+) -> Image {
+  place_imagesf(scene, list.map(positions, point_to_pointf), images)
+}
+
+pub fn place_images_alignf(
+  scene: Image,
+  positions: List(Pointf),
+  x_place: XPlace,
+  y_place: YPlace,
+  images: List(Image),
+) -> Image {
+  case positions, images {
+    [pos, ..rest_pos], [img, ..rest_imgs] ->
+      place_images_alignf(
+        place_image_alignf(scene, pos.x, pos.y, x_place, y_place, img),
+        rest_pos,
+        x_place,
+        y_place,
+        rest_imgs,
+      )
+    _, _ -> scene
+  }
+}
+
+pub fn place_images_align(
+  scene: Image,
+  positions: List(Point),
+  x_place: XPlace,
+  y_place: YPlace,
+  images: List(Image),
+) -> Image {
+  place_images_alignf(
+    scene,
+    list.map(positions, point_to_pointf),
+    x_place,
+    y_place,
+    images,
   )
 }
 
