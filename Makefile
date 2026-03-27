@@ -28,8 +28,8 @@ $(DIST_DIR)/sgleam.wasm: $(WASM_BIN) | $(DIST_DIR)
 	wasm-opt -Oz $< -o $@
 
 RUST_SRCS = Cargo.toml \
-	$(wildcard sgleam-core/src/*.rs) \
-	$(wildcard sgleam-core/sgleam/*) \
+	$(wildcard engine/src/*.rs) \
+	$(wildcard engine/sgleam/*) \
 	$(wildcard cli/src/*.rs) \
 	$(wildcard wasm/src/*.rs)
 
@@ -87,8 +87,8 @@ test: test-rs test-web
 
 test-rs:
 	cargo test
-	cargo test -p sgleam-core --features resvg
-	cargo test -p sgleam-core-tests
+	cargo test -p engine --features resvg
+	cargo test -p tests
 
 test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
 	cp $(BUILD_DIR)/worker.js $(DIST_DIR)/worker.js

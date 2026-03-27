@@ -1,11 +1,11 @@
 #![allow(clippy::result_large_err)]
 
 use clap::Parser;
+use engine::{error::show_error, parser::*};
 use gleam_core::{
     error::{FileIoAction, FileKind},
     Error,
 };
-use sgleam_core::{error::show_error, parser::*};
 use std::fs;
 
 #[derive(Parser)]

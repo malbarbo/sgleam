@@ -11,17 +11,17 @@ use clap::{
     builder::{styling, Styles},
     CommandFactory, FromArgMatches, Parser,
 };
-use gleam_core::{
-    error::{FileIoAction, FileKind},
-    javascript::set_bigint_enabled,
-};
-use sgleam_core::{
+use engine::{
     error::{show_error, SgleamError},
     format,
     gleam::{find_imports, get_module, Project},
     quickjs::QuickJsEngine,
     repl::{welcome_message, Repl, ReplOutput},
     run::{copy_files_and_build, run_check, run_main, run_test},
+};
+use gleam_core::{
+    error::{FileIoAction, FileKind},
+    javascript::set_bigint_enabled,
 };
 
 const STYLES: Styles = Styles::styled()
@@ -83,11 +83,11 @@ enum Command {
 }
 
 fn main() {
-    sgleam_core::panic::add_handler();
-    sgleam_core::logger::initialise_logger();
+    engine::panic::add_handler();
+    engine::logger::initialise_logger();
     // Error is handled by the panic hook.
     let result = std::thread::Builder::new()
-        .stack_size(sgleam_core::STACK_SIZE)
+        .stack_size(engine::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
             if let Err(err) = run() {
@@ -104,7 +104,7 @@ fn main() {
 }
 
 fn run() -> Result<(), SgleamError> {
-    let version: Box<str> = sgleam_core::version_for_clap().into();
+    let version: Box<str> = engine::version_for_clap().into();
     let version: &'static str = Box::leak(version);
     let cli = Cli::command().version(version).get_matches();
     let cli = Cli::from_arg_matches(&cli).expect("valid args");

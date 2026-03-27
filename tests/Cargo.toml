@@ -1,5 +1,5 @@
 [package]
-name = "sgleam-core-tests"
+name = "tests"
 version = "0.7.0"
 edition = "2021"
 publish = false
@@ -8,4 +8,4 @@ publish = false
 camino = "1.1.9"
 indoc = "2.0.5"
 insta = { version = "1", features = ["glob"] }
-sgleam-core = { path = "../sgleam-core", features = ["capture"] }
+engine = { path = "../engine", features = ["capture"] }

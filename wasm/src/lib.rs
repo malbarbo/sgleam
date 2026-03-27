@@ -1,14 +1,14 @@
 #![allow(clippy::missing_safety_doc)]
 
 use camino::Utf8Path;
-use gleam_core::build::Module;
-use sgleam_core::{
+use engine::{
     engine::Engine as _,
     error::{self, show_error},
     gleam::{get_module, Project},
     quickjs::QuickJsEngine,
     repl::{Repl, ReplOutput},
 };
+use gleam_core::build::Module;
 
 #[no_mangle]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
@@ -125,7 +125,7 @@ pub extern "C" fn use_bigint(flag: bool) {
 
 #[no_mangle]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
-    match std::ffi::CString::new(sgleam_core::version()) {
+    match std::ffi::CString::new(engine::version()) {
         Ok(cstr) => cstr.into_raw(),
         Err(_) => std::ptr::null_mut(),
     }

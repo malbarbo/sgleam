@@ -1,6 +1,6 @@
+use engine::repl::{welcome_message, QUIT, TYPE};
 use indoc::formatdoc;
 use insta::assert_snapshot;
-use sgleam_core::repl::{welcome_message, QUIT, TYPE};
 
 /// Strip the random 8-hex suffix from internal REPL names so snapshot tests
 /// are deterministic.
@@ -25,7 +25,7 @@ fn strip_repl_suffix(s: &str) -> String {
 }
 
 // These tests launch the sgleam binary as a subprocess. Tests that only need
-// Repl::run() can go in sgleam-core-tests (which uses the capture feature).
+// Repl::run() can go in tests (which uses the capture feature).
 
 #[test]
 fn repl_smoke_test() {
@@ -822,7 +822,7 @@ fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(&root)
-        .args(["repl", "-q", "sgleam-core-tests/tests/images/world1.gleam"])
+        .args(["repl", "-q", "tests/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();
@@ -833,12 +833,7 @@ fn world_run_in_repl_number() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(&root)
-        .args([
-            "repl",
-            "-n",
-            "-q",
-            "sgleam-core-tests/tests/images/world1.gleam",
-        ])
+        .args(["repl", "-n", "-q", "tests/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();

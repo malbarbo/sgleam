@@ -1,7 +1,5 @@
 use camino::Utf8PathBuf;
-use indoc::formatdoc;
-use insta::{assert_snapshot, glob};
-use sgleam_core::{
+use engine::{
     engine::Engine,
     error::show_error,
     gleam::{get_module, Project},
@@ -9,6 +7,8 @@ use sgleam_core::{
     repl::Repl,
     run::{get_main, run_main, run_test},
 };
+use indoc::formatdoc;
+use insta::{assert_snapshot, glob};
 
 const INPUTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/tests/inputs");
 const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images");
