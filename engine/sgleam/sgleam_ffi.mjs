@@ -83,6 +83,7 @@ const IMAGE_TYPE_NAMES = new Set([
     "Combination",
     "Crop",
     "Text",
+    "Bitmap",
 ]);
 
 export function repl_print(value) {
@@ -294,6 +295,11 @@ export function text_x_offset(text, font_css) {
 
 export function text_y_offset(text, font_css) {
     return sgleam.text_y_offset(text, font_css);
+}
+
+export function load_bitmap(path) {
+    const result = sgleam.load_bitmap(path);
+    return [Number(result[0]), Number(result[1]), result[2]];
 }
 
 export function input(prompt) {

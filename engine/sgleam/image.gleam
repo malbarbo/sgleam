@@ -11,7 +11,6 @@ import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
-// TODO: bitmap...
 // TODO: freeze
 // TODO: equality test
 // TODO: pin holes...
@@ -144,6 +143,7 @@ pub opaque type Image {
     flip_horizontal: Bool,
     font: Font,
   )
+  Bitmap(box: Box, data_uri: String)
 }
 
 type Box {
@@ -236,6 +236,7 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
     Crop(box:, image:) ->
       Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
     Text(box:, ..) -> Text(..img, box: box_translate(box, dx, dy))
+    Bitmap(box:, ..) -> Bitmap(..img, box: box_translate(box, dx, dy))
   }
 }
 
@@ -268,6 +269,7 @@ fn box(img: Image) -> #(Pointf, Pointf) {
     }
     Crop(box:, ..) -> box_box(box)
     Text(box:, ..) -> box_box(box)
+    Bitmap(box:, ..) -> box_box(box)
   }
 }
 
@@ -1431,6 +1433,15 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 }
 
 // **************************
+// * Bitmap
+// **************************
+
+pub fn bitmap(path: String) -> Image {
+  let #(width, height, data_uri) = system.load_bitmap(path)
+  Bitmap(Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0), data_uri)
+}
+
+// **************************
 // * Transformations
 // **************************
 
@@ -1458,6 +1469,7 @@ fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
         image: rotate_around(image, center, angle),
       )
     Text(box:, ..) -> Text(..img, box: box_rotate(box, center, angle))
+    Bitmap(box:, ..) -> Bitmap(..img, box: box_rotate(box, center, angle))
   }
 }
 
@@ -1490,6 +1502,7 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
         image: scale_xyf(image, x_factor, y_factor),
       )
     Text(box:, ..) -> Text(..img, box: box_scale(box, x_factor, y_factor))
+    Bitmap(box:, ..) -> Bitmap(..img, box: box_scale(box, x_factor, y_factor))
   }
 }
 
@@ -1537,6 +1550,7 @@ fn flip(
           False -> img.flip_vertical
         },
       )
+    Bitmap(box:, ..) -> Bitmap(..img, box: box_flip(box, point_flip))
   }
 }
 
@@ -2332,6 +2346,21 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> ">"
       <> text
       <> "</text>\n"
+    }
+    Bitmap(box: Box(center:, width:, height:, angle:), data_uri:) -> {
+      indent(level)
+      <> "<image "
+      <> attribs("href", data_uri)
+      <> attrib("x", center.x -. width /. 2.0)
+      <> attrib("y", center.y -. height /. 2.0)
+      <> attrib("width", width)
+      <> attrib("height", height)
+      <> case angle != 0.0 {
+        True ->
+          attribs("transform", rotate_str(angle, center))
+        False -> ""
+      }
+      <> "/>\n"
     }
   }
 }

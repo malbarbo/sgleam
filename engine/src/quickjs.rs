@@ -165,6 +165,13 @@ mod wasm {
                 font_css: *const u8,
                 font_css_len: usize,
             ) -> f64;
+            /// Fetch bitmap, cache it, return data URI length (0 on error).
+            pub fn load_bitmap_fetch(path: *const u8, path_len: usize) -> usize;
+            /// Read cached width/height.
+            pub fn load_bitmap_width() -> f64;
+            pub fn load_bitmap_height() -> f64;
+            /// Copy cached data URI into buf. Returns bytes written.
+            pub fn load_bitmap_data(buf: *mut u8, buf_len: usize) -> usize;
         }
     }
 
@@ -220,6 +227,19 @@ mod wasm {
 
     pub fn text_y_offset(text: String, font_css: String) -> f64 {
         unsafe { ffi::text_y_offset(text.as_ptr(), text.len(), font_css.as_ptr(), font_css.len()) }
+    }
+
+    pub fn load_bitmap(path: String) -> (f64, f64, String) {
+        let data_uri_len = unsafe { ffi::load_bitmap_fetch(path.as_ptr(), path.len()) };
+        if data_uri_len == 0 {
+            return (0.0, 0.0, String::new());
+        }
+        let w = unsafe { ffi::load_bitmap_width() };
+        let h = unsafe { ffi::load_bitmap_height() };
+        let mut buf = vec![0u8; data_uri_len];
+        unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
+        let data_uri = String::from_utf8_lossy(&buf).into_owned();
+        (w, h, data_uri)
     }
 }
 
@@ -286,9 +306,150 @@ mod native {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+fn load_bitmap(path: String) -> (f64, f64, String) {
+    let data = match std::fs::read(&path) {
+        Ok(d) => d,
+        Err(e) => {
+            eprintln!("Error reading {path}: {e}");
+            return (0.0, 0.0, String::new());
+        }
+    };
+    let (w, h) = image_dimensions(&data);
+    if w == 0 || h == 0 {
+        eprintln!("Error: could not detect image dimensions for {path}");
+        return (0.0, 0.0, String::new());
+    }
+    let mime = if path.ends_with(".png") {
+        "image/png"
+    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
+        "image/jpeg"
+    } else if path.ends_with(".gif") {
+        "image/gif"
+    } else if path.ends_with(".bmp") {
+        "image/bmp"
+    } else if path.ends_with(".webp") {
+        "image/webp"
+    } else if path.ends_with(".svg") {
+        "image/svg+xml"
+    } else {
+        "application/octet-stream"
+    };
+    use base64::Engine as _;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
+    let data_uri = format!("data:{mime};base64,{b64}");
+    (w as f64, h as f64, data_uri)
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn image_dimensions(data: &[u8]) -> (u32, u32) {
+    // PNG: bytes 16-23 contain width and height as u32 big-endian
+    if data.len() >= 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
+        let w = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
+        let h = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+        return (w, h);
+    }
+    // JPEG: scan for SOF0/SOF2 marker
+    if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
+        let mut i = 2;
+        while i + 9 < data.len() {
+            if data[i] != 0xFF {
+                i += 1;
+                continue;
+            }
+            let marker = data[i + 1];
+            if marker == 0xC0 || marker == 0xC2 {
+                let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
+                let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
+                return (w, h);
+            }
+            let len = u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
+            i += 2 + len;
+        }
+    }
+    // GIF: bytes 6-9 contain width and height as u16 little-endian
+    if data.len() >= 10 && &data[0..4] == b"GIF8" {
+        let w = u16::from_le_bytes([data[6], data[7]]) as u32;
+        let h = u16::from_le_bytes([data[8], data[9]]) as u32;
+        return (w, h);
+    }
+    // BMP: bytes 18-25 contain width and height as i32 little-endian
+    if data.len() >= 26 && &data[0..2] == b"BM" {
+        let w = i32::from_le_bytes([data[18], data[19], data[20], data[21]]).unsigned_abs();
+        let h = i32::from_le_bytes([data[22], data[23], data[24], data[25]]).unsigned_abs();
+        return (w, h);
+    }
+    (0, 0)
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod bitmap_tests {
+    use super::image_dimensions;
+
+    #[test]
+    fn png_dimensions() {
+        // Minimal 1x1 PNG header
+        let mut data = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        data.extend_from_slice(&[0; 8]); // chunk length + type (IHDR)
+        data.extend_from_slice(&10u32.to_be_bytes()); // width
+        data.extend_from_slice(&20u32.to_be_bytes()); // height
+        assert_eq!(image_dimensions(&data), (10, 20));
+    }
+
+    #[test]
+    fn gif_dimensions() {
+        let mut data = b"GIF89a".to_vec();
+        data.extend_from_slice(&30u16.to_le_bytes()); // width
+        data.extend_from_slice(&40u16.to_le_bytes()); // height
+        assert_eq!(image_dimensions(&data), (30, 40));
+    }
+
+    #[test]
+    fn bmp_dimensions() {
+        let mut data = vec![0; 26];
+        data[0] = b'B';
+        data[1] = b'M';
+        data[18..22].copy_from_slice(&50u32.to_le_bytes()); // width
+        data[22..26].copy_from_slice(&60u32.to_le_bytes()); // height
+        assert_eq!(image_dimensions(&data), (50, 60));
+    }
+
+    #[test]
+    fn bmp_negative_height() {
+        let mut data = vec![0; 26];
+        data[0] = b'B';
+        data[1] = b'M';
+        data[18..22].copy_from_slice(&50i32.to_le_bytes());
+        data[22..26].copy_from_slice(&(-60i32).to_le_bytes()); // top-down
+        assert_eq!(image_dimensions(&data), (50, 60));
+    }
+
+    #[test]
+    fn empty_data() {
+        assert_eq!(image_dimensions(&[]), (0, 0));
+    }
+
+    #[test]
+    fn invalid_data() {
+        assert_eq!(image_dimensions(b"not an image"), (0, 0));
+    }
+
+    #[test]
+    fn truncated_png() {
+        let data = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        // Only header magic, no IHDR
+        assert_eq!(image_dimensions(&data), (0, 0));
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 use native::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
 #[cfg(target_arch = "wasm32")]
 use wasm::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
+
+#[cfg(target_arch = "wasm32")]
+fn load_bitmap(path: String) -> (f64, f64, String) {
+    wasm::load_bitmap(path)
+}
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
     let runtime = Runtime::new()?;
@@ -408,6 +569,14 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     sgleam.set(
         "text_y_offset",
         Function::new(ctx.clone(), text_y_offset)?.with_name("text_y_offset")?,
+    )?;
+    sgleam.set(
+        "load_bitmap",
+        Function::new(ctx.clone(), move |path: String| -> Vec<String> {
+            let (w, h, data_uri) = load_bitmap(path);
+            vec![w.to_string(), h.to_string(), data_uri]
+        })?
+        .with_name("load_bitmap")?,
     )?;
     global.set("sgleam", sgleam)?;
     Ok(())

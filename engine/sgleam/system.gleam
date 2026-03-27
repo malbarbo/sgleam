@@ -18,3 +18,7 @@ pub fn text_x_offset(text: String, font_css: String) -> Float
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "text_y_offset")
 pub fn text_y_offset(text: String, font_css: String) -> Float
+
+/// Returns #(width, height, data_uri) for a bitmap file.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")
+pub fn load_bitmap(path: String) -> #(Float, Float, String)
