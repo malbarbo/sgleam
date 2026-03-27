@@ -14,6 +14,9 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
     "disable-erlang", "disable-hide-internal",
 ] }
 
+[features]
+resvg = ["sgleam-core/resvg"]
+
 [dev-dependencies]
 assert_cmd = "2.1"
 indoc = "2.0.5"

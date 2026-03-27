@@ -29,6 +29,7 @@ $(DIST_DIR)/sgleam.wasm: $(WASM_BIN) | $(DIST_DIR)
 
 RUST_SRCS = Cargo.toml \
 	$(wildcard sgleam-core/src/*.rs) \
+	$(wildcard sgleam-core/sgleam/*) \
 	$(wildcard cli/src/*.rs) \
 	$(wildcard wasm/src/*.rs)
 
@@ -86,6 +87,7 @@ test: test-rs test-web
 
 test-rs:
 	cargo test
+	cargo test -p sgleam-core --features resvg
 	cargo test -p sgleam-core-tests
 
 test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
@@ -102,6 +104,7 @@ test-web: $(DIST_DIR)/sgleam.wasm $(DIST_DIR)/test.js $(BUILD_DIR)/worker.js
 
 check:
 	cargo clippy -- -D warnings
+	cargo clippy --features resvg -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p sgleam-wasm -- -D warnings
 	cargo fmt -- --check
 	deno fmt --check

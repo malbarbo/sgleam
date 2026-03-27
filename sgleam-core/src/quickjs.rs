@@ -236,26 +236,50 @@ mod native {
         std::thread::sleep(std::time::Duration::from_millis(ms));
     }
 
+    #[cfg(feature = "resvg")]
+    pub fn text_width(text: String, font_css: String) -> f64 {
+        crate::text_metrics::text_width(text, font_css)
+    }
+
+    #[cfg(feature = "resvg")]
+    pub fn text_height(text: String, font_css: String) -> f64 {
+        crate::text_metrics::text_height(text, font_css)
+    }
+
+    #[cfg(feature = "resvg")]
+    pub fn text_x_offset(text: String, font_css: String) -> f64 {
+        crate::text_metrics::text_x_offset(text, font_css)
+    }
+
+    #[cfg(feature = "resvg")]
+    pub fn text_y_offset(text: String, font_css: String) -> f64 {
+        crate::text_metrics::text_y_offset(text, font_css)
+    }
+
+    #[cfg(not(feature = "resvg"))]
     fn parse_size(font_css: &str) -> f64 {
-        // Extract size from CSS font string like "bold italic 24px sans-serif"
         font_css
             .split_whitespace()
             .find_map(|s| s.strip_suffix("px").and_then(|n| n.parse().ok()))
             .unwrap_or(14.0)
     }
 
+    #[cfg(not(feature = "resvg"))]
     pub fn text_width(text: String, font_css: String) -> f64 {
         text.len() as f64 * parse_size(&font_css) * 0.6
     }
 
+    #[cfg(not(feature = "resvg"))]
     pub fn text_height(_text: String, font_css: String) -> f64 {
         parse_size(&font_css)
     }
 
+    #[cfg(not(feature = "resvg"))]
     pub fn text_x_offset(_text: String, _font_css: String) -> f64 {
         0.0
     }
 
+    #[cfg(not(feature = "resvg"))]
     pub fn text_y_offset(_text: String, _font_css: String) -> f64 {
         0.0
     }

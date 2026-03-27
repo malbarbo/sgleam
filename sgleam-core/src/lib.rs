@@ -6,6 +6,8 @@
 
 pub mod engine;
 pub mod error;
+#[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]
+pub mod fonts;
 pub mod format;
 pub mod gleam;
 #[cfg(not(target_arch = "wasm32"))]
@@ -15,6 +17,8 @@ pub mod parser;
 pub mod quickjs;
 pub mod repl;
 pub mod run;
+#[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]
+pub mod text_metrics;
 
 use rust_embed::Embed;
 
