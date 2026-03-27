@@ -19,6 +19,14 @@ pub const opacityf = style.stroke_opacityf
 
 pub const dash_array = style.stroke_dash_array
 
+pub const dashed = style.stroke_dashed
+
+pub const dotted = style.stroke_dotted
+
+pub const long_dashed = style.stroke_long_dashed
+
+pub const dash_dot = style.stroke_dash_dot
+
 pub const linecap_butt = style.stroke_linecap_butt
 
 pub const linecap_round = style.stroke_linecap_round

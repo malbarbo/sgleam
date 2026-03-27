@@ -1,0 +1,8 @@
+---
+source: tests/tests/integration.rs
+expression: "format!(\"{out}\")"
+input_file: tests/tests/images/dash3.gleam
+---
+<svg width="100.0" height="0.0" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 0.0 0.0 L 100.0 0.0" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-dasharray="6, 3, 2, 3" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+</svg>

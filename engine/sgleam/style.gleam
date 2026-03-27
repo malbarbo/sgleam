@@ -64,6 +64,14 @@ pub fn stroke_dash_array(values: List(Int)) -> Style {
   Style([StrokeDashArray(list.map(values, int.max(0, _)))])
 }
 
+pub const stroke_dashed = Style([StrokeDashArray([6, 3])])
+
+pub const stroke_dotted = Style([StrokeDashArray([2, 2])])
+
+pub const stroke_long_dashed = Style([StrokeDashArray([12, 4])])
+
+pub const stroke_dash_dot = Style([StrokeDashArray([6, 3, 2, 3])])
+
 pub fn to_svg(style: Style) -> String {
   let attrs = case has_outline(style) && !has_fill(style) {
     False -> style.attributes

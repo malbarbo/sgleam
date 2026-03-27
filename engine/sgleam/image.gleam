@@ -11,10 +11,8 @@ import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
-// TODO: add constants for dash
 // TODO: bitmap...
 // TODO: freeze
-// TODO: create pen?
 // TODO: equality test
 // TODO: pin holes...
 
