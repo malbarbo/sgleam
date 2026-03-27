@@ -3,6 +3,7 @@
 #[cfg(target_arch = "wasm32")]
 compile_error!("The cli crate does not support wasm32. Use `cargo build -p sgleam-wasm --target wasm32-wasip1` instead.");
 
+mod config;
 mod repl_reader;
 
 use camino::Utf8PathBuf;
@@ -184,12 +185,15 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
 
 const COMPLETION_EXTRAS: &[&str] = &[
     // REPL commands
-    ":quit", ":type ", ":debug", // Keywords and builtins
+    ":quit", ":type ", ":debug", ":help", ":theme ", // Keywords and builtins
     "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
     "False", "Nil", "Ok", "Error", "panic", "todo",
 ];
 
 fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
+    let cfg = config::load();
+    repl_reader::set_theme(cfg.theme == "light");
+
     if !quiet {
         print!("{}", welcome_message());
     }
@@ -208,6 +212,38 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     let reader = repl_reader::ReplReader::new(completions.clone())
         .map_err(|e| SgleamError::Other(e.into()))?;
     for input in reader {
+        let trimmed = input.trim();
+        if trimmed == ":help" {
+            println!("Commands:");
+            println!("  :help          Show this help");
+            println!("  :quit          Exit the REPL");
+            println!("  :type <expr>   Show the type of an expression");
+            println!("  :theme         Show the current theme");
+            println!("  :theme light   Switch to One Light theme");
+            println!("  :theme dark    Switch to One Dark theme");
+            println!("  :debug         Toggle debug mode");
+            continue;
+        }
+        if trimmed == ":theme" {
+            let name = if repl_reader::is_light_theme() {
+                "light"
+            } else {
+                "dark"
+            };
+            println!("{name}");
+            continue;
+        }
+        if let Some(name) = trimmed.strip_prefix(":theme ") {
+            let name = name.trim();
+            match name {
+                "light" | "dark" => {
+                    repl_reader::set_theme(name == "light");
+                    config::save(name);
+                }
+                _ => println!("Unknown theme: {name}. Use 'light' or 'dark'."),
+            }
+            continue;
+        }
         match repl.run(&input) {
             Err(err) => show_error(&err),
             Ok(ReplOutput::Quit) => break,

@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use rustyline::{
     completion::{self, Completer},
@@ -13,7 +14,8 @@ use rustyline::{
     Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
 };
 
-const HISTORY_FILE: &str = ".sgleam_history";
+const HISTORY_DIR: &str = "sgleam";
+const HISTORY_FILE: &str = "history";
 
 pub type Completions = Rc<RefCell<Vec<String>>>;
 
@@ -75,7 +77,10 @@ impl Prompt for ReplPrompt {
 
     fn styled(&self) -> &str {
         if self.color {
-            "\x1b[34m>\x1b[0m "
+            // Leak a formatted string so we can return &str.
+            // This is called once per prompt display, and theme changes are rare.
+            let s = format!("{}>{RESET} ", theme().prompt);
+            Box::leak(s.into_boxed_str())
         } else {
             "> "
         }
@@ -120,7 +125,12 @@ impl Iterator for ReplReader {
 }
 
 fn history_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|p: PathBuf| p.join(HISTORY_FILE))
+    dirs::data_dir().map(|mut p| {
+        p.push(HISTORY_DIR);
+        let _ = std::fs::create_dir_all(&p);
+        p.push(HISTORY_FILE);
+        p
+    })
 }
 
 #[derive(Helper, Hinter, Validator)]
@@ -154,14 +164,57 @@ impl Completer for InputHelper {
     }
 }
 
-// ANSI color codes matching the web editor's One Light theme.
 const RESET: &str = "\x1b[0m";
-const GRAY: &str = "\x1b[90m"; // comment
-const GREEN: &str = "\x1b[32m"; // string
-const YELLOW: &str = "\x1b[33m"; // number, boolean
-const MAGENTA: &str = "\x1b[35m"; // keyword
-const BLUE: &str = "\x1b[34m"; // function
-const CYAN: &str = "\x1b[36m"; // operator, type
+
+struct Theme {
+    comment: &'static str,
+    string: &'static str,
+    number: &'static str,
+    keyword: &'static str,
+    function: &'static str,
+    type_: &'static str,
+    prompt: &'static str,
+}
+
+// Zed One Dark
+const ONE_DARK: Theme = Theme {
+    comment: "\x1b[38;2;93;99;111m",
+    string: "\x1b[38;2;161;193;129m",
+    number: "\x1b[38;2;191;149;106m",
+    keyword: "\x1b[38;2;180;119;207m",
+    function: "\x1b[38;2;115;173;233m",
+    type_: "\x1b[38;2;223;193;132m",
+    prompt: "\x1b[38;2;115;173;233m",
+};
+
+// Zed One Light
+const ONE_LIGHT: Theme = Theme {
+    comment: "\x1b[38;2;162;163;167m",
+    string: "\x1b[38;2;100;159;87m",
+    number: "\x1b[38;2;173;110;37m",
+    keyword: "\x1b[38;2;164;73;171m",
+    function: "\x1b[38;2;91;121;227m",
+    type_: "\x1b[38;2;193;132;1m",
+    prompt: "\x1b[38;2;91;121;227m",
+};
+
+static USE_LIGHT_THEME: AtomicBool = AtomicBool::new(false);
+
+pub fn set_theme(light: bool) {
+    USE_LIGHT_THEME.store(light, Ordering::Relaxed);
+}
+
+pub fn is_light_theme() -> bool {
+    USE_LIGHT_THEME.load(Ordering::Relaxed)
+}
+
+fn theme() -> &'static Theme {
+    if is_light_theme() {
+        &ONE_LIGHT
+    } else {
+        &ONE_DARK
+    }
+}
 
 const KEYWORDS: &[&str] = &[
     "as", "assert", "case", "const", "else", "external", "fn", "if", "import", "let", "opaque",
@@ -183,6 +236,7 @@ impl Highlighter for InputHelper {
 }
 
 fn highlight_gleam(input: &str) -> String {
+    let t = theme();
     let mut out = String::with_capacity(input.len() * 2);
     let chars: Vec<char> = input.chars().collect();
     let len = chars.len();
@@ -193,7 +247,7 @@ fn highlight_gleam(input: &str) -> String {
 
         // Comments
         if c == '/' && i + 1 < len && chars[i + 1] == '/' {
-            out.push_str(GRAY);
+            out.push_str(t.comment);
             while i < len && chars[i] != '\n' {
                 out.push(chars[i]);
                 i += 1;
@@ -204,7 +258,7 @@ fn highlight_gleam(input: &str) -> String {
 
         // Strings
         if c == '"' {
-            out.push_str(GREEN);
+            out.push_str(t.string);
             out.push(c);
             i += 1;
             while i < len {
@@ -224,7 +278,7 @@ fn highlight_gleam(input: &str) -> String {
 
         // Numbers
         if c.is_ascii_digit() {
-            out.push_str(YELLOW);
+            out.push_str(t.number);
             while i < len
                 && (chars[i].is_ascii_alphanumeric() || chars[i] == '_' || chars[i] == '.')
             {
@@ -244,21 +298,21 @@ fn highlight_gleam(input: &str) -> String {
             let word: String = chars[start..i].iter().collect();
 
             if KEYWORDS.contains(&word.as_str()) {
-                out.push_str(MAGENTA);
+                out.push_str(t.keyword);
                 out.push_str(&word);
                 out.push_str(RESET);
             } else if word == "True" || word == "False" || word == "Nil" {
-                out.push_str(YELLOW);
+                out.push_str(t.number);
                 out.push_str(&word);
                 out.push_str(RESET);
             } else if c.is_ascii_uppercase() {
                 // Type name
-                out.push_str(CYAN);
+                out.push_str(t.type_);
                 out.push_str(&word);
                 out.push_str(RESET);
             } else if i < len && chars[i] == '(' {
                 // Function call
-                out.push_str(BLUE);
+                out.push_str(t.function);
                 out.push_str(&word);
                 out.push_str(RESET);
             } else {
@@ -272,7 +326,7 @@ fn highlight_gleam(input: &str) -> String {
             c,
             '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '!' | '|' | '&' | '.'
         ) {
-            out.push_str(CYAN);
+            out.push_str(t.function);
             out.push(c);
             i += 1;
             // Consume multi-char operators
