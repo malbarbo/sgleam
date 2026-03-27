@@ -280,20 +280,20 @@ export function get_key_event() {
     }
 }
 
-export function text_width(text, font, size) {
-    return sgleam.text_width(text, font, size);
+export function text_width(text, font_css) {
+    return sgleam.text_width(text, font_css);
 }
 
-export function text_height(text, font, size) {
-    return sgleam.text_height(text, font, size);
+export function text_height(text, font_css) {
+    return sgleam.text_height(text, font_css);
 }
 
-export function text_x_offset(text, font, size) {
-    return sgleam.text_x_offset(text, font, size);
+export function text_x_offset(text, font_css) {
+    return sgleam.text_x_offset(text, font_css);
 }
 
-export function text_y_offset(text, font, size) {
-    return sgleam.text_y_offset(text, font, size);
+export function text_y_offset(text, font_css) {
+    return sgleam.text_y_offset(text, font_css);
 }
 
 export function input(prompt) {

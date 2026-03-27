@@ -12,7 +12,6 @@ import sgleam/xplace.{type XPlace, Center, Left, Right}
 import sgleam/yplace.{type YPlace, Bottom, Middle, Top}
 
 // TODO: add constants for dash
-// TODO: all text functions
 // TODO: bitmap...
 // TODO: freeze
 // TODO: create pen?
@@ -1408,8 +1407,9 @@ fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
 // **************************
 
 pub fn text_fontf(text: String, font: Font, style: Style) -> Image {
-  let width = system.text_width(text, font.family, font.size)
-  let height = system.text_height(text, font.family, font.size)
+  let css = font.to_css(font)
+  let width = system.text_width(text, css)
+  let height = system.text_height(text, css)
   Text(
     style,
     Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
@@ -2285,10 +2285,11 @@ fn to_svg_(img: Image, level: Int) -> String {
       flip_vertical:,
       font:,
     ) -> {
-      let original_width = system.text_width(text, font.family, font.size)
-      let original_height = system.text_height(text, font.family, font.size)
-      let x_offset = system.text_x_offset(text, font.family, font.size)
-      let y_offset = system.text_y_offset(text, font.family, font.size)
+      let css = font.to_css(font)
+      let original_width = system.text_width(text, css)
+      let original_height = system.text_height(text, css)
+      let x_offset = system.text_x_offset(text, css)
+      let y_offset = system.text_y_offset(text, css)
       let scale_x =
         width
         /. original_width
@@ -2315,6 +2316,12 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> attrib("y", y_offset)
       <> attribs("font-family", font.family)
       <> attrib("font-size", font.size)
+      <> attribs("font-style", font.font_style_to_svg(font.font_style))
+      <> attribs("font-weight", font.font_weight_to_svg(font.font_weight))
+      <> case font.underline {
+        True -> attribs("text-decoration", "underline")
+        False -> ""
+      }
       <> attribs(
         "transform",
         translate_str(center.x, center.y)

@@ -15,40 +15,36 @@ export interface EnvOptions {
 }
 
 export function computeTextWidth(m: TextMetrics): number {
-    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
-    return w > 0 ? w : m.width;
+    return m.width;
 }
 
 export function computeTextHeight(m: TextMetrics): number {
-    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
-    return h > 0 ? h : m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    return m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
 }
 
 export function computeTextXOffset(m: TextMetrics): number {
-    const w = m.actualBoundingBoxLeft + m.actualBoundingBoxRight;
-    return w > 0 ? m.actualBoundingBoxLeft - w / 2 : 0;
+    return -m.width / 2;
 }
 
 export function computeTextYOffset(m: TextMetrics): number {
-    const h = m.actualBoundingBoxAscent + m.actualBoundingBoxDescent;
-    return h > 0 ? m.actualBoundingBoxAscent - h / 2 : 0;
+    const h = m.fontBoundingBoxAscent + m.fontBoundingBoxDescent;
+    return m.fontBoundingBoxAscent - h / 2;
 }
 
 function measureText(
     buffer: ArrayBuffer,
     text: number,
     textLen: number,
-    font: number,
-    fontLen: number,
-    size: number,
+    fontCss: number,
+    fontCssLen: number,
 ): TextMetrics {
     const b = new Uint8Array(buffer);
     const jtext = decoder.decode(b.slice(text, text + textLen));
-    const jfont = decoder.decode(b.slice(font, font + fontLen));
+    const jfontCss = decoder.decode(b.slice(fontCss, fontCss + fontCssLen));
     // deno-lint-ignore no-undef
     const offscreen = new OffscreenCanvas(1, 1);
     const ctx = offscreen.getContext("2d")!;
-    ctx.font = `${size}px ${jfont}`;
+    ctx.font = jfontCss;
     return ctx.measureText(jtext);
 }
 
@@ -59,10 +55,9 @@ export function makeEnv(options: EnvOptions) {
         return (
             text: number,
             textLen: number,
-            font: number,
-            fontLen: number,
-            size: number,
-        ) => compute(measureText(buf(), text, textLen, font, fontLen, size));
+            fontCss: number,
+            fontCssLen: number,
+        ) => compute(measureText(buf(), text, textLen, fontCss, fontCssLen));
     }
 
     return {

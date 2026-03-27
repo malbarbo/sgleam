@@ -407,6 +407,9 @@ Deno.test("add_curve renders in REPL", async () => {
     );
 });
 
+// Note: text tests require OffscreenCanvas (browser only, not Deno workers).
+// Text rendering is tested via CLI snapshot tests (text1-text7).
+
 // In WASM, bigint mode is always enabled, so Gleam Int compiles to BigInt.
 // system.sleep receives a BigInt and must convert it before calling sgleam.sleep.
 Deno.test("sleep works with BigInt (WASM default)", async () => {

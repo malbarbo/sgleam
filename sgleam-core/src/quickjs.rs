@@ -144,30 +144,26 @@ mod wasm {
             pub fn text_width(
                 text: *const u8,
                 text_len: usize,
-                font: *const u8,
-                font_len: usize,
-                font_size: f64,
+                font_css: *const u8,
+                font_css_len: usize,
             ) -> f64;
             pub fn text_height(
                 text: *const u8,
                 text_len: usize,
-                font: *const u8,
-                font_len: usize,
-                font_size: f64,
+                font_css: *const u8,
+                font_css_len: usize,
             ) -> f64;
             pub fn text_x_offset(
                 text: *const u8,
                 text_len: usize,
-                font: *const u8,
-                font_len: usize,
-                font_size: f64,
+                font_css: *const u8,
+                font_css_len: usize,
             ) -> f64;
             pub fn text_y_offset(
                 text: *const u8,
                 text_len: usize,
-                font: *const u8,
-                font_len: usize,
-                font_size: f64,
+                font_css: *const u8,
+                font_css_len: usize,
             ) -> f64;
         }
     }
@@ -210,20 +206,20 @@ mod wasm {
         }
     }
 
-    pub fn text_width(text: String, font: String, size: f64) -> f64 {
-        unsafe { ffi::text_width(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    pub fn text_width(text: String, font_css: String) -> f64 {
+        unsafe { ffi::text_width(text.as_ptr(), text.len(), font_css.as_ptr(), font_css.len()) }
     }
 
-    pub fn text_height(text: String, font: String, size: f64) -> f64 {
-        unsafe { ffi::text_height(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    pub fn text_height(text: String, font_css: String) -> f64 {
+        unsafe { ffi::text_height(text.as_ptr(), text.len(), font_css.as_ptr(), font_css.len()) }
     }
 
-    pub fn text_x_offset(text: String, font: String, size: f64) -> f64 {
-        unsafe { ffi::text_x_offset(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    pub fn text_x_offset(text: String, font_css: String) -> f64 {
+        unsafe { ffi::text_x_offset(text.as_ptr(), text.len(), font_css.as_ptr(), font_css.len()) }
     }
 
-    pub fn text_y_offset(text: String, font: String, size: f64) -> f64 {
-        unsafe { ffi::text_y_offset(text.as_ptr(), text.len(), font.as_ptr(), font.len(), size) }
+    pub fn text_y_offset(text: String, font_css: String) -> f64 {
+        unsafe { ffi::text_y_offset(text.as_ptr(), text.len(), font_css.as_ptr(), font_css.len()) }
     }
 }
 
@@ -240,19 +236,27 @@ mod native {
         std::thread::sleep(std::time::Duration::from_millis(ms));
     }
 
-    pub fn text_width(text: String, _font: String, size: f64) -> f64 {
-        text.len() as f64 * size * 0.6
+    fn parse_size(font_css: &str) -> f64 {
+        // Extract size from CSS font string like "bold italic 24px sans-serif"
+        font_css
+            .split_whitespace()
+            .find_map(|s| s.strip_suffix("px").and_then(|n| n.parse().ok()))
+            .unwrap_or(14.0)
     }
 
-    pub fn text_height(_text: String, _font: String, size: f64) -> f64 {
-        size
+    pub fn text_width(text: String, font_css: String) -> f64 {
+        text.len() as f64 * parse_size(&font_css) * 0.6
     }
 
-    pub fn text_x_offset(_text: String, _font: String, _size: f64) -> f64 {
+    pub fn text_height(_text: String, font_css: String) -> f64 {
+        parse_size(&font_css)
+    }
+
+    pub fn text_x_offset(_text: String, _font_css: String) -> f64 {
         0.0
     }
 
-    pub fn text_y_offset(_text: String, _font: String, _size: f64) -> f64 {
+    pub fn text_y_offset(_text: String, _font_css: String) -> f64 {
         0.0
     }
 }
