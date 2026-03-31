@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
-    name: Lint & Format (Linux)
+  check:
+    name: Check (Linux)
     runs-on: ubuntu-latest
 
     steps:
@@ -19,19 +19,14 @@ jobs:
         with:
           toolchain: stable
           components: rustfmt, clippy
-
-      - name: Check formatting
-        run: cargo fmt -- --check
-
-      - name: Run Clippy
-        run: cargo clippy -- -D warnings
+          target: wasm32-wasip1
 
       - uses: denoland/setup-deno@v1
         with:
           deno-version: "2.x"
 
-      - name: Check TypeScript formatting
-        run: deno fmt --check wasm/tests/
+      - name: Check
+        run: make check
 
   wasm:
     name: Build & Test WASM
@@ -49,14 +44,8 @@ jobs:
         with:
           deno-version: "2.x"
 
-      - name: Clippy
-        run: cargo clippy --target wasm32-wasip1 -p wasm -- -D warnings
-
-      - name: Build
-        run: cargo build -p wasm --target wasm32-wasip1 --profile release-small
-
-      - name: Test
-        run: deno test --allow-read wasm/tests/
+      - name: Build & Test
+        run: make test-wasm
 
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
