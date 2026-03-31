@@ -26,8 +26,15 @@ jobs:
       - name: Run Clippy
         run: cargo clippy -- -D warnings
 
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: "2.x"
+
+      - name: Check TypeScript formatting
+        run: deno fmt --check wasm/tests/
+
   wasm:
-    name: Build WASM
+    name: Build & Test WASM
     runs-on: ubuntu-latest
 
     steps:
@@ -38,11 +45,18 @@ jobs:
           toolchain: stable
           target: wasm32-wasip1
 
+      - uses: denoland/setup-deno@v1
+        with:
+          deno-version: "2.x"
+
       - name: Clippy
         run: cargo clippy --target wasm32-wasip1 -p sgleam-wasm -- -D warnings
 
       - name: Build
         run: cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
+
+      - name: Test
+        run: deno test --allow-read wasm/tests/
 
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
