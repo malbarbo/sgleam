@@ -3,7 +3,7 @@ WASM_TARGET = wasm32-wasip1
 .PHONY: wasm test test-rs test-wasm check docs clean
 
 wasm:
-	cargo build -p sgleam-wasm --target $(WASM_TARGET) --profile release-small
+	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
 
 test: test-rs test-wasm
 
@@ -18,7 +18,7 @@ test-wasm: wasm
 check:
 	cargo clippy -- -D warnings
 	cargo clippy --features resvg -- -D warnings
-	cargo clippy --target $(WASM_TARGET) -p sgleam-wasm -- -D warnings
+	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
 	cargo fmt -- --check
 	deno fmt --check wasm/tests/
 

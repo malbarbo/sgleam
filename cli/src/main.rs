@@ -1,7 +1,7 @@
 #![allow(clippy::result_large_err)]
 
 #[cfg(target_arch = "wasm32")]
-compile_error!("The cli crate does not support wasm32. Use `cargo build -p sgleam-wasm --target wasm32-wasip1` instead.");
+compile_error!("The cli crate does not support wasm32. Use `cargo build -p wasm --target wasm32-wasip1` instead.");
 
 mod config;
 mod repl_reader;

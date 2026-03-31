@@ -2758,15 +2758,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sgleam-wasm"
-version = "0.7.0"
-dependencies = [
- "camino",
- "engine",
- "gleam-core",
-]
-
-[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3508,6 +3499,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5428f8bf88ea5ddc08faddef2ac4a67e390b88186c703ce6dbd955e1c145aca5"
 dependencies = [
  "wit-bindgen",
+]
+
+[[package]]
+name = "wasm"
+version = "0.7.0"
+dependencies = [
+ "camino",
+ "engine",
+ "gleam-core",
 ]
 
 [[package]]

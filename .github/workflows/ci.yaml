@@ -50,10 +50,10 @@ jobs:
           deno-version: "2.x"
 
       - name: Clippy
-        run: cargo clippy --target wasm32-wasip1 -p sgleam-wasm -- -D warnings
+        run: cargo clippy --target wasm32-wasip1 -p wasm -- -D warnings
 
       - name: Build
-        run: cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
+        run: cargo build -p wasm --target wasm32-wasip1 --profile release-small
 
       - name: Test
         run: deno test --allow-read wasm/tests/
