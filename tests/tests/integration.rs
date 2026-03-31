@@ -9,10 +9,16 @@ use engine::{
     run::{get_main, run_main, run_test},
 };
 use indoc::formatdoc;
-use insta::{assert_snapshot, glob};
+use insta::{Settings, assert_snapshot, glob};
 
 const INPUTS_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../cli/tests/inputs");
 const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images");
+
+fn insta_settings() -> Settings {
+    let mut settings = Settings::clone_current();
+    settings.add_filter(r"(?m)`[^`]*/cli/tests/inputs/", "`<INPUTS>/");
+    settings
+}
 
 fn run_file_captured(path: &str) -> (String, String) {
     let path = Utf8PathBuf::from(path);
@@ -34,6 +40,7 @@ fn run_tests_captured(path: &str) -> (String, String) {
 
 #[test]
 fn run_file() {
+    let _guard = insta_settings().bind_to_scope();
     glob!(INPUTS_DIR, "*.gleam", |path| {
         let path = path.as_os_str().to_str().expect("a valid path");
         if path.contains("stackoverflow") && !cfg!(target_os = "linux") {
@@ -51,6 +58,7 @@ fn run_file() {
 
 #[test]
 fn run_tests() {
+    let _guard = insta_settings().bind_to_scope();
     glob!(INPUTS_DIR, "check*.gleam", |path| {
         let path = path.as_os_str().to_str().expect("a valid path");
         if path.contains("stackoverflow") && !cfg!(target_os = "linux") {

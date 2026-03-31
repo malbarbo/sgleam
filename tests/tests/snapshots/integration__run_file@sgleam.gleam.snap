@@ -6,4 +6,4 @@ input_file: cli/tests/inputs/sgleam.gleam
 STDOUT
 
 STDERR
-Ignoring `/home/malbarbo/projetos/sgleam/cli/tests/inputs/sgleam.gleam`: `sgleam` is a reserved module name.
+Ignoring `<INPUTS>/sgleam.gleam`: `sgleam` is a reserved module name.

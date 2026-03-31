@@ -82,8 +82,9 @@ pub unsafe extern "C" fn repl_new(
         return Box::leak(Box::new(default_repl()));
     }
 
-    let (project, result) = engine::gleam::compile_user_source(&source);
-    let modules = match result {
+    let mut project = Project::default();
+    project.write_source("user.gleam", &source);
+    let modules = match project.compile(true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
             return std::ptr::null_mut();
