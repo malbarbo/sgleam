@@ -1,6 +1,5 @@
 #![allow(clippy::missing_safety_doc)]
 
-use camino::Utf8Path;
 use engine::{
     engine::Engine as _,
     error::{self, show_error},
@@ -9,6 +8,8 @@ use engine::{
     repl::{Repl, ReplOutput},
 };
 use gleam_core::build::Module;
+
+// --- Memory ---
 
 #[unsafe(no_mangle)]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
@@ -26,25 +27,63 @@ pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
     }
 }
 
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
+    assert!(!ptr.is_null());
+    unsafe {
+        let _ = std::ffi::CString::from_raw(ptr);
+    }
+}
+
 fn new_string(ptr: *mut u8, len: usize) -> String {
     assert!(!ptr.is_null());
     let slice = unsafe { std::slice::from_raw_parts(ptr, len) };
     String::from_utf8_lossy(slice).into()
 }
 
+fn to_cstr(s: String) -> *mut std::ffi::c_char {
+    match std::ffi::CString::new(s) {
+        Ok(cstr) => cstr.into_raw(),
+        Err(_) => std::ptr::null_mut(),
+    }
+}
+
+// --- Config ---
+
+fn parse_config_bigint(config: &str) -> bool {
+    config.split_whitespace().any(|entry| {
+        entry
+            .split_once('=')
+            .is_some_and(|(k, v)| k == "bigint" && v == "true")
+    })
+}
+
+// --- REPL ---
+
 fn default_repl() -> Repl<QuickJsEngine> {
     Repl::new(Project::default(), None).expect("A repl")
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
-    let source = new_string(str, len);
+pub unsafe extern "C" fn repl_new(
+    code_ptr: *mut u8,
+    code_len: usize,
+    config_ptr: *mut u8,
+    config_len: usize,
+) -> *mut Repl<QuickJsEngine> {
+    let source = new_string(code_ptr, code_len);
+    let config = new_string(config_ptr, config_len);
+
+    if parse_config_bigint(&config) {
+        gleam_core::javascript::set_bigint_enabled(true);
+    }
+
     if source.trim().is_empty() {
         return Box::leak(Box::new(default_repl()));
     }
-    let mut project = Project::default();
-    project.write_source("user.gleam", &source);
-    let modules = match project.compile(true) {
+
+    let (project, result) = engine::gleam::compile_user_source(&source);
+    let modules = match result {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
             return std::ptr::null_mut();
@@ -69,18 +108,11 @@ fn has_examples(module: &Module) -> bool {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
-    unsafe {
-        let _ = Box::from_raw(repl);
-    };
-}
-
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, len: usize) -> u32 {
+pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, len: usize) -> u32 {
     assert!(!repl.is_null());
 
     let mut repl = unsafe { Box::from_raw(repl) };
-    let ret = match repl.run(&new_string(str, len)) {
+    let ret = match repl.run(&new_string(ptr, len)) {
         Ok(output) => output as u32,
         Err(err) => {
             show_error(&err);
@@ -94,39 +126,77 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, 
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut std::ffi::c_char {
-    let mut out = String::new();
-    if let Err(err) = gleam_core::format::pretty(
-        &mut out,
-        &new_string(str, len).into(),
-        Utf8Path::new("user.gleam"),
-    ) {
-        show_error(&error::SgleamError::Gleam(err));
+pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
+    unsafe {
+        let _ = Box::from_raw(repl);
+    };
+}
+
+// --- Completion ---
+
+fn is_break_char(c: char) -> bool {
+    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
+}
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn repl_complete(
+    repl: *mut Repl<QuickJsEngine>,
+    text_ptr: *mut u8,
+    text_len: usize,
+    cursor_pos: usize,
+) -> *mut std::ffi::c_char {
+    assert!(!repl.is_null());
+    let state = unsafe { &*repl };
+    let text = new_string(text_ptr, text_len);
+
+    // Extract the word being completed at cursor_pos
+    let before = &text[..cursor_pos.min(text.len())];
+    let start = before
+        .rfind(|c: char| is_break_char(c))
+        .map(|i| i + 1)
+        .unwrap_or(0);
+    let prefix = &before[start..];
+
+    if prefix.is_empty() {
         return std::ptr::null_mut();
     }
-    match std::ffi::CString::new(out) {
-        Ok(cstr) => cstr.into_raw(),
-        Err(_) => std::ptr::null_mut(),
+
+    let all = state.completions();
+    let candidates: Vec<&str> = all
+        .iter()
+        .filter(|name| name.starts_with(prefix))
+        .map(|s| s.as_str())
+        .collect();
+
+    if candidates.is_empty() {
+        return std::ptr::null_mut();
+    }
+
+    let mut result = format!("c {start}");
+    for c in &candidates {
+        result.push(' ');
+        result.push_str(c);
+    }
+
+    to_cstr(result)
+}
+
+// --- Format ---
+
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn format(ptr: *mut u8, len: usize) -> *mut std::ffi::c_char {
+    match engine::format::format_source(&new_string(ptr, len)) {
+        Ok(out) => to_cstr(out),
+        Err(err) => {
+            show_error(&error::SgleamError::Gleam(err));
+            std::ptr::null_mut()
+        }
     }
 }
 
-#[unsafe(no_mangle)]
-pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
-    assert!(!ptr.is_null());
-    unsafe {
-        let _ = std::ffi::CString::from_raw(ptr);
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn use_bigint(flag: bool) {
-    gleam_core::javascript::set_bigint_enabled(flag);
-}
+// --- Version ---
 
 #[unsafe(no_mangle)]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
-    match std::ffi::CString::new(engine::version()) {
-        Ok(cstr) => cstr.into_raw(),
-        Err(_) => std::ptr::null_mut(),
-    }
+    to_cstr(engine::version())
 }

@@ -5,16 +5,26 @@ import { makeWasi } from "./wasi.ts";
 
 interface WasmExports {
   memory: WebAssembly.Memory;
-  repl_new(ptr: number, len: number): number;
+  repl_new(
+    code_ptr: number,
+    code_len: number,
+    config_ptr: number,
+    config_len: number,
+  ): number;
   repl_run(repl: number, ptr: number, len: number): number;
   repl_destroy(repl: number): void;
+  repl_complete?(
+    repl: number,
+    ptr: number,
+    len: number,
+    cursor_pos: number,
+  ): number;
   repl_stop(): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
   format(ptr: number, len: number): number;
   cstr_deallocate(ptr: number): void;
   version(): number;
-  use_bigint?(flag: boolean): void;
 }
 
 // --- Memory helpers ---
@@ -123,7 +133,6 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   });
 
   exports = instance.exports as unknown as WasmExports;
-  exports.use_bigint?.(options.bigint !== false);
 
   return { exports, stdout, stderr, svgs };
 }
@@ -139,9 +148,12 @@ async function newRepl(
   options: LoadOptions = {},
 ): Promise<ReplContext> {
   const ctx = await loadWasm(options);
-  const [ptr, len] = encodeString(ctx.exports, source);
-  const repl = ctx.exports.repl_new(ptr, len);
-  ctx.exports.string_deallocate(ptr, len);
+  const [codePtr, codeLen] = encodeString(ctx.exports, source);
+  const config = options.bigint !== false ? "bigint=true" : "";
+  const [cfgPtr, cfgLen] = encodeString(ctx.exports, config);
+  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
+  ctx.exports.string_deallocate(codePtr, codeLen);
+  ctx.exports.string_deallocate(cfgPtr, cfgLen);
   return { ...ctx, repl };
 }
 
@@ -259,9 +271,11 @@ Deno.test("error output contains ansi codes", async () => {
 Deno.test("load with errors returns null", async () => {
   const ctx = await loadWasm();
   const source = "pub fn f(x) { x + 1 }\npub fn g() { unknown }";
-  const [ptr, len] = encodeString(ctx.exports, source);
-  const repl = ctx.exports.repl_new(ptr, len);
-  ctx.exports.string_deallocate(ptr, len);
+  const [codePtr, codeLen] = encodeString(ctx.exports, source);
+  const [cfgPtr, cfgLen] = encodeString(ctx.exports, "");
+  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
+  ctx.exports.string_deallocate(codePtr, codeLen);
+  ctx.exports.string_deallocate(cfgPtr, cfgLen);
   assertEquals(repl, 0, "repl_new should return null for code with errors");
 });
 
@@ -287,9 +301,11 @@ pub fn add_examples() {
 }
 `;
   const ctx = await loadWasm();
-  const [ptr, len] = encodeString(ctx.exports, source);
-  const repl = ctx.exports.repl_new(ptr, len);
-  ctx.exports.string_deallocate(ptr, len);
+  const [codePtr, codeLen] = encodeString(ctx.exports, source);
+  const [cfgPtr, cfgLen] = encodeString(ctx.exports, "");
+  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
+  ctx.exports.string_deallocate(codePtr, codeLen);
+  ctx.exports.string_deallocate(cfgPtr, cfgLen);
   assertEquals(repl !== 0, true);
   const stdout = ctx.stdout.join("");
   assertEquals(
@@ -398,6 +414,72 @@ Deno.test("world.run does not crash (sleep regression)", async () => {
   // "Interrupted." in stderr is expected when check_interrupt triggers
   destroy(ctx);
 });
+
+// --- Completion ---
+
+Deno.test("repl_complete returns candidates", async () => {
+  const ctx = await newRepl();
+  // Define a function, then complete on its prefix
+  run(ctx, "fn my_func() { 1 }");
+  const input = "my_f";
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
+  ctx.exports.string_deallocate(ptr, len);
+  assertEquals(resultPtr !== 0, true, "repl_complete should return non-null");
+  const result = readCstr(ctx.exports, resultPtr);
+  ctx.exports.cstr_deallocate(resultPtr);
+  assertEquals(result.startsWith("c "), true, "should start with 'c '");
+  assertEquals(
+    result.includes("my_func"),
+    true,
+    `should include my_func, got: ${result}`,
+  );
+  destroy(ctx);
+});
+
+Deno.test("repl_complete returns null for no match", async () => {
+  const ctx = await newRepl();
+  const input = "zzz_no_match";
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
+  ctx.exports.string_deallocate(ptr, len);
+  assertEquals(resultPtr, 0, "repl_complete should return null for no match");
+  destroy(ctx);
+});
+
+Deno.test("repl_complete returns null for empty prefix", async () => {
+  const ctx = await newRepl();
+  const input = "";
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, 0);
+  ctx.exports.string_deallocate(ptr, len);
+  assertEquals(
+    resultPtr,
+    0,
+    "repl_complete should return null for empty input",
+  );
+  destroy(ctx);
+});
+
+// --- Config ---
+
+Deno.test("repl_new config bigint=true enables BigInt", async () => {
+  const ctx = await newRepl("", { bigint: true });
+  const r = run(ctx, "1 + 2");
+  assertEquals(r.result, REPL_OK);
+  assertEquals(r.stdout, "3\n");
+  destroy(ctx);
+});
+
+Deno.test("repl_new config bigint=false disables BigInt", async () => {
+  const ctx = await newRepl("", { bigint: false });
+  const r = run(ctx, "1 + 2");
+  assertEquals(r.result, REPL_OK);
+  assertEquals(r.stdout, "3\n");
+  destroy(ctx);
+});
+
+// --- Stress ---
 
 Deno.test("move_square survives many frames", async () => {
   const ctx = await newRepl(MOVE_SQUARE, { interruptAfter: 50_000 });

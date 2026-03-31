@@ -12,6 +12,12 @@ use std::{
 
 use camino::{Utf8Path, Utf8PathBuf};
 
+pub fn format_source(source: &str) -> Result<String> {
+    let mut out = String::new();
+    gleam_core::format::pretty(&mut out, &source.into(), Utf8Path::new("user.gleam"))?;
+    Ok(out)
+}
+
 pub fn run(check: bool, files: Vec<Utf8PathBuf>) -> Result<()> {
     if files.is_empty() {
         process_stdin(check)
