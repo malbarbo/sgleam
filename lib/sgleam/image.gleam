@@ -1411,6 +1411,10 @@ pub fn bitmap(path: String) -> Image {
   Bitmap(Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0), data_uri)
 }
 
+pub fn bitmap_data_uri(data_uri: String, width: Float, height: Float) -> Image {
+  Bitmap(Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0), data_uri)
+}
+
 // **************************
 // * Transformations
 // **************************
@@ -2192,11 +2196,15 @@ fn curve_controls(
 
 pub fn to_svg(img: Image) -> String {
   "<svg "
-  <> attrib("width", float.ceiling(widthf(img)))
-  <> attrib("height", float.ceiling(heightf(img)))
+  <> attrib("width", float.ceiling(round2(widthf(img))))
+  <> attrib("height", float.ceiling(round2(heightf(img))))
   <> "xmlns=\"http://www.w3.org/2000/svg\">\n"
   <> to_svg_(img, 1)
   <> "</svg>"
+}
+
+fn round2(v: Float) -> Float {
+  int.to_float(float.round(v *. 100.0)) /. 100.0
 }
 
 fn to_svg_(img: Image, level: Int) -> String {

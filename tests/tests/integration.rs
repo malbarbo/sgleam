@@ -16,7 +16,10 @@ const IMAGES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/images");
 
 fn insta_settings() -> Settings {
     let mut settings = Settings::clone_current();
-    settings.add_filter(r"(?m)`[^`]*/cli/tests/inputs/", "`<INPUTS>/");
+    settings.add_filter(
+        r"(?m)`[^`]*[/\\]cli[/\\]tests[/\\]inputs[/\\]",
+        "`<INPUTS>/",
+    );
     settings
 }
 
