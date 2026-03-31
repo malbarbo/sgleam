@@ -4,7 +4,7 @@ use std::{
     process::Command,
 };
 
-use flate2::{write::GzEncoder, Compression};
+use flate2::{Compression, write::GzEncoder};
 
 pub fn main() {
     println!("cargo::rerun-if-changed=build.rs");
@@ -25,36 +25,44 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
     let tar = outdir.join(name);
 
     if !stdlib.exists() {
-        assert!(Command::new("git")
-            .arg("clone")
-            .arg("https://github.com/malbarbo/gleam-stdlib")
-            .arg(stdlib)
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("git")
+                .arg("clone")
+                .arg("https://github.com/malbarbo/gleam-stdlib")
+                .arg(stdlib)
+                .status()
+                .unwrap()
+                .success()
+        );
     } else {
         env::set_current_dir(stdlib).unwrap();
-        assert!(Command::new("git")
-            .arg("checkout")
-            .arg("main")
-            .status()
-            .unwrap()
-            .success());
-        assert!(Command::new("git")
-            .arg("pull")
-            .arg("--all")
-            .status()
-            .unwrap()
-            .success());
+        assert!(
+            Command::new("git")
+                .arg("checkout")
+                .arg("main")
+                .status()
+                .unwrap()
+                .success()
+        );
+        assert!(
+            Command::new("git")
+                .arg("pull")
+                .arg("--all")
+                .status()
+                .unwrap()
+                .success()
+        );
     }
 
     env::set_current_dir(stdlib).unwrap();
-    assert!(Command::new("git")
-        .arg("checkout")
-        .arg(hash)
-        .status()
-        .unwrap()
-        .success());
+    assert!(
+        Command::new("git")
+            .arg("checkout")
+            .arg(hash)
+            .status()
+            .unwrap()
+            .success()
+    );
 
     let stdlib_src = stdlib.join("src");
     let tar_file = fs::File::create(&tar).expect("create tar file");

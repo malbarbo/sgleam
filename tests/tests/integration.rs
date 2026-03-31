@@ -2,8 +2,9 @@ use camino::Utf8PathBuf;
 use engine::{
     engine::Engine,
     error::show_error,
-    gleam::{get_module, Project},
-    quickjs::{capture_output, QuickJsEngine},
+    gleam::{Project, get_module},
+    output::capture_output,
+    quickjs::QuickJsEngine,
     repl::Repl,
     run::{get_main, run_main, run_test},
 };

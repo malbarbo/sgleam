@@ -1,10 +1,10 @@
 use gleam_core::{
     ast::{TargetedDefinition, UntypedStatement},
     parse::{
+        Parser,
         error::ParseError,
         lexer::{self, LexResult},
         token::Token,
-        Parser,
     },
 };
 

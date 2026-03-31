@@ -9,7 +9,7 @@ use gleam_core::{
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{fn_type_to_string, get_module, Project},
+    gleam::{Project, fn_type_to_string, get_module},
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -134,14 +134,12 @@ pub fn copy_files_and_build(
 fn validate_path(path: &Utf8Path) -> bool {
     let stem = path.file_stem().unwrap_or("");
     if path.extension() != Some("gleam") || stem.is_empty() {
-        crate::quickjs::write_stderr(&format!("Ignoring `{path}`: is not a valid gleam file.\n"));
+        eprintln!("Ignoring `{path}`: is not a valid gleam file.");
         return false;
     }
 
     if stem == "gleam" || stem == "sgleam" {
-        crate::quickjs::write_stderr(&format!(
-            "Ignoring `{path}`: `{stem}` is a reserved module name.\n"
-        ));
+        eprintln!("Ignoring `{path}`: `{stem}` is a reserved module name.");
         return false;
     }
 

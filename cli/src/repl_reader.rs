@@ -5,13 +5,13 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use rustyline::{
+    Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
+    Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
     completion::{self, Completer},
     error::ReadlineError,
     highlight::{CmdKind, Highlighter},
     history::FileHistory,
     validate::{ValidationContext, ValidationResult, Validator},
-    Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
-    Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
 };
 
 const HISTORY_DIR: &str = "sgleam";

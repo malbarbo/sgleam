@@ -102,7 +102,7 @@ pub fn show_error(err: &SgleamError) {
 
 pub fn flush_buffer(_buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
     #[cfg(feature = "capture")]
-    crate::quickjs::write_stderr(&String::from_utf8_lossy(buffer.as_slice()));
+    eprint!("{}", String::from_utf8_lossy(buffer.as_slice()));
     #[cfg(not(feature = "capture"))]
     _buffer_writer.print(buffer).expect("Write to stderr");
 }

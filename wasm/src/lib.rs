@@ -4,13 +4,13 @@ use camino::Utf8Path;
 use engine::{
     engine::Engine as _,
     error::{self, show_error},
-    gleam::{get_module, Project},
+    gleam::{Project, get_module},
     quickjs::QuickJsEngine,
     repl::{Repl, ReplOutput},
 };
 use gleam_core::build::Module;
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
     let mut buffer = Vec::with_capacity(size);
     let ptr = buffer.as_mut_ptr();
@@ -18,7 +18,7 @@ pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
     ptr
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
     assert!(!ptr.is_null());
     unsafe {
@@ -36,7 +36,7 @@ fn default_repl() -> Repl<QuickJsEngine> {
     Repl::new(Project::default(), None).expect("A repl")
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_new(str: *mut u8, len: usize) -> *mut Repl<QuickJsEngine> {
     let source = new_string(str, len);
     if source.trim().is_empty() {
@@ -68,14 +68,14 @@ fn has_examples(module: &Module) -> bool {
     })
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
     unsafe {
         let _ = Box::from_raw(repl);
     };
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, len: usize) -> u32 {
     assert!(!repl.is_null());
 
@@ -93,7 +93,7 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, str: *mut u8, 
     ret
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut std::ffi::c_char {
     let mut out = String::new();
     if let Err(err) = gleam_core::format::pretty(
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn format(str: *mut u8, len: usize) -> *mut std::ffi::c_ch
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
     assert!(!ptr.is_null());
     unsafe {
@@ -118,12 +118,12 @@ pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
     }
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn use_bigint(flag: bool) {
     gleam_core::javascript::set_bigint_enabled(flag);
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
     match std::ffi::CString::new(engine::version()) {
         Ok(cstr) => cstr.into_raw(),

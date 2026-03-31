@@ -1,22 +1,24 @@
 #![allow(clippy::result_large_err)]
 
 #[cfg(target_arch = "wasm32")]
-compile_error!("The cli crate does not support wasm32. Use `cargo build -p wasm --target wasm32-wasip1` instead.");
+compile_error!(
+    "The cli crate does not support wasm32. Use `cargo build -p wasm --target wasm32-wasip1` instead."
+);
 
 mod config;
 mod repl_reader;
 
 use camino::Utf8PathBuf;
 use clap::{
-    builder::{styling, Styles},
     CommandFactory, FromArgMatches, Parser,
+    builder::{Styles, styling},
 };
 use engine::{
-    error::{show_error, SgleamError},
+    error::{SgleamError, show_error},
     format,
-    gleam::{find_imports, get_module, Project},
+    gleam::{Project, find_imports, get_module},
     quickjs::QuickJsEngine,
-    repl::{welcome_message, Repl, ReplOutput},
+    repl::{Repl, ReplOutput, welcome_message},
     run::{copy_files_and_build, run_check, run_main, run_test},
 };
 use gleam_core::{

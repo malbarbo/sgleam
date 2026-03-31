@@ -31,10 +31,10 @@ pub fn load() -> Config {
     };
     let mut config = Config::default();
     for line in content.lines() {
-        if let Some((key, value)) = line.split_once('=') {
-            if key.trim() == "theme" {
-                config.theme = value.trim().to_string();
-            }
+        if let Some((key, value)) = line.split_once('=')
+            && key.trim() == "theme"
+        {
+            config.theme = value.trim().to_string();
         }
     }
     config

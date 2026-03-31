@@ -2,6 +2,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
+    Error, Warning,
     ast::{Definition, Function, UntypedDefinition, UntypedExpr},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
@@ -9,12 +10,11 @@ use gleam_core::{
     },
     config::PackageConfig,
     error::{FileIoAction, FileKind},
-    io::{memory::InMemoryFileSystem, FileSystemReader, FileSystemWriter},
+    io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
-    type_::{printer::Printer, Type},
+    type_::{Type, printer::Printer},
     uid::UniqueIdGenerator,
     warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
-    Error, Warning,
 };
 use std::{
     collections::{HashSet, VecDeque},
@@ -28,8 +28,8 @@ use tar::Archive;
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::{
-    error::{flush_buffer, stderr_buffer_writer},
     GLEAM_STDLIB, GLEAM_STDLIB_BIGINT,
+    error::{flush_buffer, stderr_buffer_writer},
 };
 
 #[derive(Clone)]
@@ -53,10 +53,10 @@ impl Default for Project {
         extract_tar(&mut project.fs, stdlib(), Project::source()).expect("Extract stdlib");
 
         for path in crate::Sgleam::iter() {
-            if let Some(content) = crate::Sgleam::get(&path) {
-                if let Ok(content) = std::str::from_utf8(&content.data) {
-                    project.write_source(&path, content);
-                }
+            if let Some(content) = crate::Sgleam::get(&path)
+                && let Ok(content) = std::str::from_utf8(&content.data)
+            {
+                project.write_source(&path, content);
             }
         }
 
@@ -315,8 +315,8 @@ impl ConsoleWarningEmitter {
 
 impl WarningEmitterIO for ConsoleWarningEmitter {
     fn emit_warning(&self, warning: Warning) {
-        if self.repl {
-            if let Warning::Type {
+        if self.repl
+            && let Warning::Type {
                 warning:
                     gleam_core::type_::Warning::Todo { .. }
                     | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
@@ -333,9 +333,8 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
                     | gleam_core::type_::Warning::UnusedVariable { .. },
                 ..
             } = warning
-            {
-                return;
-            }
+        {
+            return;
         }
         let buffer_writer = stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();

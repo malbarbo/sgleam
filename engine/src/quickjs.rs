@@ -1,5 +1,5 @@
 use camino::Utf8Path;
-use gleam_core::io::{memory::InMemoryFileSystem, FileSystemReader};
+use gleam_core::io::{FileSystemReader, memory::InMemoryFileSystem};
 use indoc::formatdoc;
 
 use crate::error::SgleamError;
@@ -10,58 +10,20 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
-#[cfg(feature = "capture")]
-use std::cell::RefCell;
-
-#[cfg(feature = "capture")]
-thread_local! {
-    static STDOUT_BUF: RefCell<String> = RefCell::new(String::new());
-    static STDERR_BUF: RefCell<String> = RefCell::new(String::new());
-}
-
-#[cfg(feature = "capture")]
-pub fn capture_output<F: FnOnce()>(f: F) -> (String, String) {
-    STDOUT_BUF.with(|b| b.borrow_mut().clear());
-    STDERR_BUF.with(|b| b.borrow_mut().clear());
-    f();
-    let out = STDOUT_BUF.with(|b| b.borrow().clone());
-    let err = STDERR_BUF.with(|b| b.borrow().clone());
-    (out, err)
-}
-
-#[cfg(feature = "capture")]
-fn write_stdout(s: &str) {
-    STDOUT_BUF.with(|b| b.borrow_mut().push_str(s));
-}
-
-#[cfg(feature = "capture")]
-pub fn write_stderr(s: &str) {
-    STDERR_BUF.with(|b| b.borrow_mut().push_str(s));
-}
-
-#[cfg(not(feature = "capture"))]
-fn write_stdout(s: &str) {
-    print!("{s}");
-}
-
-#[cfg(not(feature = "capture"))]
-pub fn write_stderr(s: &str) {
-    eprint!("{s}");
-}
-
 use rquickjs::{
+    Array, CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise,
+    Result, Runtime, Value,
     context::EvalOptions,
     loader::{Loader, Resolver},
     module::Declared,
     qjs::{JS_FreeCString, JS_ToCStringLen},
-    Array, CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise,
-    Result, Runtime, Value,
 };
 
 use crate::{
+    STACK_SIZE,
     engine::{Engine, MainFunction},
     gleam::Project,
-    swriteln, STACK_SIZE,
+    swriteln,
 };
 
 #[derive(Clone)]
@@ -136,7 +98,7 @@ pub fn interrupt() {
 mod wasm {
     mod ffi {
         #[link(wasm_import_module = "env")]
-        extern "C" {
+        unsafe extern "C" {
             pub fn check_interrupt() -> bool;
             pub fn sleep(ms: u64);
             pub fn draw_svg(str: *const u8, len: usize);
@@ -612,13 +574,12 @@ fn log(value: Value) {
     let len = unsafe { len.assume_init() };
     let bytes: &[u8] = unsafe { std::slice::from_raw_parts(ptr as _, len as _) };
     let s = std::str::from_utf8(bytes).unwrap_or("");
-    write_stdout(s);
-    write_stdout("\n");
+    println!("{s}");
     unsafe { JS_FreeCString(ctx_ptr, ptr) };
 }
 
 fn print_no_newline(s: String) {
-    write_stdout(&s);
+    print!("{s}");
     use std::io::Write;
     let _ = std::io::stdout().flush();
 }

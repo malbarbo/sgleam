@@ -3,8 +3,8 @@
 use clap::Parser;
 use engine::{error::show_error, parser::*};
 use gleam_core::{
-    error::{FileIoAction, FileKind},
     Error,
+    error::{FileIoAction, FileKind},
 };
 use std::fs;
 

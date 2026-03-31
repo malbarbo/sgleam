@@ -3,6 +3,7 @@ use std::{collections::HashMap, fmt::Write};
 use camino::Utf8PathBuf;
 use ecow::EcoString;
 use gleam_core::{
+    Error,
     ast::{
         BitArraySize, Definition, Pattern, Statement, TargetedDefinition, UntypedPattern,
         UntypedStatement,
@@ -10,18 +11,18 @@ use gleam_core::{
     build::Module,
     io::{FileSystemReader, FileSystemWriter},
     type_::ModuleInterface,
-    Error,
 };
 use indoc::formatdoc;
 use vec1::Vec1;
 
 use crate::{
+    GLEAM_MODULES_NAMES,
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{get_args_names, get_definition_src, type_to_string, Project},
+    gleam::{Project, get_args_names, get_definition_src, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
-    swrite, swriteln, GLEAM_MODULES_NAMES,
+    swrite, swriteln,
 };
 
 pub const QUIT: &str = ":quit";
@@ -182,12 +183,12 @@ impl<E: Engine> Repl<E> {
         // Pre-register function names so mutually recursive functions
         // can reference each other during compilation.
         for item in &items {
-            if let ReplItem::ReplDefinition(targeted) = item {
-                if let Definition::Function(f) = &targeted.definition {
-                    let name = f.name.clone().expect("function name").1;
-                    let body = get_definition_src(&targeted.definition, input).into();
-                    self.fn_bodies.insert(name.into(), body);
-                }
+            if let ReplItem::ReplDefinition(targeted) = item
+                && let Definition::Function(f) = &targeted.definition
+            {
+                let name = f.name.clone().expect("function name").1;
+                let body = get_definition_src(&targeted.definition, input).into();
+                self.fn_bodies.insert(name.into(), body);
             }
         }
 
@@ -300,14 +301,14 @@ pub fn {print}(value: a) -> a"#
     fn var_bindings(&self, exclude: &[String]) -> String {
         let mut bindings = String::new();
         for (name, item) in &self.names {
-            if let NameEntry::Variable { index, type_ } = item {
-                if !exclude.contains(name) {
-                    let load = &self.repl_load;
-                    swriteln!(
-                        bindings,
-                        "  let {name} = fn () -> {type_} {{ {load}({index}) }} ()"
-                    );
-                }
+            if let NameEntry::Variable { index, type_ } = item
+                && !exclude.contains(name)
+            {
+                let load = &self.repl_load;
+                swriteln!(
+                    bindings,
+                    "  let {name} = fn () -> {type_} {{ {load}({index}) }} ()"
+                );
             }
         }
         bindings
@@ -354,18 +355,17 @@ pub fn {print}(value: a) -> a"#
 
         // Fill in empty members for ModuleAlias entries from compiled module interfaces.
         for entry in self.names.values_mut() {
-            if let NameEntry::ModuleAlias { path, members } = entry {
-                if members.is_empty() {
-                    if let Some(iface) = self.existing_modules.get(path.as_str()) {
-                        *members = iface
-                            .public_value_names()
-                            .into_iter()
-                            .map(String::from)
-                            .chain(iface.public_type_names().into_iter().map(String::from))
-                            .collect();
-                        members.sort();
-                    }
-                }
+            if let NameEntry::ModuleAlias { path, members } = entry
+                && members.is_empty()
+                && let Some(iface) = self.existing_modules.get(path.as_str())
+            {
+                *members = iface
+                    .public_value_names()
+                    .into_iter()
+                    .map(String::from)
+                    .chain(iface.public_type_names().into_iter().map(String::from))
+                    .collect();
+                members.sort();
             }
         }
 
@@ -420,16 +420,16 @@ pub fn {print}(value: a) -> a"#
         let buffer_writer = crate::error::stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         for mut diag in err.to_diagnostics() {
-            if let Some(ref mut loc) = diag.location {
-                if loc.label.span.start >= offset {
-                    loc.src = loc.src[offset as usize..].into();
-                    loc.label.span.start -= offset;
-                    loc.label.span.end -= offset;
-                    for extra in &mut loc.extra_labels {
-                        if extra.src_info.is_none() {
-                            extra.label.span.start -= offset;
-                            extra.label.span.end -= offset;
-                        }
+            if let Some(ref mut loc) = diag.location
+                && loc.label.span.start >= offset
+            {
+                loc.src = loc.src[offset as usize..].into();
+                loc.label.span.start -= offset;
+                loc.label.span.end -= offset;
+                for extra in &mut loc.extra_labels {
+                    if extra.src_info.is_none() {
+                        extra.label.span.start -= offset;
+                        extra.label.span.end -= offset;
                     }
                 }
             }

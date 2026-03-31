@@ -20,13 +20,13 @@ fn parse_font_css(font_css: &str) -> FontProps {
             style = parts[i].to_string();
         } else if parts[i] == "bold" || parts[i] == "lighter" {
             weight = parts[i].to_string();
-        } else if let Some(s) = parts[i].strip_suffix("px") {
-            if let Ok(v) = s.parse::<f64>() {
-                size = v;
-                // Everything after the size is the family
-                family = parts[i + 1..].join(" ");
-                break;
-            }
+        } else if let Some(s) = parts[i].strip_suffix("px")
+            && let Ok(v) = s.parse::<f64>()
+        {
+            size = v;
+            // Everything after the size is the family
+            family = parts[i + 1..].join(" ");
+            break;
         }
         i += 1;
     }

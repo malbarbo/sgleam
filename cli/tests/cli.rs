@@ -1,4 +1,4 @@
-use engine::repl::{welcome_message, QUIT, TYPE};
+use engine::repl::{QUIT, TYPE, welcome_message};
 use indoc::formatdoc;
 use insta::assert_snapshot;
 
@@ -465,7 +465,9 @@ fn repl_fn_calling_fn() {
     );
     // Mutual recursion (both functions on the same line = same run() call)
     assert_eq!(
-        repl_exec("fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }\nis_even(4)\nis_odd(3)"),
+        repl_exec(
+            "fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }\nis_even(4)\nis_odd(3)"
+        ),
         "True\nTrue"
     );
 }
