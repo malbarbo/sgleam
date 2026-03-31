@@ -62,7 +62,7 @@ pub const GLEAM_MODULES_NAMES: &[&str] = &[
 ];
 
 #[derive(Embed)]
-#[folder = "sgleam/"]
+#[folder = "../lib/sgleam/"]
 #[prefix = "sgleam/"]
 pub struct Sgleam;
 

@@ -5,7 +5,7 @@ import gleam/list
 import gleam/string
 import sgleam/color.{type Color}
 import sgleam/font.{type Font, Font}
-import sgleam/math.{atan2, cos_deg, cos, pi, sin_deg, sin, sqrt}
+import sgleam/math.{atan2, cos, cos_deg, pi, sin, sin_deg, sqrt}
 import sgleam/style.{type Style}
 import sgleam/system
 import sgleam/xplace.{type XPlace, Center, Left, Right}
@@ -303,8 +303,7 @@ fn cmd_box(
     MoveTo(p) -> update_bounds(p, min_x, min_y, max_x, max_y)
     LineTo(p) -> update_bounds(p, min_x, min_y, max_x, max_y)
     QuadTo(c, e) -> quad_box(prev, c, e, min_x, min_y, max_x, max_y)
-    CubicTo(c1, c2, e) ->
-      cubic_box(prev, c1, c2, e, min_x, min_y, max_x, max_y)
+    CubicTo(c1, c2, e) -> cubic_box(prev, c1, c2, e, min_x, min_y, max_x, max_y)
     ArcTo(rx, ry, rot, la, sw, e) ->
       arc_box(prev, rx, ry, rot, la, sw, e, min_x, min_y, max_x, max_y)
   }
@@ -384,10 +383,8 @@ fn cubic_box(
 ) -> #(Float, Float, Float, Float) {
   let #(min_x, min_y, max_x, max_y) =
     update_bounds(e, min_x, min_y, max_x, max_y)
-  let #(min_x, max_x) =
-    cubic_axis_extrema(p0.x, c1.x, c2.x, e.x, min_x, max_x)
-  let #(min_y, max_y) =
-    cubic_axis_extrema(p0.y, c1.y, c2.y, e.y, min_y, max_y)
+  let #(min_x, max_x) = cubic_axis_extrema(p0.x, c1.x, c2.x, e.x, min_x, max_x)
+  let #(min_y, max_y) = cubic_axis_extrema(p0.y, c1.y, c2.y, e.y, min_y, max_y)
   #(min_x, min_y, max_x, max_y)
 }
 
@@ -499,8 +496,7 @@ fn arc_box(
       let x1p = cos_phi *. dx +. sin_phi *. dy
       let y1p = 0.0 -. sin_phi *. dx +. cos_phi *. dy
       // Correct radii if too small
-      let lambda =
-        x1p *. x1p /. { rx *. rx } +. y1p *. y1p /. { ry *. ry }
+      let lambda = x1p *. x1p /. { rx *. rx } +. y1p *. y1p /. { ry *. ry }
       let #(rx, ry) = case lambda >. 1.0 {
         True -> {
           let s = sqrt(lambda)
@@ -525,8 +521,7 @@ fn arc_box(
             *. x1p
             *. x1p,
         )
-      let den =
-        rx *. rx *. y1p *. y1p +. ry *. ry *. x1p *. x1p
+      let den = rx *. rx *. y1p *. y1p +. ry *. ry *. x1p *. x1p
       let sq = case den == 0.0 {
         True -> 0.0
         False -> sqrt(num /. den)
@@ -538,18 +533,11 @@ fn arc_box(
       let cxp = sign *. sq *. rx *. y1p /. ry
       let cyp = sign *. sq *. { 0.0 -. ry } *. x1p /. rx
       // Step 3: compute center
-      let cx =
-        cos_phi *. cxp -. sin_phi *. cyp +. { p1.x +. p2.x } /. 2.0
-      let cy =
-        sin_phi *. cxp +. cos_phi *. cyp +. { p1.y +. p2.y } /. 2.0
+      let cx = cos_phi *. cxp -. sin_phi *. cyp +. { p1.x +. p2.x } /. 2.0
+      let cy = sin_phi *. cxp +. cos_phi *. cyp +. { p1.y +. p2.y } /. 2.0
       // Step 4: compute theta1 and dtheta
       let theta1 =
-        angle_vec(
-          1.0,
-          0.0,
-          { x1p -. cxp } /. rx,
-          { y1p -. cyp } /. ry,
-        )
+        angle_vec(1.0, 0.0, { x1p -. cxp } /. rx, { y1p -. cyp } /. ry)
       let dtheta_raw =
         angle_vec(
           { x1p -. cxp } /. rx,
@@ -614,8 +602,7 @@ fn arc_check_extrema(
       let theta = theta_x +. int.to_float(k) *. pi
       case angle_in_range(theta, theta1, dtheta) {
         True -> {
-          let #(px, _) =
-            ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
+          let #(px, _) = ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
           let #(bmin_x, bmin_y, bmax_x, bmax_y) = b
           #(float.min(bmin_x, px), bmin_y, float.max(bmax_x, px), bmax_y)
         }
@@ -627,8 +614,7 @@ fn arc_check_extrema(
     let theta = theta_y +. int.to_float(k) *. pi
     case angle_in_range(theta, theta1, dtheta) {
       True -> {
-        let #(_, py) =
-          ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
+        let #(_, py) = ellipse_point(cx, cy, rx, ry, cos_phi, sin_phi, theta)
         let #(bmin_x, bmin_y, bmax_x, bmax_y) = b
         #(bmin_x, float.min(bmin_y, py), bmax_x, float.max(bmax_y, py))
       }
@@ -749,8 +735,7 @@ fn cmd_flip(cmd: PathCmd, pf: fn(Pointf) -> Pointf) -> PathCmd {
     LineTo(p) -> LineTo(pf(p))
     QuadTo(c, e) -> QuadTo(pf(c), pf(e))
     CubicTo(c1, c2, e) -> CubicTo(pf(c1), pf(c2), pf(e))
-    ArcTo(rx, ry, rot, la, sw, e) ->
-      ArcTo(rx, ry, 0.0 -. rot, la, !sw, pf(e))
+    ArcTo(rx, ry, rot, la, sw, e) -> ArcTo(rx, ry, 0.0 -. rot, la, !sw, pf(e))
   }
 }
 
@@ -758,14 +743,9 @@ fn points_to_path(points: List(Pointf), style: Style) -> Image {
   case points {
     [] -> Path(style, [], False)
     [p] -> Path(style, [MoveTo(p)], False)
-    [first, second] ->
-      Path(style, [MoveTo(first), LineTo(second)], False)
+    [first, second] -> Path(style, [MoveTo(first), LineTo(second)], False)
     [first, ..rest] ->
-      Path(
-        style,
-        [MoveTo(first), ..list.map(rest, fn(p) { LineTo(p) })],
-        True,
-      )
+      Path(style, [MoveTo(first), ..list.map(rest, fn(p) { LineTo(p) })], True)
   }
 }
 
@@ -909,10 +889,7 @@ pub fn isosceles_trianglef(
   let hangle = angle /. 2.0
   points_to_path(
     [
-      Pointf(
-        side_length *. sin_deg(hangle),
-        side_length *. cos_deg(hangle),
-      ),
+      Pointf(side_length *. sin_deg(hangle), side_length *. cos_deg(hangle)),
       Pointf(0.0, 0.0),
       Pointf(
         0.0 -. side_length *. sin_deg(hangle),
@@ -1207,8 +1184,7 @@ pub fn star_polygonf(
   let side_count = int.max(1, side_count)
   let side_countf = int.to_float(side_count)
   let step_count = int.max(1, step_count)
-  let radius =
-    positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
+  let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
   let alpha = case int.is_even(side_count) {
     True -> 90.0 +. 180.0 /. side_countf
     False -> -90.0
@@ -1294,8 +1270,7 @@ pub fn pulled_regular_polygonf(
 ) -> Image {
   let side_count = int.max(3, side_count)
   let side_countf = int.to_float(side_count)
-  let radius =
-    positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
+  let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
   let alpha = case int.is_even(side_count) {
     True -> 90.0 +. 180.0 /. side_countf
     False -> -90.0
@@ -1347,12 +1322,7 @@ fn pulled_edges(
   }
 }
 
-fn edge_cubic(
-  from: Pointf,
-  to: Pointf,
-  pull: Float,
-  angle: Float,
-) -> PathCmd {
+fn edge_cubic(from: Pointf, to: Pointf, pull: Float, angle: Float) -> PathCmd {
   let dx = to.x -. from.x
   let dy = to.y -. from.y
   let dist = sqrt(dx *. dx +. dy *. dy)
@@ -1486,11 +1456,7 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
   let y_factor = positive(y_factor)
   case img {
     Path(style:, commands:, closed:) ->
-      Path(
-        style,
-        list.map(commands, cmd_scale(_, x_factor, y_factor)),
-        closed,
-      )
+      Path(style, list.map(commands, cmd_scale(_, x_factor, y_factor)), closed)
     Combination(a, b) ->
       Combination(
         scale_xyf(a, x_factor, y_factor),
@@ -1842,11 +1808,7 @@ pub fn place_imagesf(
 ) -> Image {
   case positions, images {
     [pos, ..rest_pos], [img, ..rest_imgs] ->
-      place_imagesf(
-        place_imagef(scene, pos.x, pos.y, img),
-        rest_pos,
-        rest_imgs,
-      )
+      place_imagesf(place_imagef(scene, pos.x, pos.y, img), rest_pos, rest_imgs)
     _, _ -> scene
   }
 }
@@ -1951,8 +1913,7 @@ pub fn place_curvef(
   pull2: Float,
   style: Style,
 ) -> Image {
-  let #(c1, c2) =
-    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   Combination(
     scene,
     Path(
@@ -2087,8 +2048,7 @@ pub fn add_curvef(
   pull2: Float,
   style: Style,
 ) -> Image {
-  let #(c1, c2) =
-    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   Combination(
     img,
     Path(
@@ -2138,15 +2098,10 @@ pub fn add_solid_curvef(
   pull2: Float,
   style: Style,
 ) -> Image {
-  let #(c1, c2) =
-    curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
+  let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   Combination(
     img,
-    Path(
-      style,
-      [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
-      True,
-    ),
+    Path(style, [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))], True),
   )
   |> fix_position
 }
@@ -2253,7 +2208,10 @@ fn to_svg_(img: Image, level: Int) -> String {
         True -> path_d <> " Z"
         False -> path_d
       }
-      indent(level) <> "<path " <> attribs("d", path_d) <> style.to_svg(style)
+      indent(level)
+      <> "<path "
+      <> attribs("d", path_d)
+      <> style.to_svg(style)
       <> "/>\n"
     }
     Combination(a, b) ->
@@ -2356,8 +2314,7 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> attrib("width", width)
       <> attrib("height", height)
       <> case angle != 0.0 {
-        True ->
-          attribs("transform", rotate_str(angle, center))
+        True -> attribs("transform", rotate_str(angle, center))
         False -> ""
       }
       <> "/>\n"

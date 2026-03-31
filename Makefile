@@ -20,6 +20,7 @@ check:
 	cargo clippy --features resvg -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
 	cargo fmt -- --check
+	cargo run -- format --check lib/sgleam/*.gleam
 	deno fmt --check wasm/tests/
 
 docs:

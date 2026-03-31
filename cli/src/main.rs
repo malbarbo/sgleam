@@ -72,6 +72,9 @@ enum Command {
     },
     /// Format source code (reads stdin if no files given).
     Format {
+        /// Check if files are formatted without modifying them.
+        #[arg(long)]
+        check: bool,
         /// Files to format.
         files: Vec<String>,
     },
@@ -139,12 +142,12 @@ fn run() -> Result<(), SgleamError> {
             let files = find_imports(user_files.clone())?;
             run_test(&user_files, &files)
         }
-        Command::Format { files } => {
+        Command::Format { check, files } => {
             let paths = files
                 .into_iter()
                 .map(|f| make_relative_to_current_dir(f.into()))
                 .collect::<Result<Vec<_>, _>>()?;
-            Ok(format::run(false, paths)?)
+            Ok(format::run(check, paths)?)
         }
         Command::Check { file } => {
             let file = make_relative_to_current_dir(file.into())?;

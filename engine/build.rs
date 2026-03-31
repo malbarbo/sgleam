@@ -8,7 +8,7 @@ use flate2::{write::GzEncoder, Compression};
 
 pub fn main() {
     println!("cargo::rerun-if-changed=build.rs");
-    println!("cargo::rerun-if-changed=sgleam");
+    println!("cargo::rerun-if-changed=../lib/sgleam");
 
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
