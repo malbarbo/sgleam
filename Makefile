@@ -1,6 +1,10 @@
 WASM_TARGET = wasm32-wasip1
 
-.PHONY: wasm test test-rs test-wasm check docs clean
+.PHONY: release wasm test test-rs test-wasm check docs clean
+
+release:
+	cargo build --release
+	objcopy --remove-section=.eh_frame --remove-section=.eh_frame_hdr target/release/sgleam
 
 wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small

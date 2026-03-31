@@ -7,10 +7,9 @@ resolver = "2"
 opt-level = 2
 lto = true
 codegen-units = 1
+strip = true
+panic = "abort"
 
 [profile.release-small]
 inherits = "release"
 opt-level = 's'
-lto = true
-codegen-units = 1
-panic = "abort"
