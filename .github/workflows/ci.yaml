@@ -91,4 +91,6 @@ jobs:
         run: ${{ matrix.setup }}
 
       - name: Run tests
-        run: cargo test --target ${{ matrix.target }}
+        run: |
+          cargo test --target ${{ matrix.target }}
+          cargo test -p tests --target ${{ matrix.target }}

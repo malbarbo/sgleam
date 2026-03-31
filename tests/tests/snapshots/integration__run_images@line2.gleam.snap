@@ -1,7 +1,7 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/line2.gleam
+input_file: tests/tests/images/line2.gleam
 ---
 <svg width="30.0" height="20.0" xmlns="http://www.w3.org/2000/svg">
   <path d="M 30.5 0.5 L 0.5 20.5" fill="none" stroke="rgba(255, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />

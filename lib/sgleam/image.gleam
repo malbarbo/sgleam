@@ -2371,9 +2371,8 @@ fn cmd_to_d(cmd: PathCmd, c: fn(Float) -> String) -> String {
   }
 }
 
-fn fs(v: Float) -> String {
-  float.to_string(v)
-}
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
+fn fs(v: Float) -> String
 
 /// Pixel-aligned coordinate for HtDP's aligned drawing mode.
 /// Rounds to nearest integer (floor) then adds 0.5 to center
@@ -2383,7 +2382,7 @@ fn fs(v: Float) -> String {
 const fp_epsilon = 1.0e-10
 
 fn align(v: Float) -> String {
-  float.to_string(float.floor(v +. fp_epsilon) +. 0.5)
+  fs(float.floor(v +. fp_epsilon) +. 0.5)
 }
 
 fn bool01(b: Bool) -> String {
@@ -2394,21 +2393,15 @@ fn bool01(b: Bool) -> String {
 }
 
 fn rotate_str(angle: Float, center: Pointf) -> String {
-  "rotate("
-  <> float.to_string(angle)
-  <> " "
-  <> float.to_string(center.x)
-  <> " "
-  <> float.to_string(center.y)
-  <> ")"
+  "rotate(" <> fs(angle) <> " " <> fs(center.x) <> " " <> fs(center.y) <> ")"
 }
 
 fn scale_str(scale_x: Float, scale_y: Float) -> String {
-  "scale(" <> float.to_string(scale_x) <> "," <> float.to_string(scale_y) <> ")"
+  "scale(" <> fs(scale_x) <> "," <> fs(scale_y) <> ")"
 }
 
 fn translate_str(x: Float, y: Float) -> String {
-  "translate(" <> float.to_string(x) <> "," <> float.to_string(y) <> ")"
+  "translate(" <> fs(x) <> "," <> fs(y) <> ")"
 }
 
 fn indent(level: Int) -> String {
@@ -2416,7 +2409,7 @@ fn indent(level: Int) -> String {
 }
 
 fn attrib(name: String, value: Float) -> String {
-  name <> "=\"" <> float.to_string(value) <> "\" "
+  name <> "=\"" <> fs(value) <> "\" "
 }
 
 fn attribs(name: String, value: String) -> String {

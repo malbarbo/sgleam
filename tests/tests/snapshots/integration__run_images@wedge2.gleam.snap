@@ -1,8 +1,8 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/wedge2.gleam
+input_file: tests/tests/images/wedge2.gleam
 ---
 <svg width="80.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 40.0 40.0 L 80.0 40.0 A 40.0 40.0 0.0 1 0 39.99999999999999 80.0 Z" fill="rgba(0, 0, 255, 1.0)" />
+  <path d="M 40.0 40.0 L 80.0 40.0 A 40.0 40.0 0.0 1 0 40.0 80.0 Z" fill="rgba(0, 0, 255, 1.0)" />
 </svg>

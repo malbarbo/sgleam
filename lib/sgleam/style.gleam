@@ -174,8 +174,11 @@ fn positive(n: Float) -> Float {
 }
 
 fn attrib(name: String, value: Float) -> String {
-  name <> "=\"" <> float.to_string(value) <> "\" "
+  name <> "=\"" <> fs(value) <> "\" "
 }
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
+fn fs(v: Float) -> String
 
 fn attribs(name: String, value: String) -> String {
   name <> "=\"" <> value <> "\" "

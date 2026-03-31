@@ -1,7 +1,7 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/place_images_align1.gleam
+input_file: tests/tests/images/place_images_align1.gleam
 ---
 <svg width="64.0" height="64.0" xmlns="http://www.w3.org/2000/svg">
   <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="64.0" height="64.0" transform="rotate(0.0 32.0 32.0)" /></clipPath></defs>
@@ -14,13 +14,13 @@ input_file: sgleam-core-tests/tests/images/place_images_align1.gleam
           <g clip-path="url(#clip2)" >
             <g>
               <path d="M 0.0 0.0 L 64.0 0.0 L 64.0 64.0 L 0.0 64.0 Z" fill="rgba(218, 165, 32, 1.0)" />
-              <path d="M 40.0 22.430780618346944 L 64.0 64.0 L 16.0 64.0 Z" fill="rgba(154, 205, 50, 1.0)" />
+              <path d="M 40.0 22.430781 L 64.0 64.0 L 16.0 64.0 Z" fill="rgba(154, 205, 50, 1.0)" />
             </g>
           </g>
-          <path d="M 40.0 6.430780618346944 L 64.0 48.0 L 16.0 48.0 Z" fill="rgba(154, 205, 50, 1.0)" />
+          <path d="M 40.0 6.430781 L 64.0 48.0 L 16.0 48.0 Z" fill="rgba(154, 205, 50, 1.0)" />
         </g>
       </g>
-      <path d="M 40.0 -9.569219381653056 L 64.0 32.0 L 16.0 32.0 Z" fill="rgba(154, 205, 50, 1.0)" />
+      <path d="M 40.0 -9.569219 L 64.0 32.0 L 16.0 32.0 Z" fill="rgba(154, 205, 50, 1.0)" />
     </g>
   </g>
 </svg>

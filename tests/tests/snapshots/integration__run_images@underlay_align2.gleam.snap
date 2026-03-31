@@ -1,7 +1,7 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/underlay_align2.gleam
+input_file: tests/tests/images/underlay_align2.gleam
 ---
 <svg width="50.0" height="50.0" xmlns="http://www.w3.org/2000/svg">
   <g>

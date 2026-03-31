@@ -1,7 +1,7 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/place_line1.gleam
+input_file: tests/tests/images/place_line1.gleam
 ---
 <svg width="40.0" height="40.0" xmlns="http://www.w3.org/2000/svg">
   <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="40.0" height="40.0" transform="rotate(0.0 20.0 20.0)" /></clipPath></defs>

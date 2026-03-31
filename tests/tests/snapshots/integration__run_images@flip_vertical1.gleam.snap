@@ -1,11 +1,11 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/flip_vertical1.gleam
+input_file: tests/tests/images/flip_vertical1.gleam
 ---
 <svg width="65.0" height="93.0" xmlns="http://www.w3.org/2000/svg">
   <g>
-    <path d="M 32.3606797749979 0.0 L 52.3606797749979 61.55367074350507 L 0.0 23.511410091698917 L 64.7213595499958 23.511410091698927 L 12.360679774997902 61.55367074350507 Z" fill="rgba(178, 34, 34, 1.0)" />
-    <path d="M 32.3606797749979 92.3305061152576 L 52.3606797749979 61.55367074350507 L 0.0 80.57480106940815 L 64.7213595499958 80.57480106940815 L 12.360679774997902 61.55367074350507 Z" fill="rgba(128, 128, 128, 1.0)" />
+    <path d="M 32.36068 0.0 L 52.36068 61.553671 L 0.0 23.51141 L 64.72136 23.51141 L 12.36068 61.553671 Z" fill="rgba(178, 34, 34, 1.0)" />
+    <path d="M 32.36068 92.330506 L 52.36068 61.553671 L 0.0 80.574801 L 64.72136 80.574801 L 12.36068 61.553671 Z" fill="rgba(128, 128, 128, 1.0)" />
   </g>
 </svg>

@@ -66,7 +66,6 @@ fn run_tests() {
     });
 }
 
-#[cfg(target_os = "linux")]
 #[test]
 fn run_images() {
     glob!(IMAGES_DIR, "*.gleam", |path| {

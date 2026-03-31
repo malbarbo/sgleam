@@ -1,5 +1,3 @@
-import gleam/float
-
 pub type Font {
   Font(
     family: String,
@@ -54,5 +52,8 @@ pub fn to_css(font: Font) -> String {
     Bold -> "bold "
     Light -> "lighter "
   }
-  style <> weight <> float.to_string(font.size) <> "px " <> font.family
+  style <> weight <> fs(font.size) <> "px " <> font.family
 }
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
+fn fs(v: Float) -> String

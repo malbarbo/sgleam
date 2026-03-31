@@ -1,7 +1,7 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/text7.gleam
+input_file: tests/tests/images/text7.gleam
 ---
 <svg width="96.0" height="16.0" xmlns="http://www.w3.org/2000/svg">
   <text dominant-baseline="alphabetic" text-anchor="start" x="0.0" y="0.0" font-family="monospace" font-size="16.0" font-style="normal" font-weight="lighter" transform="translate(48.0,8.0) rotate(0.0 0.0 0.0) scale(1.0,1.0)" fill="rgba(169, 169, 169, 1.0)" >Light mono</text>

@@ -17,7 +17,7 @@ pub fn to_svg(color: Color) -> String {
       <> ", "
       <> int.to_string(b)
       <> ", "
-      <> float.to_string(a)
+      <> fs(a)
       <> ")"
   }
 }
@@ -485,3 +485,6 @@ pub const all = [
   #("darkmagenta", darkmagenta),
   #("mediumvioletred", mediumvioletred),
 ]
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
+fn fs(v: Float) -> String

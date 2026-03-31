@@ -1,8 +1,8 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/isosceles_triangle3.gleam
+input_file: tests/tests/images/isosceles_triangle3.gleam
 ---
 <svg width="32.0" height="58.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 31.05828541230252 0.0 L 15.52914270615126 57.955549577344094 L 0.0 0.0 Z" fill="rgba(32, 178, 170, 1.0)" />
+  <path d="M 31.058285 0.0 L 15.529143 57.95555 L 0.0 0.0 Z" fill="rgba(32, 178, 170, 1.0)" />
 </svg>
