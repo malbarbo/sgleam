@@ -97,35 +97,3 @@ jobs:
           files: |
             ${{ env.ASSET }}
             ${{ env.ASSET }}.sha256
-
-  wasm:
-    name: Build WASM
-    runs-on: ubuntu-latest
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@v1
-        with:
-          toolchain: stable
-          target: wasm32-wasip1
-
-      - name: Install wasm-opt
-        run: sudo apt-get install -y binaryen
-
-      - name: Build
-        run: |
-          cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
-          wasm-opt -Oz target/wasm32-wasip1/release-small/sgleam.wasm -o sgleam.wasm
-          openssl dgst -r -sha256 -out sgleam.wasm.sha256 sgleam.wasm
-
-      - name: Upload release archive
-        uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
-        with:
-          draft: true
-          prerelease: false
-          fail_on_unmatched_files: true
-          files: |
-            sgleam.wasm
-            sgleam.wasm.sha256

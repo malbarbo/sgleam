@@ -1,6 +1,6 @@
 [workspace]
 members = ["engine", "tests", "cli", "wasm"]
-default-members = ["engine", "cli", "wasm"]
+default-members = ["engine", "cli"]
 resolver = "2"
 
 [profile.release]

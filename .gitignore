@@ -2,5 +2,4 @@
 /dist
 /.zed
 *.bak
-/web/sgleam.wasm
 /docs/images.svg

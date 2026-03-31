@@ -26,19 +26,8 @@ jobs:
       - name: Run Clippy
         run: cargo clippy -- -D warnings
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: "2.x"
-
-      - name: Check TypeScript formatting
-        run: deno fmt --check
-
-      - name: Check TypeScript types
-        run: deno check web/ui.ts web/worker.ts web/channel_test.ts web/ansi_test.ts web/dirty_test.ts web/wasi_test.ts web/env_test.ts web/test.ts
-
   wasm:
-    name: Test wasm
+    name: Build WASM
     runs-on: ubuntu-latest
 
     steps:
@@ -49,29 +38,11 @@ jobs:
           toolchain: stable
           target: wasm32-wasip1
 
-      - name: Setup Deno
-        uses: denoland/setup-deno@v1
-        with:
-          deno-version: "2.x"
+      - name: Clippy
+        run: cargo clippy --target wasm32-wasip1 -p sgleam-wasm -- -D warnings
 
       - name: Build
         run: cargo build -p sgleam-wasm --target wasm32-wasip1 --profile release-small
-
-      - name: Bundle
-        run: |
-          mkdir -p dist
-          cp target/wasm32-wasip1/release-small/sgleam.wasm dist/
-          deno bundle web/worker.ts -o dist/worker.js
-          deno bundle web/test.ts -o dist/test.js
-
-      - name: Test
-        run: |
-          deno test --allow-read web/channel_test.ts
-          deno test web/ansi_test.ts
-          deno test web/dirty_test.ts
-          deno test web/wasi_test.ts
-          deno test --allow-run --allow-read --allow-write --allow-env web/env_test.ts
-          deno test --allow-read dist/test.js
 
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
