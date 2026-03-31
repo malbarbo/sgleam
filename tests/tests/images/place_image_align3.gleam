@@ -7,8 +7,6 @@ import sgleam/stroke
 import sgleam/xplace
 import sgleam/yplace
 
-import stroke
-
 pub fn main() {
   [
     rectangle(32, 32, stroke.black)

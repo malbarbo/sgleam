@@ -1,6 +1,17 @@
 ---
-source: sgleam-core-tests/tests/integration.rs
+source: tests/tests/integration.rs
 expression: "format!(\"{out}\")"
-input_file: sgleam-core-tests/tests/images/underlay_align3.gleam
+input_file: tests/tests/images/underlay_align3.gleam
 ---
-
+<svg width="50.0" height="50.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <g>
+        <path d="M 0.0 0.0 L 50.0 0.0 L 50.0 50.0 L 0.0 50.0 Z" fill="rgba(46, 139, 87, 1.0)" fill-opacity="0.25" />
+        <path d="M 0.0 5.0 L 40.0 5.0 L 40.0 45.0 L 0.0 45.0 Z" fill="rgba(46, 139, 87, 1.0)" fill-opacity="0.25" />
+      </g>
+      <path d="M 0.0 10.0 L 30.0 10.0 L 30.0 40.0 L 0.0 40.0 Z" fill="rgba(46, 139, 87, 1.0)" fill-opacity="0.25" />
+    </g>
+    <path d="M 0.0 15.0 L 20.0 15.0 L 20.0 35.0 L 0.0 35.0 Z" fill="rgba(46, 139, 87, 1.0)" fill-opacity="0.25" />
+  </g>
+</svg>
