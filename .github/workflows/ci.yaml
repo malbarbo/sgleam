@@ -44,6 +44,9 @@ jobs:
         with:
           deno-version: "2.x"
 
+      - name: Install binaryen
+        run: sudo apt-get install -y binaryen
+
       - name: Build & Test
         run: make test-wasm
 
