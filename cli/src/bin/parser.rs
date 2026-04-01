@@ -1,6 +1,6 @@
 #![allow(clippy::result_large_err)]
 
-use clap::Parser;
+use bpaf::Bpaf;
 use engine::{error::show_error, parser::*};
 use gleam_core::{
     Error,
@@ -8,9 +8,11 @@ use gleam_core::{
 };
 use std::fs;
 
-#[derive(Parser)]
+#[derive(Debug, Clone, Bpaf)]
+#[bpaf(options)]
 struct Cli {
     /// Input file.
+    #[bpaf(positional("FILE"))]
     path: String,
 }
 
@@ -21,7 +23,7 @@ fn main() {
 }
 
 fn run() -> Result<(), gleam_core::Error> {
-    let cli = Cli::parse();
+    let cli = cli().run();
 
     let src = fs::read_to_string(&cli.path).map_err(|err| Error::FileIo {
         action: FileIoAction::Read,

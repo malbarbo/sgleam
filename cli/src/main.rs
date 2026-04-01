@@ -8,11 +8,8 @@ compile_error!(
 mod config;
 mod repl_reader;
 
+use bpaf::{Bpaf, Parser};
 use camino::Utf8PathBuf;
-use clap::{
-    CommandFactory, FromArgMatches, Parser,
-    builder::{Styles, styling},
-};
 use engine::{
     error::{SgleamError, show_error},
     format,
@@ -26,65 +23,78 @@ use gleam_core::{
     javascript::set_bigint_enabled,
 };
 
-const STYLES: Styles = Styles::styled()
-    .header(styling::AnsiColor::Yellow.on_default())
-    .usage(styling::AnsiColor::Yellow.on_default())
-    .literal(styling::AnsiColor::Green.on_default());
-
-/// The student version of gleam.
-#[derive(Parser)]
-#[command(
-    name = "sgleam",
-    about,
-    styles = STYLES,
-    args_conflicts_with_subcommands = true,
-    disable_help_flag = true,
-)]
-struct Cli {
-    #[command(subcommand)]
-    command: Option<Command>,
-
-    /// Use Number instead of BigInt for integers.
-    #[arg(short, global = true)]
-    number: bool,
-
-    /// File to run (shorthand for `sgleam run FILE`).
-    file: Option<String>,
+/// Use Number instead of BigInt for integers
+fn number_arg() -> impl bpaf::Parser<bool> {
+    bpaf::short('n')
+        .help("Use Number instead of BigInt for integers")
+        .switch()
 }
 
-#[derive(clap::Subcommand)]
+#[derive(Debug, Clone, Bpaf)]
 enum Command {
     /// Start interactive REPL (default).
+    #[bpaf(command)]
     Repl {
-        /// File to load before the REPL starts.
-        file: Option<String>,
+        #[bpaf(external(number_arg))]
+        number: bool,
         /// Suppress welcome message.
-        #[arg(short)]
+        #[bpaf(short)]
         quiet: bool,
+        /// File to load before the REPL starts.
+        #[bpaf(positional("FILE"))]
+        file: Option<String>,
     },
     /// Execute a program.
+    #[bpaf(command)]
     Run {
+        #[bpaf(external(number_arg))]
+        number: bool,
         /// Gleam file to run.
+        #[bpaf(positional("FILE"))]
         file: String,
     },
     /// Run tests.
+    #[bpaf(command)]
     Test {
+        #[bpaf(external(number_arg))]
+        number: bool,
         /// Gleam file to test.
+        #[bpaf(positional("FILE"))]
         file: String,
     },
     /// Format source code (reads stdin if no files given).
+    #[bpaf(command)]
     Format {
         /// Check if files are formatted without modifying them.
-        #[arg(long)]
+        #[bpaf(long)]
         check: bool,
         /// Files to format.
+        #[bpaf(positional("FILE"), many)]
         files: Vec<String>,
     },
     /// Check source code (compile only).
+    #[bpaf(command)]
     Check {
+        #[bpaf(external(number_arg))]
+        number: bool,
         /// Gleam file to check.
+        #[bpaf(positional("FILE"))]
         file: String,
     },
+    /// Show help information.
+    #[bpaf(command)]
+    Help,
+}
+
+fn cli() -> bpaf::OptionParser<Option<Command>> {
+    let number = number_arg();
+    let file = bpaf::positional::<String>("FILE");
+    let file_as_run = bpaf::construct!(Command::Run { number, file });
+    let cmd = bpaf::construct!([command(), file_as_run]).optional();
+    bpaf::construct!(cmd)
+        .to_options()
+        .version(engine::version_short().leak() as &str)
+        .descr("The student version of gleam")
 }
 
 fn main() {
@@ -109,36 +119,41 @@ fn main() {
 }
 
 fn run() -> Result<(), SgleamError> {
-    let version: Box<str> = engine::version_for_clap().into();
-    let version: &'static str = Box::leak(version);
-    let cli = Cli::command().version(version).get_matches();
-    let cli = Cli::from_arg_matches(&cli).expect("valid args");
+    let command = cli().run().unwrap_or(Command::Repl {
+        number: false,
+        file: None,
+        quiet: false,
+    });
 
-    set_bigint_enabled(!cli.number);
-
-    let command = match (cli.command, cli.file) {
-        (Some(cmd), _) => cmd,
-        (None, Some(file)) => Command::Run { file },
-        (None, None) => Command::Repl {
-            file: None,
-            quiet: false,
-        },
-    };
+    let number = matches!(
+        &command,
+        Command::Repl { number: true, .. }
+            | Command::Run { number: true, .. }
+            | Command::Test { number: true, .. }
+            | Command::Check { number: true, .. }
+    );
+    set_bigint_enabled(!number);
 
     match command {
-        Command::Repl { file, quiet } => {
+        Command::Help => {
+            if let Err(err) = cli().run_inner(bpaf::Args::from(&["--help"])) {
+                err.print_message(80);
+            }
+            Ok(())
+        }
+        Command::Repl { file, quiet, .. } => {
             let paths = file
                 .map(|f| make_relative_to_current_dir(f.into()))
                 .transpose()?;
             let paths = paths.as_slice();
             run_interactive(paths, quiet)
         }
-        Command::Run { file } => {
+        Command::Run { file, .. } => {
             let file = make_relative_to_current_dir(file.into())?;
             let files = find_imports(vec![file])?;
             run_main(&files)
         }
-        Command::Test { file } => {
+        Command::Test { file, .. } => {
             let file = make_relative_to_current_dir(file.into())?;
             let user_files = vec![file];
             let files = find_imports(user_files.clone())?;
@@ -151,7 +166,7 @@ fn run() -> Result<(), SgleamError> {
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(format::run(check, paths)?)
         }
-        Command::Check { file } => {
+        Command::Check { file, .. } => {
             let file = make_relative_to_current_dir(file.into())?;
             let files = find_imports(vec![file])?;
             run_check(&files)
