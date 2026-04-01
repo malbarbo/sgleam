@@ -479,6 +479,20 @@ Deno.test("repl_new config bigint=false disables BigInt", async () => {
   destroy(ctx);
 });
 
+// --- Stop ---
+
+Deno.test("repl_stop interrupts infinite recursion", async () => {
+  const ctx = await newRepl("", { interruptAfter: 100 });
+  const r = run(ctx, "fn f() { f() } f()");
+  assertEquals(r.result, REPL_ERROR);
+  assertEquals(
+    r.stderr.includes("Interrupted"),
+    true,
+    `expected 'Interrupted' in stderr, got: ${r.stderr}`,
+  );
+  destroy(ctx);
+});
+
 // --- Stress ---
 
 Deno.test("move_square survives many frames", async () => {
