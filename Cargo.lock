@@ -786,7 +786,7 @@ checksum = "869b0adbda23651a9c5c0c3d270aac9fcb52e8622a8f2b17e57802d7791962f2"
 
 [[package]]
 name = "engine"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "base64 0.22.1",
  "camino",
@@ -2677,7 +2677,7 @@ dependencies = [
 
 [[package]]
 name = "sgleam"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "assert_cmd",
  "bpaf",
@@ -2932,7 +2932,7 @@ checksum = "8f50febec83f5ee1df3015341d8bd429f2d1cc62bcba7ea2076759d315084683"
 
 [[package]]
 name = "tests"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "camino",
  "engine",
@@ -3445,7 +3445,7 @@ dependencies = [
 
 [[package]]
 name = "wasm"
-version = "0.7.0"
+version = "0.8.0-dev"
 dependencies = [
  "camino",
  "engine",
