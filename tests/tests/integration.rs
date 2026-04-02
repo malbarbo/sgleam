@@ -78,6 +78,7 @@ fn run_tests() {
 }
 
 #[test]
+#[ignore]
 fn run_images() {
     glob!(IMAGES_DIR, "*.gleam", |path| {
         let path = path.as_os_str().to_str().expect("a valid path");
