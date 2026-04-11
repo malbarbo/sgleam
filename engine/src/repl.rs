@@ -1,4 +1,7 @@
-use std::{collections::HashMap, fmt::Write};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+};
 
 use camino::Utf8PathBuf;
 use ecow::EcoString;
@@ -15,24 +18,28 @@ use gleam_core::{
 use indoc::formatdoc;
 use vec1::Vec1;
 
-use crate::{
+use super::{
     GLEAM_MODULES_NAMES,
     engine::{Engine, MainFunction},
-    error::SgleamError,
+    error::{SgleamError, flush_buffer, show_error, stderr_buffer_writer},
     gleam::{Project, get_args_names, get_definition_src, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
+    substitution::{SubstitutionModule, SubstitutionStep, convert, runtime_vars},
     swrite, swriteln,
 };
 
 pub const QUIT: &str = ":quit";
 pub const TYPE: &str = ":type ";
-const DEBUG: &str = ":debug";
+pub const STEPPER: &str = ":stepper ";
+pub const HELP: &str = ":help";
+pub const THEME: &str = ":theme ";
+pub const DEBUG: &str = ":debug";
 
 pub fn welcome_message() -> String {
     format!(
         "Welcome to {}.\nType ctrl-d or \"{QUIT}\" to exit.\n",
-        crate::version()
+        super::version()
     )
 }
 
@@ -71,6 +78,8 @@ pub struct Repl<E: Engine> {
     repl_print: String,
     repl_save: String,
     repl_load: String,
+    substitution_module: Option<SubstitutionModule>,
+    pending_stepper_steps: Option<Vec<SubstitutionStep>>,
 }
 
 #[repr(u32)]
@@ -120,14 +129,24 @@ impl<E: Engine> Repl<E> {
             repl_print: format!("repl_print_{suffix}"),
             repl_save: format!("repl_save_{suffix}"),
             repl_load: format!("repl_load_{suffix}"),
+            substitution_module: None,
+            pending_stepper_steps: None,
         };
         // Initial compilation to populate module_members cache.
         let _ = repl.run_check();
         Ok(repl)
     }
 
+    pub fn set_substitution_module(&mut self, substitution_module: Option<SubstitutionModule>) {
+        self.substitution_module = substitution_module;
+    }
+
     pub fn names(&self) -> impl Iterator<Item = &str> {
         self.names.keys().map(String::as_str)
+    }
+
+    pub fn take_stepper_steps(&mut self) -> Option<Vec<SubstitutionStep>> {
+        self.pending_stepper_steps.take()
     }
 
     /// Returns all completion candidates: unqualified names, qualified
@@ -149,6 +168,7 @@ impl<E: Engine> Repl<E> {
 
     pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
         self.had_runtime_error = false;
+        self.pending_stepper_steps = None;
         self.iter = (self.iter.0 + 1, 0);
         let line_trim = input.trim();
 
@@ -165,6 +185,8 @@ impl<E: Engine> Repl<E> {
         let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
             input = expr;
             true
+        } else if let Some(expr) = line_trim.strip_prefix(STEPPER) {
+            return self.run_stepper_cmd(expr);
         } else {
             false
         };
@@ -218,7 +240,6 @@ impl<E: Engine> Repl<E> {
             }
         }
 
-        self.fn_bodies.clear();
         if self.had_runtime_error {
             Ok(ReplOutput::Error)
         } else {
@@ -417,7 +438,7 @@ pub fn {print}(value: a) -> a"#
     fn show_gleam_error(&self, err: &Error) {
         use std::io::Write as _;
         let offset = self.template_offset;
-        let buffer_writer = crate::error::stderr_buffer_writer();
+        let buffer_writer = stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         for mut diag in err.to_diagnostics() {
             if let Some(ref mut loc) = diag.location
@@ -436,7 +457,7 @@ pub fn {print}(value: a) -> a"#
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
         }
-        crate::error::flush_buffer(&buffer_writer, &buffer);
+        flush_buffer(&buffer_writer, &buffer);
     }
 
     /// Compile and execute a `repl_main` body.
@@ -448,7 +469,7 @@ pub fn {print}(value: a) -> a"#
             MainFunction::ReplMain(self.repl_main.clone()),
             false,
         ) {
-            crate::error::show_error(&err);
+            show_error(&err);
             self.had_runtime_error = true;
         }
         Ok(module)
@@ -574,7 +595,7 @@ pub fn {print}(value: a) -> a"#
             MainFunction::ReplMain(self.repl_main.clone()),
             false,
         ) {
-            crate::error::show_error(&err);
+            show_error(&err);
             self.had_runtime_error = true;
         }
         if self.engine.has_var(self.var_index) {
@@ -603,6 +624,84 @@ pub fn {print}(value: a) -> a"#
         let main = &get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
+    }
+
+    fn run_stepper_cmd(&mut self, code: &str) -> Result<ReplOutput, SgleamError> {
+        let mut src = self.build_source();
+        let bindings = self.var_bindings(&[]);
+        let header = format!("pub fn {}() {{\n{bindings}", self.repl_main);
+        self.template_offset = (src.len() + header.len()) as u32;
+        src.push_str(&header);
+        src.push_str(code);
+        src.push_str("\n}\n");
+
+        let module = match self.compile(&src) {
+            Ok(modules) => modules.split_off_first().0,
+            Err(err) => {
+                self.show_gleam_error(&err);
+                return Ok(ReplOutput::Error);
+            }
+        };
+        let current_substitution_module = SubstitutionModule::from_module(&module);
+        let mut substitution_module = self.substitution_module.clone().unwrap_or_default();
+        substitution_module.merge(current_substitution_module);
+
+        let Some(main) = get_function(&module, &self.repl_main) else {
+            println!("Could not find the generated expression.");
+            return Ok(ReplOutput::Error);
+        };
+        let user_statements: Vec<_> = main
+            .body
+            .iter()
+            .filter(|statement| statement.location().start >= self.template_offset)
+            .collect();
+        let [Statement::Expression(expr)] = user_statements.as_slice() else {
+            println!(":stepper only supports a single expression.");
+            return Ok(ReplOutput::Error);
+        };
+
+        if let Some(name) = self.unsupported_runtime_variable_in_expr(expr) {
+            println!(
+                ":stepper does not support REPL variable `{name}` because its source expression is not available."
+            );
+            return Ok(ReplOutput::Error);
+        }
+
+        let expr = match convert::typed_to_untyped(expr) {
+            Ok(expr) => expr,
+            Err(err) => {
+                println!("{err}");
+                return Ok(ReplOutput::Error);
+            }
+        };
+
+        match substitution_module.evaluate(&expr, 1000) {
+            Ok(trace) => {
+                self.pending_stepper_steps = Some(trace.into_steps());
+                Ok(ReplOutput::StdOut)
+            }
+            Err(err) => {
+                show_error(&err.into());
+                Ok(ReplOutput::Error)
+            }
+        }
+    }
+
+    fn unsupported_runtime_variable_in_expr(
+        &self,
+        expr: &gleam_core::ast::TypedExpr,
+    ) -> Option<String> {
+        let runtime_only_variables = self
+            .names
+            .iter()
+            .filter_map(|(name, entry)| match entry {
+                NameEntry::Variable { .. } if !self.fn_bodies.contains_key(name) => {
+                    Some(name.clone())
+                }
+                _ => None,
+            })
+            .collect::<HashSet<_>>();
+        runtime_vars::find_runtime_var_ref(expr, &runtime_only_variables)
     }
 
     fn run_import(&mut self, import: &gleam_core::ast::Import<()>) -> Result<(), Error> {

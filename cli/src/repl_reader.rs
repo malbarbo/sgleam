@@ -235,7 +235,7 @@ impl Highlighter for InputHelper {
     }
 }
 
-fn highlight_gleam(input: &str) -> String {
+pub fn highlight_gleam(input: &str) -> String {
     let t = theme();
     let mut out = String::with_capacity(input.len() * 2);
     let chars: Vec<char> = input.chars().collect();

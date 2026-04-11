@@ -1,4 +1,4 @@
-use engine::repl::{QUIT, TYPE, welcome_message};
+use engine::repl::{QUIT, STEPPER, TYPE, welcome_message};
 use indoc::formatdoc;
 use insta::assert_snapshot;
 
@@ -689,6 +689,131 @@ fn format_stdin() {
 #[test]
 fn repl_welcome_message() {
     assert_eq!(run_sgleam_cmd_stdout(&[], None), welcome_message())
+}
+
+#[test]
+fn repl_subst_factorial() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/subst_factorial.gleam"
+    );
+    let out = run_sgleam_cmd_stdout(&["repl", "-q", input], Some(&format!("{STEPPER}fat(4)")));
+    assert!(
+        out.contains("fat(4)"),
+        "expected initial expression, got: {out}"
+    );
+    assert!(
+        out.contains("case 4 == 0"),
+        "expected substitution step, got: {out}"
+    );
+    assert!(
+        out.contains("case False {\n  False -> 4 * fat(4 - 1)\n}"),
+        "expected reduced case after removing non-matching branch, got: {out}"
+    );
+    assert!(
+        out.trim_end().ends_with("24"),
+        "expected final value 24, got: {out}"
+    );
+}
+
+#[test]
+fn repl_subst_uses_function_defined_in_repl() {
+    let out = run_sgleam_cmd_stdout(
+        &["repl", "-q"],
+        Some(&formatdoc! {
+            "
+            pub fn dec(x) {{
+              x - 1
+            }}
+            {STEPPER}dec(3)"
+        }),
+    );
+    assert!(
+        out.contains("dec(3)"),
+        "expected initial expression, got: {out}"
+    );
+    assert!(
+        out.contains("3 - 1"),
+        "expected substitution step, got: {out}"
+    );
+    assert!(
+        out.trim_end().ends_with("2"),
+        "expected final value 2, got: {out}"
+    );
+}
+
+#[test]
+fn repl_subst_uses_function_from_imported_local_module() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/subst_multi_main.gleam"
+    );
+    let out = run_sgleam_cmd_stdout(&["repl", "-q", input], Some(&format!("{STEPPER}plus1(3)")));
+    assert!(
+        out.contains("plus1(3)"),
+        "expected initial expression, got: {out}"
+    );
+    assert!(
+        out.contains("inc(3)"),
+        "expected imported helper call, got: {out}"
+    );
+    assert!(
+        out.contains("3 + 1"),
+        "expected helper reduction, got: {out}"
+    );
+    assert!(
+        out.trim_end().ends_with("4"),
+        "expected final value 4, got: {out}"
+    );
+}
+
+#[test]
+fn repl_subst_rejects_runtime_only_variable() {
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {
+            "
+            let x = 3
+            {STEPPER}x + 1"
+        }),
+    );
+    assert!(
+        out.contains(":stepper does not support REPL variable `x`"),
+        "expected explicit runtime-variable error, got: {out}"
+    );
+}
+
+#[test]
+fn repl_subst_allows_runtime_variable_name_inside_string_literal() {
+    let out = run_sgleam_cmd_stdout(
+        &["repl", "-q"],
+        Some(&formatdoc! {
+            r#"
+            let x = 3
+            {STEPPER}"x""#
+        }),
+    );
+    assert!(
+        out.trim_end().ends_with(r#""x""#),
+        "expected string literal to be evaluated without runtime-variable rejection, got: {out}"
+    );
+}
+
+// Bug #5: pattern variables in case clauses must shadow runtime variables.
+#[test]
+fn repl_subst_allows_pattern_shadowing_runtime_variable() {
+    let out = run_sgleam_cmd_stdout(
+        &["repl", "-q"],
+        Some(&formatdoc! {
+            "
+            let y = 5
+            {STEPPER}case 0 {{ y -> y + 1 }}"
+        }),
+    );
+    assert!(
+        out.trim_end().ends_with("1"),
+        "expected case pattern `y` to shadow runtime variable `y`, got: {out}"
+    );
 }
 
 fn repl_exec(s: &str) -> String {

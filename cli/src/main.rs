@@ -7,6 +7,9 @@ compile_error!(
 
 mod config;
 mod repl_reader;
+mod stepper_display;
+
+use std::io::IsTerminal;
 
 use bpaf::{Bpaf, Parser};
 use camino::Utf8PathBuf;
@@ -15,8 +18,10 @@ use engine::{
     format,
     gleam::{Project, find_imports, get_module},
     quickjs::QuickJsEngine,
-    repl::{Repl, ReplOutput, welcome_message},
+    repl::{DEBUG, HELP, QUIT, Repl, ReplOutput, STEPPER, THEME, TYPE, welcome_message},
     run::{copy_files_and_build, run_check, run_main, run_test},
+    stepper::build_stepper,
+    substitution::SubstitutionModule,
 };
 use gleam_core::{
     error::{FileIoAction, FileKind},
@@ -78,6 +83,13 @@ enum Command {
         #[bpaf(external(number_arg))]
         number: bool,
         /// Gleam file to check.
+        #[bpaf(positional("FILE"))]
+        file: String,
+    },
+    /// Show substitution steps for a program.
+    #[bpaf(command)]
+    Stepper {
+        /// Gleam file to step through.
         #[bpaf(positional("FILE"))]
         file: String,
     },
@@ -171,6 +183,21 @@ fn run() -> Result<(), SgleamError> {
             let files = find_imports(vec![file])?;
             run_check(&files)
         }
+        Command::Stepper { file } => {
+            let file = make_relative_to_current_dir(file.into())?;
+            let steps = build_stepper(file)?;
+            if std::io::stdout().is_terminal() {
+                Ok(stepper_display::display_stepper(&steps)?)
+            } else {
+                for (index, step) in steps.iter().enumerate() {
+                    println!("{}", step.formatted);
+                    if index + 1 < steps.len() {
+                        println!();
+                    }
+                }
+                Ok(())
+            }
+        }
     }
 }
 
@@ -205,7 +232,7 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
 
 const COMPLETION_EXTRAS: &[&str] = &[
     // REPL commands
-    ":quit", ":type ", ":debug", ":help", ":theme ", // Keywords and builtins
+    QUIT, TYPE, STEPPER, DEBUG, HELP, THEME, // Keywords and builtins
     "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
     "False", "Nil", "Ok", "Error", "panic", "todo",
 ];
@@ -218,26 +245,36 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
         print!("{}", welcome_message());
     }
 
+    let paths = if paths.is_empty() {
+        vec![]
+    } else {
+        find_imports(paths.to_vec())?
+    };
+
     let mut project = Project::default();
-    let modules = copy_files_and_build(&mut project, paths)?;
+    let modules = copy_files_and_build(&mut project, &paths)?;
     let module = paths.first().and_then(|input| {
         let name = input.with_extension("");
         let name = name.as_str().replace('\\', "/");
         get_module(&modules, &name)
     });
+    let substitution_module = build_substitution_module(&modules);
 
     let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
+    repl.set_substitution_module(substitution_module);
     let completions = repl_reader::Completions::default();
     update_completions(&repl, &completions);
     let reader = repl_reader::ReplReader::new(completions.clone())
-        .map_err(|e| SgleamError::Other(e.into()))?;
+        .map_err(|e: rustyline::error::ReadlineError| SgleamError::Other(e.into()))?;
     for input in reader {
+        let input: String = input;
         let trimmed = input.trim();
-        if trimmed == ":help" {
+        if trimmed == HELP {
             println!("Commands:");
             println!("  :help          Show this help");
             println!("  :quit          Exit the REPL");
             println!("  :type <expr>   Show the type of an expression");
+            println!("  :stepper <expr>  Show substitution steps for an expression");
             println!("  :theme         Show the current theme");
             println!("  :theme light   Switch to One Light theme");
             println!("  :theme dark    Switch to One Dark theme");
@@ -253,7 +290,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
             println!("{name}");
             continue;
         }
-        if let Some(name) = trimmed.strip_prefix(":theme ") {
+        if let Some(name) = trimmed.strip_prefix(THEME) {
             let name = name.trim();
             match name {
                 "light" | "dark" => {
@@ -269,10 +306,30 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
             Ok(ReplOutput::Quit) => break,
             _ => {}
         }
+        if let Some(steps) = repl.take_stepper_steps() {
+            if std::io::stdout().is_terminal() {
+                let _ = stepper_display::display_stepper(&steps);
+            } else {
+                for (index, step) in steps.iter().enumerate() {
+                    println!("{}", step.formatted);
+                    if index + 1 < steps.len() {
+                        println!();
+                    }
+                }
+            }
+        }
         update_completions(&repl, &completions);
     }
 
     Ok(())
+}
+
+fn build_substitution_module(modules: &[gleam_core::build::Module]) -> Option<SubstitutionModule> {
+    let mut result = SubstitutionModule::default();
+    for module in modules {
+        result.merge(SubstitutionModule::from_module(module));
+    }
+    Some(result)
 }
 
 fn update_completions(repl: &Repl<QuickJsEngine>, completions: &repl_reader::Completions) {

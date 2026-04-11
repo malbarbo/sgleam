@@ -13,6 +13,7 @@ rustyline = { git = "https://github.com/malbarbo/rustyline.git", features = ["de
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.7", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
+crossterm = { version = "0.29.0", default-features = false, features = ["use-dev-tty", "windows"] }
 
 [features]
 resvg = ["engine/resvg"]
