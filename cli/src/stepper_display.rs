@@ -44,15 +44,15 @@ fn run_stepper(
 
         let key = read_key()?;
         match key {
-            KeyCode::Right | KeyCode::Down | KeyCode::Char('l') | KeyCode::Char('j') => {
-                if *current < steps.len() {
-                    *current += 1;
-                }
+            KeyCode::Right | KeyCode::Down | KeyCode::Char('l') | KeyCode::Char('j')
+                if *current < steps.len() =>
+            {
+                *current += 1;
             }
-            KeyCode::Left | KeyCode::Up | KeyCode::Char('h') | KeyCode::Char('k') => {
-                if *current > 0 {
-                    *current -= 1;
-                }
+            KeyCode::Left | KeyCode::Up | KeyCode::Char('h') | KeyCode::Char('k')
+                if *current > 0 =>
+            {
+                *current -= 1;
             }
             KeyCode::Char('q') | KeyCode::Esc => {
                 return Ok(());

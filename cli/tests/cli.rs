@@ -695,7 +695,7 @@ fn repl_welcome_message() {
 fn repl_subst_factorial() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/inputs/subst_factorial.gleam"
+        "/tests/inputs/stepper_factorial.gleam"
     );
     let out = run_sgleam_cmd_stdout(&["repl", "-q", input], Some(&format!("{STEPPER}fat(4)")));
     assert!(
@@ -746,7 +746,7 @@ fn repl_subst_uses_function_defined_in_repl() {
 fn repl_subst_uses_function_from_imported_local_module() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/tests/inputs/subst_multi_main.gleam"
+        "/tests/inputs/stepper_multi_main.gleam"
     );
     let out = run_sgleam_cmd_stdout(&["repl", "-q", input], Some(&format!("{STEPPER}plus1(3)")));
     assert!(

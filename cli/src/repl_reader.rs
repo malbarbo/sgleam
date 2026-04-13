@@ -375,12 +375,11 @@ fn validate_brackets_and_string(string: &str) -> ValidationResult {
 
             '(' | '[' | '{' => stack.push(c),
 
-            ')' | ']' | '}' => {
-                if !bracket_match(stack.pop().unwrap_or(' '), c) {
-                    // Mismatched bracket: submit as-is and let the compiler report the error.
-                    return ValidationResult::Valid(None);
-                }
+            ')' | ']' | '}' if !bracket_match(stack.pop().unwrap_or(' '), c) => {
+                // Mismatched bracket: submit as-is and let the compiler report the error.
+                return ValidationResult::Valid(None);
             }
+            ')' | ']' | '}' => {}
             _ => {}
         }
     }

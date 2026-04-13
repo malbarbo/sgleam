@@ -18,7 +18,7 @@ use engine::{
     format,
     gleam::{Project, find_imports, get_module},
     quickjs::QuickJsEngine,
-    repl::{DEBUG, HELP, QUIT, Repl, ReplOutput, STEPPER, THEME, TYPE, welcome_message},
+    repl::{DEBUG, HELP, QUIT, Repl, ReplOutput, STEPPER, THEME, TIME, TYPE, welcome_message},
     run::{copy_files_and_build, run_check, run_main, run_test},
     stepper::build_stepper,
     substitution::SubstitutionModule,
@@ -232,7 +232,7 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
 
 const COMPLETION_EXTRAS: &[&str] = &[
     // REPL commands
-    QUIT, TYPE, STEPPER, DEBUG, HELP, THEME, // Keywords and builtins
+    QUIT, TYPE, TIME, STEPPER, DEBUG, HELP, THEME, // Keywords and builtins
     "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
     "False", "Nil", "Ok", "Error", "panic", "todo",
 ];
