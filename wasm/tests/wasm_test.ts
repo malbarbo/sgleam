@@ -48,10 +48,22 @@ function readCstr(exports: WasmExports, ptr: number): string {
 
 // --- Mock env ---
 
+const KEYDOWN = 1;
 const KEYNONE = 3;
+
+interface EnvKeyEvent {
+  type: number;
+  key: string;
+  alt?: boolean;
+  ctrl?: boolean;
+  shift?: boolean;
+  meta?: boolean;
+  repeat?: boolean;
+}
 
 interface EnvOptions {
   interruptAfter?: number;
+  keyEvents?: EnvKeyEvent[];
 }
 
 function makeEnv(
@@ -61,6 +73,7 @@ function makeEnv(
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
   const interruptAfter = options.interruptAfter ?? Infinity;
+  const keyEvents = [...(options.keyEvents ?? [])];
 
   return {
     check_interrupt: (): number => {
@@ -72,7 +85,31 @@ function makeEnv(
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
     },
-    get_key_event: (): number => KEYNONE,
+    get_key_event: (ptr: number, len: number, mods: number): number => {
+      const event = keyEvents.shift();
+      if (!event) {
+        return KEYNONE;
+      }
+      const b = new Uint8Array(getBuffer() as ArrayBuffer);
+      const key = encoder.encode(event.key);
+      const writeStart = Math.max(0, ptr);
+      const writeEnd = Math.min(b.length, ptr + Math.max(0, len));
+      if (writeStart < writeEnd) {
+        b.fill(0, writeStart, writeEnd);
+        const keyLen = Math.min(key.length, writeEnd - writeStart);
+        for (let i = 0; i < keyLen; i++) {
+          b[writeStart + i] = key[i];
+        }
+      }
+      if (mods >= 0 && mods + 4 < b.length) {
+        b[mods + 0] = event.alt ? 1 : 0;
+        b[mods + 1] = event.ctrl ? 1 : 0;
+        b[mods + 2] = event.shift ? 1 : 0;
+        b[mods + 3] = event.meta ? 1 : 0;
+        b[mods + 4] = event.repeat ? 1 : 0;
+      }
+      return event.type;
+    },
     text_width: (): number => 10,
     text_height: (): number => 16,
     text_x_offset: (): number => -5,
@@ -96,6 +133,7 @@ interface WasmContext {
 interface LoadOptions {
   bigint?: boolean;
   interruptAfter?: number;
+  keyEvents?: EnvKeyEvent[];
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
@@ -124,7 +162,10 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
-    { interruptAfter: options.interruptAfter },
+    {
+      interruptAfter: options.interruptAfter,
+      keyEvents: options.keyEvents,
+    },
   );
 
   const instance = await WebAssembly.instantiate(module, {
@@ -183,6 +224,7 @@ function destroy(ctx: ReplContext): void {
 
 const REPL_OK = 0;
 const REPL_ERROR = 1;
+const REPL_QUIT = 2;
 
 // --- World program used in multiple tests ---
 
@@ -246,8 +288,26 @@ Deno.test("version returns non-empty string", async () => {
 Deno.test("repl smoke test", async () => {
   const ctx = await newRepl();
   const r = run(ctx, "1 + 2");
-  assertEquals(r.result, REPL_OK);
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
   assertEquals(r.stdout, "3\n");
+  destroy(ctx);
+});
+
+Deno.test("stepper renders UI in stdout", async () => {
+  const ctx = await newRepl("", {
+    keyEvents: [{ type: KEYDOWN, key: "q" }],
+  });
+  const r = run(ctx, ":stepper case 1 == 0 { True -> 10 False -> 20 }");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
+  assertEquals(r.stdout.includes("\x1b[2J\x1b[H"), true, "expected clear screen ANSI");
+  assertEquals(r.stdout.includes("Stepper - Step 1"), true, "expected UI text");
+  destroy(ctx);
+});
+
+Deno.test(":quit returns quit status", async () => {
+  const ctx = await newRepl();
+  const r = run(ctx, ":quit");
+  assertEquals(r.result, REPL_QUIT);
   destroy(ctx);
 });
 
