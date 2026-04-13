@@ -205,7 +205,7 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
 
 const COMPLETION_EXTRAS: &[&str] = &[
     // REPL commands
-    ":quit", ":type ", ":debug", ":help", ":theme ", // Keywords and builtins
+    ":quit", ":type ", ":time ", ":debug", ":help", ":theme ", // Keywords and builtins
     "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
     "False", "Nil", "Ok", "Error", "panic", "todo",
 ];

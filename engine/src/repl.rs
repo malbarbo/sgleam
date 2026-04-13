@@ -27,6 +27,7 @@ use crate::{
 
 pub const QUIT: &str = ":quit";
 pub const TYPE: &str = ":type ";
+pub const TIME: &str = ":time ";
 const DEBUG: &str = ":debug";
 
 pub fn welcome_message() -> String {
@@ -162,12 +163,15 @@ impl<E: Engine> Repl<E> {
             return Ok(ReplOutput::StdOut);
         }
 
-        let type_ = if let Some(expr) = line_trim.strip_prefix(TYPE) {
+        let mut is_type = false;
+        let mut is_time = false;
+        if let Some(expr) = line_trim.strip_prefix(TYPE) {
             input = expr;
-            true
-        } else {
-            false
-        };
+            is_type = true;
+        } else if let Some(expr) = line_trim.strip_prefix(TIME) {
+            input = expr;
+            is_time = true;
+        }
 
         let items = parser::parse_repl(input).map_err(|error| Error::Parse {
             path: format!("/src/{}.gleam", self.module_name()).into(),
@@ -175,8 +179,9 @@ impl<E: Engine> Repl<E> {
             error: error.into(),
         })?;
 
-        if type_ && items.len() != 1 {
-            println!("{TYPE}command expects exactly one expression.");
+        if (is_type || is_time) && items.len() != 1 {
+            let cmd = if is_type { TYPE } else { TIME };
+            println!("{cmd}command expects exactly one expression.");
             return Ok(ReplOutput::StdOut);
         }
 
@@ -200,12 +205,14 @@ impl<E: Engine> Repl<E> {
         for item in items {
             self.iter.1 += 1;
             let result = match item {
-                ReplItem::ReplDefinition(_) if type_ => {
-                    println!("{TYPE}command cannot be used with definitions.");
+                ReplItem::ReplDefinition(_) if is_type || is_time => {
+                    let cmd = if is_type { TYPE } else { TIME };
+                    println!("{cmd}command cannot be used with definitions.");
                     continue;
                 }
                 ReplItem::ReplDefinition(t) => self.run_definition(t, input),
-                ReplItem::ReplStatement(_) if type_ => self.run_type_cmd(input),
+                ReplItem::ReplStatement(_) if is_type => self.run_type_cmd(input),
+                ReplItem::ReplStatement(_) if is_time => self.run_time_cmd(input),
                 ReplItem::ReplStatement(s) => self.run_statement(s, input),
             };
 
@@ -602,6 +609,40 @@ pub fn {print}(value: a) -> a"#
         let module = self.compile_main(&body, 0)?;
         let main = &get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
+        Ok(())
+    }
+    fn run_time_cmd(&mut self, code: &str) -> Result<(), Error> {
+        let print = &self.repl_print;
+        let body = formatdoc! {"
+          {print}({{
+            {code}
+          }})"
+        };
+        let module = self.compile_main(&body, 0)?;
+
+        let start = std::time::Instant::now();
+        let res = self.engine.run_main(
+            &module.name,
+            MainFunction::ReplMain(self.repl_main.clone()),
+            false,
+        );
+        let elapsed = start.elapsed();
+
+        if let Err(err) = res {
+            crate::error::show_error(&err);
+            self.had_runtime_error = true;
+        } else {
+            let time_str = if elapsed.as_secs() > 0 {
+                format!("{:.2} s", elapsed.as_secs_f64())
+            } else if elapsed.as_millis() > 0 {
+                format!("{} ms", elapsed.as_millis())
+            } else if elapsed.as_micros() > 0 {
+                format!("{} µs", elapsed.as_micros())
+            } else {
+                format!("{} ns", elapsed.as_nanos())
+            };
+            println!("Time: {time_str}");
+        }
         Ok(())
     }
 
