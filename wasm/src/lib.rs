@@ -8,6 +8,15 @@ use engine::{
     repl::{Repl, ReplOutput},
 };
 use gleam_core::build::Module;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+static INIT: AtomicBool = AtomicBool::new(false);
+
+fn init() {
+    if !INIT.swap(true, Ordering::Relaxed) {
+        engine::panic::add_handler();
+    }
+}
 
 // --- Memory ---
 
@@ -71,6 +80,8 @@ pub unsafe extern "C" fn repl_new(
     config_ptr: *mut u8,
     config_len: usize,
 ) -> *mut Repl<QuickJsEngine> {
+    init();
+
     let source = new_string(code_ptr, code_len);
     let config = new_string(config_ptr, config_len);
 
@@ -186,6 +197,8 @@ pub unsafe extern "C" fn repl_complete(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn format(ptr: *mut u8, len: usize) -> *mut std::ffi::c_char {
+    init();
+
     match engine::format::format_source(&new_string(ptr, len)) {
         Ok(out) => to_cstr(out),
         Err(err) => {
