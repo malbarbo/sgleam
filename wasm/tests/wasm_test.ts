@@ -570,3 +570,20 @@ Deno.test("move_square survives many frames", async () => {
   );
   destroy(ctx);
 });
+
+Deno.test("panic handler intercepts Rust panics", async () => {
+  const ctx = await newRepl(); // init is called
+  try {
+    // Calling string_deallocate with null pointer triggers a panic via assert!(!ptr.is_null())
+    ctx.exports.string_deallocate(0, 10);
+  } catch (e) {
+    // The WASM module execution will abort on panic.
+  }
+  const stderr = ctx.stderr.join("");
+  assertEquals(
+    stderr.includes("Fatal compiler bug") || stderr.includes("assertion failed"),
+    true,
+    `expected formatted panic message in stderr, got: ${stderr}`,
+  );
+  destroy(ctx);
+});
