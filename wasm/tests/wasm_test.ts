@@ -581,7 +581,8 @@ Deno.test("panic handler intercepts Rust panics", async () => {
   }
   const stderr = ctx.stderr.join("");
   assertEquals(
-    stderr.includes("Fatal compiler bug") || stderr.includes("assertion failed"),
+    stderr.includes("Fatal compiler bug") ||
+      stderr.includes("assertion failed"),
     true,
     `expected formatted panic message in stderr, got: ${stderr}`,
   );
