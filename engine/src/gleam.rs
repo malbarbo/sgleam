@@ -9,7 +9,7 @@ use gleam_core::{
         TargetCodegenConfiguration,
     },
     config::PackageConfig,
-    error::{FileIoAction, FileKind},
+    error::{DefinedModuleOrigin, FileIoAction, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
     type_::{Type, printer::Printer},
@@ -126,7 +126,7 @@ impl Project {
         &mut self,
         repl: bool,
         existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
-        defined_modules: &mut im::HashMap<EcoString, Utf8PathBuf>,
+        defined_modules: &mut im::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
         let config = PackageConfig {
             target: Target::JavaScript,

@@ -3,7 +3,6 @@ use std::{
     fmt::Write,
 };
 
-use camino::Utf8PathBuf;
 use ecow::EcoString;
 use gleam_core::{
     Error,
@@ -12,6 +11,7 @@ use gleam_core::{
         UntypedStatement,
     },
     build::Module,
+    error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     type_::ModuleInterface,
 };
@@ -70,7 +70,7 @@ pub struct Repl<E: Engine> {
     fn_bodies: BTreeMap<String, String>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
-    defined_modules: im::HashMap<EcoString, Utf8PathBuf>,
+    defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
     iter: (usize, usize),
     var_index: usize,
@@ -371,6 +371,7 @@ pub fn {print}(value: a) -> a"#
         }
         self.project.write_source(&file, code);
 
+        self.defined_modules.clear();
         let result = self.project.compile_with_modules(
             true,
             &mut self.existing_modules,
