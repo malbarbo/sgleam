@@ -6,7 +6,7 @@ use engine::{
     gleam::{Project, get_module},
     quickjs::QuickJsEngine,
     repl::{Repl, ReplOutput},
-    substitution::SubstitutionStep,
+    substitution::{SubstitutionModule, SubstitutionStep},
 };
 use gleam_core::build::Module;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -549,7 +549,19 @@ pub unsafe extern "C" fn repl_new(
     if module.map(has_examples).unwrap_or(false) {
         let _ = QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
     }
-    Box::leak(Box::new(Repl::new(project, module).expect("A repl")))
+    let substitution_module = {
+        let mut result = SubstitutionModule::default();
+        for module in modules
+            .iter()
+            .filter(|m| !m.name.starts_with("gleam/") && !m.name.starts_with("sgleam/"))
+        {
+            result.merge(SubstitutionModule::from_module(module));
+        }
+        Some(result)
+    };
+    let mut repl = Repl::new(project, module).expect("A repl");
+    repl.set_substitution_module(substitution_module);
+    Box::leak(Box::new(repl))
 }
 
 fn has_examples(module: &Module) -> bool {
@@ -579,7 +591,17 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, 
     if ret == REPL_OK
         && let Some(steps) = repl.take_stepper_steps()
     {
-        stepper_ui::display_stepper(&steps);
+        use std::io::IsTerminal;
+        if std::io::stdout().is_terminal() {
+            stepper_ui::display_stepper(&steps);
+        } else {
+            for (index, step) in steps.iter().enumerate() {
+                println!("{}", step.formatted);
+                if index + 1 < steps.len() {
+                    println!();
+                }
+            }
+        }
     }
 
     Box::leak(repl);

@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fmt::Write,
 };
 
@@ -63,8 +63,11 @@ enum NameEntry {
 #[derive(Clone)]
 pub struct Repl<E: Engine> {
     user_import: Option<String>,
-    names: HashMap<String, NameEntry>,
-    fn_bodies: HashMap<String, String>,
+    // BTreeMap (not HashMap) so `build_source` emits imports/consts/types
+    // in a stable, cross-run order — compiler diagnostics that reference
+    // line numbers in the generated source stay reproducible.
+    names: BTreeMap<String, NameEntry>,
+    fn_bodies: BTreeMap<String, String>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, Utf8PathBuf>,
@@ -92,7 +95,7 @@ pub enum ReplOutput {
 
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let names: HashMap<String, NameEntry> = GLEAM_MODULES_NAMES
+        let names: BTreeMap<String, NameEntry> = GLEAM_MODULES_NAMES
             .iter()
             .map(|s| {
                 let short = s.rsplit('/').next().unwrap_or(s);
@@ -116,7 +119,7 @@ impl<E: Engine> Repl<E> {
         let mut repl = Repl {
             user_import: user_module.map(import_public_types_and_values),
             names,
-            fn_bodies: HashMap::new(),
+            fn_bodies: BTreeMap::new(),
             project,
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),

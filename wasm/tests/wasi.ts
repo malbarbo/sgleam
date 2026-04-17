@@ -15,11 +15,15 @@ export interface WasiOptions {
   readStdin?: () => string;
   args?: string[];
   env?: string[];
+  /** When false, fd_fdstat_get reports stdout/stderr as regular files so
+   * `std::io::IsTerminal` returns false. Defaults to true. */
+  isTty?: boolean;
 }
 
 export function makeWasi(options: WasiOptions) {
   const args = options.args ?? [];
   const env = options.env ?? [];
+  const isTty = options.isTty ?? true;
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const buf = () => options.getBuffer();
@@ -182,7 +186,8 @@ export function makeWasi(options: WasiOptions) {
         // so uninitialized stack memory in fs_rights_base would make it return false.
         const mem = new Uint8Array(buf());
         mem.fill(0, statPtr, statPtr + 24);
-        mem[statPtr] = 2; // WASI_FILETYPE_CHARACTER_DEVICE
+        // 2 = CHARACTER_DEVICE (TTY), 4 = REGULAR_FILE (not a TTY)
+        mem[statPtr] = isTty ? 2 : 4;
       }
       return WASI_ESUCCESS;
     },

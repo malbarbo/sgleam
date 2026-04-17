@@ -17,6 +17,11 @@ crossterm = { version = "0.29.0", default-features = false, features = ["use-dev
 
 [features]
 resvg = ["engine/resvg"]
+# Enables the WASM backend in the CLI integration tests: every `run_sgleam_cmd`
+# invocation also runs the Deno `wasm/sgleam.ts` wrapper and asserts both
+# backends produce identical output. Enabled in CI only on Linux (needs
+# wasm32-wasip1 target and Deno installed).
+wasm-backend = []
 
 [dev-dependencies]
 assert_cmd = "2.1"
