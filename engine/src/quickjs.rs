@@ -421,10 +421,16 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
     runtime.set_loader(FileResolver { base }, ScriptLoader { fs });
     context
         .with(|ctx| {
+            seed_bigint_flag(&ctx)?;
             add_console(&ctx)?;
             add_sgleam(&ctx)
         })
         .map(|_| context)
+}
+
+fn seed_bigint_flag(ctx: &Ctx) -> Result<()> {
+    let flag = gleam_core::javascript::is_bigint_enabled();
+    ctx.globals().set("__sgleam_bigint", flag)
 }
 
 pub fn run_main(

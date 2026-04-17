@@ -28,7 +28,7 @@ use tar::Archive;
 use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::{
-    GLEAM_STDLIB, GLEAM_STDLIB_BIGINT,
+    GLEAM_STDLIB,
     error::{flush_buffer, stderr_buffer_writer},
 };
 
@@ -37,20 +37,13 @@ pub struct Project {
     pub fs: InMemoryFileSystem,
 }
 
-fn stdlib() -> &'static [u8] {
-    if !gleam_core::javascript::is_bigint_enabled() {
-        return GLEAM_STDLIB;
-    }
-    GLEAM_STDLIB_BIGINT
-}
-
 impl Default for Project {
     fn default() -> Project {
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
         };
 
-        extract_tar(&mut project.fs, stdlib(), Project::source()).expect("Extract stdlib");
+        extract_tar(&mut project.fs, GLEAM_STDLIB, Project::source()).expect("Extract stdlib");
 
         for path in crate::Sgleam::iter() {
             if let Some(content) = crate::Sgleam::get(&path)
