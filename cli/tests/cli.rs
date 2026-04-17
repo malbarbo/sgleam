@@ -698,13 +698,16 @@ fn repl_exec(s: &str) -> String {
         .into()
 }
 
+// `smain(String)` / `smain(List(String))` entry points require `run_main`'s
+// dispatch based on the detected smain signature. The WASM wrapper only calls
+// `main()`, so these stay native-only.
 #[test]
 fn smain_list_string() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/smain_list_string.gleam"
     );
-    let (out, err) = run_sgleam_cmd(
+    let (out, err) = run_sgleam_cmd_native_only(
         &["run", input],
         Some(&formatdoc! {
             "
@@ -727,7 +730,7 @@ fn smain_string() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/smain_string.gleam"
     );
-    let (out, err) = run_sgleam_cmd(&["run", input], Some("hello\nworld"));
+    let (out, err) = run_sgleam_cmd_native_only(&["run", input], Some("hello\nworld"));
     assert_snapshot!(formatdoc! {"
         STDOUT
         {out}
@@ -742,7 +745,7 @@ fn smain_type_alias() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/smain_alias.gleam"
     );
-    let (out, _err) = run_sgleam_cmd(&["run", input], Some("hello"));
+    let (out, _err) = run_sgleam_cmd_native_only(&["run", input], Some("hello"));
     assert_eq!(out.trim(), "hello");
 }
 
@@ -841,7 +844,7 @@ fn world_run_in_repl_number() {
         .success();
 }
 
-fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
+fn run_native(args: &[&str], input: Option<&str>) -> (String, String) {
     let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
     cmd.args(args);
     if let Some(input) = input {
@@ -856,4 +859,126 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
             .replace('\\', "/")
             .replace("\r\n", "\n"),
     )
+}
+
+#[cfg(feature = "wasm-backend")]
+fn run_wasm(args: &[&str], input: Option<&str>) -> (String, String) {
+    let project_root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .canonicalize()
+        .expect("canonicalize project root");
+    let sgleam_ts = project_root.join("wasm/sgleam.ts");
+    let mut cmd = std::process::Command::new("deno");
+    cmd.args([
+        "run",
+        "--quiet",
+        "--allow-read",
+        sgleam_ts.to_str().expect("utf8"),
+    ]);
+    cmd.args(args);
+    cmd.stdin(std::process::Stdio::piped());
+    cmd.stdout(std::process::Stdio::piped());
+    cmd.stderr(std::process::Stdio::piped());
+    let mut child = cmd.spawn().expect("spawn deno");
+    if let Some(input) = input {
+        use std::io::Write;
+        let stdin = child.stdin.as_mut().expect("stdin");
+        stdin
+            .write_all(format!("{input}\n").as_bytes())
+            .expect("write stdin");
+    }
+    let output = child.wait_with_output().expect("wait deno");
+    (
+        String::from_utf8_lossy(&output.stdout)
+            .replace('\\', "/")
+            .replace("\r\n", "\n"),
+        String::from_utf8_lossy(&output.stderr)
+            .replace('\\', "/")
+            .replace("\r\n", "\n"),
+    )
+}
+
+fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
+    let native = run_native(args, input);
+    #[cfg(feature = "wasm-backend")]
+    {
+        let wasm = run_wasm(args, input);
+        // Random per-run suffixes (`repl_main_XXXXXXXX`, etc.) and warning
+        // line numbers depending on HashMap iteration order would cause
+        // spurious diffs between backends.
+        let normalize = |s: &str| {
+            let s = strip_repl_suffix(s);
+            normalize_warning_locations(&s)
+        };
+        assert_eq!(
+            normalize(&native.0),
+            normalize(&wasm.0),
+            "stdout: native vs wasm differ for args {args:?}"
+        );
+        assert_eq!(
+            normalize(&native.1),
+            normalize(&wasm.1),
+            "stderr: native vs wasm differ for args {args:?}"
+        );
+    }
+    native
+}
+
+#[cfg(feature = "wasm-backend")]
+fn normalize_warning_locations(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    let mut chars = s.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '/' && s.len() > 0 {
+            // no-op, handled below
+        }
+        result.push(c);
+        // Detect pattern like ".gleam:NN:MM" and replace numbers
+        if result.ends_with(".gleam:") {
+            // consume and replace digits
+            while matches!(chars.peek(), Some(ch) if ch.is_ascii_digit()) {
+                chars.next();
+            }
+            result.push('N');
+            if chars.peek() == Some(&':') {
+                chars.next();
+                result.push(':');
+                while matches!(chars.peek(), Some(ch) if ch.is_ascii_digit()) {
+                    chars.next();
+                }
+                result.push('N');
+            }
+        }
+    }
+    // Also normalize "┌─ /src/... :NN:MM" already handled by .gleam prefix.
+    // Normalize leading line-number gutter in error/warning diagnostics:
+    //   "42 │ ..." → "NN │ ..."  (these differ because of non-deterministic
+    //   HashMap ordering that shifts code up/down a few lines)
+    let mut lines: Vec<String> = Vec::new();
+    for line in result.lines() {
+        let trimmed = line.trim_start();
+        let indent_len = line.len() - trimmed.len();
+        if let Some(rest) = trimmed.strip_prefix(|c: char| c.is_ascii_digit()) {
+            let rest_trimmed = rest.trim_start_matches(|c: char| c.is_ascii_digit());
+            if rest_trimmed.starts_with(" │") || rest_trimmed.starts_with(" \u{2502}") {
+                let mut out = String::new();
+                out.push_str(&line[..indent_len]);
+                out.push_str("NN");
+                out.push_str(rest_trimmed);
+                lines.push(out);
+                continue;
+            }
+        }
+        lines.push(line.to_string());
+    }
+    let mut joined = lines.join("\n");
+    if result.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
+
+#[allow(dead_code)]
+fn run_sgleam_cmd_native_only(args: &[&str], input: Option<&str>) -> (String, String) {
+    run_native(args, input)
 }
