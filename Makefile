@@ -1,10 +1,40 @@
 WASM_TARGET = wasm32-wasip1
 
-.PHONY: release wasm test test-rs test-wasm test-wasm-cli check docs clean
+.PHONY: release release-min release-nightly wasm test test-rs test-wasm test-wasm-cli check docs clean
+
+NIGHTLY_BIN = target/min-nightly/x86_64-unknown-linux-gnu/release/sgleam
 
 release:
 	cargo build --release
 	objcopy --remove-section=.eh_frame --remove-section=.eh_frame_hdr target/release/sgleam
+
+# Build mínimo: strip debug info + remove unwind tables + disable PIE.
+# Usa `cargo rustc` para aplicar -no-pie só ao binário final (proc-macros
+# continuam sendo dylibs PIC). Target-dir dedicado evita invalidar o cache
+# do `release` normal.
+release-min:
+	cargo rustc --release -p sgleam --bin sgleam --target-dir target/min -- \
+	    -C relocation-model=static -C link-arg=-no-pie
+	strip --strip-all target/min/release/sgleam
+	objcopy --remove-section=.eh_frame --remove-section=.eh_frame_hdr target/min/release/sgleam
+	@echo "Artefato em target/min/release/sgleam"
+	@ls -lh target/min/release/sgleam
+
+# Como release-min, mas recompila std com optimize_for_size (requer nightly
+# + `rustup component add rust-src --toolchain nightly`). Reduz ~500 KiB
+# sobre release-min ao custo de ~1:30 na primeira build. Panic handler e
+# mensagens permanecem (só removemos debug/unwind/PIE, não panic info).
+release-nightly:
+	cargo +nightly rustc --release \
+	    -Z build-std=std,panic_abort \
+	    -Z build-std-features=optimize_for_size \
+	    --target x86_64-unknown-linux-gnu \
+	    -p sgleam --bin sgleam --target-dir target/min-nightly -- \
+	    -C relocation-model=static -C link-arg=-no-pie
+	strip --strip-all $(NIGHTLY_BIN)
+	objcopy --remove-section=.eh_frame --remove-section=.eh_frame_hdr $(NIGHTLY_BIN)
+	@echo "Artefato em $(NIGHTLY_BIN)"
+	@ls -lh $(NIGHTLY_BIN)
 
 wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
