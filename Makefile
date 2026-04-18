@@ -1,6 +1,6 @@
 WASM_TARGET = wasm32-wasip1
 
-.PHONY: release release-min release-nightly wasm test test-rs test-wasm test-wasm-cli check docs clean
+.PHONY: release release-min release-nightly wasm wasm-nightly test test-rs test-wasm test-wasm-cli check docs clean
 
 NIGHTLY_BIN = target/min-nightly/x86_64-unknown-linux-gnu/release/sgleam
 
@@ -39,6 +39,22 @@ release-nightly:
 wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
 	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
+
+# Como wasm, mas recompila std com optimize_for_size (requer nightly +
+# `rustup component add rust-src --toolchain nightly`). Target-dir dedicado
+# evita invalidar o cache do `wasm` normal.
+WASM_NIGHTLY_DIR = target/wasm-nightly
+WASM_NIGHTLY_BIN = $(WASM_NIGHTLY_DIR)/$(WASM_TARGET)/release-small/sgleam.wasm
+wasm-nightly:
+	cargo +nightly build -p wasm \
+	    -Z build-std=std,panic_abort \
+	    -Z build-std-features=optimize_for_size \
+	    --target $(WASM_TARGET) \
+	    --profile release-small \
+	    --target-dir $(WASM_NIGHTLY_DIR)
+	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int $(WASM_NIGHTLY_BIN) -o $(WASM_NIGHTLY_BIN)
+	@echo "Artefato em $(WASM_NIGHTLY_BIN)"
+	@ls -lh $(WASM_NIGHTLY_BIN)
 
 test: test-rs test-wasm test-wasm-cli
 
