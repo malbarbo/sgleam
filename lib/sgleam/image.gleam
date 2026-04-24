@@ -1163,7 +1163,11 @@ pub fn regular_polygonf(
   star_polygonf(side_length, side_count, 1, style)
 }
 
-pub fn regular_polygon(side_length: Int, side_count: Int, style: Style) -> Image {
+pub fn regular_polygon(
+  side_length: Int,
+  side_count: Int,
+  style: Style,
+) -> Image {
   regular_polygonf(int.to_float(side_length), side_count, style)
 }
 
@@ -1690,7 +1694,12 @@ pub fn underlay_align(
   overlay_align(top, x_place, y_place, bottom)
 }
 
-pub fn underlay_offsetf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
+pub fn underlay_offsetf(
+  bottom: Image,
+  x: Float,
+  y: Float,
+  top: Image,
+) -> Image {
   overlay(translate(top, x, y), bottom)
 }
 
@@ -1895,7 +1904,11 @@ pub fn place_line(
   )
 }
 
-pub fn place_polygonf(scene: Image, points: List(Pointf), style: Style) -> Image {
+pub fn place_polygonf(
+  scene: Image,
+  points: List(Pointf),
+  style: Style,
+) -> Image {
   Combination(scene, points_to_path(points, style))
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
