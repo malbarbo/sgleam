@@ -84,6 +84,7 @@ pub fn typed_to_untyped(expr: &TypedExpr) -> Result<UntypedExpr, SubstitutionErr
                 .iter()
                 .map(convert_call_arg)
                 .collect::<Result<Vec<_>, _>>()?,
+            open_parenthesis: 0,
         }),
 
         TypedExpr::List { elements, tail, .. } => Ok(UntypedExpr::List {

@@ -128,6 +128,7 @@ impl Project {
 
         let target = TargetCodegenConfiguration::JavaScript {
             emit_typescript_definitions: false,
+            emit_source_maps: false,
             prelude_location: Project::prelude().into(),
         };
 
