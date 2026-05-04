@@ -74,13 +74,20 @@ function makeEnv(
   let interruptCount = 0;
   const interruptAfter = options.interruptAfter ?? Infinity;
   const keyEvents = [...(options.keyEvents ?? [])];
+  // Fake clock: advanced by sleep so the world loop's now_ms-based
+  // scheduling can fire ticks deterministically without burning real
+  // wall-clock time.
+  let fakeClockMs = 0n;
 
   return {
     check_interrupt: (): number => {
       interruptCount++;
       return interruptCount >= interruptAfter ? 1 : 0;
     },
-    sleep: (_ms: bigint): void => {},
+    sleep: (ms: bigint): void => {
+      fakeClockMs += ms;
+    },
+    now_ms: (): bigint => fakeClockMs,
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
@@ -560,7 +567,18 @@ Deno.test("repl_stop interrupts infinite recursion", async () => {
 // --- Stress ---
 
 Deno.test("move_square survives many frames", async () => {
-  const ctx = await newRepl(MOVE_SQUARE, { interruptAfter: 50_000 });
+  // The world has no on_tick, so frames are produced only when key
+  // handlers run. Feed ArrowRight events (move clamps, so the square
+  // sits at the right edge after a few presses without triggering
+  // stop_when). Each press renders, so N events => N frames.
+  const keyEvents = Array.from({ length: 150 }, () => ({
+    type: KEYDOWN,
+    key: "ArrowRight",
+  }));
+  const ctx = await newRepl(MOVE_SQUARE, {
+    interruptAfter: 15_000,
+    keyEvents,
+  });
   assertEquals(ctx.repl !== 0, true);
   const r = run(ctx, "main()");
   assertEquals(

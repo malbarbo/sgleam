@@ -85,9 +85,11 @@ pub type ToImage(a) =
 
 const min_tick_rate = 1
 
-const max_tick_rate = 1000
+const max_tick_rate = 100
 
 const default_tick_rate = 28
+
+const ms_per_second = 1000
 
 const key_event_polling_delay = 10
 
@@ -143,42 +145,71 @@ pub fn on_key_up(world: World(a), handler: OnKey(a)) -> World(a) {
 
 pub fn run(world: World(a)) {
   world.state |> world.to_image |> image.to_svg |> system.show_svg
-  run_loop(world, max_tick_rate / world.rate)
+  let period = ms_per_second / world.rate
+  run_loop(world, system.now_ms() + period)
 }
 
-fn run_loop(world: World(a), time_out: Int) {
-  let #(world, time_out) = case time_out <= 0 {
+fn run_loop(world: World(a), next_tick_at: Int) {
+  let now = system.now_ms()
+  let #(world, next_tick_at) = case now >= next_tick_at {
     True -> {
       let world = case world.on_tick {
-        Some(on_tick) -> World(..world, state: on_tick(world.state))
+        Some(on_tick) -> {
+          let world = World(..world, state: on_tick(world.state))
+          show_svg(world)
+          world
+        }
         None -> world
       }
-      show_svg(world)
-      #(world, max_tick_rate / world.rate)
+      // Schedule from the deadline (not from now) to absorb minor
+      // overruns without drift. If we overran by more than a full
+      // period, snap forward so we don't burn ticks catching up.
+      let period = ms_per_second / world.rate
+      let bumped = next_tick_at + period
+      let next = case bumped <= now {
+        True -> now + period
+        False -> bumped
+      }
+      #(world, next)
     }
-    False -> #(world, time_out - key_event_polling_delay)
+    False -> #(world, next_tick_at)
   }
   let event = get_key_event()
-  let world = case world.on_key_down, event {
-    Some(on_key_down), Some(event) if event.event_type == KeyDown ->
-      World(..world, state: on_key_down(world.state, event.key))
-    _, _ -> world
+  let #(world, h1) = case world.on_key_down, event {
+    Some(handler), Some(event) if event.event_type == KeyDown -> #(
+      World(..world, state: handler(world.state, event.key)),
+      True,
+    )
+    _, _ -> #(world, False)
   }
-  let world = case world.on_key_press, event {
-    Some(on_key_press), Some(event) if event.event_type == KeyPress ->
-      World(..world, state: on_key_press(world.state, event.key))
-    _, _ -> world
+  let #(world, h2) = case world.on_key_press, event {
+    Some(handler), Some(event) if event.event_type == KeyPress -> #(
+      World(..world, state: handler(world.state, event.key)),
+      True,
+    )
+    _, _ -> #(world, False)
   }
-  let world = case world.on_key_up, event {
-    Some(on_key_up), Some(event) if event.event_type == KeyUp ->
-      World(..world, state: on_key_up(world.state, event.key))
-    _, _ -> world
+  let #(world, h3) = case world.on_key_up, event {
+    Some(handler), Some(event) if event.event_type == KeyUp -> #(
+      World(..world, state: handler(world.state, event.key)),
+      True,
+    )
+    _, _ -> #(world, False)
+  }
+  case h1 || h2 || h3 {
+    True -> show_svg(world)
+    False -> Nil
   }
   case world.stop_when |> option.map(fn(f) { f(world.state) }) {
     Some(True) -> show_svg(world)
     _ -> {
-      system.sleep(key_event_polling_delay)
-      run_loop(world, time_out)
+      let wait =
+        int.min(next_tick_at - system.now_ms(), key_event_polling_delay)
+      case wait > 0 {
+        True -> system.sleep(wait)
+        False -> Nil
+      }
+      run_loop(world, next_tick_at)
     }
   }
 }

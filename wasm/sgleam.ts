@@ -112,6 +112,7 @@ async function loadWasm(
   const env: WebAssembly.ModuleImports = {
     check_interrupt: (): number => 0,
     sleep: (_ms: bigint): void => {},
+    now_ms: (): bigint => BigInt(Date.now()),
     draw_svg: (): void => {},
     get_key_event: (): number => 3, // EVENT_NONE
     text_width: (): number => 10,

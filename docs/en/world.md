@@ -127,7 +127,7 @@ Creates an animation (receives the frame number).
 ```gleam
 world.tick_rate(world, rate)
 ```
-Sets the update rate (1 to 1000 fps, default 28).
+Sets the on_tick call frequency (1 to 100 per second, default 28).
 
 ```gleam
 world.on_tick(world, fn(a) -> a)
