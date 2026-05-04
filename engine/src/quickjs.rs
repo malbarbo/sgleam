@@ -101,6 +101,7 @@ mod wasm {
         unsafe extern "C" {
             pub fn check_interrupt() -> bool;
             pub fn sleep(ms: u64);
+            pub fn now_ms() -> u64;
             pub fn draw_svg(str: *const u8, len: usize);
             pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
             pub fn text_width(
@@ -143,6 +144,10 @@ mod wasm {
 
     pub fn sleep(ms: u64) {
         unsafe { ffi::sleep(ms) };
+    }
+
+    pub fn now_ms() -> u64 {
+        unsafe { ffi::now_ms() }
     }
 
     pub fn draw_svg(str: String) {
@@ -216,6 +221,14 @@ mod native {
 
     pub fn sleep(ms: u64) {
         std::thread::sleep(std::time::Duration::from_millis(ms));
+    }
+
+    pub fn now_ms() -> u64 {
+        use std::time::SystemTime;
+        SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0)
     }
 
     #[cfg(feature = "resvg")]
@@ -404,9 +417,11 @@ mod bitmap_tests {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-use native::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
+use native::{
+    check_interrupt, now_ms, sleep, text_height, text_width, text_x_offset, text_y_offset,
+};
 #[cfg(target_arch = "wasm32")]
-use wasm::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
+use wasm::{check_interrupt, now_ms, sleep, text_height, text_width, text_x_offset, text_y_offset};
 
 #[cfg(target_arch = "wasm32")]
 fn load_bitmap(path: String) -> (f64, f64, String) {
@@ -511,6 +526,10 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     sgleam.set(
         "sleep",
         Function::new(ctx.clone(), sleep)?.with_name("sleep")?,
+    )?;
+    sgleam.set(
+        "now_ms",
+        Function::new(ctx.clone(), now_ms)?.with_name("now_ms")?,
     )?;
     #[cfg(target_arch = "wasm32")]
     sgleam.set(

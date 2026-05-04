@@ -127,7 +127,7 @@ Cria uma animação (recebe o número do quadro).
 ```gleam
 world.tick_rate(world, rate)
 ```
-Define a taxa de atualização (1 a 1000 fps, padrão 28).
+Define a frequência de chamada de on_tick (1 a 100 por segundo, padrão 28).
 
 ```gleam
 world.on_tick(world, fn(a) -> a)
