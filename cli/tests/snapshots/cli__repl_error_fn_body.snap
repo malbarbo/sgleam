@@ -3,10 +3,10 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Type mismatch
-  ┌─ /src/repl1_1.gleam:1:13
+  ┌─ /src/repl1_1.gleam:1:15
   │
-1 │ let x = 1 + "a"
-  │             ^^^
+1 │ fn f(a) { a + "x" }
+  │               ^^^
 
 The + operator expects arguments of this type:
 

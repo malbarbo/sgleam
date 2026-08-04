@@ -1,0 +1,17 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Type mismatch
+  ┌─ /src/repl1_1.gleam:1:16
+  │
+1 │ const x: Int = "a"
+  │                ^^^
+
+Expected type:
+
+    Int
+
+Found type:
+
+    String

@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Unknown module value
+  ┌─ /src/repl1_1.gleam:1:19
+  │
+1 │ import gleam/int.{nope}
+  │                   ^^^^
+
+The module `gleam/int` does not have a `nope` value.

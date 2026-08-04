@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Write};
+use std::{collections::BTreeMap, fmt::Write, rc::Rc};
 
 use ecow::EcoString;
 use gleam_core::{
@@ -8,9 +8,11 @@ use gleam_core::{
         UntypedPattern, UntypedStatement,
     },
     build::Module,
+    diagnostic::Diagnostic,
     error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     type_::ModuleInterface,
+    warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
 use vec1::Vec1;
@@ -19,7 +21,7 @@ use crate::{
     GLEAM_MODULES_NAMES,
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{Project, get_args_names, get_definition_src, type_to_string},
+    gleam::{Project, get_args_names, get_definition_src, is_repl_noise, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
     swrite, swriteln,
@@ -69,7 +71,9 @@ pub struct Repl<E: Engine> {
     var_index: usize,
     debug: bool,
     had_runtime_error: bool,
-    template_offset: u32,
+    // Copied verbatim into the generated module, so diagnostics can be moved
+    // back to it.
+    user_text: Option<String>,
     // Internal function names with random suffix to avoid collisions with user code.
     repl_main: String,
     repl_print: String,
@@ -119,7 +123,7 @@ impl<E: Engine> Repl<E> {
             var_index: 0,
             debug: false,
             had_runtime_error: false,
-            template_offset: 0,
+            user_text: None,
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
             repl_save: format!("repl_save_{suffix}"),
@@ -153,6 +157,7 @@ impl<E: Engine> Repl<E> {
 
     pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
         self.had_runtime_error = false;
+        self.user_text = None;
         self.iter = (self.iter.0 + 1, 0);
         let line_trim = input.trim();
 
@@ -221,9 +226,9 @@ impl<E: Engine> Repl<E> {
             };
 
             if let Err(err) = result {
-                let template_offset = self.template_offset;
+                let user_text = self.user_text.take();
                 *self = snapshot;
-                self.template_offset = template_offset;
+                self.user_text = user_text;
                 self.show_gleam_error(&err);
                 return Ok(ReplOutput::Error);
             }
@@ -262,7 +267,13 @@ pub fn {print}(value: a) -> a"#
         for (name, entry) in &self.names {
             match entry {
                 NameEntry::ModuleAlias { path: module, .. } => {
-                    swriteln!(src, "import {module} as {name}");
+                    // A redundant alias would keep the line from being a
+                    // verbatim copy of the input, blocking relocation.
+                    if module.rsplit('/').next() == Some(name.as_str()) {
+                        swriteln!(src, "import {module}");
+                    } else {
+                        swriteln!(src, "import {module} as {name}");
+                    }
                 }
                 NameEntry::UnqualifiedValue { module, original } => {
                     if name == original {
@@ -352,8 +363,11 @@ pub fn {print}(value: a) -> a"#
         self.project.write_source(&file, code);
 
         self.defined_modules.clear();
+        // Collected instead of printed as they are emitted, so they can be
+        // relocated like the errors.
+        let warnings = VectorWarningEmitterIO::new();
         let result = self.project.compile_with_modules(
-            true,
+            Rc::new(warnings.clone()),
             &mut self.existing_modules,
             &mut self.defined_modules,
         );
@@ -362,6 +376,16 @@ pub fn {print}(value: a) -> a"#
             .fs
             .delete_file(&Project::source().join(file))
             .expect("To delete repl file");
+
+        self.show_diagnostics(
+            warnings
+                .take()
+                .iter()
+                .filter(|warning| !is_repl_noise(warning))
+                .map(|warning| warning.to_diagnostic())
+                .collect(),
+            false,
+        );
 
         let mut modules = result?;
 
@@ -401,59 +425,93 @@ pub fn {print}(value: a) -> a"#
 
     /// Compile source with a `repl_main` body appended.
     /// Variable bindings are automatically included before the body.
-    /// `body_prefix` is the number of bytes in `body` before the user's code
-    /// (e.g., the `repl_print({ ` wrapper), used to adjust error positions.
-    fn compile_main(&mut self, body: &str, body_prefix: usize) -> Result<Module, Error> {
-        self.compile_main_with_bindings(&self.var_bindings(&[]), body, body_prefix)
+    fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
+        self.compile_main_with_bindings(&self.var_bindings(&[]), body)
     }
 
     /// Like `compile_main` but with custom variable bindings (to exclude
     /// function argument names).
-    fn compile_main_with_bindings(
-        &mut self,
-        bindings: &str,
-        body: &str,
-        body_prefix: usize,
-    ) -> Result<Module, Error> {
+    fn compile_main_with_bindings(&mut self, bindings: &str, body: &str) -> Result<Module, Error> {
         let mut src = self.build_source();
         let repl_main = &self.repl_main;
-        let header = format!("pub fn {repl_main}() {{\n{bindings}");
-        self.template_offset = (src.len() + header.len() + body_prefix) as u32;
-        src.push_str(&header);
-        src.push_str(body);
-        src.push_str("\n}\n");
+        swrite!(src, "pub fn {repl_main}() {{\n{bindings}{body}\n}}\n");
         Ok(self.compile(&src)?.split_off_first().0)
     }
 
-    /// Display a compile error with adjusted line numbers.
     fn show_gleam_error(&self, err: &Error) {
+        self.show_diagnostics(err.to_diagnostics(), true);
+    }
+
+    /// Print diagnostics relocated to the user's input. `drop_unrelocated`
+    /// discards the ones left pointing at the scaffolding, which for an error
+    /// duplicate the relocated one.
+    fn show_diagnostics(&self, diags: Vec<Diagnostic>, drop_unrelocated: bool) {
         use std::io::Write as _;
-        let offset = self.template_offset;
+        if diags.is_empty() {
+            return;
+        }
+
+        let mut diags: Vec<_> = diags
+            .into_iter()
+            .map(|mut diag| {
+                let relocated = self.relocate(&mut diag);
+                (diag, relocated)
+            })
+            .collect();
+
+        if drop_unrelocated && diags.iter().any(|(_, relocated)| *relocated) {
+            diags.retain(|(_, relocated)| *relocated);
+        }
+
         let buffer_writer = crate::error::stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
-        for mut diag in err.to_diagnostics() {
-            if let Some(ref mut loc) = diag.location
-                && loc.label.span.start >= offset
-            {
-                loc.src = loc.src[offset as usize..].into();
-                loc.label.span.start -= offset;
-                loc.label.span.end -= offset;
-                for extra in &mut loc.extra_labels {
-                    if extra.src_info.is_none() {
-                        extra.label.span.start -= offset;
-                        extra.label.span.end -= offset;
-                    }
-                }
-            }
+        for (diag, _) in &diags {
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
         }
         crate::error::flush_buffer(&buffer_writer, &buffer);
     }
 
+    /// Move `diag` from the generated module back to the user's input,
+    /// producing whether it could be done.
+    fn relocate(&self, diag: &mut Diagnostic) -> bool {
+        let Some(user_text) = &self.user_text else {
+            return false;
+        };
+        let Some(loc) = &mut diag.location else {
+            return false;
+        };
+        let span = loc.label.span;
+        let len = user_text.len() as u32;
+        let Some(start) = loc
+            .src
+            .match_indices(user_text.as_str())
+            .map(|(i, _)| i as u32)
+            .find(|&i| i <= span.start && span.end <= i + len)
+        else {
+            return false;
+        };
+
+        let end = start + len;
+        loc.src = user_text.as_str().into();
+        loc.label.span.start -= start;
+        loc.label.span.end -= start;
+        loc.extra_labels.retain(|extra| {
+            extra.src_info.is_some()
+                || (start <= extra.label.span.start && extra.label.span.end <= end)
+        });
+        for extra in &mut loc.extra_labels {
+            if extra.src_info.is_none() {
+                extra.label.span.start -= start;
+                extra.label.span.end -= start;
+            }
+        }
+        true
+    }
+
     /// Compile and execute a `repl_main` body.
-    fn compile_and_run(&mut self, body: &str, body_prefix: usize) -> Result<Module, Error> {
-        let module = self.compile_main(body, body_prefix)?;
+    fn compile_and_run(&mut self, body: &str) -> Result<Module, Error> {
+        let module = self.compile_main(body)?;
 
         if let Err(err) = self.engine.run_main(
             &module.name,
@@ -477,18 +535,27 @@ pub fn {print}(value: a) -> a"#
         let mut src = get_definition_src(&targeted.definition, src).into();
 
         match &targeted.definition {
-            Definition::Import(import) => self.run_import(import),
+            Definition::Import(import) => {
+                self.user_text = Some(src);
+                self.run_import(import)
+            }
             Definition::TypeAlias(t) => self.run_type(t.alias.to_string(), src),
             Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
             Definition::ModuleConstant(c) => self.run_const(c.name.to_string(), src),
             Definition::Function(f) => {
                 let bindings = self.var_bindings(&get_args_names(f));
+                let body_start = (f.body.first().unwrap().location().start
+                    - targeted.definition.location().start)
+                    as usize;
 
-                src.insert_str(
-                    (f.body.first().unwrap().location().start
-                        - targeted.definition.location().start) as usize,
-                    &format!("\n  {bindings}"),
-                );
+                if bindings.is_empty() {
+                    self.user_text = Some(src.clone());
+                } else {
+                    // Only what follows the spliced bindings is still a
+                    // verbatim copy of the input.
+                    self.user_text = Some(src[body_start..].to_string());
+                    src.insert_str(body_start, &format!("\n  {bindings}"));
+                }
 
                 let name = f.name.clone().expect("A function must have a name").1;
                 self.run_fn(name.into(), src)
@@ -524,14 +591,15 @@ pub fn {print}(value: a) -> a"#
 
     fn run_expr(&mut self, expr: &str) -> Result<(), Error> {
         let print = &self.repl_print;
-        let prefix = format!("{print}({{\n");
-        let body = format!("{prefix}{expr}\n}})");
-        self.compile_and_run(&body, prefix.len())?;
+        let body = format!("{print}({{\n{expr}\n}})");
+        self.user_text = Some(expr.into());
+        self.compile_and_run(&body)?;
         Ok(())
     }
 
     fn run_assert(&mut self, code: &str) -> Result<(), Error> {
-        self.compile_and_run(code, 0)?;
+        self.user_text = Some(code.into());
+        self.compile_and_run(code)?;
         Ok(())
     }
 
@@ -548,12 +616,18 @@ pub fn {print}(value: a) -> a"#
             .map(|name| format!("{save}({name})"))
             .collect::<Vec<_>>()
             .join("\n  ");
+        // The inner binding is a verbatim copy of the input, so errors land on
+        // it and not on the line carrying the print wrapper; the outer one
+        // rebinds the names to save them and read their types back.
         let body = formatdoc! {"
-          {pattern} = {print}({value})
+          {pattern} = {print}({{
+          {pattern} = {value}
+          }})
           {save_names}
           #({joined_names})"
         };
-        let module = self.compile_and_run(&body, 0)?;
+        self.user_text = Some(format!("{pattern} = {value}"));
+        let module = self.compile_and_run(&body)?;
 
         if self.engine.has_var(self.var_index) {
             let main = get_function(&module, &self.repl_main).expect("repl main function");
@@ -580,7 +654,7 @@ pub fn {print}(value: a) -> a"#
         self.fn_bodies.insert(name.clone(), body);
         let save = &self.repl_save;
         let body = format!("{save}({name})");
-        let module = self.compile_main_with_bindings("", &body, 0)?;
+        let module = self.compile_main_with_bindings("", &body)?;
         if let Err(err) = self.engine.run_main(
             &module.name,
             MainFunction::ReplMain(self.repl_main.clone()),
@@ -606,24 +680,18 @@ pub fn {print}(value: a) -> a"#
 
     fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
         let print = &self.repl_print;
-        let body = formatdoc! {"
-          {print}({{
-            {code}
-          }})"
-        };
-        let module = self.compile_main(&body, 0)?;
+        let body = format!("{print}({{\n{code}\n}})");
+        self.user_text = Some(code.into());
+        let module = self.compile_main(&body)?;
         let main = &get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
     }
     fn run_time_cmd(&mut self, code: &str) -> Result<(), Error> {
         let print = &self.repl_print;
-        let body = formatdoc! {"
-          {print}({{
-            {code}
-          }})"
-        };
-        let module = self.compile_main(&body, 0)?;
+        let body = format!("{print}({{\n{code}\n}})");
+        self.user_text = Some(code.into());
+        let module = self.compile_main(&body)?;
 
         let start = std::time::Instant::now();
         let res = self.engine.run_main(
@@ -706,6 +774,7 @@ pub fn {print}(value: a) -> a"#
         // Remove stale function body to avoid module-level name conflict
         // (e.g., `fn f() { 1 } const f = 10` in the same input).
         self.fn_bodies.remove(&name);
+        self.user_text = Some(code.clone());
         self.names.insert(name, NameEntry::Const(code));
         self.run_check()
     }
@@ -717,6 +786,7 @@ pub fn {print}(value: a) -> a"#
             println!("Cannot redefine type `{name}` while variables of that type exist.");
             return Ok(());
         }
+        self.user_text = Some(code.clone());
         self.names.insert(name, NameEntry::Type(code));
         self.run_check()
     }

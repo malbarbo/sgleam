@@ -559,6 +559,61 @@ fn repl_error_let() {
 }
 
 #[test]
+fn repl_error_const() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"const x: Int = "a""#));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_type() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("type T { T(Nope) }"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_fn_body() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"fn f(a) { a + "x" }"#));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_assert() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"assert 1 == "a""#));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_type_cmd() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(":type nope"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_import_item() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("import gleam/int.{nope}"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_import_module() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("import gleam/nope"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_warning() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("assert 1 == 1"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+// The pattern fails in both generated bindings; only the relocated one shows.
+#[test]
+fn repl_error_let_pattern() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert Ok(v) = 1"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
 fn repl_no_collision_with_internal_names() {
     // User variable named repl_print doesn't break expressions
     assert_eq!(

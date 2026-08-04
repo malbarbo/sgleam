@@ -5,15 +5,13 @@ expression: strip_repl_suffix(&err)
 error: Type mismatch
   ┌─ /src/repl1_1.gleam:1:13
   │
-1 │ let x = 1 + "a"
+1 │ assert 1 == "a"
   │             ^^^
 
-The + operator expects arguments of this type:
+Expected type:
 
     Int
 
-But this argument has this type:
+Found type:
 
     String
-
-Hint: Strings can be joined using the `<>` operator.
