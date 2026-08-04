@@ -762,6 +762,38 @@ fn smain_type_alias() {
     assert_eq!(out.trim(), "hello");
 }
 
+// Bit array offsets and sizes are plain JavaScript numbers, so they must be
+// generated the same way with and without BigInt integers.
+#[test]
+fn run_bit_array() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/bit_array.gleam");
+    let expected = formatdoc! {"
+        <<1, 2>>
+        <<1, 44>>
+        <<1, 44>>
+        <<63, 192, 0, 0>>
+        <<0, 104, 0, 105>>
+        7
+        258
+        -1
+        258
+        <<20, 30>>
+        <<9, 9>>
+        3
+        42"
+    };
+    assert_eq!(
+        run_sgleam_cmd_native_only(&["run", input], None).0.trim(),
+        expected
+    );
+    assert_eq!(
+        run_sgleam_cmd_native_only(&["run", "-n", input], None)
+            .0
+            .trim(),
+        expected
+    );
+}
+
 fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
     run_sgleam_cmd(args, input).0
 }
