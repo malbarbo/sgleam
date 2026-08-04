@@ -112,12 +112,16 @@ impl Project {
     }
 
     pub fn compile(&mut self, repl: bool) -> Result<Vec<Module>, Error> {
-        self.compile_with_modules(repl, &mut im::HashMap::new(), &mut im::HashMap::new())
+        self.compile_with_modules(
+            Rc::new(ConsoleWarningEmitter::with_repl(repl)),
+            &mut im::HashMap::new(),
+            &mut im::HashMap::new(),
+        )
     }
 
     pub fn compile_with_modules(
         &mut self,
-        repl: bool,
+        warnings: Rc<dyn WarningEmitterIO>,
         existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
         defined_modules: &mut im::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
@@ -147,7 +151,7 @@ impl Project {
 
         compiler
             .compile(
-                &WarningEmitter::new(Rc::new(ConsoleWarningEmitter::with_repl(repl))),
+                &WarningEmitter::new(warnings),
                 existing_modules,
                 defined_modules,
                 &mut StaleTracker::default(),
@@ -307,27 +311,33 @@ impl ConsoleWarningEmitter {
     }
 }
 
+/// Warnings caused by the scaffolding the repl generates around the input, or
+/// that make no sense for a single expression.
+pub fn is_repl_noise(warning: &Warning) -> bool {
+    matches!(
+        warning,
+        Warning::Type {
+            warning: gleam_core::type_::Warning::Todo { .. }
+                | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
+                | gleam_core::type_::Warning::UnusedConstructor { .. }
+                | gleam_core::type_::Warning::UnusedImportedModule { .. }
+                | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
+                | gleam_core::type_::Warning::UnusedImportedValue { .. }
+                | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
+                // | gleam_core::type_::Warning::UnusedLiteral { .. }
+                | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
+                | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
+                | gleam_core::type_::Warning::UnusedType { .. }
+                // | gleam_core::type_::Warning::UnusedValue { .. }
+                | gleam_core::type_::Warning::UnusedVariable { .. },
+            ..
+        }
+    )
+}
+
 impl WarningEmitterIO for ConsoleWarningEmitter {
     fn emit_warning(&self, warning: Warning) {
-        if self.repl
-            && let Warning::Type {
-                warning:
-                    gleam_core::type_::Warning::Todo { .. }
-                    | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
-                    | gleam_core::type_::Warning::UnusedConstructor { .. }
-                    | gleam_core::type_::Warning::UnusedImportedModule { .. }
-                    | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
-                    | gleam_core::type_::Warning::UnusedImportedValue { .. }
-                    | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
-                    // | gleam_core::type_::Warning::UnusedLiteral { .. }
-                    | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
-                    | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
-                    | gleam_core::type_::Warning::UnusedType { .. }
-                    // | gleam_core::type_::Warning::UnusedValue { .. }
-                    | gleam_core::type_::Warning::UnusedVariable { .. },
-                ..
-            } = warning
-        {
+        if self.repl && is_repl_noise(&warning) {
             return;
         }
         let buffer_writer = stderr_buffer_writer();

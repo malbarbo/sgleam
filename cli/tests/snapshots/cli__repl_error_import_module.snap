@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Unknown module
+  ┌─ /src/repl1_1.gleam:1:1
+  │
+1 │ import gleam/nope
+  │ ^^^^^^^^^^^^^^^^^
+
+No module has been found with the name `gleam/nope`.
