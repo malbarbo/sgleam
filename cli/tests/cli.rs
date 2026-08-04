@@ -349,6 +349,15 @@ fn repl_rollback() {
 }
 
 #[test]
+fn repl_rollback_failed_fn() {
+    // A function is pre-registered before being compiled, so a failing one must
+    // not survive into the next input.
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn g(a) { a + \"x\" }\nlet y = 2"));
+    assert_eq!(err.matches("Type mismatch").count(), 1, "got: {err}");
+    assert_eq!(out.trim(), "2");
+}
+
+#[test]
 fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");

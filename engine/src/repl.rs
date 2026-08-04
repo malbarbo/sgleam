@@ -188,6 +188,12 @@ impl<E: Engine> Repl<E> {
             return Ok(ReplOutput::StdOut);
         }
 
+        // Snapshot for rollback: if any item fails, all changes from this
+        // input are reverted. Taken before registering the functions so a
+        // rollback also drops them. The clone is cheap — engine and project use
+        // reference counting internally (Rc), so only the HashMaps are copied.
+        let snapshot = (*self).clone();
+
         // Pre-register function names so mutually recursive functions
         // can reference each other during compilation.
         for item in &items {
@@ -199,11 +205,6 @@ impl<E: Engine> Repl<E> {
                 self.fn_bodies.insert(name.into(), body);
             }
         }
-
-        // Snapshot for rollback: if any item fails, all changes from this
-        // input are reverted. The clone is cheap — engine and project use
-        // reference counting internally (Rc), so only the HashMaps are copied.
-        let snapshot = (*self).clone();
 
         for item in items {
             self.iter.1 += 1;
