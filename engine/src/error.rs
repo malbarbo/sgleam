@@ -2,10 +2,12 @@ use std::io::{IsTerminal as _, Write as _};
 
 use camino::Utf8PathBuf;
 use ecow::EcoString;
-use gleam_core::diagnostic::{Diagnostic, Level};
+use gleam_core::diagnostic::{Diagnostic, Label, Level, Location};
 use indoc::formatdoc;
 use termcolor::{BufferWriter, ColorChoice};
 use thiserror::Error;
+
+use crate::substitution::SubstitutionError;
 
 #[derive(Debug, Error)]
 pub enum SgleamError {
@@ -34,6 +36,9 @@ pub enum SgleamError {
     #[error("interrupted")]
     Interrupted,
 
+    #[error("substitution error")]
+    Substitution(SubstitutionError),
+
     #[error(transparent)]
     Other(Box<dyn std::error::Error>),
 }
@@ -47,6 +52,18 @@ impl From<gleam_core::Error> for SgleamError {
 impl From<rquickjs::Error> for SgleamError {
     fn from(value: rquickjs::Error) -> Self {
         SgleamError::QuickJs(value)
+    }
+}
+
+impl From<std::io::Error> for SgleamError {
+    fn from(value: std::io::Error) -> Self {
+        SgleamError::Other(Box::new(value))
+    }
+}
+
+impl From<SubstitutionError> for SgleamError {
+    fn from(value: SubstitutionError) -> Self {
+        SgleamError::Substitution(value)
     }
 }
 
@@ -95,6 +112,56 @@ pub fn show_error(err: &SgleamError) {
         SgleamError::Other(err) => {
             writeln!(buffer, "{err}").expect("write to buffer");
         }
+        SgleamError::Substitution(err) => match err {
+            SubstitutionError::UnsupportedFeature {
+                kind,
+                location,
+                src,
+                path,
+            } => {
+                Diagnostic {
+                    title: "Unsupported feature in stepper".into(),
+                    text: format!("The stepper does not support {kind} yet."),
+                    hint: Some(format!(
+                        "The stepper is designed for learning basic logic. Try simplifying this {kind}."
+                    )),
+                    level: Level::Error,
+                    location: Some(Location {
+                        src: src.clone(),
+                        path: path.clone(),
+                        label: Label {
+                            span: *location,
+                            text: Some("this feature is not supported".into()),
+                        },
+                        extra_labels: vec![],
+                    }),
+                }
+                .write(&mut buffer);
+            }
+            SubstitutionError::StepLimitExceeded(limit) => {
+                Diagnostic {
+                    title: "Evaluation timeout".into(),
+                    text: format!("The substitution exceeded the limit of {limit} steps."),
+                    hint: Some(
+                        "This usually happens in infinite recursions. Check your logic.".into(),
+                    ),
+                    level: Level::Error,
+                    location: None,
+                }
+                .write(&mut buffer);
+            }
+            SubstitutionError::FormattingError => {
+                Diagnostic {
+                    title: "Internal error".into(),
+                    text: "The stepper failed to format a substitution step.".into(),
+                    hint: None,
+                    level: Level::Error,
+                    location: None,
+                }
+                .write(&mut buffer);
+            }
+            SubstitutionError::Format(e) => e.pretty(&mut buffer),
+        },
     };
 
     flush_buffer(&buffer_writer, &buffer);

@@ -300,6 +300,21 @@ Deno.test("repl smoke test", async () => {
   destroy(ctx);
 });
 
+Deno.test("stepper renders UI in stdout", async () => {
+  const ctx = await newRepl("", {
+    keyEvents: [{ type: KEYDOWN, key: "q" }],
+  });
+  const r = run(ctx, ":stepper case 1 == 0 { True -> 10 False -> 20 }");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
+  assertEquals(
+    r.stdout.includes("\x1b[2J\x1b[H"),
+    true,
+    "expected clear screen ANSI",
+  );
+  assertEquals(r.stdout.includes("Stepper - Step 1"), true, "expected UI text");
+  destroy(ctx);
+});
+
 Deno.test(":quit returns quit status", async () => {
   const ctx = await newRepl();
   const r = run(ctx, ":quit");
