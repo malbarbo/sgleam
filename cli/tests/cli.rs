@@ -322,6 +322,19 @@ fn repl_let_nested_pattern() {
 }
 
 #[test]
+fn repl_let_string_prefix_pattern() {
+    assert_eq!(
+        repl_exec("let assert \"a\" <> rest = \"abc\" rest"),
+        "\"abc\"\n\"bc\""
+    );
+    assert_eq!(
+        repl_exec("let assert \"a\" as p <> rest = \"abc\" p rest"),
+        "\"abc\"\n\"a\"\n\"bc\""
+    );
+    assert_eq!(repl_exec("let assert \"a\" <> _ = \"abc\""), "\"abc\"");
+}
+
+#[test]
 fn repl_rollback() {
     // When the second item in the same input fails, the first is rolled back
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 let y = x + \"a\"\nx"));

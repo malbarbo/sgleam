@@ -4,8 +4,8 @@ use ecow::EcoString;
 use gleam_core::{
     Error,
     ast::{
-        BitArraySize, Definition, Pattern, Statement, TargetedDefinition, UntypedPattern,
-        UntypedStatement,
+        AssignName, BitArraySize, Definition, Pattern, Statement, TargetedDefinition,
+        UntypedPattern, UntypedStatement,
     },
     build::Module,
     error::DefinedModuleOrigin,
@@ -727,9 +727,20 @@ fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
         | Pattern::Float { .. }
         | Pattern::String { .. }
         | Pattern::Discard { .. }
-        | Pattern::Invalid { .. }
-        | Pattern::StringPrefix { .. } => {}
+        | Pattern::Invalid { .. } => {}
         Pattern::Variable { name, .. } => names.push(name.into()),
+        Pattern::StringPrefix {
+            left_side_assignment,
+            right_side_assignment,
+            ..
+        } => {
+            if let Some((name, _)) = left_side_assignment {
+                names.push(name.into());
+            }
+            if let AssignName::Variable(name) = right_side_assignment {
+                names.push(name.into());
+            }
+        }
         Pattern::Assign { name, pattern, .. } => {
             names.push(name.into());
             assignment_find_names(pattern, names);
