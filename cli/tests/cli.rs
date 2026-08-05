@@ -600,6 +600,25 @@ fn repl_error_import_module() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+// Each assertion kind reports the values it evaluated, and nothing else.
+#[test]
+fn repl_assert_failure() {
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            fn f(x, y) {{ x > y }}
+            let a = False
+            let n = 1
+            assert n == 2
+            assert a || a
+            assert True && a
+            assert f(1, 2)
+            let assert Ok(v) = Error("boom")"#
+        }),
+    );
+    assert_snapshot!(strip_repl_suffix(&out));
+}
+
 #[test]
 fn repl_warning() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("assert 1 == 1"));
