@@ -743,11 +743,16 @@ pub fn {print}(value: a) -> a"#
         let module = import.module.to_string();
 
         // Handle module alias / short name.
-        if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
-            self.modules.insert(name.to_string(), module.clone());
-        } else {
-            self.modules
-                .insert(short_name(&module).to_string(), module.clone());
+        match &import.as_name {
+            Some((gleam_core::ast::AssignName::Variable(name), _)) => {
+                self.modules.insert(name.to_string(), module.clone());
+            }
+            // `as _` brings in the unqualified names only.
+            Some((gleam_core::ast::AssignName::Discard(_), _)) => {}
+            None => {
+                self.modules
+                    .insert(short_name(&module).to_string(), module.clone());
+            }
         }
 
         // Handle unqualified values

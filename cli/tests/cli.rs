@@ -261,6 +261,23 @@ fn repl_import_alias_shadows_module() {
 }
 
 #[test]
+fn repl_import_discard_alias() {
+    // `as _` brings in `input` without taking the `io` name from gleam/io.
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            import gleam/io
+            import sgleam/io.{{input}} as _
+            io.println("kept")
+            {TYPE}input
+            io.input("")"#
+        }),
+    );
+    assert_eq!(out, "kept\nNil\nfn(String) -> String\n");
+    assert!(err.contains("does not have a `input` value"), "{err}");
+}
+
+#[test]
 fn repl_import_alias_then_unqualified() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
         import gleam/int as i
