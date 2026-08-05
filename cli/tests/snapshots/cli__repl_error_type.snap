@@ -3,7 +3,7 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Unknown type
-  ┌─ /src/repl1_1.gleam:1:12
+  ┌─ <repl>:1:12
   │
 1 │ type T { T(Nope) }
   │            ^^^^

@@ -487,6 +487,7 @@ pub fn {print}(value: a) -> a"#
 
         let end = start + len;
         loc.src = user_text.as_str().into();
+        loc.path = "<repl>".into();
         loc.label.span.start -= start;
         loc.label.span.end -= start;
         loc.extra_labels.retain(|extra| {
