@@ -39,13 +39,6 @@ pub fn welcome_message() -> String {
     )
 }
 
-/// `import gleam/int as i` → key "i"
-#[derive(Clone)]
-struct ModuleEntry {
-    path: String,
-    members: Vec<String>,
-}
-
 #[derive(Clone)]
 enum NameEntry {
     /// `import gleam/int.{to_string}` → key "to_string"
@@ -64,7 +57,8 @@ pub struct Repl<E: Engine> {
     // BTreeMap (not HashMap) so the generated source lists imports, types and
     // consts in a stable, cross-run order — compiler diagnostics that
     // reference line numbers in it stay reproducible.
-    modules: BTreeMap<String, ModuleEntry>,
+    /// `import gleam/int as i` → "i" → "gleam/int"
+    modules: BTreeMap<String, String>,
     types: BTreeMap<String, NameEntry>,
     values: BTreeMap<String, NameEntry>,
     fn_bodies: BTreeMap<String, String>,
@@ -100,15 +94,7 @@ impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
         let modules = GLEAM_MODULES_NAMES
             .iter()
-            .map(|s| {
-                (
-                    short_name(s).to_string(),
-                    ModuleEntry {
-                        path: s.to_string(),
-                        members: vec![],
-                    },
-                )
-            })
+            .map(|s| (short_name(s).to_string(), s.to_string()))
             .collect();
         let fs = project.fs.clone();
         let suffix = format!(
@@ -141,7 +127,8 @@ impl<E: Engine> Repl<E> {
         if let Some(module) = user_module {
             repl.seed_module(module);
         }
-        // Initial compilation to populate module_members cache.
+        // Initial compilation, so the module interfaces completion reads are
+        // available before the first input.
         let _ = repl.run_check();
         Ok(repl)
     }
@@ -152,13 +139,8 @@ impl<E: Engine> Repl<E> {
         let path = module.name.to_string();
         let interface = &module.ast.type_info;
 
-        self.modules.insert(
-            short_name(&path).to_string(),
-            ModuleEntry {
-                path: path.clone(),
-                members: vec![],
-            },
-        );
+        self.modules
+            .insert(short_name(&path).to_string(), path.clone());
 
         for type_ in interface.public_type_names() {
             self.types.insert(
@@ -194,9 +176,16 @@ impl<E: Engine> Repl<E> {
     /// are added by the CLI).
     pub fn completions(&self) -> Vec<String> {
         let mut result: Vec<String> = self.names().map(String::from).collect();
-        for (alias, module) in &self.modules {
-            for member in &module.members {
-                result.push(format!("{alias}.{member}"));
+        for (alias, path) in &self.modules {
+            let Some(iface) = self.existing_modules.get(path.as_str()) else {
+                continue;
+            };
+            let values = iface.values.iter().map(|(name, v)| (name, v.publicity));
+            let types = iface.types.iter().map(|(name, t)| (name, t.publicity));
+            for (member, publicity) in values.chain(types) {
+                if publicity.is_importable() {
+                    result.push(format!("{alias}.{member}"));
+                }
             }
         }
         result.sort();
@@ -310,13 +299,13 @@ pub fn {print}(value: a) -> a"#
         );
 
         // Imports
-        for (name, module) in &self.modules {
+        for (name, path) in &self.modules {
             // A redundant alias would keep the line from being a
             // verbatim copy of the input, blocking relocation.
-            if short_name(&module.path) == name {
-                swriteln!(src, "import {}", module.path);
+            if short_name(path) == name {
+                swriteln!(src, "import {path}");
             } else {
-                swriteln!(src, "import {} as {name}", module.path);
+                swriteln!(src, "import {path} as {name}");
             }
         }
         for (kind, entries) in [("", &self.values), ("type ", &self.types)] {
@@ -419,21 +408,6 @@ pub fn {print}(value: a) -> a"#
         );
 
         let mut modules = result?;
-
-        // Fill in empty members for module entries from compiled module interfaces.
-        for module in self.modules.values_mut() {
-            if module.members.is_empty()
-                && let Some(iface) = self.existing_modules.get(module.path.as_str())
-            {
-                module.members = iface
-                    .public_value_names()
-                    .into_iter()
-                    .map(String::from)
-                    .chain(iface.public_type_names().into_iter().map(String::from))
-                    .collect();
-                module.members.sort();
-            }
-        }
 
         if self.debug {
             let js_path = format!("/build/{module_name}.mjs");
@@ -770,15 +744,11 @@ pub fn {print}(value: a) -> a"#
         let module = import.module.to_string();
 
         // Handle module alias / short name.
-        // Members are populated after the next compile() call.
-        let entry = ModuleEntry {
-            path: module.clone(),
-            members: vec![],
-        };
         if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
-            self.modules.insert(name.to_string(), entry);
+            self.modules.insert(name.to_string(), module.clone());
         } else {
-            self.modules.insert(short_name(&module).to_string(), entry);
+            self.modules
+                .insert(short_name(&module).to_string(), module.clone());
         }
 
         // Handle unqualified values
