@@ -280,6 +280,66 @@ fn repl_import_unqualified_then_alias() {
 }
 
 #[test]
+fn repl_import_unqualified_type_and_value() {
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/uri.{{type Uri, Uri}}
+            import gleam/option.{{None}}
+            let u: Uri = Uri(None, None, None, None, "/", None, None)
+            u.path"#
+        }),
+        "Uri(scheme: None, userinfo: None, host: None, port: None, path: \"/\", query: None, fragment: None)\n\"/\""
+    );
+}
+
+#[test]
+fn repl_import_type_and_value_from_different_modules() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/uri.{{type Uri}}
+            import gleam/option.{{Some as Uri}}
+            fn f(u: Uri) -> String {{ u.path }}
+            Uri(1)"
+        }),
+        "Some(1)"
+    );
+}
+
+#[test]
+fn repl_import_type_again_keeps_the_value() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/option.{{type Option, Some}}
+            import gleam/option.{{type Option}}
+            let o: Option(Int) = Some(1)
+            o"
+        }),
+        "Some(1)\nSome(1)"
+    );
+}
+
+#[test]
+fn repl_type_and_imported_value_with_same_name() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type Foo {{ Bar }}
+            import gleam/option.{{Some as Foo}}
+            let b: Foo = Bar
+            Foo(1)"
+        }),
+        "Bar\nSome(1)"
+    );
+}
+
+#[test]
+fn repl_const_shadows_module_name() {
+    assert_eq!(
+        repl_exec("const list = 1\nlist\nlist.length([1, 2])"),
+        "1\n2"
+    );
+}
+
+#[test]
 fn repl_let() {
     assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
     // No name collision with internal repl_main
@@ -753,11 +813,35 @@ fn repl_user_module_import() {
                 one
                 two()
                 let _: Three = Num3
+                let _: Pair = Pair(1, 2)
+                user.two()
+                user()
+                list(7)
+                list.length([1, 2])
                 "
             })
         ),
-        "1\n2\nNum3\n"
+        "1\n2\nNum3\nPair(1, 2)\n2\n\"self\"\n7\n2\n"
     );
+}
+
+#[test]
+fn repl_user_module_shadow() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q", input],
+        Some(&formatdoc! { "
+            type Three {{ Num0 }}
+            let _: Three = Num0
+            fn two() {{ 22 }}
+            two()
+            const one = 11
+            one
+            "
+        }),
+    );
+    assert_eq!(err, "");
+    assert_eq!(out, "Num0\n22\n11\n");
 }
 
 #[test]

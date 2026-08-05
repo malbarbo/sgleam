@@ -39,14 +39,17 @@ pub fn welcome_message() -> String {
     )
 }
 
+/// `import gleam/int as i` → key "i"
+#[derive(Clone)]
+struct ModuleEntry {
+    path: String,
+    members: Vec<String>,
+}
+
 #[derive(Clone)]
 enum NameEntry {
-    /// `import gleam/int as i` → key "i"
-    ModuleAlias { path: String, members: Vec<String> },
     /// `import gleam/int.{to_string}` → key "to_string"
-    UnqualifiedValue { module: String, original: String },
-    /// `import gleam/option.{type Option}` → key "Option"
-    UnqualifiedType { module: String, original: String },
+    Unqualified { module: String, original: String },
     /// `const x = 1`
     Const(String),
     /// `type Color { Red }`
@@ -57,11 +60,15 @@ enum NameEntry {
 
 #[derive(Clone)]
 pub struct Repl<E: Engine> {
-    user_import: Option<String>,
+    // One map per Gleam namespace, so a name in one cannot evict a name in
+    // another: `import gleam/list`, `type list` and `fn list()` all coexist.
+    //
     // BTreeMap (not HashMap) so `build_source` emits imports/consts/types
     // in a stable, cross-run order — compiler diagnostics that reference
     // line numbers in the generated source stay reproducible.
-    names: BTreeMap<String, NameEntry>,
+    modules: BTreeMap<String, ModuleEntry>,
+    types: BTreeMap<String, NameEntry>,
+    values: BTreeMap<String, NameEntry>,
     fn_bodies: BTreeMap<String, String>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
@@ -90,13 +97,12 @@ pub enum ReplOutput {
 
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let names: BTreeMap<String, NameEntry> = GLEAM_MODULES_NAMES
+        let modules = GLEAM_MODULES_NAMES
             .iter()
             .map(|s| {
-                let short = s.rsplit('/').next().unwrap_or(s);
                 (
-                    short.to_string(),
-                    NameEntry::ModuleAlias {
+                    short_name(s).to_string(),
+                    ModuleEntry {
                         path: s.to_string(),
                         members: vec![],
                     },
@@ -112,8 +118,9 @@ impl<E: Engine> Repl<E> {
                 .subsec_nanos()
         );
         let mut repl = Repl {
-            user_import: user_module.map(import_public_types_and_values),
-            names,
+            modules,
+            types: BTreeMap::new(),
+            values: BTreeMap::new(),
             fn_bodies: BTreeMap::new(),
             project,
             existing_modules: im::HashMap::new(),
@@ -129,25 +136,65 @@ impl<E: Engine> Repl<E> {
             repl_save: format!("repl_save_{suffix}"),
             repl_load: format!("repl_load_{suffix}"),
         };
+        if let Some(module) = user_module {
+            repl.seed_module(module);
+        }
         // Initial compilation to populate module_members cache.
         let _ = repl.run_check();
         Ok(repl)
     }
 
-    pub fn names(&self) -> impl Iterator<Item = &str> {
-        self.names.keys().map(String::as_str)
+    /// Seeds the project module's public names one by one, instead of a single
+    /// blanket import, so that later definitions can shadow them.
+    fn seed_module(&mut self, module: &Module) {
+        let path = module.name.to_string();
+        let interface = &module.ast.type_info;
+
+        self.modules.insert(
+            short_name(&path).to_string(),
+            ModuleEntry {
+                path: path.clone(),
+                members: vec![],
+            },
+        );
+
+        for type_ in interface.public_type_names() {
+            self.types.insert(
+                type_.to_string(),
+                NameEntry::Unqualified {
+                    module: path.clone(),
+                    original: type_.to_string(),
+                },
+            );
+        }
+
+        for value in interface.public_value_names() {
+            self.values.insert(
+                value.to_string(),
+                NameEntry::Unqualified {
+                    module: path.clone(),
+                    original: value.to_string(),
+                },
+            );
+        }
+    }
+
+    fn names(&self) -> impl Iterator<Item = &str> {
+        self.values
+            .keys()
+            .chain(self.types.keys())
+            .chain(self.modules.keys())
+            .map(String::as_str)
     }
 
     /// Returns all completion candidates: unqualified names, qualified
     /// module.member names, and does NOT include keywords/commands (those
     /// are added by the CLI).
     pub fn completions(&self) -> Vec<String> {
-        let mut result: Vec<String> = self.names.keys().cloned().collect();
-        for (alias, entry) in &self.names {
-            if let NameEntry::ModuleAlias { members, .. } = entry {
-                for member in members {
-                    result.push(format!("{alias}.{member}"));
-                }
+        let mut result: Vec<String> = self.names().map(String::from).collect();
+        for (alias, module) in &self.modules {
+            for member in &module.members {
+                result.push(format!("{alias}.{member}"));
             }
         }
         result.sort();
@@ -261,47 +308,36 @@ pub fn {print}(value: a) -> a"#
         );
 
         // Imports
-        if let Some(user) = &self.user_import {
-            swriteln!(src, "{user}");
+        for (name, module) in &self.modules {
+            // A redundant alias would keep the line from being a
+            // verbatim copy of the input, blocking relocation.
+            if short_name(&module.path) == name {
+                swriteln!(src, "import {}", module.path);
+            } else {
+                swriteln!(src, "import {} as {name}", module.path);
+            }
         }
-        for (name, entry) in &self.names {
-            match entry {
-                NameEntry::ModuleAlias { path: module, .. } => {
-                    // A redundant alias would keep the line from being a
-                    // verbatim copy of the input, blocking relocation.
-                    if module.rsplit('/').next() == Some(name.as_str()) {
-                        swriteln!(src, "import {module}");
-                    } else {
-                        swriteln!(src, "import {module} as {name}");
-                    }
-                }
-                NameEntry::UnqualifiedValue { module, original } => {
+        for (kind, entries) in [("", &self.values), ("type ", &self.types)] {
+            for (name, entry) in entries {
+                if let NameEntry::Unqualified { module, original } = entry {
                     if name == original {
-                        swriteln!(src, "import {module}.{{{original}}} as _");
+                        swriteln!(src, "import {module}.{{{kind}{original}}} as _");
                     } else {
-                        swriteln!(src, "import {module}.{{{original} as {name}}} as _");
+                        swriteln!(src, "import {module}.{{{kind}{original} as {name}}} as _");
                     }
                 }
-                NameEntry::UnqualifiedType { module, original } => {
-                    if name == original {
-                        swriteln!(src, "import {module}.{{type {original}}} as _");
-                    } else {
-                        swriteln!(src, "import {module}.{{type {original} as {name}}} as _");
-                    }
-                }
-                _ => {}
             }
         }
 
         // Consts
-        for item in self.names.values() {
+        for item in self.values.values() {
             if let NameEntry::Const(code) = item {
                 swriteln!(src, "{code}");
             }
         }
 
         // Types (auto-pub for REPL visibility)
-        for item in self.names.values() {
+        for item in self.types.values() {
             if let NameEntry::Type(code) = item {
                 if code.starts_with("pub ") {
                     swriteln!(src, "{code}");
@@ -322,7 +358,7 @@ pub fn {print}(value: a) -> a"#
     /// Generates variable load bindings for use inside function bodies.
     fn var_bindings(&self, exclude: &[String]) -> String {
         let mut bindings = String::new();
-        for (name, item) in &self.names {
+        for (name, item) in &self.values {
             if let NameEntry::Variable { index, type_ } = item
                 && !exclude.contains(name)
             {
@@ -389,19 +425,18 @@ pub fn {print}(value: a) -> a"#
 
         let mut modules = result?;
 
-        // Fill in empty members for ModuleAlias entries from compiled module interfaces.
-        for entry in self.names.values_mut() {
-            if let NameEntry::ModuleAlias { path, members } = entry
-                && members.is_empty()
-                && let Some(iface) = self.existing_modules.get(path.as_str())
+        // Fill in empty members for module entries from compiled module interfaces.
+        for module in self.modules.values_mut() {
+            if module.members.is_empty()
+                && let Some(iface) = self.existing_modules.get(module.path.as_str())
             {
-                *members = iface
+                module.members = iface
                     .public_value_names()
                     .into_iter()
                     .map(String::from)
                     .chain(iface.public_type_names().into_iter().map(String::from))
                     .collect();
-                members.sort();
+                module.members.sort();
             }
         }
 
@@ -636,7 +671,7 @@ pub fn {print}(value: a) -> a"#
             for (name, type_) in names.iter().zip(&types) {
                 let index = self.var_index;
                 let type_ = type_to_string(&module, type_);
-                self.names
+                self.values
                     .insert(name.into(), NameEntry::Variable { index, type_ });
                 self.var_index += 1;
             }
@@ -650,7 +685,7 @@ pub fn {print}(value: a) -> a"#
     fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
         // Remove any existing name entry to avoid conflicts during compilation
         // (e.g., an unqualified import for the same name).
-        self.names.remove(&name);
+        self.values.remove(&name);
         self.fn_bodies.insert(name.clone(), body);
         let save = &self.repl_save;
         let body = format!("{save}({name})");
@@ -666,7 +701,7 @@ pub fn {print}(value: a) -> a"#
         if self.engine.has_var(self.var_index) {
             let main = get_function(&module, &self.repl_main).expect("repl main function");
             let type_ = type_to_string(&module, &main.return_type);
-            self.names.insert(
+            self.values.insert(
                 name,
                 NameEntry::Variable {
                     index: self.var_index,
@@ -724,15 +759,14 @@ pub fn {print}(value: a) -> a"#
 
         // Handle module alias / short name.
         // Members are populated after the next compile() call.
-        let alias_entry = NameEntry::ModuleAlias {
+        let entry = ModuleEntry {
             path: module.clone(),
             members: vec![],
         };
         if let Some((gleam_core::ast::AssignName::Variable(name), _)) = &import.as_name {
-            self.names.insert(name.to_string(), alias_entry);
+            self.modules.insert(name.to_string(), entry);
         } else {
-            let short = module.rsplit('/').next().unwrap_or(&module).to_string();
-            self.names.insert(short, alias_entry);
+            self.modules.insert(short_name(&module).to_string(), entry);
         }
 
         // Handle unqualified values
@@ -742,9 +776,9 @@ pub fn {print}(value: a) -> a"#
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| uv.name.to_string());
-            self.names.insert(
+            self.values.insert(
                 effective,
-                NameEntry::UnqualifiedValue {
+                NameEntry::Unqualified {
                     module: module.clone(),
                     original: uv.name.to_string(),
                 },
@@ -758,9 +792,9 @@ pub fn {print}(value: a) -> a"#
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| ut.name.to_string());
-            self.names.insert(
+            self.types.insert(
                 effective,
-                NameEntry::UnqualifiedType {
+                NameEntry::Unqualified {
                     module: module.clone(),
                     original: ut.name.to_string(),
                 },
@@ -775,19 +809,19 @@ pub fn {print}(value: a) -> a"#
         // (e.g., `fn f() { 1 } const f = 10` in the same input).
         self.fn_bodies.remove(&name);
         self.user_text = Some(code.clone());
-        self.names.insert(name, NameEntry::Const(code));
+        self.values.insert(name, NameEntry::Const(code));
         self.run_check()
     }
 
     fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {
-        if self.names.values().any(
+        if self.values.values().any(
             |item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(&name, type_)),
         ) {
             println!("Cannot redefine type `{name}` while variables of that type exist.");
             return Ok(());
         }
         self.user_text = Some(code.clone());
-        self.names.insert(name, NameEntry::Type(code));
+        self.types.insert(name, NameEntry::Type(code));
         self.run_check()
     }
 }
@@ -872,16 +906,6 @@ fn type_mentions(name: &str, type_: &str) -> bool {
     false
 }
 
-fn import_public_types_and_values(module: &Module) -> String {
-    let mut import = String::new();
-    let name = &module.name;
-    swrite!(&mut import, "import {name}.{{");
-    for type_ in module.ast.type_info.public_type_names() {
-        swrite!(&mut import, "type {type_}, ");
-    }
-    for value in module.ast.type_info.public_value_names() {
-        swrite!(&mut import, "{value}, ");
-    }
-    import.push('}');
-    import
+fn short_name(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
 }

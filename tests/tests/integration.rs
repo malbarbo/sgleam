@@ -122,6 +122,14 @@ fn new_repl() -> Repl<QuickJsEngine> {
     Repl::new(Project::default(), None).expect("create repl")
 }
 
+fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
+    let mut project = Project::default();
+    project.write_source("user.gleam", source);
+    let modules = project.compile(true).expect("compile user module");
+    let module = get_module(&modules, "user");
+    Repl::new(project, module).expect("create repl")
+}
+
 fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String> {
     repl.completions()
         .into_iter()
@@ -217,22 +225,26 @@ fn completion_after_import_unqualified() {
 }
 
 #[test]
-fn completion_fn_shadows_alias() {
+fn completion_fn_with_module_name() {
     let mut repl = new_repl();
-    assert!(completions_matching(&repl, "io.").len() > 0);
     capture_output(|| {
         repl.run("fn io() { 1 }").unwrap();
     });
-    // "io" is now a function, not a module alias — no io.* completions
+    // The module keeps its own namespace, so both stay available.
     let c = completions_matching(&repl, "io.");
     assert!(
-        c.is_empty(),
-        "expected no io.* completions after fn io(), got: {c:?}"
+        c.contains(&"io.println".to_string()),
+        "expected io.* completions after fn io(), got: {c:?}"
     );
-    // But "io" itself should still be a completion (as a function)
     assert!(repl.completions().contains(&"io".to_string()));
 }
 
-// TODO: user module public names loaded via file are not tracked in self.names,
-// so they don't appear in completions. They are imported via user_import string
-// and accessible at runtime but invisible to the completion system.
+#[test]
+fn completion_user_module_names() {
+    let repl = new_repl_with_source("pub const one = 1\n\npub type Three {\n  Num3\n}\n");
+    let c = repl.completions();
+    assert!(c.contains(&"one".to_string()));
+    assert!(c.contains(&"Three".to_string()));
+    assert!(c.contains(&"Num3".to_string()));
+    assert!(c.contains(&"user.one".to_string()));
+}
