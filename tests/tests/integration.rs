@@ -138,19 +138,20 @@ fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String>
 }
 
 #[test]
-fn completion_default_module_aliases() {
+fn completion_no_module_before_import() {
     let repl = new_repl();
     let c = repl.completions();
-    // Default module aliases are available
-    assert!(c.contains(&"int".to_string()));
-    assert!(c.contains(&"list".to_string()));
-    assert!(c.contains(&"io".to_string()));
-    assert!(c.contains(&"float".to_string()));
+    assert!(!c.contains(&"int".to_string()));
+    assert!(completions_matching(&repl, "int.").is_empty());
 }
 
 #[test]
 fn completion_qualified_names() {
-    let repl = new_repl();
+    let mut repl = new_repl();
+    capture_output(|| {
+        repl.run("import gleam/int").unwrap();
+        repl.run("import gleam/option").unwrap();
+    });
     let c = completions_matching(&repl, "int.");
     assert!(c.contains(&"int.to_string".to_string()));
     assert!(c.contains(&"int.add".to_string()));
@@ -190,19 +191,14 @@ fn completion_after_import_alias() {
     let c = completions_matching(&repl, "i.");
     assert!(c.contains(&"i.to_string".to_string()));
     assert!(c.contains(&"i.add".to_string()));
-    // "int" alias should also still work (default alias remains)
-    let c = completions_matching(&repl, "int.");
-    assert!(c.contains(&"int.to_string".to_string()));
+    // The alias replaces the short name, which is not bound
+    assert!(completions_matching(&repl, "int.").is_empty());
 }
 
 #[test]
 fn completion_after_import_new_module() {
     let mut repl = new_repl();
-    // sgleam/io is NOT in GLEAM_MODULES_NAMES (to avoid conflicting with gleam/io)
-    assert!(
-        completions_matching(&repl, "io.input").is_empty()
-            || !repl.completions().iter().any(|c| c == "io.input")
-    );
+    assert!(completions_matching(&repl, "io.input").is_empty());
     capture_output(|| {
         repl.run("import sgleam/io").unwrap();
     });
@@ -228,6 +224,7 @@ fn completion_after_import_unqualified() {
 fn completion_fn_with_module_name() {
     let mut repl = new_repl();
     capture_output(|| {
+        repl.run("import gleam/io").unwrap();
         repl.run("fn io() { 1 }").unwrap();
     });
     // The module keeps its own namespace, so both stay available.

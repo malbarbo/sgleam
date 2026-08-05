@@ -4,25 +4,25 @@ expression: strip_repl_suffix(&out)
 ---
 False
 1
-Error at repl4_1.gleam (repl_main_XXXXXXXX:44)
+Error at repl4_1.gleam (repl_main_XXXXXXXX:14)
   Assertion failed.
   operator: ==
   left: 1
   right: 2
-Error at repl5_1.gleam (repl_main_XXXXXXXX:44)
+Error at repl5_1.gleam (repl_main_XXXXXXXX:14)
   Assertion failed.
   operator: ||
   left: False
   right: False
-Error at repl6_1.gleam (repl_main_XXXXXXXX:44)
+Error at repl6_1.gleam (repl_main_XXXXXXXX:14)
   Assertion failed.
   operator: &&
   left: True
   right: False
-Error at repl7_1.gleam (repl_main_XXXXXXXX:44)
+Error at repl7_1.gleam (repl_main_XXXXXXXX:14)
   Assertion failed.
   argument 1: 1
   argument 2: 2
-Error at repl8_1.gleam (repl_main_XXXXXXXX:45)
+Error at repl8_1.gleam (repl_main_XXXXXXXX:15)
   Pattern match failed, no pattern matched the value.
   value: Error("boom")

@@ -18,7 +18,6 @@ use indoc::formatdoc;
 use vec1::Vec1;
 
 use crate::{
-    GLEAM_MODULES_NAMES,
     engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::{Project, get_args_names, get_definition_src, is_repl_noise, type_to_string},
@@ -92,10 +91,6 @@ pub enum ReplOutput {
 
 impl<E: Engine> Repl<E> {
     pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let modules = GLEAM_MODULES_NAMES
-            .iter()
-            .map(|s| (short_name(s).to_string(), s.to_string()))
-            .collect();
         let fs = project.fs.clone();
         let suffix = format!(
             "{:08x}",
@@ -105,7 +100,7 @@ impl<E: Engine> Repl<E> {
                 .subsec_nanos()
         );
         let mut repl = Repl {
-            modules,
+            modules: BTreeMap::new(),
             types: BTreeMap::new(),
             values: BTreeMap::new(),
             fn_bodies: BTreeMap::new(),

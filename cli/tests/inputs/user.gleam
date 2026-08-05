@@ -17,7 +17,7 @@ pub fn user() {
   "self"
 }
 
-/// Shares the name of an auto-imported module.
+/// Shares the name of a stdlib module.
 pub fn list(x: Int) -> Int {
   x
 }

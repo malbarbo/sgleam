@@ -28,38 +28,6 @@ pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
 pub const GLEAM_STDLIB_VERSION: &str = "1.0.0";
-pub const GLEAM_MODULES_NAMES: &[&str] = &[
-    "gleam/bit_array",
-    "gleam/bool",
-    "gleam/bytes_tree",
-    "gleam/dict",
-    "gleam/dynamic",
-    "gleam/float",
-    "gleam/function",
-    "gleam/int",
-    "gleam/io",
-    "gleam/list",
-    "gleam/option",
-    "gleam/order",
-    "gleam/pair",
-    "gleam/result",
-    "gleam/set",
-    "gleam/string",
-    "gleam/string_tree",
-    "gleam/uri",
-    "sgleam/check",
-    "sgleam/color",
-    "sgleam/fill",
-    "sgleam/font",
-    "sgleam/image",
-    "sgleam/math",
-    "sgleam/stroke",
-    "sgleam/style",
-    "sgleam/system",
-    "sgleam/world",
-    "sgleam/xplace",
-    "sgleam/yplace",
-];
 
 #[derive(Embed)]
 #[folder = "../lib/sgleam/"]

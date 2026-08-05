@@ -232,6 +232,7 @@ fn repl_import_const_shadows_unqualified() {
 #[test]
 fn repl_import_fn_shadows_alias_then_reimport() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/io
         io.println("before")
         fn io() {{ 1 }}
         io()
@@ -242,6 +243,7 @@ fn repl_import_fn_shadows_alias_then_reimport() {
 #[test]
 fn repl_import_let_shadows_alias() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/int
         int.to_string(1)
         let int = 42
         int
@@ -252,6 +254,7 @@ fn repl_import_let_shadows_alias() {
 #[test]
 fn repl_import_alias_shadows_module() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
+        import gleam/io
         io.println("before")
         import gleam/int as io
         io.to_string(1)"#}));
@@ -334,7 +337,7 @@ fn repl_type_and_imported_value_with_same_name() {
 #[test]
 fn repl_const_shadows_module_name() {
     assert_eq!(
-        repl_exec("const list = 1\nlist\nlist.length([1, 2])"),
+        repl_exec("import gleam/list\nconst list = 1\nlist\nlist.length([1, 2])"),
         "1\n2"
     );
 }
@@ -674,11 +677,11 @@ fn repl_fn_main() {
 #[test]
 fn repl_generic_fn() {
     assert_eq!(
-        repl_exec("fn keep(_) { True }\nlist.filter([1, 2], keep)"),
+        repl_exec("import gleam/list\nfn keep(_) { True }\nlist.filter([1, 2], keep)"),
         "[1, 2]"
     );
     assert_eq!(
-        repl_exec("let keep = fn (_) { True }\nlist.filter([1, 2], keep)"),
+        repl_exec("import gleam/list\nlet keep = fn (_) { True }\nlist.filter([1, 2], keep)"),
         "//fn(a) { ... }\n[1, 2]"
     );
 }
@@ -707,10 +710,13 @@ fn repl_fn_capture() {
 #[test]
 fn repl_use() {
     assert_eq!(
-        repl_exec("use x <- result.try(Ok(10))\nOk(x)"),
+        repl_exec("import gleam/result\nuse x <- result.try(Ok(10))\nOk(x)"),
         "use statements are not supported outside blocks."
     );
-    assert_eq!(repl_exec("{use x <- result.try(Ok(10))\nOk(x)}"), "Ok(10)");
+    assert_eq!(
+        repl_exec("import gleam/result\n{use x <- result.try(Ok(10))\nOk(x)}"),
+        "Ok(10)"
+    );
 }
 
 #[test]
@@ -885,14 +891,19 @@ fn repl_type_cmd() {
         err.contains("is not in scope"),
         "expected error for undefined x, got: {err}"
     );
-    assert_eq!(repl_exec(&format!("{TYPE} int.add")), "fn(Int, Int) -> Int");
     assert_eq!(
-        repl_exec(&format!("{TYPE} list.filter_map")),
+        repl_exec(&format!("import gleam/int\n{TYPE} int.add")),
+        "fn(Int, Int) -> Int"
+    );
+    assert_eq!(
+        repl_exec(&format!("import gleam/list\n{TYPE} list.filter_map")),
         "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
     // :type does not evaluate
     assert_eq!(
-        repl_exec(&format!("{TYPE} {{ io.println(\"\") Ok(1) }}")),
+        repl_exec(&format!(
+            "import gleam/io\n{TYPE} {{ io.println(\"\") Ok(1) }}"
+        )),
         "Result(Int, b)", // without the io.println side effect
     );
 }
@@ -916,7 +927,9 @@ fn repl_type_cmd_def() {
 #[test]
 fn repl_type_module() {
     assert_eq!(
-        repl_exec(&format!("type List {{}}\n{TYPE} list.map")),
+        repl_exec(&format!(
+            "import gleam/list\ntype List {{}}\n{TYPE} list.map"
+        )),
         "fn(gleam.List(b), fn(b) -> c) -> gleam.List(c)"
     );
 }
@@ -928,6 +941,7 @@ fn repl_user_module_import() {
         run_sgleam_cmd_stdout(
             &["repl", "-q", input],
             Some(&formatdoc! { "
+                import gleam/list
                 one
                 two()
                 let _: Three = Num3
