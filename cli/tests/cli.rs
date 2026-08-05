@@ -349,6 +349,16 @@ fn repl_let() {
         "#(1, 2)\n1\n2"
     );
 }
+
+#[test]
+fn repl_let_annotation() {
+    // The annotation narrows what the inference alone would produce.
+    assert_eq!(repl_exec("let e: List(Int) = []\n:type e"), "[]\nList(Int)");
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let w: Float = 1"));
+    assert!(err.contains("Expected type:\n\n    Float"), "{err}");
+    assert_eq!(out, "");
+}
+
 #[test]
 fn repl_let_discard() {
     assert_eq!(repl_exec("let _ = True"), "True");
@@ -717,6 +727,12 @@ fn repl_error_expr() {
 #[test]
 fn repl_error_let() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"let x = 1 + "a""#));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_let_annotation() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x: String = 2"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 

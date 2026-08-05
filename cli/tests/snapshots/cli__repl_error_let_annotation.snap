@@ -1,0 +1,17 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Type mismatch
+  ┌─ /src/repl1_1.gleam:1:17
+  │
+1 │ let x: String = 2
+  │                 ^
+
+Expected type:
+
+    String
+
+Found type:
+
+    Int

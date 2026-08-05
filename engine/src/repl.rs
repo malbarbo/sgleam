@@ -624,7 +624,11 @@ pub fn {print}(value: a) -> a"#
                     let end = a.value.location().end as usize;
                     self.run_expr(&src[start..end])
                 } else {
-                    let pattern_end = a.pattern.location().end as usize;
+                    let pattern_end = a
+                        .annotation
+                        .as_ref()
+                        .map_or(a.pattern.location().end, |t| t.location().end)
+                        as usize;
                     let value_start = a.value.location().start as usize;
                     self.run_assignment(&src[start..pattern_end], &src[value_start..end], &names)
                 }
