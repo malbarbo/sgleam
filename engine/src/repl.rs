@@ -50,11 +50,9 @@ struct ModuleEntry {
 enum NameEntry {
     /// `import gleam/int.{to_string}` → key "to_string"
     Unqualified { module: String, original: String },
-    /// `const x = 1`
-    Const(String),
     /// `type Color { Red }`
     Type(String),
-    /// `let x = 10` or `fn f() { 1 }` (runtime value)
+    /// `let x = 10`, `fn f() { 1 }` or `const x = 1` (runtime value)
     Variable { index: usize, type_: String },
 }
 
@@ -63,13 +61,16 @@ pub struct Repl<E: Engine> {
     // One map per Gleam namespace, so a name in one cannot evict a name in
     // another: `import gleam/list`, `type list` and `fn list()` all coexist.
     //
-    // BTreeMap (not HashMap) so `build_source` emits imports/consts/types
-    // in a stable, cross-run order — compiler diagnostics that reference
-    // line numbers in the generated source stay reproducible.
+    // BTreeMap (not HashMap) so the generated source lists imports, types and
+    // consts in a stable, cross-run order — compiler diagnostics that
+    // reference line numbers in it stay reproducible.
     modules: BTreeMap<String, ModuleEntry>,
     types: BTreeMap<String, NameEntry>,
     values: BTreeMap<String, NameEntry>,
     fn_bodies: BTreeMap<String, String>,
+    // Verbatim source of the consts a new const may reference. Only
+    // `run_const` emits it, as module-level scaffolding.
+    consts: BTreeMap<String, String>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
@@ -122,6 +123,7 @@ impl<E: Engine> Repl<E> {
             types: BTreeMap::new(),
             values: BTreeMap::new(),
             fn_bodies: BTreeMap::new(),
+            consts: BTreeMap::new(),
             project,
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
@@ -169,7 +171,7 @@ impl<E: Engine> Repl<E> {
         }
 
         for value in interface.public_value_names() {
-            self.values.insert(
+            self.bind_value(
                 value.to_string(),
                 NameEntry::Unqualified {
                     module: path.clone(),
@@ -329,13 +331,6 @@ pub fn {print}(value: a) -> a"#
             }
         }
 
-        // Consts
-        for item in self.values.values() {
-            if let NameEntry::Const(code) = item {
-                swriteln!(src, "{code}");
-            }
-        }
-
         // Types (auto-pub for REPL visibility)
         for item in self.types.values() {
             if let NameEntry::Type(code) = item {
@@ -461,14 +456,8 @@ pub fn {print}(value: a) -> a"#
     /// Compile source with a `repl_main` body appended.
     /// Variable bindings are automatically included before the body.
     fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
-        self.compile_main_with_bindings(&self.var_bindings(&[]), body)
-    }
-
-    /// Like `compile_main` but with custom variable bindings (to exclude
-    /// function argument names).
-    fn compile_main_with_bindings(&mut self, bindings: &str, body: &str) -> Result<Module, Error> {
         let mut src = self.build_source();
-        let repl_main = &self.repl_main;
+        let (repl_main, bindings) = (&self.repl_main, self.var_bindings(&[]));
         swrite!(src, "pub fn {repl_main}() {{\n{bindings}{body}\n}}\n");
         Ok(self.compile(&src)?.split_off_first().0)
     }
@@ -562,6 +551,52 @@ pub fn {print}(value: a) -> a"#
     /// Compile without a `repl_main` (for checking definitions only).
     fn run_check(&mut self) -> Result<(), Error> {
         self.compile(&self.build_source()).map(|_| ())
+    }
+
+    /// Compile the current state plus `defs`, run it and store the value of
+    /// `name`, producing whether it was stored.
+    fn define_value(&mut self, defs: &str, name: &str) -> Result<bool, Error> {
+        let mut src = self.build_source();
+        let (repl_main, save) = (&self.repl_main, &self.repl_save);
+        swrite!(src, "{defs}pub fn {repl_main}() {{\n{save}({name})\n}}\n");
+        let module = self.compile(&src)?.split_off_first().0;
+
+        if let Err(err) = self.engine.run_main(
+            &module.name,
+            MainFunction::ReplMain(self.repl_main.clone()),
+            false,
+        ) {
+            crate::error::show_error(&err);
+            self.had_runtime_error = true;
+        }
+        if !self.engine.has_var(self.var_index) {
+            return Ok(false);
+        }
+
+        let main = get_function(&module, &self.repl_main).expect("repl main function");
+        let type_ = type_to_string(&module, &main.return_type);
+        self.bind_value(
+            name.into(),
+            NameEntry::Variable {
+                index: self.var_index,
+                type_,
+            },
+        );
+        self.var_index += 1;
+        Ok(true)
+    }
+
+    fn bind_value(&mut self, name: String, entry: NameEntry) {
+        self.take_name(&name);
+        self.values.insert(name, entry);
+    }
+
+    /// Drops the const scaffolding when `name` leaves it: an entry left behind
+    /// could reference the old meaning of `name`.
+    fn take_name(&mut self, name: &str) {
+        if self.consts.contains_key(name) {
+            self.consts.clear();
+        }
     }
 
     // --- Item handlers ---
@@ -671,8 +706,7 @@ pub fn {print}(value: a) -> a"#
             for (name, type_) in names.iter().zip(&types) {
                 let index = self.var_index;
                 let type_ = type_to_string(&module, type_);
-                self.values
-                    .insert(name.into(), NameEntry::Variable { index, type_ });
+                self.bind_value(name.into(), NameEntry::Variable { index, type_ });
                 self.var_index += 1;
             }
         } else {
@@ -687,29 +721,7 @@ pub fn {print}(value: a) -> a"#
         // (e.g., an unqualified import for the same name).
         self.values.remove(&name);
         self.fn_bodies.insert(name.clone(), body);
-        let save = &self.repl_save;
-        let body = format!("{save}({name})");
-        let module = self.compile_main_with_bindings("", &body)?;
-        if let Err(err) = self.engine.run_main(
-            &module.name,
-            MainFunction::ReplMain(self.repl_main.clone()),
-            false,
-        ) {
-            crate::error::show_error(&err);
-            self.had_runtime_error = true;
-        }
-        if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, &self.repl_main).expect("repl main function");
-            let type_ = type_to_string(&module, &main.return_type);
-            self.values.insert(
-                name,
-                NameEntry::Variable {
-                    index: self.var_index,
-                    type_,
-                },
-            );
-            self.var_index += 1;
-        }
+        self.define_value("", &name)?;
         Ok(())
     }
 
@@ -776,7 +788,7 @@ pub fn {print}(value: a) -> a"#
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| uv.name.to_string());
-            self.values.insert(
+            self.bind_value(
                 effective,
                 NameEntry::Unqualified {
                     module: module.clone(),
@@ -804,13 +816,27 @@ pub fn {print}(value: a) -> a"#
         self.run_check()
     }
 
+    /// A const is compiled at module level, next to the consts it may
+    /// reference, and stored as its value like a `let` or a `fn`. Module level
+    /// is what rejects a reference to a runtime value.
     fn run_const(&mut self, name: String, code: String) -> Result<(), Error> {
         // Remove stale function body to avoid module-level name conflict
         // (e.g., `fn f() { 1 } const f = 10` in the same input).
         self.fn_bodies.remove(&name);
+        // Before the scaffolding is read: a redefinition must not be emitted twice.
+        self.take_name(&name);
+
+        let mut defs = String::new();
+        for scaffold in self.consts.values() {
+            swriteln!(defs, "{scaffold}");
+        }
+        swriteln!(defs, "{code}");
+
         self.user_text = Some(code.clone());
-        self.values.insert(name, NameEntry::Const(code));
-        self.run_check()
+        if self.define_value(&defs, &name)? {
+            self.consts.insert(name, code);
+        }
+        Ok(())
     }
 
     fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {

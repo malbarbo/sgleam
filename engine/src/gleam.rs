@@ -324,6 +324,7 @@ pub fn is_repl_noise(warning: &Warning) -> bool {
                 | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
                 | gleam_core::type_::Warning::UnusedImportedValue { .. }
                 | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
+                | gleam_core::type_::Warning::TopLevelDefinitionShadowsImport { .. }
                 // | gleam_core::type_::Warning::UnusedLiteral { .. }
                 | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
                 | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }

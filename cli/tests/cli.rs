@@ -514,6 +514,108 @@ fn repl_let_replace_const() {
 }
 
 #[test]
+fn repl_let_shadows_a_const_another_const_uses() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            const a = 1
+            const b = a
+            let a = 5
+            b
+            a"
+        }),
+    );
+    // `b` keeps the value it was defined with, the way a fn body would.
+    assert_eq!(err, "");
+    assert_eq!(out, "5\n1\n5\n");
+}
+
+#[test]
+fn repl_let_shadows_an_import_a_const_uses() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            import gleam/int.{{to_string}}
+            const f = to_string
+            let to_string = 5
+            f(1)
+            to_string"
+        }),
+    );
+    assert_eq!(err, "");
+    assert_eq!(out, "5\n\"1\"\n5\n");
+}
+
+#[test]
+fn repl_const_redefined_keeps_the_value_of_who_used_it() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            const a = 1
+            const b = a
+            const a = 99
+            b
+            a"
+        }),
+    );
+    assert_eq!(err, "");
+    assert_eq!(out, "1\n99\n");
+}
+
+#[test]
+fn repl_const_can_use_a_repl_type() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type Color {{ Red Green }}
+            const c = Red
+            c"
+        }),
+        "Red"
+    );
+}
+
+#[test]
+fn repl_const_unreachable_after_a_name_is_taken_over() {
+    // Taking `a` over drops what a new const may reference: an entry left
+    // behind could name the old `a`. The values themselves are untouched.
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            const a = 1
+            const b = 2
+            let a = 5
+            const c = b
+            b"
+        }),
+    );
+    assert!(err.contains("The name `b` is not in scope here"), "{err}");
+    assert_eq!(out, "5\n2\n");
+}
+
+#[test]
+fn repl_const_must_be_a_constant_expression() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("const bad = int.to_string(1)"));
+    assert!(
+        err.contains("Functions can only be called within other functions"),
+        "{err}"
+    );
+    assert!(err.contains("const bad = int.to_string(1)"), "{err}");
+}
+
+#[test]
+fn repl_const_cannot_reference_a_runtime_value() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            let y = 1
+            const c = y"
+        }),
+    );
+    assert!(err.contains("The name `y` is not in scope here"), "{err}");
+    assert!(err.contains("const c = y"), "{err}");
+}
+
+#[test]
 fn repl_fn() {
     assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "2");
 }
