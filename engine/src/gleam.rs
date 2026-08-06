@@ -3,7 +3,7 @@ use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     Error, Warning,
-    ast::{Definition, Function, UntypedDefinition, UntypedExpr},
+    ast::{Definition, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
@@ -192,13 +192,6 @@ pub fn get_definition_src<'a>(def: &UntypedDefinition, src: &'a str) -> &'a str 
     };
 
     &src[start..end]
-}
-
-pub fn get_args_names(fun: &Function<(), UntypedExpr>) -> Vec<String> {
-    fun.arguments
-        .iter()
-        .filter_map(|arg| arg.names.get_variable_name().map(String::from))
-        .collect()
 }
 
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {

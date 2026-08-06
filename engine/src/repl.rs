@@ -12,6 +12,7 @@ use gleam_core::{
     diagnostic::Diagnostic,
     error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
+    parse,
     type_::ModuleInterface,
     warning::VectorWarningEmitterIO,
 };
@@ -21,7 +22,7 @@ use vec1::Vec1;
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{Project, get_args_names, get_definition_src, is_repl_noise, type_to_string},
+    gleam::{Project, get_definition_src, is_repl_noise, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
     swrite, swriteln,
@@ -37,6 +38,24 @@ pub fn welcome_message() -> String {
         "Welcome to {}.\nType ctrl-d or \"{QUIT}\" to exit.\n",
         crate::version()
     )
+}
+
+/// Lets the generated module use `const x = f()`, which the fork only accepts
+/// while this is on. Kept off everywhere else so the student's own code, read
+/// by `parser::parse_repl` and by `Project::compile`, still rejects it.
+struct ConstCall;
+
+impl ConstCall {
+    fn enable() -> Self {
+        parse::set_const_call_enabled(true);
+        ConstCall
+    }
+}
+
+impl Drop for ConstCall {
+    fn drop(&mut self) {
+        parse::set_const_call_enabled(false);
+    }
 }
 
 #[derive(Clone)]
@@ -224,8 +243,9 @@ impl<E: Engine> Repl<E> {
             is_time = true;
         }
 
+        // The input is parsed on its own, so the error already points at it.
         let items = parser::parse_repl(input).map_err(|error| Error::Parse {
-            path: format!("/src/{}.gleam", self.module_name()).into(),
+            path: "<repl>".into(),
             src: input.into(),
             error: error.into(),
         })?;
@@ -336,29 +356,24 @@ pub fn {print}(value: a) -> a"#
             }
         }
 
+        // Values from earlier inputs. Module constants, not bindings spliced
+        // into the body, so the input stays a verbatim copy of itself. A name
+        // in `fn_bodies` is defined below, so it gets no constant.
+        for (name, item) in &self.values {
+            if let NameEntry::Variable { index, type_, .. } = item
+                && !self.fn_bodies.contains_key(name)
+            {
+                let load = &self.repl_load;
+                swriteln!(src, "const {name}: {type_} = {load}({index})");
+            }
+        }
+
         // Function bodies
         for body in self.fn_bodies.values() {
             swriteln!(src, "{body}");
         }
 
         src
-    }
-
-    /// Generates variable load bindings for use inside function bodies.
-    fn var_bindings(&self, exclude: &[String]) -> String {
-        let mut bindings = String::new();
-        for (name, item) in &self.values {
-            if let NameEntry::Variable { index, type_, .. } = item
-                && !exclude.contains(name)
-            {
-                let load = &self.repl_load;
-                swriteln!(
-                    bindings,
-                    "  let {name} = fn () -> {type_} {{ {load}({index}) }} ()"
-                );
-            }
-        }
-        bindings
     }
 
     // --- Compilation helpers ---
@@ -372,6 +387,7 @@ pub fn {print}(value: a) -> a"#
         let file = format!("{module_name}.gleam");
 
         if self.debug {
+            let _const_call = ConstCall::enable();
             let mut formatted = String::new();
             if gleam_core::format::pretty(
                 &mut formatted,
@@ -391,11 +407,14 @@ pub fn {print}(value: a) -> a"#
         // Collected instead of printed as they are emitted, so they can be
         // relocated like the errors.
         let warnings = VectorWarningEmitterIO::new();
-        let result = self.project.compile_with_modules(
-            Rc::new(warnings.clone()),
-            &mut self.existing_modules,
-            &mut self.defined_modules,
-        );
+        let result = {
+            let _const_call = ConstCall::enable();
+            self.project.compile_with_modules(
+                Rc::new(warnings.clone()),
+                &mut self.existing_modules,
+                &mut self.defined_modules,
+            )
+        };
 
         self.project
             .fs
@@ -433,11 +452,10 @@ pub fn {print}(value: a) -> a"#
     }
 
     /// Compile source with a `repl_main` body appended.
-    /// Variable bindings are automatically included before the body.
     fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
         let mut src = self.build_source();
-        let (repl_main, bindings) = (&self.repl_main, self.var_bindings(&[]));
-        swrite!(src, "pub fn {repl_main}() {{\n{bindings}{body}\n}}\n");
+        let repl_main = &self.repl_main;
+        swrite!(src, "pub fn {repl_main}() {{\n{body}\n}}\n");
         Ok(self.compile(&src)?.split_off_first().0)
     }
 
@@ -559,7 +577,7 @@ pub fn {print}(value: a) -> a"#
     // --- Item handlers ---
 
     fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
-        let mut src = get_definition_src(&targeted.definition, src).into();
+        let src: String = get_definition_src(&targeted.definition, src).into();
 
         match &targeted.definition {
             Definition::Import(import) => {
@@ -570,22 +588,9 @@ pub fn {print}(value: a) -> a"#
             Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
             Definition::ModuleConstant(c) => self.run_const(c, &src),
             Definition::Function(f) => {
-                let bindings = self.var_bindings(&get_args_names(f));
-                let body_start = (f.body.first().unwrap().location().start
-                    - targeted.definition.location().start)
-                    as usize;
-
-                if bindings.is_empty() {
-                    self.user_text = Some(src.clone());
-                } else {
-                    // Only what follows the spliced bindings is still a
-                    // verbatim copy of the input.
-                    self.user_text = Some(src[body_start..].to_string());
-                    src.insert_str(body_start, &format!("\n  {bindings}"));
-                }
-
+                self.user_text = Some(src.clone());
                 let name = f.name.clone().expect("A function must have a name").1;
-                self.run_fn(name.into(), src)
+                self.run_definition_at_module_level(name.into(), src, ValueKind::Fn)
             }
         }
     }
@@ -684,13 +689,18 @@ pub fn {print}(value: a) -> a"#
         Ok(())
     }
 
-    /// A function is emitted at module level, then stored as a value like a
-    /// `let`, so later inputs read it back without recompiling its body.
-    fn run_fn(&mut self, name: String, body: String) -> Result<(), Error> {
+    /// A `fn` or a `const` is emitted at module level, then stored as a value
+    /// like a `let`, so later inputs read it back without recompiling it.
+    fn run_definition_at_module_level(
+        &mut self,
+        name: String,
+        code: String,
+        kind: ValueKind,
+    ) -> Result<(), Error> {
         // Remove any existing name entry to avoid conflicts during compilation
         // (e.g., an unqualified import for the same name).
         self.values.remove(&name);
-        self.fn_bodies.insert(name.clone(), body);
+        self.fn_bodies.insert(name.clone(), code);
 
         let mut src = self.build_source();
         let (repl_main, save) = (&self.repl_main, &self.repl_save);
@@ -698,7 +708,7 @@ pub fn {print}(value: a) -> a"#
         let module = self.compile(&src)?.split_off_first().0;
 
         self.run_repl_main(&module);
-        self.bind_saved(&name, &module, ValueKind::Fn);
+        self.bind_saved(&name, &module, kind);
         Ok(())
     }
 
@@ -810,23 +820,8 @@ pub fn {print}(value: a) -> a"#
         }
 
         let name = c.name.to_string();
-        // The function would be left at module level with nothing reaching it
-        // (e.g. `fn f() { 1 } const f = 10` in the same input).
-        self.fn_bodies.remove(&name);
-
-        // Everything after the `const` keyword is also a valid `let` binding,
-        // and stays a verbatim copy of the input, so errors land on it.
-        let binding = &src[(c.name_location.start - c.location.start) as usize..];
-        let save = &self.repl_save;
-        let body = formatdoc! {"
-            let {binding}
-            {save}({name})"
-        };
-
-        self.user_text = Some(binding.into());
-        let module = self.compile_and_run(&body)?;
-        self.bind_saved(&name, &module, ValueKind::Const);
-        Ok(())
+        self.user_text = Some(src.into());
+        self.run_definition_at_module_level(name, src.into(), ValueKind::Const)
     }
 
     /// Whether `name` is a `let`, the one kind of value a const may not read.
@@ -923,6 +918,19 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
             }
         }
         Constant::Record { arguments, .. } => {
+            for argument in arguments {
+                constant_find_names(&argument.value, names);
+            }
+        }
+        Constant::Call {
+            module,
+            name,
+            arguments,
+            ..
+        } => {
+            if module.is_none() {
+                names.push(name.into());
+            }
             for argument in arguments {
                 constant_find_names(&argument.value, names);
             }

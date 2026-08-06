@@ -697,6 +697,35 @@ fn repl_fn_redefine() {
 }
 
 #[test]
+fn repl_fn_redefine_recursive() {
+    // A recursive call in the new definition reaches the new definition, not the
+    // stored value of the old one.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn f(n) {{ 100 }}
+            fn f(n) {{ case n {{ 0 -> 0 _ -> f(n - 1) + 1 }} }}
+            f(3)"
+        }),
+        "3"
+    );
+}
+
+#[test]
+fn repl_value_in_guard() {
+    // A stored value reaches the generated module as a module constant, and the
+    // type checker inlines a constant used in a guard.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 5
+            fn f(n) {{ case n {{ m if m == x -> 1 _ -> 0 }} }}
+            f(5)
+            f(1)"
+        }),
+        "5\n1\n0"
+    );
+}
+
+#[test]
 fn repl_fn_calling_fn() {
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -803,6 +832,41 @@ fn repl_error_type() {
 #[test]
 fn repl_error_fn_body() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"fn f(a) { a + "x" }"#));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+// A stored value is a module constant, so the definition reaches the generated
+// module whole: the head is still there and the lines still line up.
+#[test]
+fn repl_error_fn_head_with_stored_value() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            let z = 5
+            fn f(x: Nope) {{ x + z }}"
+        }),
+    );
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_multiline_fn() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            let z = 5
+            fn f(x) {{
+              let a = 1
+              x + z + a + nope
+            }}"
+        }),
+    );
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_error_syntax() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = "));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 

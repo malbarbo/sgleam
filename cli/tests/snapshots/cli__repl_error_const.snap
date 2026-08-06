@@ -3,10 +3,10 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Type mismatch
-  ┌─ <repl>:1:10
+  ┌─ <repl>:1:16
   │
-1 │ x: Int = "a"
-  │          ^^^
+1 │ const x: Int = "a"
+  │                ^^^
 
 Expected type:
 

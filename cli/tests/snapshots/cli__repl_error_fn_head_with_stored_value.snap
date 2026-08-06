@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Unknown type
+  ┌─ <repl>:1:9
+  │
+1 │ fn f(x: Nope) { x + z }
+  │         ^^^^
+
+The type `Nope` is not defined or imported in this module.
