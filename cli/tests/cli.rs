@@ -1004,6 +1004,38 @@ fn repl_user_module_import() {
 }
 
 #[test]
+fn repl_user_module_error_keeps_the_location() {
+    // Native only: the wasm backend loads a file by its base name, so the very
+    // path this test is about is what the backends disagree on.
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
+    let (out, _) = run_native(
+        &["repl", "-q", input],
+        Some(&formatdoc! { "
+            boom()
+            panic as \"here\"
+            "
+        }),
+    );
+    assert_eq!(
+        out,
+        "Error at tests/inputs/user.gleam (boom:27)\n  boom\nError: here\n"
+    );
+}
+
+#[test]
+fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
+    // At the current directory, so the module lands on `src/repl1_0.gleam`,
+    // the very path a generated one would have.
+    let file = std::env::current_dir().unwrap().join("repl1_0.gleam");
+    std::fs::write(&file, "pub fn boom() {\n  panic as \"boom\"\n}\n").unwrap();
+
+    let (out, _) = run_native(&["repl", "-q", file.to_str().unwrap()], Some("boom()"));
+
+    let _ = std::fs::remove_file(&file);
+    assert_eq!(out, "Error at repl1_0.gleam (boom:2)\n  boom\n");
+}
+
+#[test]
 fn repl_user_module_shadow() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     let (out, err) = run_sgleam_cmd(

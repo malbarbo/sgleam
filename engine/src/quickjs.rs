@@ -462,10 +462,15 @@ pub fn run_main(
         MainFunction::SmainStdin => "SmainStdin",
         MainFunction::SmainStdinLines => "SmainStdinLines",
     };
+    // The location of an error raised in a generated module is internal.
+    let repl_file = match &main {
+        MainFunction::ReplMain(_) => format!(r#""src/{module}.gleam""#),
+        _ => "null".into(),
+    };
     let code = formatdoc! {r#"
         import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
         import {{ {name} }} from "./{module}.mjs";
-        try_main({name}, "{kind}", {show_output});
+        try_main({name}, "{kind}", {show_output}, {repl_file});
         "#
     };
     run_script(context, code)

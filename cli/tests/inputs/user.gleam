@@ -21,3 +21,8 @@ pub fn user() {
 pub fn list(x: Int) -> Int {
   x
 }
+
+/// Raises an error outside the repl's own module.
+pub fn boom() {
+  panic as "boom"
+}
