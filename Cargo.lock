@@ -2836,6 +2836,7 @@ dependencies = [
  "indoc",
  "insta",
  "rustyline",
+ "tempfile",
 ]
 
 [[package]]

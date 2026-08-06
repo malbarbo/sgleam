@@ -1024,15 +1024,25 @@ fn repl_user_module_error_keeps_the_location() {
 
 #[test]
 fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
-    // At the current directory, so the module lands on `src/repl1_0.gleam`,
-    // the very path a generated one would have.
-    let file = std::env::current_dir().unwrap().join("repl1_0.gleam");
-    std::fs::write(&file, "pub fn boom() {\n  panic as \"boom\"\n}\n").unwrap();
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("repl1_0.gleam"),
+        "pub fn boom() {\n  panic as \"boom\"\n}\n",
+    )
+    .unwrap();
 
-    let (out, _) = run_native(&["repl", "-q", file.to_str().unwrap()], Some("boom()"));
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["repl", "-q", "repl1_0.gleam"])
+        .write_stdin("boom()\n")
+        .output()
+        .expect("run sgleam")
+        .stdout;
 
-    let _ = std::fs::remove_file(&file);
-    assert_eq!(out, "Error at repl1_0.gleam (boom:2)\n  boom\n");
+    assert_eq!(
+        String::from_utf8_lossy(&out),
+        "Error at repl1_0.gleam (boom:2)\n  boom\n"
+    );
 }
 
 #[test]
