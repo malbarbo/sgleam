@@ -605,21 +605,47 @@ fn repl_const_can_use_a_repl_type() {
 }
 
 #[test]
-fn repl_const_unreachable_after_a_name_is_taken_over() {
-    // Taking `a` over drops what a new const may reference: an entry left
-    // behind could name the old `a`. The values themselves are untouched.
-    let (out, err) = run_sgleam_cmd(
-        &["repl", "-q"],
-        Some(&formatdoc! {"
+fn repl_const_can_use_a_fn() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g() {{ 1 }}
+            const h = g
+            h()"
+        }),
+        "1"
+    );
+}
+
+#[test]
+fn repl_const_survives_a_name_taken_over() {
+    // Only the redefined name changes: `a` becoming a variable leaves `b`
+    // alone, and a new const can still read it.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
             const a = 1
             const b = 2
             let a = 5
             const c = b
-            b"
+            c"
         }),
+        "5\n2"
     );
-    assert!(err.contains("The name `b` is not in scope here"), "{err}");
-    assert_eq!(out, "5\n2\n");
+}
+
+#[test]
+fn repl_const_redefine_keeps_the_others() {
+    // A redefinition takes only its own name, like `let` and `fn`.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            const a = 1
+            const b = 2
+            const a = 9
+            const d = b
+            d
+            a"
+        }),
+        "2\n9"
+    );
 }
 
 #[test]
@@ -634,15 +660,18 @@ fn repl_const_must_be_a_constant_expression() {
 
 #[test]
 fn repl_const_cannot_reference_a_runtime_value() {
-    let (_, err) = run_sgleam_cmd(
-        &["repl", "-q"],
-        Some(&formatdoc! {"
-            let y = 1
-            const c = y"
-        }),
+    // A `let` is out of reach of a const, as it would be in a source file.
+    // Rejected before compiling, so the message is the repl's own.
+    let out = repl_exec(&formatdoc! {"
+        let y = 1
+        const c = y
+        y"
+    });
+    assert_eq!(
+        out,
+        "1\n`y` is a variable, not a constant. A constant can only use \
+         literals, other constants and functions.\n1"
     );
-    assert!(err.contains("The name `y` is not in scope here"), "{err}");
-    assert!(err.contains("const c = y"), "{err}");
 }
 
 #[test]
