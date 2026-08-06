@@ -919,6 +919,13 @@ fn repl_warning() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+#[test]
+fn repl_let_result_does_not_warn() {
+    // Saving the value must not warn about the unused `Result` it creates.
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let r = Ok(1)"));
+    assert_eq!(err, "");
+}
+
 // The pattern fails in both generated bindings; only the relocated one shows.
 #[test]
 fn repl_error_let_pattern() {

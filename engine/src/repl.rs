@@ -647,9 +647,11 @@ pub fn {print}(value: a) -> a"#
     ) -> Result<(), Error> {
         let joined_names = names.join(", ");
         let (save, print) = (&self.repl_save, &self.repl_print);
+        // Discarded through `let _` so saving a `Result` does not warn about an
+        // unused value, a warning that would point at the generated module.
         let save_names = names
             .iter()
-            .map(|name| format!("{save}({name})"))
+            .map(|name| format!("let _ = {save}({name})"))
             .collect::<Vec<_>>()
             .join("\n  ");
         // The inner binding is a verbatim copy of the input, so errors land on
