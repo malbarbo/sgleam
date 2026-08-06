@@ -520,6 +520,49 @@ fn repl_type_redefine() {
 }
 
 #[test]
+fn repl_type_redefine_used_by_type() {
+    // Redefining a type another type uses breaks that other type, which is not
+    // in the input, so the error would point at code the user did not write.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A(x) {{ A(x) }}
+            type B {{ B(A(Int)) }}
+            type A {{ A }}
+            B(A(1))"
+        }),
+        "Cannot redefine type `A` while type `B` uses it.\nB(A(1))"
+    );
+    // Redefining both in the same input is fine.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A(x) {{ A(x) }}
+            type B {{ B(A(Int)) }}
+            type A {{ A }} type B {{ B(A) }}
+            B(A)"
+        }),
+        "B(A)"
+    );
+    // The refusal also drops the functions of the input, registered before it.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A(x) {{ A(x) }}
+            fn f(v: A(Int)) {{ v }}
+            type A {{ A }} fn f(v: A) {{ v }}
+            f(A(2))"
+        }),
+        "Cannot redefine type `A` while variables of that type exist.\nA(2)"
+    );
+}
+
+// The types of an input are registered before any of its items runs, so an
+// error in one of them can surface while another one is being checked.
+#[test]
+fn repl_error_type_beside_type() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("type A { A } type B { B(A(Int)) }"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
 fn repl_const_replace_let() {
     assert_eq!(
         repl_exec(&formatdoc! {"

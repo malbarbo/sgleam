@@ -94,6 +94,8 @@ pub struct Repl<E: Engine> {
     types: BTreeMap<String, NameEntry>,
     values: BTreeMap<String, NameEntry>,
     fn_bodies: BTreeMap<String, String>,
+    // Source of the types defined by the input being run.
+    type_defs: Vec<String>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
@@ -134,6 +136,7 @@ impl<E: Engine> Repl<E> {
             types: BTreeMap::new(),
             values: BTreeMap::new(),
             fn_bodies: BTreeMap::new(),
+            type_defs: Vec::new(),
             project,
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
@@ -220,6 +223,9 @@ impl<E: Engine> Repl<E> {
     pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
         self.had_runtime_error = false;
         self.user_text = None;
+        // Kept past the end of the run below, to relocate an error, so it is
+        // this run that has to drop what the previous one left.
+        self.type_defs.clear();
         self.iter = (self.iter.0 + 1, 0);
         let line_trim = input.trim();
 
@@ -274,6 +280,17 @@ impl<E: Engine> Repl<E> {
             }
         }
 
+        // Same for the types, which have no value to bind, so registering them
+        // is already the whole definition.
+        if !is_type
+            && !is_time
+            && let Err(reason) = self.register_types(&items, input)
+        {
+            self.fn_bodies.clear();
+            println!("{reason}");
+            return Ok(ReplOutput::StdOut);
+        }
+
         for item in items {
             self.iter.1 += 1;
             let result = match item {
@@ -290,8 +307,10 @@ impl<E: Engine> Repl<E> {
 
             if let Err(err) = result {
                 let user_text = self.user_text.take();
+                let type_defs = std::mem::take(&mut self.type_defs);
                 *self = snapshot;
                 self.user_text = user_text;
+                self.type_defs = type_defs;
                 self.show_gleam_error(&err);
                 return Ok(ReplOutput::Error);
             }
@@ -496,24 +515,28 @@ pub fn {print}(value: a) -> a"#
     /// Move `diag` from the generated module back to the user's input,
     /// producing whether it could be done.
     fn relocate(&self, diag: &mut Diagnostic) -> bool {
-        let Some(user_text) = &self.user_text else {
-            return false;
-        };
         let Some(loc) = &mut diag.location else {
             return false;
         };
         let span = loc.label.span;
-        let len = user_text.len() as u32;
-        let Some(start) = loc
-            .src
-            .match_indices(user_text.as_str())
-            .map(|(i, _)| i as u32)
-            .find(|&i| i <= span.start && span.end <= i + len)
+        // A type of this input is in the module even while another item of the
+        // input runs, so it can be the one holding the error.
+        let Some((user_text, start)) =
+            self.user_text
+                .iter()
+                .chain(&self.type_defs)
+                .find_map(|text| {
+                    loc.src
+                        .match_indices(text.as_str())
+                        .map(|(i, _)| i as u32)
+                        .find(|&i| i <= span.start && span.end <= i + text.len() as u32)
+                        .map(|start| (text, start))
+                })
         else {
             return false;
         };
 
-        let end = start + len;
+        let end = start + user_text.len() as u32;
         loc.src = user_text.as_str().into();
         loc.path = "<repl>".into();
         loc.label.span.start -= start;
@@ -584,8 +607,8 @@ pub fn {print}(value: a) -> a"#
                 self.user_text = Some(src);
                 self.run_import(import)
             }
-            Definition::TypeAlias(t) => self.run_type(t.alias.to_string(), src),
-            Definition::CustomType(t) => self.run_type(t.name.to_string(), src),
+            // Already registered by `register_types`.
+            Definition::TypeAlias(_) | Definition::CustomType(_) => self.run_type(src),
             Definition::ModuleConstant(c) => self.run_const(c, &src),
             Definition::Function(f) => {
                 self.user_text = Some(src.clone());
@@ -837,15 +860,55 @@ pub fn {print}(value: a) -> a"#
         )
     }
 
-    fn run_type(&mut self, name: String, code: String) -> Result<(), Error> {
-        if self.values.values().any(
-            |item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(&name, type_)),
-        ) {
-            println!("Cannot redefine type `{name}` while variables of that type exist.");
-            return Ok(());
+    /// Registers the types of the input before any of its items runs, so a
+    /// definition can use another one from the same input. Produces the reason
+    /// when a redefinition would break a definition that is not redefined
+    /// along with it. Nothing is registered in that case.
+    fn register_types(&mut self, items: &[ReplItem], input: &str) -> Result<(), String> {
+        let mut defs = vec![];
+        for item in items {
+            let ReplItem::ReplDefinition(targeted) = item else {
+                continue;
+            };
+            let name = match &targeted.definition {
+                Definition::CustomType(t) => t.name.to_string(),
+                Definition::TypeAlias(t) => t.alias.to_string(),
+                _ => continue,
+            };
+            let code = get_definition_src(&targeted.definition, input).to_string();
+            defs.push((name, code));
         }
-        self.user_text = Some(code.clone());
-        self.types.insert(name, NameEntry::Type(code));
+
+        for (name, _) in &defs {
+            if self.values.values().any(
+                |item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(name, type_)),
+            ) {
+                return Err(format!(
+                    "Cannot redefine type `{name}` while variables of that type exist."
+                ));
+            }
+            // A type that stays would be compiled against the new definition,
+            // and its error would point at code the user did not just write.
+            let user = self.types.iter().find(|(other, entry)| {
+                !defs.iter().any(|(redefined, _)| redefined == *other)
+                    && matches!(entry, NameEntry::Type(code) if type_mentions(name, code))
+            });
+            if let Some((user, _)) = user {
+                return Err(format!(
+                    "Cannot redefine type `{name}` while type `{user}` uses it."
+                ));
+            }
+        }
+
+        for (name, code) in defs {
+            self.types.insert(name, NameEntry::Type(code.clone()));
+            self.type_defs.push(code);
+        }
+        Ok(())
+    }
+
+    fn run_type(&mut self, code: String) -> Result<(), Error> {
+        self.user_text = Some(code);
         self.run_check()
     }
 }
