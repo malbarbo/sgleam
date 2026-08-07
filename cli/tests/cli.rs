@@ -448,6 +448,34 @@ fn repl_rollback_failed_fn() {
 }
 
 #[test]
+fn repl_rollback_drops_the_values_it_saved() {
+    // The engine appends to the saved values and the repl counts them, so a
+    // value saved by an input that then failed would shift every later one.
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            let a = "hello" let b = bad_name
+            let c = 5
+            c + 1"#
+        }),
+        "\"hello\"\n5\n6"
+    );
+}
+
+#[test]
+fn repl_binding_that_did_not_run_is_not_bound() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            let a = 1 let z = bad_name
+            let b = {{ panic as "boom" }}
+            b"#
+        }),
+    );
+    assert_eq!(out, "1\nError: boom\n");
+    assert!(err.contains("`b` is not in scope"), "got: {err}");
+}
+
+#[test]
 fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
@@ -1208,25 +1236,29 @@ fn repl_user_module_error_keeps_the_location() {
 
 #[test]
 fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::write(
-        dir.path().join("repl1_0.gleam"),
-        "pub fn boom() {\n  panic as \"boom\"\n}\n",
-    )
-    .unwrap();
+    // `repl0` is the module of the check the repl runs on start and `repl1` the
+    // one of the first input: both would be written over the user's.
+    for name in ["repl0.gleam", "repl1.gleam"] {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join(name),
+            "pub fn boom() {\n  panic as \"boom\"\n}\n",
+        )
+        .unwrap();
 
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["repl", "-q", "repl1_0.gleam"])
-        .write_stdin("boom()\n")
-        .output()
-        .expect("run sgleam")
-        .stdout;
+        let out = assert_cmd::cargo::cargo_bin_cmd!()
+            .current_dir(dir.path())
+            .args(["repl", "-q", name])
+            .write_stdin("fn g() { 7 }\ng()\nboom()\n")
+            .output()
+            .expect("run sgleam")
+            .stdout;
 
-    assert_eq!(
-        String::from_utf8_lossy(&out),
-        "Error at repl1_0.gleam (boom:2)\n  boom\n"
-    );
+        assert_eq!(
+            String::from_utf8_lossy(&out),
+            format!("7\nError at {name} (boom:2)\n  boom\n")
+        );
+    }
 }
 
 #[test]

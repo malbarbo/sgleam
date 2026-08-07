@@ -69,6 +69,14 @@ impl Engine for QuickJsEngine {
         })
     }
 
+    fn truncate_vars(&self, count: usize) {
+        self.context.with(|ctx| {
+            if let Ok(vars) = ctx.globals().get::<_, Object>("repl_vars") {
+                let _ = vars.set("length", count);
+            }
+        })
+    }
+
     fn run_tests(&self, modules: &[&str]) -> std::result::Result<(), SgleamError> {
         run_tests(&self.context, modules)
     }

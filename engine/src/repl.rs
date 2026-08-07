@@ -175,6 +175,7 @@ impl<E: Engine> Repl<E> {
         }
         // Initial compilation, so the module interfaces completion reads are
         // available before the first input.
+        repl.skip_taken_names();
         let _ = repl.run_check();
         Ok(repl)
     }
@@ -236,6 +237,7 @@ impl<E: Engine> Repl<E> {
         // this run that has to drop what the previous one left.
         self.def_srcs.clear();
         self.iter = (self.iter.0 + 1, 0);
+        self.skip_taken_names();
         let line_trim = input.trim();
 
         if line_trim == QUIT {
@@ -418,6 +420,25 @@ impl<E: Engine> Repl<E> {
         }
         self.project.write_source(&file, code);
         file
+    }
+
+    /// Skips the numbers a module of the user's already goes by: `repl1.gleam`
+    /// is a plausible file name, and the module written over it would be lost.
+    fn skip_taken_names(&mut self) {
+        while self.name_taken() {
+            self.iter.0 += 1;
+        }
+    }
+
+    fn name_taken(&self) -> bool {
+        let name = format!("repl{}", self.iter.0);
+        let prefix = format!("{name}_");
+        self.project.fs.files().iter().any(|path| {
+            path.parent() == Some(Project::source())
+                && path
+                    .file_stem()
+                    .is_some_and(|stem| stem == name || stem.starts_with(prefix.as_str()))
+        })
     }
 
     fn compile(&mut self, module_name: &str, code: &str) -> Result<Vec1<Module>, Error> {
@@ -724,6 +745,10 @@ impl<E: Engine> Repl<E> {
           #({joined_names})"
         };
         self.user_text = Some(format!("{pattern} = {value}"));
+        // Drops what an input that failed after saving left behind: the engine
+        // appends, so `has_var` below only means "the save ran" while the two
+        // agree on how many values there are.
+        self.engine.truncate_vars(self.var_index);
         let module = self.compile_and_run(&body)?;
 
         if self.engine.has_var(self.var_index) {
