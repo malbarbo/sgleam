@@ -497,40 +497,44 @@ fn repl_type_redefine() {
         }),
         "Red"
     );
-    // Cannot redefine type while variables of that type exist
+    // A variable of the type outlives the redefinition, and reads back as the
+    // module of the input that defined the type it holds.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type Val {{ A(Int) }}
             let x = A(42)
             type Val {{ B(String) }}
-            x"
+            x
+            {TYPE}x"
         }),
-        "A(42)\nCannot redefine type `Val` while variables of that type exist.\nA(42)"
+        "A(42)\nA(42)\nrepl1.Val"
     );
-    // Type with name that is substring of another type (e.g. In vs Int)
-    // should NOT be blocked by variables of the longer type
-    assert_eq!(
-        repl_exec(&formatdoc! {"
-            let x = 42
-            type In {{ Inner }}
-            Inner"
+    // Mixing the two is what fails, and the message names both.
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            type Val {{ A(Int) }}
+            let x = A(42)
+            type Val {{ B(String) }}
+            fn f(v: Val) {{ v }}
+            f(x)"
         }),
-        "42\nInner"
     );
+    assert!(err.contains("repl1.Val"), "{err}");
 }
 
 #[test]
-fn repl_type_redefine_used_by_type() {
-    // Redefining a type another type uses breaks that other type, which is not
-    // in the input, so the error would point at code the user did not write.
+fn repl_type_redefine_keeps_the_old() {
+    // A type of an earlier input keeps the type it was defined against, which
+    // is still reachable through the names the redefinition did not take.
     assert_eq!(
         repl_exec(&formatdoc! {"
-            type A(x) {{ A(x) }}
-            type B {{ B(A(Int)) }}
-            type A {{ A }}
-            B(A(1))"
+            type A(x) {{ MkA(x) }}
+            type B {{ MkB(A(Int)) }}
+            type A {{ MkA2 }}
+            MkB(MkA(1))"
         }),
-        "Cannot redefine type `A` while type `B` uses it.\nB(A(1))"
+        "MkB(MkA(1))"
     );
     // Redefining both in the same input is fine.
     assert_eq!(
@@ -542,20 +546,86 @@ fn repl_type_redefine_used_by_type() {
         }),
         "B(A)"
     );
-    // The refusal also drops the functions of the input, registered before it.
+    // A value of the shadowed type reads back as the module that defines it.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A(x) {{ MkA(x) }}
+            type A {{ MkA2 }}
+            let v = MkA(1)
+            {TYPE}v"
+        }),
+        "MkA(1)\nrepl1.A(Int)"
+    );
+    // A function of an earlier input keeps the type it was defined against, so
+    // a redefinition no longer has to be refused on its account.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A(x) {{ MkA(x) }}
+            fn f(v: A(Int)) {{ v }}
+            type A {{ MkA2 }}
+            f(MkA(1))"
+        }),
+        "MkA(1)"
+    );
+    // Redefining one type of a mutually recursive pair leaves the other one
+    // pointing at the old one.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type A {{ MkA(B) }} type B {{ MkB(Int) }}
+            type B {{ MkB2 }}
+            MkA(MkB(1))"
+        }),
+        "MkA(MkB(1))"
+    );
+    // A `let` of the old type outlives a redefinition that takes over even the
+    // name of its constructor.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ A(x) }}
-            fn f(v: A(Int)) {{ v }}
-            type A {{ A }} fn f(v: A) {{ v }}
-            f(A(2))"
+            let v = A(1)
+            type A {{ A }} fn f() {{ A }}
+            v
+            f()"
         }),
-        "Cannot redefine type `A` while variables of that type exist.\nA(2)"
+        "A(1)\nA(1)\nA"
     );
 }
 
-// The types of an input are registered before any of its items runs, so an
-// error in one of them can surface while another one is being checked.
+#[test]
+fn repl_fn_redefine_keeps_the_old() {
+    // A function of an earlier input calls the one it was defined against.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g() {{ 1 }}
+            fn h() {{ g() * 10 }}
+            fn g() {{ 100 }}
+            h()
+            g()"
+        }),
+        "10\n100"
+    );
+    // The shadowed one is still reachable through the module of its input.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g() {{ 1 }}
+            fn g() {{ 2 }}
+            import repl1
+            repl1.g()"
+        }),
+        "1"
+    );
+    // Mutually recursive functions of one input see each other.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn even(n) {{ case n {{ 0 -> True _ -> odd(n - 1) }} }} fn odd(n) {{ case n {{ 0 -> False _ -> even(n - 1) }} }}
+            even(10)"
+        }),
+        "True"
+    );
+}
+
+// The types of an input are compiled together, in a module of their own, so an
+// error in one of them can surface while another one is being read.
 #[test]
 fn repl_error_type_beside_type() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("type A { A } type B { B(A(Int)) }"));
@@ -755,8 +825,8 @@ fn repl_fn_redefine_recursive() {
 
 #[test]
 fn repl_value_in_guard() {
-    // A stored value reaches the generated module as a module constant, and the
-    // type checker inlines a constant used in a guard.
+    // A stored value reaches the generated module as an imported module
+    // constant, which a guard inlines as the call that loads it.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 5

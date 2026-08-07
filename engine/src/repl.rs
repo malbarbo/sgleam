@@ -5,8 +5,7 @@ use gleam_core::{
     Error,
     ast::{
         AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, Statement,
-        TargetedDefinition, UntypedConstant, UntypedModuleConstant, UntypedPattern,
-        UntypedStatement,
+        TargetedDefinition, UntypedConstant, UntypedPattern, UntypedStatement,
     },
     build::Module,
     diagnostic::Diagnostic,
@@ -58,27 +57,43 @@ impl Drop for ConstCall {
     }
 }
 
+/// Where a name in scope comes from: the module that defines it and the name
+/// it has there. Every name reaches the input being run this way — an import,
+/// a definition of an earlier input, or a `let` read back from its slot by the
+/// companion module of the input that bound it.
 #[derive(Clone)]
-enum NameEntry {
-    /// `import gleam/int.{to_string}` → key "to_string"
-    Unqualified { module: String, original: String },
-    /// `type Color { Red }`
-    Type(String),
-    /// `let x = 10`, `fn f() { 1 }` or `const x = 1` (runtime value)
-    Variable {
-        index: usize,
-        type_: String,
-        kind: ValueKind,
-    },
+struct NameEntry {
+    module: String,
+    original: String,
+    /// A `let`, the one kind of value a const may not read.
+    runtime: bool,
 }
 
-/// How a value was defined. All three are frozen at definition, but only a
-/// `Let` is out of reach of a const, as it would be in a source file.
-#[derive(Clone, Copy)]
-enum ValueKind {
-    Let,
-    Fn,
-    Const,
+impl NameEntry {
+    fn defined_in(module: &str, original: impl AsRef<str>) -> NameEntry {
+        NameEntry {
+            module: module.into(),
+            original: original.as_ref().into(),
+            runtime: false,
+        }
+    }
+}
+
+/// A definition of the input being run that goes to a module of its own,
+/// instead of being re-emitted into every module generated later.
+struct Def {
+    /// The name it binds as a type, when it is one.
+    type_name: Option<String>,
+    /// The names it binds as values: a function, a const, or the constructors
+    /// of a type.
+    value_names: Vec<String>,
+    src: String,
+}
+
+impl Def {
+    fn names(&self) -> impl Iterator<Item = &String> {
+        self.type_name.iter().chain(&self.value_names)
+    }
 }
 
 #[derive(Clone)]
@@ -93,9 +108,12 @@ pub struct Repl<E: Engine> {
     modules: BTreeMap<String, String>,
     types: BTreeMap<String, NameEntry>,
     values: BTreeMap<String, NameEntry>,
-    fn_bodies: BTreeMap<String, String>,
-    // Source of the types defined by the input being run.
-    type_defs: Vec<String>,
+    // Source of the definitions of the input being run.
+    def_srcs: Vec<String>,
+    // Modules holding the definitions of an input, in definition order.
+    def_modules: Vec<String>,
+    // The module of the values last bound, waiting for the next compilation.
+    pending_vals: Option<(String, String)>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
@@ -135,8 +153,9 @@ impl<E: Engine> Repl<E> {
             modules: BTreeMap::new(),
             types: BTreeMap::new(),
             values: BTreeMap::new(),
-            fn_bodies: BTreeMap::new(),
-            type_defs: Vec::new(),
+            def_srcs: Vec::new(),
+            def_modules: Vec::new(),
+            pending_vals: None,
             project,
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
@@ -170,23 +189,13 @@ impl<E: Engine> Repl<E> {
             .insert(short_name(&path).to_string(), path.clone());
 
         for type_ in interface.public_type_names() {
-            self.types.insert(
-                type_.to_string(),
-                NameEntry::Unqualified {
-                    module: path.clone(),
-                    original: type_.to_string(),
-                },
-            );
+            self.types
+                .insert(type_.to_string(), NameEntry::defined_in(&path, type_));
         }
 
         for value in interface.public_value_names() {
-            self.values.insert(
-                value.to_string(),
-                NameEntry::Unqualified {
-                    module: path.clone(),
-                    original: value.to_string(),
-                },
-            );
+            self.values
+                .insert(value.to_string(), NameEntry::defined_in(&path, value));
         }
     }
 
@@ -225,7 +234,7 @@ impl<E: Engine> Repl<E> {
         self.user_text = None;
         // Kept past the end of the run below, to relocate an error, so it is
         // this run that has to drop what the previous one left.
-        self.type_defs.clear();
+        self.def_srcs.clear();
         self.iter = (self.iter.0 + 1, 0);
         let line_trim = input.trim();
 
@@ -262,33 +271,30 @@ impl<E: Engine> Repl<E> {
             return Ok(ReplOutput::StdOut);
         }
 
+        let defs = if is_type || is_time {
+            vec![]
+        } else {
+            defs(&items, input)
+        };
+        // Checked before anything runs, as the definitions of the input are
+        // compiled together and the input either goes in whole or not at all.
+        if let Some(reason) = self.const_refusal(&items) {
+            println!("{reason}");
+            return Ok(ReplOutput::StdOut);
+        }
+
         // Snapshot for rollback: if any item fails, all changes from this
-        // input are reverted. Taken before registering the functions so a
-        // rollback also drops them. The clone is cheap — engine and project use
+        // input are reverted. The clone is cheap — engine and project use
         // reference counting internally (Rc), so only the HashMaps are copied.
         let snapshot = (*self).clone();
 
-        // Pre-register function names so mutually recursive functions
-        // can reference each other during compilation.
-        for item in &items {
-            if let ReplItem::ReplDefinition(targeted) = item
-                && let Definition::Function(f) = &targeted.definition
-            {
-                let name = f.name.clone().expect("function name").1;
-                let body = get_definition_src(&targeted.definition, input).into();
-                self.fn_bodies.insert(name.into(), body);
-            }
-        }
-
-        // Same for the types, which have no value to bind, so registering them
-        // is already the whole definition.
-        if !is_type
-            && !is_time
-            && let Err(reason) = self.register_types(&items, input)
+        // The definitions go in first, together in a module of their own, so
+        // they can reference each other and the items below only have to
+        // import them.
+        if !defs.is_empty()
+            && let Err(err) = self.run_defs(&defs)
         {
-            self.fn_bodies.clear();
-            println!("{reason}");
-            return Ok(ReplOutput::StdOut);
+            return Ok(self.rollback(snapshot, &err));
         }
 
         for item in items {
@@ -306,17 +312,10 @@ impl<E: Engine> Repl<E> {
             };
 
             if let Err(err) = result {
-                let user_text = self.user_text.take();
-                let type_defs = std::mem::take(&mut self.type_defs);
-                *self = snapshot;
-                self.user_text = user_text;
-                self.type_defs = type_defs;
-                self.show_gleam_error(&err);
-                return Ok(ReplOutput::Error);
+                return Ok(self.rollback(snapshot, &err));
             }
         }
 
-        self.fn_bodies.clear();
         if self.had_runtime_error {
             Ok(ReplOutput::Error)
         } else {
@@ -326,23 +325,10 @@ impl<E: Engine> Repl<E> {
 
     // --- Source generation ---
 
-    fn build_source(&self) -> String {
+    /// The modules in scope and the names taken from them, `skip` aside, which
+    /// are the names the generated module defines itself.
+    fn build_imports(&self, skip: &[String]) -> String {
         let mut src = String::new();
-        let (save, load, print) = (&self.repl_save, &self.repl_load, &self.repl_print);
-        swriteln!(
-            src,
-            r#"
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
-pub fn {save}(value: a) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
-pub fn {load}(index: Int) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
-pub fn {print}(value: a) -> a"#
-        );
-
-        // Imports
         for (name, path) in &self.modules {
             // A redundant alias would keep the line from being a
             // verbatim copy of the input, blocking relocation.
@@ -353,58 +339,68 @@ pub fn {print}(value: a) -> a"#
             }
         }
         for (kind, entries) in [("", &self.values), ("type ", &self.types)] {
-            for (name, entry) in entries {
-                if let NameEntry::Unqualified { module, original } = entry {
-                    if name == original {
-                        swriteln!(src, "import {module}.{{{kind}{original}}} as _");
-                    } else {
-                        swriteln!(src, "import {module}.{{{kind}{original} as {name}}} as _");
-                    }
-                }
-            }
-        }
-
-        // Types (auto-pub for REPL visibility)
-        for item in self.types.values() {
-            if let NameEntry::Type(code) = item {
-                if code.starts_with("pub ") {
-                    swriteln!(src, "{code}");
-                } else {
-                    swriteln!(src, "pub {code}");
-                }
-            }
-        }
-
-        // Values from earlier inputs. Module constants, not bindings spliced
-        // into the body, so the input stays a verbatim copy of itself. A name
-        // in `fn_bodies` is defined below, so it gets no constant.
-        for (name, item) in &self.values {
-            if let NameEntry::Variable { index, type_, .. } = item
-                && !self.fn_bodies.contains_key(name)
+            for (
+                name,
+                NameEntry {
+                    module, original, ..
+                },
+            ) in entries
             {
-                let load = &self.repl_load;
-                swriteln!(src, "const {name}: {type_} = {load}({index})");
+                if skip.contains(name) {
+                    continue;
+                }
+                if name == original {
+                    swriteln!(src, "import {module}.{{{kind}{original}}} as _");
+                } else {
+                    swriteln!(src, "import {module}.{{{kind}{original} as {name}}} as _");
+                }
             }
         }
+        src
+    }
 
-        // Function bodies
-        for body in self.fn_bodies.values() {
-            swriteln!(src, "{body}");
-        }
+    /// The FFI the generated modules reach the engine through. Declared by
+    /// every one of them: a constant of a companion module is inlined at its
+    /// use, in a guard, and the inlined text names the loader.
+    fn build_externals(&self) -> String {
+        let (save, load, print) = (&self.repl_save, &self.repl_load, &self.repl_print);
+        formatdoc! {r#"
+            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
+            pub fn {save}(value: a) -> a
 
+            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
+            pub fn {load}(index: Int) -> a
+
+            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+            pub fn {print}(value: a) -> a
+        "#}
+    }
+
+    /// Everything the input has in scope, as source: the externals and the
+    /// imports. Every name, a saved value included, comes in by import — no
+    /// annotation is written here, so nothing a later input redefines can
+    /// change what this module reads.
+    fn build_source(&self) -> String {
+        let mut src = self.build_externals();
+        src.push_str(&self.build_imports(&[]));
         src
     }
 
     // --- Compilation helpers ---
 
+    /// The definitions of an input take the plain name, as the user reads it
+    /// back in the type of a value the input that redefined the name left
+    /// behind.
     fn module_name(&self) -> String {
-        format!("repl{}_{}", self.iter.0, self.iter.1)
+        match self.iter {
+            (input, 0) => format!("repl{input}"),
+            (input, item) => format!("repl{input}_{item}"),
+        }
     }
 
-    fn compile(&mut self, code: &str) -> Result<Vec1<Module>, Error> {
-        let module_name = self.module_name();
+    /// Writes a module of this session, producing its file name.
+    fn write_source(&mut self, module_name: &str, code: &str) -> String {
         let file = format!("{module_name}.gleam");
-
         if self.debug {
             let _const_call = ConstCall::enable();
             let mut formatted = String::new();
@@ -421,6 +417,18 @@ pub fn {print}(value: a) -> a"#
             }
         }
         self.project.write_source(&file, code);
+        file
+    }
+
+    fn compile(&mut self, module_name: &str, code: &str) -> Result<Vec1<Module>, Error> {
+        let mut files = vec![];
+        // The module the values of the last item were saved into goes in here,
+        // and not in a pass of its own: one pass compiles both, so a `let`
+        // costs what any other input costs.
+        if let Some((name, src)) = self.pending_vals.take() {
+            files.push(self.write_source(&name, &src));
+        }
+        files.push(self.write_source(module_name, code));
 
         self.defined_modules.clear();
         // Collected instead of printed as they are emitted, so they can be
@@ -435,10 +443,14 @@ pub fn {print}(value: a) -> a"#
             )
         };
 
-        self.project
-            .fs
-            .delete_file(&Project::source().join(file))
-            .expect("To delete repl file");
+        // Dropped as soon as they are compiled: what the next input needs of
+        // them is the interface and the JavaScript, not the source.
+        for file in files {
+            self.project
+                .fs
+                .delete_file(&Project::source().join(file))
+                .expect("To delete repl file");
+        }
 
         self.show_diagnostics(
             warnings
@@ -475,11 +487,24 @@ pub fn {print}(value: a) -> a"#
         let mut src = self.build_source();
         let repl_main = &self.repl_main;
         swrite!(src, "pub fn {repl_main}() {{\n{body}\n}}\n");
-        Ok(self.compile(&src)?.split_off_first().0)
+        let module = self.module_name();
+        Ok(self.compile(&module, &src)?.split_off_first().0)
     }
 
     fn show_gleam_error(&self, err: &Error) {
         self.show_diagnostics(err.to_diagnostics(), true);
+    }
+
+    /// Reverts what the input did and shows `err`, keeping what it takes to
+    /// place the error back on the input.
+    fn rollback(&mut self, snapshot: Self, err: &Error) -> ReplOutput {
+        let user_text = self.user_text.take();
+        let def_srcs = std::mem::take(&mut self.def_srcs);
+        *self = snapshot;
+        self.user_text = user_text;
+        self.def_srcs = def_srcs;
+        self.show_gleam_error(err);
+        ReplOutput::Error
     }
 
     /// Print diagnostics relocated to the user's input. `drop_unrelocated`
@@ -519,12 +544,12 @@ pub fn {print}(value: a) -> a"#
             return false;
         };
         let span = loc.label.span;
-        // A type of this input is in the module even while another item of the
-        // input runs, so it can be the one holding the error.
+        // The definitions of this input are compiled together, in a module of
+        // their own, so any of them can be the one holding the error.
         let Some((user_text, start)) =
             self.user_text
                 .iter()
-                .chain(&self.type_defs)
+                .chain(&self.def_srcs)
                 .find_map(|text| {
                     loc.src
                         .match_indices(text.as_str())
@@ -574,47 +599,58 @@ pub fn {print}(value: a) -> a"#
 
     /// Compile without a `repl_main` (for checking definitions only).
     fn run_check(&mut self) -> Result<(), Error> {
-        self.compile(&self.build_source()).map(|_| ())
+        let (module, src) = (self.module_name(), self.build_source());
+        self.compile(&module, &src).map(|_| ())
     }
 
-    /// Binds `name` to the value the generated code has just saved, reading its
-    /// type back from `repl_main`. Produces false when the code did not run.
-    fn bind_saved(&mut self, name: &str, module: &Module, kind: ValueKind) -> bool {
-        if !self.engine.has_var(self.var_index) {
-            return false;
+    /// Builds the module the values an item bound are read back from, and binds
+    /// each name to it. A `let` runs before its type is known, so the constant
+    /// naming it can only be written after the run — and being written once, in
+    /// the scope the type was printed in, it is never read again in a scope
+    /// where its names mean something else. It is compiled by the next input,
+    /// which is the first one that can read it.
+    fn queue_vals_module(&mut self, bound: &[(String, String, usize)]) {
+        let (input, item) = self.iter;
+        let module = format!("repl{input}_{item}_vals");
+        let load = self.repl_load.clone();
+        let mut src = self.build_externals();
+
+        let names: Vec<String> = bound.iter().map(|(name, ..)| name.clone()).collect();
+        src.push_str(&self.build_imports(&names));
+        // An annotation names the module of a type whose plain name a later
+        // input took over, and that module is imported by no other line.
+        for def_module in &self.def_modules {
+            if self.modules.values().all(|path| path != def_module) {
+                swriteln!(src, "import {def_module}");
+            }
         }
-        let main = get_function(module, &self.repl_main).expect("repl main function");
-        let type_ = type_to_string(module, &main.return_type);
-        self.values.insert(
-            name.into(),
-            NameEntry::Variable {
-                index: self.var_index,
-                type_,
-                kind,
-            },
-        );
-        self.var_index += 1;
-        true
+        for (name, type_, index) in bound {
+            swriteln!(src, "pub const {name}: {type_} = {load}({index})");
+        }
+
+        for (name, ..) in bound {
+            self.values.insert(
+                name.clone(),
+                NameEntry {
+                    module: module.clone(),
+                    original: name.clone(),
+                    runtime: true,
+                },
+            );
+        }
+        self.pending_vals = Some((module, src));
     }
 
     // --- Item handlers ---
 
     fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
-        let src: String = get_definition_src(&targeted.definition, src).into();
-
         match &targeted.definition {
             Definition::Import(import) => {
-                self.user_text = Some(src);
+                self.user_text = Some(get_definition_src(&targeted.definition, src).into());
                 self.run_import(import)
             }
-            // Already registered by `register_types`.
-            Definition::TypeAlias(_) | Definition::CustomType(_) => self.run_type(src),
-            Definition::ModuleConstant(c) => self.run_const(c, &src),
-            Definition::Function(f) => {
-                self.user_text = Some(src.clone());
-                let name = f.name.clone().expect("A function must have a name").1;
-                self.run_definition_at_module_level(name.into(), src, ValueKind::Fn)
-            }
+            // Already compiled and bound by `run_defs`.
+            _ => Ok(()),
         }
     }
 
@@ -694,46 +730,24 @@ pub fn {print}(value: a) -> a"#
             let main = get_function(&module, &self.repl_main).expect("repl main function");
             let types = main.return_type.tuple_types().unwrap();
             assert_eq!(types.len(), names.len());
-            for (name, type_) in names.iter().zip(&types) {
-                let index = self.var_index;
-                let type_ = type_to_string(&module, type_);
-                self.values.insert(
-                    name.into(),
-                    NameEntry::Variable {
-                        index,
-                        type_,
-                        kind: ValueKind::Let,
-                    },
-                );
-                self.var_index += 1;
-            }
+            let bound: Vec<_> = names
+                .iter()
+                .zip(&types)
+                .enumerate()
+                .map(|(i, (name, type_))| {
+                    (
+                        name.clone(),
+                        type_to_string(&module, type_),
+                        self.var_index + i,
+                    )
+                })
+                .collect();
+            self.var_index += names.len();
+            self.queue_vals_module(&bound);
         } else {
             // there was an error and the variable was not saved
         }
 
-        Ok(())
-    }
-
-    /// A `fn` or a `const` is emitted at module level, then stored as a value
-    /// like a `let`, so later inputs read it back without recompiling it.
-    fn run_definition_at_module_level(
-        &mut self,
-        name: String,
-        code: String,
-        kind: ValueKind,
-    ) -> Result<(), Error> {
-        // Remove any existing name entry to avoid conflicts during compilation
-        // (e.g., an unqualified import for the same name).
-        self.values.remove(&name);
-        self.fn_bodies.insert(name.clone(), code);
-
-        let mut src = self.build_source();
-        let (repl_main, save) = (&self.repl_main, &self.repl_save);
-        swrite!(src, "pub fn {repl_main}() {{\n{save}({name})\n}}\n");
-        let module = self.compile(&src)?.split_off_first().0;
-
-        self.run_repl_main(&module);
-        self.bind_saved(&name, &module, kind);
         Ok(())
     }
 
@@ -801,13 +815,8 @@ pub fn {print}(value: a) -> a"#
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| uv.name.to_string());
-            self.values.insert(
-                effective,
-                NameEntry::Unqualified {
-                    module: module.clone(),
-                    original: uv.name.to_string(),
-                },
-            );
+            self.values
+                .insert(effective, NameEntry::defined_in(&module, &uv.name));
         }
 
         // Handle unqualified types
@@ -817,100 +826,104 @@ pub fn {print}(value: a) -> a"#
                 .as_ref()
                 .map(|n| n.to_string())
                 .unwrap_or_else(|| ut.name.to_string());
-            self.types.insert(
-                effective,
-                NameEntry::Unqualified {
-                    module: module.clone(),
-                    original: ut.name.to_string(),
-                },
-            );
+            self.types
+                .insert(effective, NameEntry::defined_in(&module, &ut.name));
         }
 
         self.run_check()
     }
 
-    /// A const is bound and frozen like a `let`. What makes it a const is
-    /// checked before it runs: the parser accepts only a constant expression,
-    /// and the names it reads must be reachable from module level, which is the
-    /// one thing the parser cannot know.
-    fn run_const(&mut self, c: &UntypedModuleConstant, src: &str) -> Result<(), Error> {
+    /// The reason a const of the input cannot be accepted, when there is one.
+    /// What makes it a const is otherwise already checked: the parser accepts
+    /// only a constant expression, and the one thing the parser cannot know is
+    /// that a name it reads is a `let`, out of reach from module level as it
+    /// would be in a source file.
+    fn const_refusal(&self, items: &[ReplItem]) -> Option<String> {
         let mut read = vec![];
-        constant_find_names(&c.value, &mut read);
-        if let Some(var) = read.iter().find(|name| self.is_runtime_variable(name)) {
-            println!(
-                "`{var}` is a variable, not a constant. A constant can only use \
-                 literals, other constants and functions."
-            );
-            return Ok(());
-        }
-
-        let name = c.name.to_string();
-        self.user_text = Some(src.into());
-        self.run_definition_at_module_level(name, src.into(), ValueKind::Const)
-    }
-
-    /// Whether `name` is a `let`, the one kind of value a const may not read.
-    fn is_runtime_variable(&self, name: &str) -> bool {
-        matches!(
-            self.values.get(name),
-            Some(NameEntry::Variable {
-                kind: ValueKind::Let,
-                ..
-            })
-        )
-    }
-
-    /// Registers the types of the input before any of its items runs, so a
-    /// definition can use another one from the same input. Produces the reason
-    /// when a redefinition would break a definition that is not redefined
-    /// along with it. Nothing is registered in that case.
-    fn register_types(&mut self, items: &[ReplItem], input: &str) -> Result<(), String> {
-        let mut defs = vec![];
         for item in items {
-            let ReplItem::ReplDefinition(targeted) = item else {
-                continue;
-            };
-            let name = match &targeted.definition {
-                Definition::CustomType(t) => t.name.to_string(),
-                Definition::TypeAlias(t) => t.alias.to_string(),
-                _ => continue,
-            };
-            let code = get_definition_src(&targeted.definition, input).to_string();
-            defs.push((name, code));
-        }
-
-        for (name, _) in &defs {
-            if self.values.values().any(
-                |item| matches!(item, NameEntry::Variable { type_, .. } if type_mentions(name, type_)),
-            ) {
-                return Err(format!(
-                    "Cannot redefine type `{name}` while variables of that type exist."
-                ));
-            }
-            // A type that stays would be compiled against the new definition,
-            // and its error would point at code the user did not just write.
-            let user = self.types.iter().find(|(other, entry)| {
-                !defs.iter().any(|(redefined, _)| redefined == *other)
-                    && matches!(entry, NameEntry::Type(code) if type_mentions(name, code))
-            });
-            if let Some((user, _)) = user {
-                return Err(format!(
-                    "Cannot redefine type `{name}` while type `{user}` uses it."
-                ));
+            if let ReplItem::ReplDefinition(targeted) = item
+                && let Definition::ModuleConstant(c) = &targeted.definition
+            {
+                constant_find_names(&c.value, &mut read);
             }
         }
+        let var = read
+            .iter()
+            .find(|name| self.values.get(*name).is_some_and(|entry| entry.runtime))?;
+        Some(format!(
+            "`{var}` is a variable, not a constant. A constant can only use \
+             literals, other constants and functions."
+        ))
+    }
 
-        for (name, code) in defs {
-            self.types.insert(name, NameEntry::Type(code.clone()));
-            self.type_defs.push(code);
+    /// Compiles the definitions of the input into a module of its own, kept for
+    /// the rest of the session, and binds each name to that module. A later
+    /// input imports the name instead of defining it again, so a redefinition
+    /// leaves what was built on the old one untouched.
+    fn run_defs(&mut self, defs: &[Def]) -> Result<(), Error> {
+        let defined: Vec<String> = defs.iter().flat_map(Def::names).cloned().collect();
+
+        let mut src = self.build_externals();
+        src.push_str(&self.build_imports(&defined));
+        for def in defs {
+            // Auto-pub, as the module it lands in is not the one that reads it.
+            if def.src.starts_with("pub ") {
+                swriteln!(src, "{}", def.src);
+            } else {
+                swriteln!(src, "pub {}", def.src);
+            }
         }
+
+        self.def_srcs = defs.iter().map(|def| def.src.clone()).collect();
+        let module = self.module_name();
+        self.compile(&module, &src)?;
+
+        for def in defs {
+            if let Some(name) = &def.type_name {
+                self.types
+                    .insert(name.clone(), NameEntry::defined_in(&module, name));
+            }
+            for name in &def.value_names {
+                self.values
+                    .insert(name.clone(), NameEntry::defined_in(&module, name));
+            }
+        }
+        self.def_modules.push(module);
         Ok(())
     }
+}
 
-    fn run_type(&mut self, code: String) -> Result<(), Error> {
-        self.user_text = Some(code);
-        self.run_check()
+/// The types, the functions and the consts the input defines, in the order it
+/// defines them.
+fn defs(items: &[ReplItem], input: &str) -> Vec<Def> {
+    let mut defs = vec![];
+    for item in items {
+        let ReplItem::ReplDefinition(targeted) = item else {
+            continue;
+        };
+        let (type_name, value_names) = match &targeted.definition {
+            // The constructors of an opaque type stay in the module that
+            // defines it, which is no longer the one the next input reads.
+            Definition::CustomType(t) if t.opaque => (Some(t.name.to_string()), vec![]),
+            Definition::CustomType(t) => (
+                Some(t.name.to_string()),
+                t.constructors.iter().map(|c| c.name.to_string()).collect(),
+            ),
+            Definition::TypeAlias(t) => (Some(t.alias.to_string()), vec![]),
+            Definition::Function(f) => {
+                let name = f.name.clone().expect("A function must have a name").1;
+                (None, vec![name.to_string()])
+            }
+            Definition::ModuleConstant(c) => (None, vec![c.name.to_string()]),
+            Definition::Import(_) => continue,
+        };
+        defs.push(Def {
+            type_name,
+            value_names,
+            src: get_definition_src(&targeted.definition, input).to_string(),
+        });
     }
+    defs
 }
 
 fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
@@ -1035,23 +1048,6 @@ fn bit_array_size_find_names(bit_array_size: &BitArraySize<()>, names: &mut Vec<
             bit_array_size_find_names(right, names);
         }
     }
-}
-
-/// Check if a type string mentions a type name as a whole word.
-/// E.g. `type_mentions("Option", "Option(Int)")` is true,
-/// but `type_mentions("In", "Int")` is false.
-fn type_mentions(name: &str, type_: &str) -> bool {
-    let mut rest = type_;
-    while let Some(pos) = rest.find(name) {
-        let before_ok = pos == 0 || !rest.as_bytes()[pos - 1].is_ascii_alphanumeric();
-        let end = pos + name.len();
-        let after_ok = end >= rest.len() || !rest.as_bytes()[end].is_ascii_alphanumeric();
-        if before_ok && after_ok {
-            return true;
-        }
-        rest = &rest[pos + name.len()..];
-    }
-    false
 }
 
 fn short_name(path: &str) -> &str {
