@@ -5,7 +5,7 @@ use engine::{
     error::{self, show_error},
     gleam::{Project, get_module},
     quickjs::QuickJsEngine,
-    repl::{Repl, ReplOutput},
+    repl::Repl,
 };
 use gleam_core::build::Module;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -70,7 +70,7 @@ fn parse_config_bigint(config: &str) -> bool {
 // --- REPL ---
 
 fn default_repl() -> Repl<QuickJsEngine> {
-    Repl::new(Project::default(), None).expect("A repl")
+    Repl::new(Project::default(), None)
 }
 
 #[unsafe(no_mangle)]
@@ -106,7 +106,7 @@ pub unsafe extern "C" fn repl_new(
     if module.map(has_examples).unwrap_or(false) {
         let _ = QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
     }
-    Box::leak(Box::new(Repl::new(project, module).expect("A repl")))
+    Box::leak(Box::new(Repl::new(project, module)))
 }
 
 fn has_examples(module: &Module) -> bool {
@@ -124,13 +124,7 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, 
     assert!(!repl.is_null());
 
     let mut repl = unsafe { Box::from_raw(repl) };
-    let ret = match repl.run(&new_string(ptr, len)) {
-        Ok(output) => output as u32,
-        Err(err) => {
-            show_error(&err);
-            ReplOutput::Error as u32
-        }
-    };
+    let ret = repl.run(&new_string(ptr, len)) as u32;
 
     Box::leak(repl);
 

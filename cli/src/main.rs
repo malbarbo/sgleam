@@ -226,7 +226,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
         get_module(&modules, &name)
     });
 
-    let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
+    let mut repl = Repl::<QuickJsEngine>::new(project, module);
     let completions = repl_reader::Completions::default();
     update_completions(&repl, &completions);
     let reader = repl_reader::ReplReader::new(completions.clone())
@@ -264,10 +264,8 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
             }
             continue;
         }
-        match repl.run(&input) {
-            Err(err) => show_error(&err),
-            Ok(ReplOutput::Quit) => break,
-            _ => {}
+        if matches!(repl.run(&input), ReplOutput::Quit) {
+            break;
         }
         update_completions(&repl, &completions);
     }

@@ -5,7 +5,7 @@ use gleam_core::{
     Error,
     ast::{
         AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, Statement,
-        TargetedDefinition, UntypedConstant, UntypedPattern, UntypedStatement,
+        UntypedConstant, UntypedPattern, UntypedStatement,
     },
     build::Module,
     diagnostic::Diagnostic,
@@ -16,11 +16,9 @@ use gleam_core::{
     warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
-use vec1::Vec1;
 
 use crate::{
     engine::{Engine, MainFunction},
-    error::SgleamError,
     gleam::{Project, get_definition_src, is_repl_noise, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
@@ -79,6 +77,50 @@ impl NameEntry {
     }
 }
 
+/// What an input asks for. Anything that is none of the repl's own commands is
+/// Gleam source to run.
+enum Command<'a> {
+    Quit,
+    Debug,
+    /// The type of an expression, which is not evaluated.
+    Type(&'a str),
+    /// An expression, and how long evaluating it takes.
+    Time(&'a str),
+    Source(&'a str),
+}
+
+impl<'a> Command<'a> {
+    fn parse(input: &'a str) -> Command<'a> {
+        let trimmed = input.trim();
+        if trimmed == QUIT {
+            Command::Quit
+        } else if trimmed == DEBUG {
+            Command::Debug
+        } else if let Some(expr) = trimmed.strip_prefix(TYPE) {
+            Command::Type(expr)
+        } else if let Some(expr) = trimmed.strip_prefix(TIME) {
+            Command::Time(expr)
+        } else {
+            // Not trimmed: the spans of the parsed input index this string.
+            Command::Source(input)
+        }
+    }
+}
+
+/// Why an input did not run.
+enum InputError {
+    /// What the compiler said about it.
+    Compile(Error),
+    /// A rule of the repl it broke, in the words the student reads.
+    Repl(String),
+}
+
+impl From<Error> for InputError {
+    fn from(error: Error) -> InputError {
+        InputError::Compile(error)
+    }
+}
+
 /// A definition of the input being run that goes to a module of its own,
 /// instead of being re-emitted into every module generated later.
 struct Def {
@@ -118,7 +160,10 @@ pub struct Repl<E: Engine> {
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
-    iter: (usize, usize),
+    // The input being run and the item of it being run, which name the module
+    // they are compiled into.
+    input: usize,
+    item: usize,
     var_index: usize,
     debug: bool,
     had_runtime_error: bool,
@@ -140,7 +185,7 @@ pub enum ReplOutput {
 }
 
 impl<E: Engine> Repl<E> {
-    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
+    pub fn new(project: Project, user_module: Option<&Module>) -> Repl<E> {
         let fs = project.fs.clone();
         let suffix = format!(
             "{:08x}",
@@ -160,7 +205,8 @@ impl<E: Engine> Repl<E> {
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
             engine: E::new(fs),
-            iter: (0, 0),
+            input: 0,
+            item: 0,
             var_index: 0,
             debug: false,
             had_runtime_error: false,
@@ -177,7 +223,7 @@ impl<E: Engine> Repl<E> {
         // available before the first input.
         repl.skip_taken_names();
         let _ = repl.run_check();
-        Ok(repl)
+        repl
     }
 
     /// Seeds the project module's public names one by one, instead of a single
@@ -230,107 +276,99 @@ impl<E: Engine> Repl<E> {
         result
     }
 
-    pub fn run(&mut self, mut input: &str) -> Result<ReplOutput, SgleamError> {
+    pub fn run(&mut self, input: &str) -> ReplOutput {
         self.had_runtime_error = false;
         self.user_text = None;
         // Kept past the end of the run below, to relocate an error, so it is
         // this run that has to drop what the previous one left.
         self.def_srcs.clear();
-        self.iter = (self.iter.0 + 1, 0);
+
+        match Command::parse(input) {
+            Command::Quit => ReplOutput::Quit,
+            Command::Debug => {
+                self.debug = !self.debug;
+                println!("Debug mode {}.", if self.debug { "on" } else { "off" });
+                ReplOutput::StdOut
+            }
+            Command::Type(expr) => self.guarded(|repl| repl.run_type_cmd(expr)),
+            Command::Time(expr) => self.guarded(|repl| repl.run_time_cmd(expr)),
+            Command::Source(src) => self.guarded(|repl| repl.run_source(src)),
+        }
+    }
+
+    /// Runs the input, undoing everything it did if it fails: an input goes in
+    /// whole or not at all.
+    fn guarded(&mut self, run: impl FnOnce(&mut Self) -> Result<(), InputError>) -> ReplOutput {
+        // A failed input still spends its number: a module name is never
+        // reused, as the engine holds the module it loaded under it.
+        self.input += 1;
+        self.item = 0;
         self.skip_taken_names();
-        let line_trim = input.trim();
-
-        if line_trim == QUIT {
-            return Ok(ReplOutput::Quit);
-        }
-
-        if line_trim == DEBUG {
-            self.debug = !self.debug;
-            println!("Debug mode {}.", if self.debug { "on" } else { "off" });
-            return Ok(ReplOutput::StdOut);
-        }
-
-        let mut is_type = false;
-        let mut is_time = false;
-        if let Some(expr) = line_trim.strip_prefix(TYPE) {
-            input = expr;
-            is_type = true;
-        } else if let Some(expr) = line_trim.strip_prefix(TIME) {
-            input = expr;
-            is_time = true;
-        }
-
-        // The input is parsed on its own, so the error already points at it.
-        let items = parser::parse_repl(input).map_err(|error| Error::Parse {
-            path: "<repl>".into(),
-            src: input.into(),
-            error: error.into(),
-        })?;
-
-        if (is_type || is_time) && items.len() != 1 {
-            let cmd = if is_type { TYPE } else { TIME };
-            println!("{cmd}command expects exactly one expression.");
-            return Ok(ReplOutput::StdOut);
-        }
-
-        let defs = if is_type || is_time {
-            vec![]
-        } else {
-            defs(&items, input)
-        };
-        // Checked before anything runs, as the definitions of the input are
-        // compiled together and the input either goes in whole or not at all.
-        if let Some(reason) = self.const_refusal(&items) {
-            println!("{reason}");
-            return Ok(ReplOutput::StdOut);
-        }
-
-        // Snapshot for rollback: if any item fails, all changes from this
-        // input are reverted. The clone is cheap — engine and project use
-        // reference counting internally (Rc), so only the HashMaps are copied.
+        // The snapshot is cheap — engine and project use reference counting
+        // internally (Rc), so only the maps are copied.
         let snapshot = (*self).clone();
+
+        match run(self) {
+            Err(error) => {
+                // Shown before the state goes back, as placing a diagnostic on
+                // the input reads what the input was compiled from.
+                match &error {
+                    InputError::Compile(error) => self.show_gleam_error(error),
+                    InputError::Repl(message) => println!("{message}"),
+                }
+                *self = snapshot;
+                ReplOutput::Error
+            }
+            Ok(()) if self.had_runtime_error => ReplOutput::Error,
+            Ok(()) => ReplOutput::StdOut,
+        }
+    }
+
+    /// The definitions and the statements of an input, in the order it writes
+    /// them.
+    fn run_source(&mut self, src: &str) -> Result<(), InputError> {
+        let items = parse(src)?;
+        // Checked before anything runs, as the definitions of the input are
+        // compiled together.
+        if let Some(reason) = self.const_refusal(&items) {
+            return Err(InputError::Repl(reason));
+        }
 
         // The definitions go in first, together in a module of their own, so
         // they can reference each other and the items below only have to
         // import them.
-        if !defs.is_empty()
-            && let Err(err) = self.run_defs(&defs)
-        {
-            return Ok(self.rollback(snapshot, &err));
+        let defs = defs(&items, src);
+        if !defs.is_empty() {
+            self.run_defs(&defs)?;
         }
 
         for item in items {
-            self.iter.1 += 1;
-            let result = match item {
-                ReplItem::ReplDefinition(_) if is_type || is_time => {
-                    let cmd = if is_type { TYPE } else { TIME };
-                    println!("{cmd}command cannot be used with definitions.");
-                    continue;
+            self.item += 1;
+            match item {
+                // Everything but an import is already compiled and bound by
+                // `run_defs`.
+                ReplItem::ReplDefinition(targeted) => {
+                    if let Definition::Import(import) = &targeted.definition {
+                        self.user_text = Some(get_definition_src(&targeted.definition, src).into());
+                        self.run_import(import)?;
+                    }
                 }
-                ReplItem::ReplDefinition(t) => self.run_definition(t, input),
-                ReplItem::ReplStatement(_) if is_type => self.run_type_cmd(input),
-                ReplItem::ReplStatement(_) if is_time => self.run_time_cmd(input),
-                ReplItem::ReplStatement(s) => self.run_statement(s, input),
-            };
-
-            if let Err(err) = result {
-                return Ok(self.rollback(snapshot, &err));
+                ReplItem::ReplStatement(statement) => self.run_statement(statement, src)?,
             }
         }
 
-        if self.had_runtime_error {
-            Ok(ReplOutput::Error)
-        } else {
-            Ok(ReplOutput::StdOut)
-        }
+        Ok(())
     }
 
     // --- Source generation ---
 
-    /// The modules in scope and the names taken from them, `skip` aside, which
-    /// are the names the generated module defines itself.
-    fn build_imports(&self, skip: &[String]) -> String {
-        let mut src = String::new();
+    /// Everything the input has in scope, as source: the externals, the modules
+    /// in scope and the names taken from them, `skip` aside, which are the names
+    /// the generated module defines itself. Every name, a saved value included,
+    /// comes in by import — no annotation is written here, so nothing a later
+    /// input redefines can change what this module reads.
+    fn build_source(&self, skip: &[String]) -> String {
+        let mut src = self.build_externals();
         for (name, path) in &self.modules {
             // A redundant alias would keep the line from being a
             // verbatim copy of the input, blocking relocation.
@@ -378,25 +416,15 @@ impl<E: Engine> Repl<E> {
         "#}
     }
 
-    /// Everything the input has in scope, as source: the externals and the
-    /// imports. Every name, a saved value included, comes in by import — no
-    /// annotation is written here, so nothing a later input redefines can
-    /// change what this module reads.
-    fn build_source(&self) -> String {
-        let mut src = self.build_externals();
-        src.push_str(&self.build_imports(&[]));
-        src
-    }
-
     // --- Compilation helpers ---
 
     /// The definitions of an input take the plain name, as the user reads it
     /// back in the type of a value the input that redefined the name left
     /// behind.
     fn module_name(&self) -> String {
-        match self.iter {
-            (input, 0) => format!("repl{input}"),
-            (input, item) => format!("repl{input}_{item}"),
+        match self.item {
+            0 => format!("repl{}", self.input),
+            item => format!("repl{}_{item}", self.input),
         }
     }
 
@@ -426,12 +454,12 @@ impl<E: Engine> Repl<E> {
     /// is a plausible file name, and the module written over it would be lost.
     fn skip_taken_names(&mut self) {
         while self.name_taken() {
-            self.iter.0 += 1;
+            self.input += 1;
         }
     }
 
     fn name_taken(&self) -> bool {
-        let name = format!("repl{}", self.iter.0);
+        let name = format!("repl{}", self.input);
         let prefix = format!("{name}_");
         self.project.fs.files().iter().any(|path| {
             path.parent() == Some(Project::source())
@@ -441,7 +469,7 @@ impl<E: Engine> Repl<E> {
         })
     }
 
-    fn compile(&mut self, module_name: &str, code: &str) -> Result<Vec1<Module>, Error> {
+    fn compile(&mut self, module_name: &str, code: &str) -> Result<Module, Error> {
         let mut files = vec![];
         // The module the values of the last item were saved into goes in here,
         // and not in a pass of its own: one pass compiles both, so a `let`
@@ -497,35 +525,20 @@ impl<E: Engine> Repl<E> {
             .position(|module| module.name == module_name)
             .expect("The repl module");
 
-        let mut modules1 = Vec1::new(modules.swap_remove(pos));
-        modules1.extend(modules);
-
-        Ok(modules1)
+        Ok(modules.swap_remove(pos))
     }
 
     /// Compile source with a `repl_main` body appended.
     fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
-        let mut src = self.build_source();
+        let mut src = self.build_source(&[]);
         let repl_main = &self.repl_main;
         swrite!(src, "pub fn {repl_main}() {{\n{body}\n}}\n");
         let module = self.module_name();
-        Ok(self.compile(&module, &src)?.split_off_first().0)
+        self.compile(&module, &src)
     }
 
     fn show_gleam_error(&self, err: &Error) {
         self.show_diagnostics(err.to_diagnostics(), true);
-    }
-
-    /// Reverts what the input did and shows `err`, keeping what it takes to
-    /// place the error back on the input.
-    fn rollback(&mut self, snapshot: Self, err: &Error) -> ReplOutput {
-        let user_text = self.user_text.take();
-        let def_srcs = std::mem::take(&mut self.def_srcs);
-        *self = snapshot;
-        self.user_text = user_text;
-        self.def_srcs = def_srcs;
-        self.show_gleam_error(err);
-        ReplOutput::Error
     }
 
     /// Print diagnostics relocated to the user's input. `drop_unrelocated`
@@ -620,7 +633,7 @@ impl<E: Engine> Repl<E> {
 
     /// Compile without a `repl_main` (for checking definitions only).
     fn run_check(&mut self) -> Result<(), Error> {
-        let (module, src) = (self.module_name(), self.build_source());
+        let (module, src) = (self.module_name(), self.build_source(&[]));
         self.compile(&module, &src).map(|_| ())
     }
 
@@ -631,13 +644,10 @@ impl<E: Engine> Repl<E> {
     /// where its names mean something else. It is compiled by the next input,
     /// which is the first one that can read it.
     fn queue_vals_module(&mut self, bound: &[(String, String, usize)]) {
-        let (input, item) = self.iter;
-        let module = format!("repl{input}_{item}_vals");
+        let module = format!("repl{}_{}_vals", self.input, self.item);
         let load = self.repl_load.clone();
-        let mut src = self.build_externals();
-
         let names: Vec<String> = bound.iter().map(|(name, ..)| name.clone()).collect();
-        src.push_str(&self.build_imports(&names));
+        let mut src = self.build_source(&names);
         // An annotation names the module of a type whose plain name a later
         // input took over, and that module is imported by no other line.
         for def_module in &self.def_modules {
@@ -664,26 +674,14 @@ impl<E: Engine> Repl<E> {
 
     // --- Item handlers ---
 
-    fn run_definition(&mut self, targeted: TargetedDefinition, src: &str) -> Result<(), Error> {
-        match &targeted.definition {
-            Definition::Import(import) => {
-                self.user_text = Some(get_definition_src(&targeted.definition, src).into());
-                self.run_import(import)
-            }
-            // Already compiled and bound by `run_defs`.
-            _ => Ok(()),
-        }
-    }
-
-    fn run_statement(&mut self, statement: UntypedStatement, src: &str) -> Result<(), Error> {
+    fn run_statement(&mut self, statement: UntypedStatement, src: &str) -> Result<(), InputError> {
         let start = statement.location().start as usize;
         let end = statement.location().end as usize;
 
         match statement {
-            Statement::Use(_) => {
-                println!("use statements are not supported outside blocks.");
-                Ok(())
-            }
+            Statement::Use(_) => Err(InputError::Repl(
+                "use statements are not supported outside blocks.".into(),
+            )),
             Statement::Expression(_) => self.run_expr(&src[start..end]),
             Statement::Assignment(a) => {
                 let mut names = vec![];
@@ -705,15 +703,13 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    fn run_expr(&mut self, expr: &str) -> Result<(), Error> {
-        let print = &self.repl_print;
-        let body = format!("{print}({{\n{expr}\n}})");
-        self.user_text = Some(expr.into());
-        self.compile_and_run(&body)?;
+    fn run_expr(&mut self, expr: &str) -> Result<(), InputError> {
+        let module = self.compile_expr(expr)?;
+        self.run_repl_main(&module);
         Ok(())
     }
 
-    fn run_assert(&mut self, code: &str) -> Result<(), Error> {
+    fn run_assert(&mut self, code: &str) -> Result<(), InputError> {
         self.user_text = Some(code.into());
         self.compile_and_run(code)?;
         Ok(())
@@ -724,7 +720,7 @@ impl<E: Engine> Repl<E> {
         pattern: &str,
         value: &str,
         names: &[String],
-    ) -> Result<(), Error> {
+    ) -> Result<(), InputError> {
         let joined_names = names.join(", ");
         let (save, print) = (&self.repl_save, &self.repl_print);
         // Discarded through `let _` so saving a `Result` does not warn about an
@@ -751,68 +747,65 @@ impl<E: Engine> Repl<E> {
         self.engine.truncate_vars(self.var_index);
         let module = self.compile_and_run(&body)?;
 
-        if self.engine.has_var(self.var_index) {
-            let main = get_function(&module, &self.repl_main).expect("repl main function");
-            let types = main.return_type.tuple_types().unwrap();
-            assert_eq!(types.len(), names.len());
-            let bound: Vec<_> = names
-                .iter()
-                .zip(&types)
-                .enumerate()
-                .map(|(i, (name, type_))| {
-                    (
-                        name.clone(),
-                        type_to_string(&module, type_),
-                        self.var_index + i,
-                    )
-                })
-                .collect();
-            self.var_index += names.len();
-            self.queue_vals_module(&bound);
-        } else {
-            // there was an error and the variable was not saved
+        if !self.engine.has_var(self.var_index) {
+            // The value raised before being saved, so there is nothing to bind.
+            return Ok(());
         }
+
+        let main = get_function(&module, &self.repl_main).expect("repl main function");
+        let types = main.return_type.tuple_types().unwrap();
+        assert_eq!(types.len(), names.len());
+        let bound: Vec<_> = names
+            .iter()
+            .zip(&types)
+            .enumerate()
+            .map(|(i, (name, type_))| {
+                (
+                    name.clone(),
+                    type_to_string(&module, type_),
+                    self.var_index + i,
+                )
+            })
+            .collect();
+        self.var_index += names.len();
+        self.queue_vals_module(&bound);
 
         Ok(())
     }
 
-    fn run_type_cmd(&mut self, code: &str) -> Result<(), Error> {
+    /// Compiles one expression, printed when it runs.
+    fn compile_expr(&mut self, expr: &str) -> Result<Module, Error> {
         let print = &self.repl_print;
-        let body = format!("{print}({{\n{code}\n}})");
-        self.user_text = Some(code.into());
-        let module = self.compile_main(&body)?;
-        let main = &get_function(&module, &self.repl_main).expect("repl main function");
+        let body = format!("{print}({{\n{expr}\n}})");
+        self.user_text = Some(expr.into());
+        self.compile_main(&body)
+    }
+
+    /// The one expression `:type` and `:time` take.
+    fn command_expr(&mut self, cmd: &str, input: &str) -> Result<Module, InputError> {
+        let refuse = |reason: &str| Err(InputError::Repl(format!("{cmd}command {reason}")));
+        match parse(input)?.as_slice() {
+            [ReplItem::ReplStatement(_)] => {}
+            [ReplItem::ReplDefinition(_)] => return refuse("cannot be used with definitions."),
+            _ => return refuse("expects exactly one expression."),
+        }
+        Ok(self.compile_expr(input)?)
+    }
+
+    fn run_type_cmd(&mut self, input: &str) -> Result<(), InputError> {
+        let module = self.command_expr(TYPE, input)?;
+        let main = get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
     }
-    fn run_time_cmd(&mut self, code: &str) -> Result<(), Error> {
-        let print = &self.repl_print;
-        let body = format!("{print}({{\n{code}\n}})");
-        self.user_text = Some(code.into());
-        let module = self.compile_main(&body)?;
 
+    fn run_time_cmd(&mut self, input: &str) -> Result<(), InputError> {
+        let module = self.command_expr(TIME, input)?;
         let start = std::time::Instant::now();
-        let res = self.engine.run_main(
-            &module.name,
-            MainFunction::ReplMain(self.repl_main.clone()),
-            false,
-        );
+        self.run_repl_main(&module);
         let elapsed = start.elapsed();
-
-        if let Err(err) = res {
-            crate::error::show_error(&err);
-            self.had_runtime_error = true;
-        } else {
-            let time_str = if elapsed.as_secs() > 0 {
-                format!("{:.2} s", elapsed.as_secs_f64())
-            } else if elapsed.as_millis() > 0 {
-                format!("{} ms", elapsed.as_millis())
-            } else if elapsed.as_micros() > 0 {
-                format!("{} µs", elapsed.as_micros())
-            } else {
-                format!("{} ns", elapsed.as_nanos())
-            };
-            println!("Time: {time_str}");
+        if !self.had_runtime_error {
+            println!("Time: {}", format_duration(elapsed));
         }
         Ok(())
     }
@@ -888,8 +881,7 @@ impl<E: Engine> Repl<E> {
     fn run_defs(&mut self, defs: &[Def]) -> Result<(), Error> {
         let defined: Vec<String> = defs.iter().flat_map(Def::names).cloned().collect();
 
-        let mut src = self.build_externals();
-        src.push_str(&self.build_imports(&defined));
+        let mut src = self.build_source(&defined);
         for def in defs {
             // Auto-pub, as the module it lands in is not the one that reads it.
             if def.src.starts_with("pub ") {
@@ -915,6 +907,27 @@ impl<E: Engine> Repl<E> {
         }
         self.def_modules.push(module);
         Ok(())
+    }
+}
+
+/// The items of an input. Parsed on its own, so the error already points at it.
+fn parse(input: &str) -> Result<Vec<ReplItem>, Error> {
+    parser::parse_repl(input).map_err(|error| Error::Parse {
+        path: "<repl>".into(),
+        src: input.into(),
+        error: error.into(),
+    })
+}
+
+fn format_duration(elapsed: std::time::Duration) -> String {
+    if elapsed.as_secs() > 0 {
+        format!("{:.2} s", elapsed.as_secs_f64())
+    } else if elapsed.as_millis() > 0 {
+        format!("{} ms", elapsed.as_millis())
+    } else if elapsed.as_micros() > 0 {
+        format!("{} µs", elapsed.as_micros())
+    } else {
+        format!("{} ns", elapsed.as_nanos())
     }
 }
 

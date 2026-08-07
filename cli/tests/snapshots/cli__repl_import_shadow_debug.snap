@@ -3,7 +3,7 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&out)
 ---
 Debug mode on.
---- repl2_1.gleam ---
+--- repl1_1.gleam ---
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
 pub fn repl_save_XXXXXXXX(value: a) -> a
 
@@ -15,7 +15,7 @@ pub fn repl_print_XXXXXXXX(value: a) -> a
 
 import sgleam/io
 ---
---- repl2_1.mjs ---
+--- repl1_1.mjs ---
 import * as $io from "./sgleam/io.mjs";
 import {
   repl_save as repl_save_XXXXXXXX,
@@ -25,7 +25,7 @@ import {
 
 export { repl_load_XXXXXXXX, repl_print_XXXXXXXX, repl_save_XXXXXXXX };
 ---
---- repl3_1.gleam ---
+--- repl2_1.gleam ---
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
 pub fn repl_save_XXXXXXXX(value: a) -> a
 
@@ -41,7 +41,7 @@ pub fn repl_main_XXXXXXXX() {
   repl_print_XXXXXXXX({ io.input("") <> "ok" })
 }
 ---
---- repl3_1.mjs ---
+--- repl2_1.mjs ---
 import * as $io from "./sgleam/io.mjs";
 import {
   repl_save as repl_save_XXXXXXXX,

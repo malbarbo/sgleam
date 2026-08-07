@@ -119,7 +119,7 @@ fn run_image_captured(path: &str) -> (String, String) {
 // --- Completion tests ---
 
 fn new_repl() -> Repl<QuickJsEngine> {
-    Repl::new(Project::default(), None).expect("create repl")
+    Repl::new(Project::default(), None)
 }
 
 fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
@@ -127,7 +127,7 @@ fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
     project.write_source("user.gleam", source);
     let modules = project.compile(true).expect("compile user module");
     let module = get_module(&modules, "user");
-    Repl::new(project, module).expect("create repl")
+    Repl::new(project, module)
 }
 
 fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String> {
@@ -149,8 +149,8 @@ fn completion_no_module_before_import() {
 fn completion_qualified_names() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/int").unwrap();
-        repl.run("import gleam/option").unwrap();
+        repl.run("import gleam/int");
+        repl.run("import gleam/option");
     });
     let c = completions_matching(&repl, "int.");
     assert!(c.contains(&"int.to_string".to_string()));
@@ -165,7 +165,7 @@ fn completion_qualified_names() {
 fn completion_after_let() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("let my_var = 42").unwrap();
+        repl.run("let my_var = 42");
     });
     let c = completions_matching(&repl, "my_");
     assert_eq!(c, vec!["my_var"]);
@@ -175,7 +175,7 @@ fn completion_after_let() {
 fn completion_after_fn() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("fn my_func(x) { x + 1 }").unwrap();
+        repl.run("fn my_func(x) { x + 1 }");
     });
     let c = completions_matching(&repl, "my_");
     assert_eq!(c, vec!["my_func"]);
@@ -185,7 +185,7 @@ fn completion_after_fn() {
 fn completion_after_import_alias() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/int as i").unwrap();
+        repl.run("import gleam/int as i");
     });
     // "i" alias should have qualified completions
     let c = completions_matching(&repl, "i.");
@@ -200,7 +200,7 @@ fn completion_after_import_new_module() {
     let mut repl = new_repl();
     assert!(completions_matching(&repl, "io.input").is_empty());
     capture_output(|| {
-        repl.run("import sgleam/io").unwrap();
+        repl.run("import sgleam/io");
     });
     // After importing, io now points to sgleam/io, and io.input should be available
     let c = completions_matching(&repl, "io.input");
@@ -214,7 +214,7 @@ fn completion_after_import_new_module() {
 fn completion_after_import_unqualified() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/int.{to_string}").unwrap();
+        repl.run("import gleam/int.{to_string}");
     });
     let c = completions_matching(&repl, "to_string");
     assert_eq!(c, vec!["to_string"]);
@@ -224,8 +224,8 @@ fn completion_after_import_unqualified() {
 fn completion_fn_with_module_name() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/io").unwrap();
-        repl.run("fn io() { 1 }").unwrap();
+        repl.run("import gleam/io");
+        repl.run("fn io() { 1 }");
     });
     // The module keeps its own namespace, so both stay available.
     let c = completions_matching(&repl, "io.");

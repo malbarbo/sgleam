@@ -1122,7 +1122,7 @@ fn repl_debug() {
     );
     // Debug on: output contains the generated code and the result
     assert!(
-        out.contains("--- repl2_1.gleam ---"),
+        out.contains("--- repl1_1.gleam ---"),
         "expected generated code header"
     );
     assert!(
@@ -1132,7 +1132,7 @@ fn repl_debug() {
     assert!(out.contains("1"), "expected result");
     // Debug off: output contains only the result
     assert!(
-        !out.contains("repl4_1.gleam"),
+        !out.contains("repl2_1.gleam"),
         "expected no generated code after :debug off"
     );
     assert!(out.contains("2"), "expected result");
