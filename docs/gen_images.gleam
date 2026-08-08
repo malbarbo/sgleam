@@ -39,7 +39,7 @@ pub fn main() {
 
   // text
   tag("text")
-  io.println(image.to_svg(image.text("Olá!", 24, fill.black)))
+  io.println(image.to_svg(image.text("Hello!", 24, fill.black)))
 
   // style_join
   tag("style_join")
