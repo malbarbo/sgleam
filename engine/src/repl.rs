@@ -121,6 +121,9 @@ impl From<Error> for InputError {
     }
 }
 
+/// The input stopped, and whatever stopped it is already on the screen.
+struct Bail;
+
 /// A definition of the input being run that goes to a module of its own,
 /// instead of being re-emitted into every module generated later.
 struct Def {
@@ -293,39 +296,39 @@ impl<E: Engine> Repl<E> {
                 println!("Debug mode {}.", if self.debug { "on" } else { "off" });
                 ReplOutput::StdOut
             }
-            Command::Type(expr) => {
-                self.run_input(|repl| repl.run_item(|repl| repl.run_type_cmd(expr)))
-            }
-            Command::Time(expr) => {
-                self.run_input(|repl| repl.run_item(|repl| repl.run_time_cmd(expr)))
-            }
+            Command::Type(expr) => self.run_input(|repl| repl.guarded(|r| r.run_type_cmd(expr))),
+            Command::Time(expr) => self.run_input(|repl| repl.guarded(|r| r.run_time_cmd(expr))),
             Command::Source(src) => self.run_input(|repl| repl.run_source(src)),
         }
     }
 
     /// Numbers the input and reports how it ended.
-    fn run_input(&mut self, run: impl FnOnce(&mut Self) -> bool) -> ReplOutput {
+    fn run_input(&mut self, run: impl FnOnce(&mut Self) -> Result<(), Bail>) -> ReplOutput {
         // A failed input still spends its number: a module name is never
         // reused, as the engine holds the module it loaded under it.
         self.input += 1;
         self.item = 0;
         self.skip_taken_names();
 
-        if run(self) || self.had_runtime_error {
+        if run(self).is_err() || self.had_runtime_error {
             ReplOutput::Error
         } else {
             ReplOutput::StdOut
         }
     }
 
-    /// Runs one item, undoing it if it does not go in: only an item that never
-    /// ran leaves nothing behind. Says whether it failed.
-    fn run_item(&mut self, run: impl FnOnce(&mut Self) -> Result<(), InputError>) -> bool {
+    /// Runs one unit of the input — its definitions, or one of its items —
+    /// undoing it if it does not go in: only a unit that never ran leaves
+    /// nothing behind.
+    fn guarded(
+        &mut self,
+        run: impl FnOnce(&mut Self) -> Result<(), InputError>,
+    ) -> Result<(), Bail> {
         // The snapshot is cheap — engine and project use reference counting
         // internally (Rc), so only the maps are copied.
         let snapshot = (*self).clone();
         let Err(error) = run(self) else {
-            return false;
+            return Ok(());
         };
         // Shown before the state goes back, as placing a diagnostic on the
         // input reads what the input was compiled from.
@@ -334,19 +337,19 @@ impl<E: Engine> Repl<E> {
             InputError::Repl(message) => println!("{message}"),
         }
         *self = snapshot;
-        true
+        Err(Bail)
     }
 
     /// The definitions and the statements of an input, in the order it writes
     /// them. It stops at the first failure: what is below was written expecting
     /// what is above to have worked.
-    fn run_source(&mut self, src: &str) -> bool {
+    fn run_source(&mut self, src: &str) -> Result<(), Bail> {
         let mut items = Vec::new();
         // The definitions go in first, together in a module of their own, so
         // they can reference each other and the items below only have to import
         // them — the one unit that goes in whole or not at all, which costs
         // nothing before anything has run.
-        if self.run_item(|repl| {
+        self.guarded(|repl| {
             items = parse(src)?;
             if let Some(reason) = repl.const_refusal(&items) {
                 return Err(InputError::Repl(reason));
@@ -356,13 +359,11 @@ impl<E: Engine> Repl<E> {
                 repl.run_defs(&defs)?;
             }
             Ok(())
-        }) {
-            return true;
-        }
+        })?;
 
         for item in items {
             self.item += 1;
-            let failed = self.run_item(|repl| match item {
+            self.guarded(|repl| match item {
                 // Everything but an import is already compiled and bound by
                 // `run_defs`.
                 ReplItem::ReplDefinition(targeted) => {
@@ -373,15 +374,15 @@ impl<E: Engine> Repl<E> {
                     Ok(())
                 }
                 ReplItem::ReplStatement(statement) => repl.run_statement(statement, src),
-            });
+            })?;
             // What an item that raised did stays: its output is on the screen
             // either way.
-            if failed || self.had_runtime_error {
-                return true;
+            if self.had_runtime_error {
+                return Err(Bail);
             }
         }
 
-        false
+        Ok(())
     }
 
     // --- Source generation ---
