@@ -95,7 +95,7 @@ Todas as funções que recebem dimensões possuem duas versões:
 ## Texto
 
 ```gleam
-image.text("Olá!", 24, fill.black)
+image.text("Hello!", 24, fill.black)
 ```
 
 ![](img:text)
