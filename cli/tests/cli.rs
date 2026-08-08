@@ -1,5 +1,5 @@
 use engine::repl::{QUIT, TIME, TYPE, welcome_message};
-use indoc::formatdoc;
+use indoc::{formatdoc, indoc};
 use insta::assert_snapshot;
 
 /// Strip the random 8-hex suffix from internal REPL names so snapshot tests
@@ -668,6 +668,95 @@ fn repl_fn_redefine_keeps_the_old() {
         }),
         "True"
     );
+}
+
+// What follows are the transcripts of docs/repl-redefinition.md, written as
+// the doc writes them: what changes here has to change there.
+
+#[test]
+fn doc_a_value_outlives_the_type_it_holds() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type T {{ A B }}
+            let x = A
+            type T {{ C }}
+            {TYPE}x"
+        }),
+        "A\nrepl1.T"
+    );
+}
+
+#[test]
+fn doc_the_old_and_the_new_do_not_mix() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {"
+            type T {{ A B }}
+            let x = A
+            type T {{ C }}
+            fn f(v: T) {{ v }}
+            f(x)"
+        }),
+    );
+    assert!(
+        err.contains(indoc! {"
+            Expected type:
+
+                T
+
+            Found type:
+
+                repl1.T"
+        }),
+        "{err}"
+    );
+}
+
+#[test]
+fn doc_a_redefinition_does_not_reach_back() {
+    // A value read by an earlier function.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 1
+            fn f(y) {{ x + y }}
+            let x = 100
+            f(1)"
+        }),
+        "1\n100\n2"
+    );
+    // A function called by an earlier function.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g(n) {{ n + 1 }}
+            fn h(n) {{ g(n) * 10 }}
+            fn g(n) {{ n + 100 }}
+            h(1)"
+        }),
+        "20"
+    );
+}
+
+#[test]
+fn doc_mutual_recursion_across_inputs_is_unbound() {
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some("fn even(n) { case n { 0 -> True _ -> odd(n - 1) } }"),
+    );
+    assert!(
+        err.contains("The name `odd` is not in scope here."),
+        "{err}"
+    );
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("type A { MkA(B) }"));
+    assert!(err.contains("Unknown type"), "{err}");
+}
+
+#[test]
+fn doc_a_fn_cannot_read_a_let_of_its_own_input() {
+    // And the `let` does not bind: the definitions fail as one, before the
+    // items of the input run.
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 fn f() { x }\nx"));
+    assert_eq!(out, "");
+    assert_eq!(err.matches("is not in scope").count(), 2, "got: {err}");
 }
 
 // The types of an input are compiled together, in a module of their own, so an
