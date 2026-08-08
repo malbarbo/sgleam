@@ -1,4 +1,4 @@
-use engine::repl::{QUIT, TYPE, welcome_message};
+use engine::repl::{QUIT, TIME, TYPE, welcome_message};
 use indoc::formatdoc;
 use insta::assert_snapshot;
 
@@ -425,17 +425,35 @@ fn repl_let_string_prefix_pattern() {
 }
 
 #[test]
-fn repl_rollback() {
-    // When the second item in the same input fails, the first is rolled back
-    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 let y = x + \"a\"\nx"));
-    assert!(
-        err.contains("Type mismatch"),
-        "expected type error for y, got: {err}"
+fn repl_input_stops_at_the_first_error() {
+    // The item that failed leaves nothing behind and stops the ones below it,
+    // but what already ran stays: the value of `x` is on the screen.
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            let x = 1 let y = x + "a" let z = 3
+            x
+            y
+            z"#
+        }),
     );
-    assert!(
-        err.contains("is not in scope"),
-        "x should be rolled back, got: {err}"
+    assert_eq!(out, "1\n1\n");
+    assert_eq!(err.matches("Type mismatch").count(), 1, "got: {err}");
+    assert_eq!(err.matches("is not in scope").count(), 2, "got: {err}");
+}
+
+#[test]
+fn repl_input_stops_at_a_runtime_error() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            let a = 1 panic as "boom" let b = 2
+            a
+            b"#
+        }),
     );
+    assert_eq!(out, "1\nError: boom\n1\n");
+    assert!(err.contains("`b` is not in scope"), "got: {err}");
 }
 
 #[test]
@@ -1183,6 +1201,31 @@ fn repl_type_cmd_def() {
 }
 
 #[test]
+fn repl_time_cmd() {
+    // A `let` is an expression, so `:time` takes it — and it binds, as it ran.
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} let x = 10\nx")));
+    let lines: Vec<_> = out.lines().collect();
+    assert_eq!(lines[0], "10");
+    assert!(lines[1].starts_with("Time: "), "got: {out}");
+    assert_eq!(lines[2], "10");
+}
+
+#[test]
+fn repl_time_cmd_error() {
+    // Nothing to report: it did not finish.
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} panic as \"boom\"")));
+    assert_eq!(out, "Error: boom\n");
+}
+
+#[test]
+fn repl_time_cmd_def() {
+    assert_eq!(
+        repl_exec(&format!("{TIME} const a = 1")),
+        format!("{TIME}command cannot be used with definitions.")
+    );
+}
+
+#[test]
 fn repl_type_module() {
     assert_eq!(
         repl_exec(&format!(
@@ -1556,7 +1599,7 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
         // spurious diffs between backends.
         let normalize = |s: &str| {
             let s = strip_repl_suffix(s);
-            normalize_warning_locations(&s)
+            normalize_durations(&normalize_warning_locations(&s))
         };
         assert_eq!(
             normalize(&native.0),
@@ -1624,6 +1667,23 @@ fn normalize_warning_locations(s: &str) -> String {
         joined.push('\n');
     }
     joined
+}
+
+/// `:time` reports a measurement, which no two runs agree on.
+#[cfg(feature = "wasm-backend")]
+fn normalize_durations(s: &str) -> String {
+    let mut result = String::with_capacity(s.len());
+    for line in s.split_inclusive('\n') {
+        if line.starts_with("Time: ") {
+            result.push_str("Time: N");
+            if line.ends_with('\n') {
+                result.push('\n');
+            }
+        } else {
+            result.push_str(line);
+        }
+    }
+    result
 }
 
 #[allow(dead_code)]

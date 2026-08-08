@@ -167,6 +167,8 @@ pub struct Repl<E: Engine> {
     var_index: usize,
     debug: bool,
     had_runtime_error: bool,
+    // What `:time` reports.
+    elapsed: std::time::Duration,
     // Copied verbatim into the generated module, so diagnostics can be moved
     // back to it.
     user_text: Option<String>,
@@ -210,6 +212,7 @@ impl<E: Engine> Repl<E> {
             var_index: 0,
             debug: false,
             had_runtime_error: false,
+            elapsed: std::time::Duration::ZERO,
             user_text: None,
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
@@ -290,74 +293,95 @@ impl<E: Engine> Repl<E> {
                 println!("Debug mode {}.", if self.debug { "on" } else { "off" });
                 ReplOutput::StdOut
             }
-            Command::Type(expr) => self.guarded(|repl| repl.run_type_cmd(expr)),
-            Command::Time(expr) => self.guarded(|repl| repl.run_time_cmd(expr)),
-            Command::Source(src) => self.guarded(|repl| repl.run_source(src)),
+            Command::Type(expr) => {
+                self.run_input(|repl| repl.run_item(|repl| repl.run_type_cmd(expr)))
+            }
+            Command::Time(expr) => {
+                self.run_input(|repl| repl.run_item(|repl| repl.run_time_cmd(expr)))
+            }
+            Command::Source(src) => self.run_input(|repl| repl.run_source(src)),
         }
     }
 
-    /// Runs the input, undoing everything it did if it fails: an input goes in
-    /// whole or not at all.
-    fn guarded(&mut self, run: impl FnOnce(&mut Self) -> Result<(), InputError>) -> ReplOutput {
+    /// Numbers the input and reports how it ended.
+    fn run_input(&mut self, run: impl FnOnce(&mut Self) -> bool) -> ReplOutput {
         // A failed input still spends its number: a module name is never
         // reused, as the engine holds the module it loaded under it.
         self.input += 1;
         self.item = 0;
         self.skip_taken_names();
-        // The snapshot is cheap — engine and project use reference counting
-        // internally (Rc), so only the maps are copied.
-        let snapshot = (*self).clone();
 
-        match run(self) {
-            Err(error) => {
-                // Shown before the state goes back, as placing a diagnostic on
-                // the input reads what the input was compiled from.
-                match &error {
-                    InputError::Compile(error) => self.show_gleam_error(error),
-                    InputError::Repl(message) => println!("{message}"),
-                }
-                *self = snapshot;
-                ReplOutput::Error
-            }
-            Ok(()) if self.had_runtime_error => ReplOutput::Error,
-            Ok(()) => ReplOutput::StdOut,
+        if run(self) || self.had_runtime_error {
+            ReplOutput::Error
+        } else {
+            ReplOutput::StdOut
         }
     }
 
-    /// The definitions and the statements of an input, in the order it writes
-    /// them.
-    fn run_source(&mut self, src: &str) -> Result<(), InputError> {
-        let items = parse(src)?;
-        // Checked before anything runs, as the definitions of the input are
-        // compiled together.
-        if let Some(reason) = self.const_refusal(&items) {
-            return Err(InputError::Repl(reason));
+    /// Runs one item, undoing it if it does not go in: only an item that never
+    /// ran leaves nothing behind. Says whether it failed.
+    fn run_item(&mut self, run: impl FnOnce(&mut Self) -> Result<(), InputError>) -> bool {
+        // The snapshot is cheap — engine and project use reference counting
+        // internally (Rc), so only the maps are copied.
+        let snapshot = (*self).clone();
+        let Err(error) = run(self) else {
+            return false;
+        };
+        // Shown before the state goes back, as placing a diagnostic on the
+        // input reads what the input was compiled from.
+        match &error {
+            InputError::Compile(error) => self.show_gleam_error(error),
+            InputError::Repl(message) => println!("{message}"),
         }
+        *self = snapshot;
+        true
+    }
 
+    /// The definitions and the statements of an input, in the order it writes
+    /// them. It stops at the first failure: what is below was written expecting
+    /// what is above to have worked.
+    fn run_source(&mut self, src: &str) -> bool {
+        let mut items = Vec::new();
         // The definitions go in first, together in a module of their own, so
-        // they can reference each other and the items below only have to
-        // import them.
-        let defs = defs(&items, src);
-        if !defs.is_empty() {
-            self.run_defs(&defs)?;
+        // they can reference each other and the items below only have to import
+        // them — the one unit that goes in whole or not at all, which costs
+        // nothing before anything has run.
+        if self.run_item(|repl| {
+            items = parse(src)?;
+            if let Some(reason) = repl.const_refusal(&items) {
+                return Err(InputError::Repl(reason));
+            }
+            let defs = defs(&items, src);
+            if !defs.is_empty() {
+                repl.run_defs(&defs)?;
+            }
+            Ok(())
+        }) {
+            return true;
         }
 
         for item in items {
             self.item += 1;
-            match item {
+            let failed = self.run_item(|repl| match item {
                 // Everything but an import is already compiled and bound by
                 // `run_defs`.
                 ReplItem::ReplDefinition(targeted) => {
                     if let Definition::Import(import) = &targeted.definition {
-                        self.user_text = Some(get_definition_src(&targeted.definition, src).into());
-                        self.run_import(import)?;
+                        repl.user_text = Some(get_definition_src(&targeted.definition, src).into());
+                        repl.run_import(import)?;
                     }
+                    Ok(())
                 }
-                ReplItem::ReplStatement(statement) => self.run_statement(statement, src)?,
+                ReplItem::ReplStatement(statement) => repl.run_statement(statement, src),
+            });
+            // What an item that raised did stays: its output is on the screen
+            // either way.
+            if failed || self.had_runtime_error {
+                return true;
             }
         }
 
-        Ok(())
+        false
     }
 
     // --- Source generation ---
@@ -621,11 +645,14 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_repl_main(&mut self, module: &Module) {
-        if let Err(err) = self.engine.run_main(
+        let start = std::time::Instant::now();
+        let result = self.engine.run_main(
             &module.name,
             MainFunction::ReplMain(self.repl_main.clone()),
             false,
-        ) {
+        );
+        self.elapsed = start.elapsed();
+        if let Err(err) = result {
             crate::error::show_error(&err);
             self.had_runtime_error = true;
         }
@@ -781,31 +808,34 @@ impl<E: Engine> Repl<E> {
         self.compile_main(&body)
     }
 
-    /// The one expression `:type` and `:time` take.
-    fn command_expr(&mut self, cmd: &str, input: &str) -> Result<Module, InputError> {
-        let refuse = |reason: &str| Err(InputError::Repl(format!("{cmd}command {reason}")));
-        match parse(input)?.as_slice() {
-            [ReplItem::ReplStatement(_)] => {}
-            [ReplItem::ReplDefinition(_)] => return refuse("cannot be used with definitions."),
-            _ => return refuse("expects exactly one expression."),
+    /// The one statement `:type` and `:time` take.
+    fn command_statement(cmd: &str, input: &str) -> Result<UntypedStatement, InputError> {
+        let refuse = |reason: &str| InputError::Repl(format!("{cmd}command {reason}"));
+        let mut items = parse(input)?;
+        if items.len() != 1 {
+            return Err(refuse("expects exactly one expression."));
         }
-        Ok(self.compile_expr(input)?)
+        match items.swap_remove(0) {
+            ReplItem::ReplStatement(statement) => Ok(statement),
+            ReplItem::ReplDefinition(_) => Err(refuse("cannot be used with definitions.")),
+        }
     }
 
     fn run_type_cmd(&mut self, input: &str) -> Result<(), InputError> {
-        let module = self.command_expr(TYPE, input)?;
+        Self::command_statement(TYPE, input)?;
+        let module = self.compile_expr(input)?;
         let main = get_function(&module, &self.repl_main).expect("repl main function");
         println!("{}", type_to_string(&module, &main.return_type));
         Ok(())
     }
 
+    /// Takes a statement, not an expression: a `let` is one, and timing it
+    /// binds like anywhere else.
     fn run_time_cmd(&mut self, input: &str) -> Result<(), InputError> {
-        let module = self.command_expr(TIME, input)?;
-        let start = std::time::Instant::now();
-        self.run_repl_main(&module);
-        let elapsed = start.elapsed();
+        let statement = Self::command_statement(TIME, input)?;
+        self.run_statement(statement, input)?;
         if !self.had_runtime_error {
-            println!("Time: {}", format_duration(elapsed));
+            println!("Time: {}", format_duration(self.elapsed));
         }
         Ok(())
     }
