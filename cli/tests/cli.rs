@@ -974,6 +974,80 @@ fn repl_value_in_guard() {
 }
 
 #[test]
+fn repl_const_in_guard_reaches_what_it_names() {
+    // A guard inlines the const, naming the constructor in an input that never
+    // wrote it.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type T {{ A B }}
+            const c = A
+            let y = A
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}"
+        }),
+        "A\n\"eq\""
+    );
+    // Through a second const, and through the arguments of a constructor.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type T {{ A B }}
+            type P {{ P(T) }}
+            const c = P(A)
+            const d = c
+            let y = P(A)
+            case y {{ z if z == d -> \"eq\" _ -> \"ne\" }}"
+        }),
+        "P(A)\n\"eq\""
+    );
+}
+
+#[test]
+fn repl_const_update_in_guard_reaches_its_constructor() {
+    // The update expands into the constructor, which the base does not bring in.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("u.gleam"),
+        "pub type P {\n  P(a: Int, b: Int)\n}\n\npub const base = P(1, 2)\n",
+    )
+    .unwrap();
+
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["repl", "-q", "u.gleam"])
+        .write_stdin(formatdoc! {"
+            import u.{{type P, P, base}}
+            const c = P(..base, b: 3)
+            let y = P(1, 3)
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
+        "})
+        .output()
+        .expect("run sgleam")
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&out), "P(a: 1, b: 3)\n\"eq\"\n");
+}
+
+#[test]
+fn repl_imports_only_what_the_input_writes() {
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(":debug\nfn untouched() { 1 }\nlet x = 2\nx + 1\nuntouched()"),
+    );
+    let module = |name: &str| {
+        out.split(&format!("--- {name}.gleam ---"))
+            .nth(1)
+            .and_then(|rest| rest.split("---").next())
+            .unwrap_or_default()
+            .to_string()
+    };
+    // `x + 1` brings in the value, not the function.
+    let expr = module("repl3_1");
+    assert!(expr.contains("import repl2_1_vals.{x}"), "{expr}");
+    assert!(!expr.contains("untouched"), "{expr}");
+    // Calling it brings it in.
+    assert!(module("repl4_1").contains("untouched"), "{out}");
+}
+
+#[test]
 fn repl_fn_calling_fn() {
     assert_eq!(
         repl_exec(&formatdoc! {"

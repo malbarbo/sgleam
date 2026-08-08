@@ -1,4 +1,8 @@
-use std::{collections::BTreeMap, fmt::Write, rc::Rc};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt::Write,
+    rc::Rc,
+};
 
 use ecow::EcoString;
 use gleam_core::{
@@ -22,7 +26,7 @@ use crate::{
     gleam::{Project, get_definition_src, is_repl_noise, type_to_string},
     parser::{self, ReplItem},
     run::get_function,
-    swrite, swriteln,
+    swriteln,
 };
 
 pub const QUIT: &str = ":quit";
@@ -65,6 +69,9 @@ struct NameEntry {
     original: String,
     /// A `let`, the one kind of value a const may not read.
     runtime: bool,
+    /// What a const reads: a guard inlines it, and the inlined text names these
+    /// where the const was defined.
+    reads: Vec<String>,
 }
 
 impl NameEntry {
@@ -73,6 +80,7 @@ impl NameEntry {
             module: module.into(),
             original: original.as_ref().into(),
             runtime: false,
+            reads: vec![],
         }
     }
 }
@@ -132,6 +140,8 @@ struct Def {
     /// The names it binds as values: a function, a const, or the constructors
     /// of a type.
     value_names: Vec<String>,
+    /// What it reads, when it is a const.
+    reads: Vec<String>,
     src: String,
 }
 
@@ -387,12 +397,17 @@ impl<E: Engine> Repl<E> {
 
     // --- Source generation ---
 
-    /// Everything the input has in scope, as source: the externals, the modules
-    /// in scope and the names taken from them, `skip` aside, which are the names
+    /// What the input has in scope, as source: the externals, the modules in
+    /// scope and the names taken from them, `skip` aside, which are the names
     /// the generated module defines itself. Every name, a saved value included,
     /// comes in by import — no annotation is written here, so nothing a later
     /// input redefines can change what this module reads.
-    fn build_source(&self, skip: &[String]) -> String {
+    ///
+    /// Of the values, only the ones `code` mentions come in, so an input does
+    /// not pay for the whole scope. `None` writes them all, which is what
+    /// checks an import.
+    fn build_source(&self, code: Option<&str>, skip: &[String]) -> String {
+        let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
         let mut src = self.build_externals();
         for (name, path) in &self.modules {
             // A redundant alias would keep the line from being a
@@ -403,7 +418,9 @@ impl<E: Engine> Repl<E> {
                 swriteln!(src, "import {path} as {name}");
             }
         }
-        for (kind, entries) in [("", &self.values), ("type ", &self.types)] {
+        // A type comes in named or not: a value is printed in the names of the
+        // module it was compiled in.
+        for (kind, entries, filtered) in [("", &self.values, true), ("type ", &self.types, false)] {
             for (
                 name,
                 NameEntry {
@@ -411,7 +428,12 @@ impl<E: Engine> Repl<E> {
                 },
             ) in entries
             {
-                if skip.contains(name) {
+                if skip.contains(name)
+                    || (filtered
+                        && mentioned
+                            .as_ref()
+                            .is_some_and(|names| !names.contains(name.as_str())))
+                {
                     continue;
                 }
                 if name == original {
@@ -422,6 +444,24 @@ impl<E: Engine> Repl<E> {
             }
         }
         src
+    }
+
+    /// Closes `names` over what its consts read, which the inlined text names
+    /// where the source that reads the const never did.
+    fn with_inlined(&self, mut names: HashSet<EcoString>) -> HashSet<EcoString> {
+        let mut queue: Vec<EcoString> = names.iter().cloned().collect();
+        while let Some(name) = queue.pop() {
+            let Some(entry) = self.values.get(name.as_str()) else {
+                continue;
+            };
+            for read in &entry.reads {
+                let read: EcoString = read.into();
+                if names.insert(read.clone()) {
+                    queue.push(read);
+                }
+            }
+        }
+        names
     }
 
     /// The FFI the generated modules reach the engine through. Declared by
@@ -555,9 +595,10 @@ impl<E: Engine> Repl<E> {
 
     /// Compile source with a `repl_main` body appended.
     fn compile_main(&mut self, body: &str) -> Result<Module, Error> {
-        let mut src = self.build_source(&[]);
         let repl_main = &self.repl_main;
-        swrite!(src, "pub fn {repl_main}() {{\n{body}\n}}\n");
+        let code = format!("pub fn {repl_main}() {{\n{body}\n}}\n");
+        let mut src = self.build_source(Some(&code), &[]);
+        src.push_str(&code);
         let module = self.module_name();
         self.compile(&module, &src)
     }
@@ -659,9 +700,10 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// Compile without a `repl_main` (for checking definitions only).
+    /// Compile without a `repl_main`, over the whole scope: what checks an
+    /// import, the names it brought included.
     fn run_check(&mut self) -> Result<(), Error> {
-        let (module, src) = (self.module_name(), self.build_source(&[]));
+        let (module, src) = (self.module_name(), self.build_source(None, &[]));
         self.compile(&module, &src).map(|_| ())
     }
 
@@ -675,17 +717,22 @@ impl<E: Engine> Repl<E> {
         let module = format!("repl{}_{}_vals", self.input, self.item);
         let load = self.repl_load.clone();
         let names: Vec<String> = bound.iter().map(|(name, ..)| name.clone()).collect();
-        let mut src = self.build_source(&names);
+        let mut code = String::new();
+        for (name, type_, index) in bound {
+            swriteln!(code, "pub const {name}: {type_} = {load}({index})");
+        }
+        let mut src = self.build_source(Some(&code), &names);
         // An annotation names the module of a type whose plain name a later
         // input took over, and that module is imported by no other line.
+        let annotated = mentioned(&code);
         for def_module in &self.def_modules {
-            if self.modules.values().all(|path| path != def_module) {
+            if annotated.contains(def_module.as_str())
+                && self.modules.values().all(|path| path != def_module)
+            {
                 swriteln!(src, "import {def_module}");
             }
         }
-        for (name, type_, index) in bound {
-            swriteln!(src, "pub const {name}: {type_} = {load}({index})");
-        }
+        src.push_str(&code);
 
         for (name, ..) in bound {
             self.values.insert(
@@ -694,6 +741,7 @@ impl<E: Engine> Repl<E> {
                     module: module.clone(),
                     original: name.clone(),
                     runtime: true,
+                    reads: vec![],
                 },
             );
         }
@@ -912,15 +960,17 @@ impl<E: Engine> Repl<E> {
     fn run_defs(&mut self, defs: &[Def]) -> Result<(), Error> {
         let defined: Vec<String> = defs.iter().flat_map(Def::names).cloned().collect();
 
-        let mut src = self.build_source(&defined);
+        let mut code = String::new();
         for def in defs {
             // Auto-pub, as the module it lands in is not the one that reads it.
             if def.src.starts_with("pub ") {
-                swriteln!(src, "{}", def.src);
+                swriteln!(code, "{}", def.src);
             } else {
-                swriteln!(src, "pub {}", def.src);
+                swriteln!(code, "pub {}", def.src);
             }
         }
+        let mut src = self.build_source(Some(&code), &defined);
+        src.push_str(&code);
 
         self.def_srcs = defs.iter().map(|def| def.src.clone()).collect();
         let module = self.module_name();
@@ -932,13 +982,34 @@ impl<E: Engine> Repl<E> {
                     .insert(name.clone(), NameEntry::defined_in(&module, name));
             }
             for name in &def.value_names {
-                self.values
-                    .insert(name.clone(), NameEntry::defined_in(&module, name));
+                self.values.insert(
+                    name.clone(),
+                    NameEntry {
+                        reads: def.reads.clone(),
+                        ..NameEntry::defined_in(&module, name)
+                    },
+                );
             }
         }
         self.def_modules.push(module);
         Ok(())
     }
+}
+
+/// The names the source mentions, as the lexer reads them: a label and a local
+/// count too. Over-approximate on purpose — an import too many is noise, an
+/// import missing is an error.
+fn mentioned(code: &str) -> HashSet<EcoString> {
+    parse::lexer::make_tokenizer(code)
+        .filter_map(|token| match token {
+            Ok((
+                _,
+                parse::token::Token::Name { name } | parse::token::Token::UpName { name },
+                _,
+            )) => Some(name),
+            _ => None,
+        })
+        .collect()
 }
 
 /// The items of an input. Parsed on its own, so the error already points at it.
@@ -970,6 +1041,7 @@ fn defs(items: &[ReplItem], input: &str) -> Vec<Def> {
         let ReplItem::ReplDefinition(targeted) = item else {
             continue;
         };
+        let mut reads = vec![];
         let (type_name, value_names) = match &targeted.definition {
             // The constructors of an opaque type stay in the module that
             // defines it, which is no longer the one the next input reads.
@@ -983,12 +1055,16 @@ fn defs(items: &[ReplItem], input: &str) -> Vec<Def> {
                 let name = f.name.clone().expect("A function must have a name").1;
                 (None, vec![name.to_string()])
             }
-            Definition::ModuleConstant(c) => (None, vec![c.name.to_string()]),
+            Definition::ModuleConstant(c) => {
+                constant_find_names(&c.value, &mut reads);
+                (None, vec![c.name.to_string()])
+            }
             Definition::Import(_) => continue,
         };
         defs.push(Def {
             type_name,
             value_names,
+            reads,
             src: get_definition_src(&targeted.definition, input).to_string(),
         });
     }
@@ -1046,8 +1122,9 @@ fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
     }
 }
 
-/// Collects the module level names a constant reads. Qualified ones are left
-/// out: another module's name can never be a `let` from this session.
+/// Collects the module level names a constant reads, a constructor included.
+/// Qualified ones are left out: they come in with the import of their module,
+/// and can never be a `let` from this session.
 fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
     match constant {
         Constant::Int { .. }
@@ -1064,7 +1141,15 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
                 constant_find_names(element, names);
             }
         }
-        Constant::Record { arguments, .. } => {
+        Constant::Record {
+            module,
+            name,
+            arguments,
+            ..
+        } => {
+            if module.is_none() {
+                names.push(name.into());
+            }
             for argument in arguments {
                 constant_find_names(&argument.value, names);
             }
@@ -1082,9 +1167,17 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
                 constant_find_names(&argument.value, names);
             }
         }
+        // Expanded into a `Record`, so the generated code names the constructor.
         Constant::RecordUpdate {
-            record, arguments, ..
+            module,
+            name,
+            record,
+            arguments,
+            ..
         } => {
+            if module.is_none() {
+                names.push(name.into());
+            }
             constant_find_names(&record.base, names);
             for argument in arguments {
                 constant_find_names(&argument.value, names);
