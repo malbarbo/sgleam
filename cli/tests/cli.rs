@@ -24,6 +24,14 @@ fn strip_repl_suffix(s: &str) -> String {
     result
 }
 
+/// The source of one generated module, out of what `:debug` printed.
+fn debug_module<'a>(out: &'a str, name: &str) -> &'a str {
+    out.split(&format!("--- {name}.gleam ---"))
+        .nth(1)
+        .and_then(|rest| rest.split("---").next())
+        .unwrap_or_default()
+}
+
 // These tests launch the sgleam binary as a subprocess. Tests that only need
 // Repl::run() can go in tests (which uses the capture feature).
 
@@ -1120,19 +1128,23 @@ fn repl_imports_only_what_the_input_writes() {
         &["repl", "-q"],
         Some(":debug\nfn untouched() { 1 }\nlet x = 2\nx + 1\nuntouched()"),
     );
-    let module = |name: &str| {
-        out.split(&format!("--- {name}.gleam ---"))
-            .nth(1)
-            .and_then(|rest| rest.split("---").next())
-            .unwrap_or_default()
-            .to_string()
-    };
     // `x + 1` brings in the value, not the function.
-    let expr = module("repl3_1");
+    let expr = debug_module(&out, "repl3_1");
     assert!(expr.contains("import repl2_1_vals.{x}"), "{expr}");
     assert!(!expr.contains("untouched"), "{expr}");
     // Calling it brings it in.
-    assert!(module("repl4_1").contains("untouched"), "{out}");
+    assert!(debug_module(&out, "repl4_1").contains("untouched"), "{out}");
+}
+
+#[test]
+fn repl_imports_only_the_types_the_input_writes() {
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(":debug\ntype T { A }\ntype U { B }\nlet x: T = A"),
+    );
+    let expr = debug_module(&out, "repl3_1");
+    assert!(expr.contains("import repl1.{type T}"), "{expr}");
+    assert!(!expr.contains("type U"), "{expr}");
 }
 
 #[test]

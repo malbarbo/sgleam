@@ -12,7 +12,10 @@ use gleam_core::{
     error::{DefinedModuleOrigin, FileIoAction, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
-    type_::{Type, printer::Printer},
+    type_::{
+        Type,
+        printer::{Names, Printer},
+    },
     uid::UniqueIdGenerator,
     warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
 };
@@ -167,13 +170,13 @@ pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
     modules.iter().find(|m| m.name == name)
 }
 
-pub fn type_to_string(module: &Module, type_: &Type) -> String {
-    Printer::new(&module.ast.names).print_type(type_).into()
+pub fn type_to_string(names: &Names, type_: &Type) -> String {
+    Printer::new(names).print_type(type_).into()
 }
 
 pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>) -> String {
     type_to_string(
-        module,
+        &module.ast.names,
         &Type::Fn {
             arguments: args.into(),
             return_,

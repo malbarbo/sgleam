@@ -16,7 +16,7 @@ use gleam_core::{
     error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     parse,
-    type_::ModuleInterface,
+    type_::{ModuleInterface, printer::Names},
     warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
@@ -405,9 +405,8 @@ impl<E: Engine> Repl<E> {
     /// comes in by import — no annotation is written here, so nothing a later
     /// input redefines can change what this module reads.
     ///
-    /// Of the values the session defined, only the ones `code` mentions come
-    /// in, so an input does not pay for the whole scope. `None` writes them
-    /// all, which is what checks an import.
+    /// Only the names `code` mentions come in, so an input does not pay for the
+    /// whole scope. `None` writes them all, which is what checks an import.
     fn build_source(&self, code: Option<&str>, skip: &[String]) -> String {
         let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
         let mut src = self.build_externals();
@@ -435,15 +434,15 @@ impl<E: Engine> Repl<E> {
                 swriteln!(src, "import {module}");
             }
         }
-        // A type comes in named or not: a value is printed in the names of the
-        // module it was compiled in.
-        for (kind, entries, filtered) in [("", &self.values, true), ("type ", &self.types, false)] {
+        // A value an import brought always comes in: a guard inlines a const,
+        // and the repl never read what that one names. Nothing inlines a type.
+        for (kind, entries, inlinable) in [("", &self.values, true), ("type ", &self.types, false)]
+        {
             for (name, entry) in entries {
                 let NameEntry {
                     module, original, ..
                 } = entry;
-                let dropped = filtered
-                    && entry.reads.is_some()
+                let dropped = (!inlinable || entry.reads.is_some())
                     && mentioned
                         .as_ref()
                         .is_some_and(|names| !names.contains(name.as_str()));
@@ -618,7 +617,35 @@ impl<E: Engine> Repl<E> {
     }
 
     fn show_gleam_error(&self, err: &Error) {
+        let mut err = err.clone();
+        // A type in the message is printed in the names of the module that
+        // failed, which need the scope over them just as `type_names` does.
+        if let Error::Type { failed_modules, .. } = &mut err {
+            for module in failed_modules.values_mut() {
+                self.register_types(&mut module.names);
+            }
+        }
         self.show_diagnostics(err.to_diagnostics(), true);
+    }
+
+    /// The names a type is printed in: those of the module it was compiled in,
+    /// which hold only what that module named, plus the scope over them.
+    /// Registering takes the plain name from whatever had it, so it goes to the
+    /// newest definition, as it does for the user.
+    fn type_names(&self, module: &Module) -> Names {
+        let mut names = module.ast.names.clone();
+        self.register_types(&mut names);
+        names
+    }
+
+    fn register_types(&self, names: &mut Names) {
+        for (name, entry) in &self.types {
+            names.named_type_in_scope(
+                entry.module.as_str().into(),
+                entry.original.as_str().into(),
+                name.into(),
+            );
+        }
     }
 
     /// Print diagnostics relocated to the user's input. `drop_unrelocated`
@@ -836,6 +863,7 @@ impl<E: Engine> Repl<E> {
         let main = get_function(&module, &self.repl_main).expect("repl main function");
         let types = main.return_type.tuple_types().unwrap();
         assert_eq!(types.len(), names.len());
+        let type_names = self.type_names(&module);
         let bound: Vec<_> = names
             .iter()
             .zip(&types)
@@ -843,7 +871,7 @@ impl<E: Engine> Repl<E> {
             .map(|(i, (name, type_))| {
                 (
                     name.clone(),
-                    type_to_string(&module, type_),
+                    type_to_string(&type_names, type_),
                     self.var_index + i,
                 )
             })
@@ -879,7 +907,10 @@ impl<E: Engine> Repl<E> {
         Self::command_statement(TYPE, input)?;
         let module = self.compile_expr(input)?;
         let main = get_function(&module, &self.repl_main).expect("repl main function");
-        println!("{}", type_to_string(&module, &main.return_type));
+        println!(
+            "{}",
+            type_to_string(&self.type_names(&module), &main.return_type)
+        );
         Ok(())
     }
 

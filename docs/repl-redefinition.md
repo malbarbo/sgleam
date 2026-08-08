@@ -117,8 +117,9 @@ read twice.
 
 The naming of a shadowed type costs nothing: Gleam already prints the qualified
 name only for the one whose plain name is taken, and the REPL prints a type
-through the generated module's own name map. Which is where the message comes
-from, and it is the same message the other two give:
+through the generated module's name map with the session's scope registered
+over it, so the plain name goes to the newest definition. Which is where the
+message comes from, and it is the same message the other two give:
 
     Expected type:
 
