@@ -33,7 +33,7 @@ this only for a name that was shadowed.
 | mutually recursive types, one input | `:{ … :}` | `type … and …` | plain, side by side |
 | the same across inputs | not in scope | unbound | unknown type |
 | redefine one type of such a pair | allowed, the other keeps the old one | same | same |
-| the shadowed one, reached qualified | in scope | not writable | after `import repl1` |
+| the shadowed one, reached qualified | in scope | not writable | in scope |
 | `const` distinct from `let` | absent | absent | present |
 
 ## Transcripts
@@ -141,9 +141,9 @@ Two consequences worth stating as rules rather than accidents:
 - the definitions of one input are compiled together and see only the inputs
   before it. This is what lets them be mutually recursive, and it is why a
   function cannot read a `let` of its own input;
-- the shadowed name is reachable, but the module has to be imported for it:
-  `import repl1` and then `repl1.g()`. GHCi has it in scope already; here it is
-  a module like any other.
+- the shadowed name is reachable qualified, `repl1.g()`, and writing it is what
+  brings its module in. GHCi asks for no import either, and the name is one the
+  user read in an error before writing it.
 
 Left untouched: mutual recursion still has to happen within one input — which
 all three already agree on.

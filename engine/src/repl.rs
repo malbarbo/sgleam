@@ -8,8 +8,8 @@ use ecow::EcoString;
 use gleam_core::{
     Error,
     ast::{
-        AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, Statement,
-        UntypedConstant, UntypedPattern, UntypedStatement,
+        AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, SrcSpan,
+        Statement, UntypedConstant, UntypedPattern, UntypedStatement,
     },
     build::Module,
     diagnostic::Diagnostic,
@@ -141,7 +141,7 @@ struct Def {
     /// The names it binds as values: a function, a const, or the constructors
     /// of a type.
     value_names: Vec<String>,
-    /// What it reads, when it is a const.
+    /// What it reads, when it is a const, a module of a qualified name included.
     reads: Vec<String>,
     src: String,
 }
@@ -166,8 +166,9 @@ pub struct Repl<E: Engine> {
     values: BTreeMap<String, NameEntry>,
     // Source of the definitions of the input being run.
     def_srcs: Vec<String>,
-    // Modules holding the definitions of an input, in definition order.
-    def_modules: Vec<String>,
+    // The modules this session wrote that hold names: one per input that
+    // defines, one per item that binds.
+    own_modules: Vec<String>,
     // The module of the values last bound, waiting for the next compilation.
     pending_vals: Option<(String, String)>,
     project: Project,
@@ -215,7 +216,7 @@ impl<E: Engine> Repl<E> {
             types: BTreeMap::new(),
             values: BTreeMap::new(),
             def_srcs: Vec::new(),
-            def_modules: Vec::new(),
+            own_modules: Vec::new(),
             pending_vals: None,
             project,
             existing_modules: im::HashMap::new(),
@@ -417,6 +418,21 @@ impl<E: Engine> Repl<E> {
                 swriteln!(src, "import {path}");
             } else {
                 swriteln!(src, "import {path} as {name}");
+            }
+        }
+        // A module of this session comes in when the input names it: what a
+        // redefinition took the plain name of is reached through it. Unless an
+        // import already writes the line — under that name, or of that module.
+        for module in &self.own_modules {
+            if mentioned
+                .as_ref()
+                .is_some_and(|names| names.contains(module.as_str()))
+                && !self
+                    .modules
+                    .iter()
+                    .any(|(name, path)| name == module || path == module)
+            {
+                swriteln!(src, "import {module}");
             }
         }
         // A type comes in named or not: a value is printed in the names of the
@@ -720,16 +736,6 @@ impl<E: Engine> Repl<E> {
             swriteln!(code, "pub const {name}: {type_} = {load}({index})");
         }
         let mut src = self.build_source(Some(&code), &names);
-        // An annotation names the module of a type whose plain name a later
-        // input took over, and that module is imported by no other line.
-        let annotated = mentioned(&code);
-        for def_module in &self.def_modules {
-            if annotated.contains(def_module.as_str())
-                && self.modules.values().all(|path| path != def_module)
-            {
-                swriteln!(src, "import {def_module}");
-            }
-        }
         src.push_str(&code);
 
         for (name, ..) in bound {
@@ -743,6 +749,7 @@ impl<E: Engine> Repl<E> {
                 },
             );
         }
+        self.own_modules.push(module.clone());
         self.pending_vals = Some((module, src));
     }
 
@@ -934,12 +941,12 @@ impl<E: Engine> Repl<E> {
     /// that a name it reads is a `let`, out of reach from module level as it
     /// would be in a source file.
     fn const_refusal(&self, items: &[ReplItem]) -> Option<String> {
-        let mut read = vec![];
+        let (mut read, mut qualified) = (vec![], vec![]);
         for item in items {
             if let ReplItem::ReplDefinition(targeted) = item
                 && let Definition::ModuleConstant(c) = &targeted.definition
             {
-                constant_find_names(&c.value, &mut read);
+                constant_find_names(&c.value, &mut read, &mut qualified);
             }
         }
         let var = read
@@ -989,7 +996,7 @@ impl<E: Engine> Repl<E> {
                 );
             }
         }
-        self.def_modules.push(module);
+        self.own_modules.push(module);
         Ok(())
     }
 }
@@ -1054,7 +1061,9 @@ fn defs(items: &[ReplItem], input: &str) -> Vec<Def> {
                 (None, vec![name.to_string()])
             }
             Definition::ModuleConstant(c) => {
-                constant_find_names(&c.value, &mut reads);
+                let mut modules = vec![];
+                constant_find_names(&c.value, &mut reads, &mut modules);
+                reads.append(&mut modules);
                 (None, vec![c.name.to_string()])
             }
             Definition::Import(_) => continue,
@@ -1120,23 +1129,34 @@ fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
     }
 }
 
-/// Collects the module level names a constant reads, a constructor included.
-/// Qualified ones are left out: they come in with the import of their module,
-/// and can never be a `let` from this session.
-fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
+/// Collects what a constant reads, as the text inlined at a guard names it: the
+/// module level names, a constructor included, and the aliases of the qualified
+/// ones, which go to `modules` — only a plain name can be a `let`.
+fn constant_find_names(
+    constant: &UntypedConstant,
+    names: &mut Vec<String>,
+    modules: &mut Vec<String>,
+) {
+    fn read(
+        module: &Option<(EcoString, SrcSpan)>,
+        name: &EcoString,
+        names: &mut Vec<String>,
+        modules: &mut Vec<String>,
+    ) {
+        match module {
+            Some((alias, _)) => modules.push(alias.into()),
+            None => names.push(name.into()),
+        }
+    }
     match constant {
         Constant::Int { .. }
         | Constant::Float { .. }
         | Constant::String { .. }
         | Constant::Invalid { .. } => {}
-        Constant::Var { module, name, .. } => {
-            if module.is_none() {
-                names.push(name.into());
-            }
-        }
+        Constant::Var { module, name, .. } => read(module, name, names, modules),
         Constant::Tuple { elements, .. } | Constant::List { elements, .. } => {
             for element in elements {
-                constant_find_names(element, names);
+                constant_find_names(element, names, modules);
             }
         }
         Constant::Record {
@@ -1145,11 +1165,9 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
             arguments,
             ..
         } => {
-            if module.is_none() {
-                names.push(name.into());
-            }
+            read(module, name, names, modules);
             for argument in arguments {
-                constant_find_names(&argument.value, names);
+                constant_find_names(&argument.value, names, modules);
             }
         }
         Constant::Call {
@@ -1158,11 +1176,9 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
             arguments,
             ..
         } => {
-            if module.is_none() {
-                names.push(name.into());
-            }
+            read(module, name, names, modules);
             for argument in arguments {
-                constant_find_names(&argument.value, names);
+                constant_find_names(&argument.value, names, modules);
             }
         }
         // Expanded into a `Record`, so the generated code names the constructor.
@@ -1173,27 +1189,25 @@ fn constant_find_names(constant: &UntypedConstant, names: &mut Vec<String>) {
             arguments,
             ..
         } => {
-            if module.is_none() {
-                names.push(name.into());
-            }
-            constant_find_names(&record.base, names);
+            read(module, name, names, modules);
+            constant_find_names(&record.base, names, modules);
             for argument in arguments {
-                constant_find_names(&argument.value, names);
+                constant_find_names(&argument.value, names, modules);
             }
         }
         Constant::BitArray { segments, .. } => {
             for segment in segments {
-                constant_find_names(&segment.value, names);
+                constant_find_names(&segment.value, names, modules);
                 for option in &segment.options {
                     if let BitArrayOption::Size { value, .. } = option {
-                        constant_find_names(value, names);
+                        constant_find_names(value, names, modules);
                     }
                 }
             }
         }
         Constant::StringConcatenation { left, right, .. } => {
-            constant_find_names(left, names);
-            constant_find_names(right, names);
+            constant_find_names(left, names, modules);
+            constant_find_names(right, names, modules);
         }
     }
 }

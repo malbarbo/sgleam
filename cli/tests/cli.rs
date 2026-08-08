@@ -650,7 +650,8 @@ fn repl_fn_redefine_keeps_the_old() {
         }),
         "10\n100"
     );
-    // The shadowed one is still reachable through the module of its input.
+    // The shadowed one is still reachable through the module of its input,
+    // which an explicit import also reaches.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g() {{ 1 }}
@@ -667,6 +668,47 @@ fn repl_fn_redefine_keeps_the_old() {
             even(10)"
         }),
         "True"
+    );
+}
+
+#[test]
+fn repl_the_module_of_an_input_needs_no_import() {
+    // Writing the name is what brings the module in, as in GHCi.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g() {{ 1 }}
+            fn g() {{ 2 }}
+            #(repl1.g(), g())"
+        }),
+        "#(1, 2)"
+    );
+    // A type and a constructor the redefinition took the name of.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type T {{ A }}
+            type T {{ A }}
+            let y: repl1.T = repl1.A
+            y"
+        }),
+        "A\nA"
+    );
+    // A value in its slot, read back from the companion module of its item.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 1
+            let x = 2
+            #(repl1_1_vals.x, x)"
+        }),
+        "1\n2\n#(1, 2)"
+    );
+    // An import of that name shadows, as any other import does.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g() {{ 1 }}
+            import gleam/int as repl1
+            repl1.to_string(9)"
+        }),
+        "\"9\""
     );
 }
 
@@ -920,6 +962,16 @@ fn repl_const_cannot_reference_a_runtime_value() {
         "1\n`y` is a variable, not a constant. A constant can only use \
          literals, other constants and functions.\n1"
     );
+    // A module alias is not a value, even when a `let` goes by the same name.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let option = 1
+            import gleam/option
+            const c = option.None
+            c"
+        }),
+        "1\nNone"
+    );
 }
 
 #[test]
@@ -997,6 +1049,18 @@ fn repl_const_in_guard_reaches_what_it_names() {
             case y {{ z if z == d -> \"eq\" _ -> \"ne\" }}"
         }),
         "P(A)\n\"eq\""
+    );
+    // Qualified, through the module of the input that defined it, which the
+    // input using the const does not name either.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            type T {{ A B }}
+            type T {{ A B }}
+            const c = repl1.A
+            let y = repl1.A
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}"
+        }),
+        "A\n\"eq\""
     );
 }
 
