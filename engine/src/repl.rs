@@ -28,7 +28,7 @@ use crate::{
 pub const QUIT: &str = ":quit";
 pub const TYPE: &str = ":type ";
 pub const TIME: &str = ":time ";
-const DEBUG: &str = ":debug";
+pub const DEBUG: &str = ":debug";
 
 pub fn welcome_message() -> String {
     format!(

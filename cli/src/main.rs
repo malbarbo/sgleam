@@ -15,7 +15,7 @@ use engine::{
     format,
     gleam::{Project, find_imports, get_module},
     quickjs::QuickJsEngine,
-    repl::{Repl, ReplOutput, welcome_message},
+    repl::{DEBUG, QUIT, Repl, ReplOutput, TIME, TYPE, welcome_message},
     run::{copy_files_and_build, run_check, run_main, run_test},
 };
 use gleam_core::{
@@ -203,9 +203,13 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
 }
 
+/// The commands the reader answers itself; the rest go to the repl.
+const HELP: &str = ":help";
+const THEME: &str = ":theme ";
+
 const COMPLETION_EXTRAS: &[&str] = &[
     // REPL commands
-    ":quit", ":type ", ":time ", ":debug", ":help", ":theme ", // Keywords and builtins
+    QUIT, TYPE, TIME, DEBUG, HELP, THEME, // Keywords and builtins
     "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
     "False", "Nil", "Ok", "Error", "panic", "todo",
 ];
@@ -233,18 +237,23 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
         .map_err(|e| SgleamError::Other(e.into()))?;
     for input in reader {
         let trimmed = input.trim();
-        if trimmed == ":help" {
+        if trimmed == HELP {
+            let cmd = |cmd: &str, help: &str| println!("  {cmd:<15}{help}");
             println!("Commands:");
-            println!("  :help          Show this help");
-            println!("  :quit          Exit the REPL");
-            println!("  :type <expr>   Show the type of an expression");
-            println!("  :theme         Show the current theme");
-            println!("  :theme light   Switch to One Light theme");
-            println!("  :theme dark    Switch to One Dark theme");
-            println!("  :debug         Toggle debug mode");
+            cmd(HELP, "Show this help");
+            cmd(QUIT, "Exit the REPL");
+            cmd(&format!("{TYPE}<expr>"), "Show the type of an expression");
+            cmd(
+                &format!("{TIME}<expr>"),
+                "Run an expression and show how long it took",
+            );
+            cmd(THEME.trim_end(), "Show the current theme");
+            cmd(&format!("{THEME}light"), "Switch to One Light theme");
+            cmd(&format!("{THEME}dark"), "Switch to One Dark theme");
+            cmd(DEBUG, "Toggle debug mode");
             continue;
         }
-        if trimmed == ":theme" {
+        if trimmed == THEME.trim_end() {
             let name = if repl_reader::is_light_theme() {
                 "light"
             } else {
@@ -253,7 +262,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
             println!("{name}");
             continue;
         }
-        if let Some(name) = trimmed.strip_prefix(":theme ") {
+        if let Some(name) = trimmed.strip_prefix(THEME) {
             let name = name.trim();
             match name {
                 "light" | "dark" => {
