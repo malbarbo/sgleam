@@ -70,8 +70,9 @@ struct NameEntry {
     /// A `let`, the one kind of value a const may not read.
     runtime: bool,
     /// What a const reads: a guard inlines it, and the inlined text names these
-    /// where the const was defined.
-    reads: Vec<String>,
+    /// where the const was defined. `None` for a name an import brought, whose
+    /// const the repl never read — so it always comes in.
+    reads: Option<Vec<String>>,
 }
 
 impl NameEntry {
@@ -80,7 +81,7 @@ impl NameEntry {
             module: module.into(),
             original: original.as_ref().into(),
             runtime: false,
-            reads: vec![],
+            reads: None,
         }
     }
 }
@@ -403,9 +404,9 @@ impl<E: Engine> Repl<E> {
     /// comes in by import — no annotation is written here, so nothing a later
     /// input redefines can change what this module reads.
     ///
-    /// Of the values, only the ones `code` mentions come in, so an input does
-    /// not pay for the whole scope. `None` writes them all, which is what
-    /// checks an import.
+    /// Of the values the session defined, only the ones `code` mentions come
+    /// in, so an input does not pay for the whole scope. `None` writes them
+    /// all, which is what checks an import.
     fn build_source(&self, code: Option<&str>, skip: &[String]) -> String {
         let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
         let mut src = self.build_externals();
@@ -421,19 +422,16 @@ impl<E: Engine> Repl<E> {
         // A type comes in named or not: a value is printed in the names of the
         // module it was compiled in.
         for (kind, entries, filtered) in [("", &self.values, true), ("type ", &self.types, false)] {
-            for (
-                name,
-                NameEntry {
+            for (name, entry) in entries {
+                let NameEntry {
                     module, original, ..
-                },
-            ) in entries
-            {
-                if skip.contains(name)
-                    || (filtered
-                        && mentioned
-                            .as_ref()
-                            .is_some_and(|names| !names.contains(name.as_str())))
-                {
+                } = entry;
+                let dropped = filtered
+                    && entry.reads.is_some()
+                    && mentioned
+                        .as_ref()
+                        .is_some_and(|names| !names.contains(name.as_str()));
+                if skip.contains(name) || dropped {
                     continue;
                 }
                 if name == original {
@@ -454,7 +452,7 @@ impl<E: Engine> Repl<E> {
             let Some(entry) = self.values.get(name.as_str()) else {
                 continue;
             };
-            for read in &entry.reads {
+            for read in entry.reads.iter().flatten() {
                 let read: EcoString = read.into();
                 if names.insert(read.clone()) {
                     queue.push(read);
@@ -741,7 +739,7 @@ impl<E: Engine> Repl<E> {
                     module: module.clone(),
                     original: name.clone(),
                     runtime: true,
-                    reads: vec![],
+                    reads: Some(vec![]),
                 },
             );
         }
@@ -985,7 +983,7 @@ impl<E: Engine> Repl<E> {
                 self.values.insert(
                     name.clone(),
                     NameEntry {
-                        reads: def.reads.clone(),
+                        reads: Some(def.reads.clone()),
                         ..NameEntry::defined_in(&module, name)
                     },
                 );

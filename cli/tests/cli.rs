@@ -1027,6 +1027,30 @@ fn repl_const_update_in_guard_reaches_its_constructor() {
 }
 
 #[test]
+fn repl_const_of_a_user_module_in_guard() {
+    // What such a const reads is never parsed, so it cannot be filtered.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("v.gleam"),
+        "pub type P {\n  P(Int)\n}\n\npub const c = P(1)\n",
+    )
+    .unwrap();
+
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["repl", "-q", "v.gleam"])
+        .write_stdin(formatdoc! {"
+            let y = c
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
+        "})
+        .output()
+        .expect("run sgleam")
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&out), "P(1)\n\"eq\"\n");
+}
+
+#[test]
 fn repl_imports_only_what_the_input_writes() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],
