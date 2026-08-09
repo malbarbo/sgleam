@@ -313,7 +313,8 @@ pub fn is_repl_noise(warning: &Warning) -> bool {
     matches!(
         warning,
         Warning::Type {
-            warning: gleam_core::type_::Warning::Todo { .. }
+            warning: gleam_core::type_::Warning::ModuleImportedTwice { .. }
+                | gleam_core::type_::Warning::Todo { .. }
                 | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
                 | gleam_core::type_::Warning::UnusedConstructor { .. }
                 | gleam_core::type_::Warning::UnusedImportedModule { .. }

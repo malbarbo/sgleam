@@ -269,6 +269,23 @@ fn repl_import_alias_shadows_module() {
 }
 
 #[test]
+fn repl_import_two_aliases_for_one_module() {
+    // Both names work, and the file the repl writes has both import lines —
+    // which is only ever a remark about its own scaffolding.
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            import gleam/int
+            import gleam/int as i
+            int.to_string(1)
+            i.to_string(2)"#
+        }),
+    );
+    assert_eq!(err, "");
+    assert_eq!(out, "\"1\"\n\"2\"\n");
+}
+
+#[test]
 fn repl_import_discard_alias() {
     // `as _` brings in `input` without taking the `io` name from gleam/io.
     let (out, err) = run_sgleam_cmd(
