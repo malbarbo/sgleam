@@ -2,6 +2,7 @@ use std::{
     collections::{BTreeMap, HashSet},
     fmt::Write,
     rc::Rc,
+    sync::Arc,
 };
 
 use ecow::EcoString;
@@ -16,7 +17,7 @@ use gleam_core::{
     error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     parse,
-    type_::{ModuleInterface, printer::Names},
+    type_::{ModuleInterface, Type, TypeVar, printer::Names},
     warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
@@ -84,6 +85,13 @@ impl NameEntry {
             reads: None,
         }
     }
+}
+
+/// An import of a companion module: the path, and the alias its annotations
+/// were printed with.
+struct Import {
+    path: String,
+    alias: String,
 }
 
 /// What an input asks for. Anything that is none of the repl's own commands is
@@ -750,20 +758,25 @@ impl<E: Engine> Repl<E> {
 
     /// Builds the module the values an item bound are read back from, and binds
     /// each name to it. A `let` runs before its type is known, so the constant
-    /// naming it can only be written after the run — and being written once, in
-    /// the scope the type was printed in, it is never read again in a scope
-    /// where its names mean something else. It is compiled by the next input,
-    /// which is the first one that can read it.
-    fn queue_vals_module(&mut self, bound: &[(String, String, usize)]) {
+    /// naming it can only be written after the run. It is compiled by the next
+    /// input, which is the first one that can read it.
+    ///
+    /// It holds `imports` and nothing else of the session, which is what makes
+    /// an annotation mean the same thing whenever it is compiled.
+    fn queue_vals_module(&mut self, bound: &[(String, String, usize)], imports: &[Import]) {
         let module = format!("repl{}_{}_vals", self.input, self.item);
         let load = self.repl_load.clone();
-        let names: Vec<String> = bound.iter().map(|(name, ..)| name.clone()).collect();
-        let mut code = String::new();
-        for (name, type_, index) in bound {
-            swriteln!(code, "pub const {name}: {type_} = {load}({index})");
+        let mut src = self.build_externals();
+        for Import { path, alias } in imports {
+            if short_name(path) == alias {
+                swriteln!(src, "import {path}");
+            } else {
+                swriteln!(src, "import {path} as {alias}");
+            }
         }
-        let mut src = self.build_source(Some(&code), &names);
-        src.push_str(&code);
+        for (name, type_, index) in bound {
+            swriteln!(src, "pub const {name}: {type_} = {load}({index})");
+        }
 
         for (name, ..) in bound {
             self.values.insert(
@@ -863,7 +876,7 @@ impl<E: Engine> Repl<E> {
         let main = get_function(&module, &self.repl_main).expect("repl main function");
         let types = main.return_type.tuple_types().unwrap();
         assert_eq!(types.len(), names.len());
-        let type_names = self.type_names(&module);
+        let (scope, imports) = vals_scope(&types);
         let bound: Vec<_> = names
             .iter()
             .zip(&types)
@@ -871,13 +884,13 @@ impl<E: Engine> Repl<E> {
             .map(|(i, (name, type_))| {
                 (
                     name.clone(),
-                    type_to_string(&type_names, type_),
+                    type_to_string(&scope, type_),
                     self.var_index + i,
                 )
             })
             .collect();
         self.var_index += names.len();
-        self.queue_vals_module(&bound);
+        self.queue_vals_module(&bound, &imports);
 
         Ok(())
     }
@@ -1029,6 +1042,60 @@ impl<E: Engine> Repl<E> {
         }
         self.own_modules.push(module);
         Ok(())
+    }
+}
+
+/// The scope a saved value's annotation is printed in, and the imports that
+/// make it mean what it says. Choosing the alias before printing is what makes
+/// it free: left to itself the printer qualifies by the last segment of the
+/// path, which can be a name the user's own imports took.
+fn vals_scope(types: &[Arc<Type>]) -> (Names, Vec<Import>) {
+    let mut modules = vec![];
+    for type_ in types {
+        type_modules(type_, &mut modules);
+    }
+    let mut scope = Names::new();
+    let mut imports: Vec<Import> = vec![];
+    for path in modules {
+        if imports.iter().any(|import| import.path == path) {
+            continue;
+        }
+        let short = short_name(&path);
+        let mut alias = short.to_string();
+        let mut n = 1;
+        while imports.iter().any(|import| import.alias == alias) {
+            n += 1;
+            alias = format!("{short}_{n}");
+        }
+        scope.imported_module(
+            path.as_str().into(),
+            alias.as_str().into(),
+            SrcSpan::default(),
+        );
+        imports.push(Import { path, alias });
+    }
+    (scope, imports)
+}
+
+/// The modules a type names, at every depth.
+fn type_modules(type_: &Type, modules: &mut Vec<String>) {
+    match type_ {
+        Type::Named {
+            module, arguments, ..
+        } => {
+            modules.push(module.to_string());
+            arguments.iter().for_each(|arg| type_modules(arg, modules));
+        }
+        Type::Fn { arguments, return_ } => {
+            arguments.iter().for_each(|arg| type_modules(arg, modules));
+            type_modules(return_, modules);
+        }
+        Type::Tuple { elements } => elements.iter().for_each(|e| type_modules(e, modules)),
+        Type::Var { type_ } => {
+            if let TypeVar::Link { type_ } = &*type_.borrow() {
+                type_modules(type_, modules);
+            }
+        }
     }
 }
 

@@ -1536,7 +1536,7 @@ fn repl_user_module_error_keeps_the_location() {
     );
     assert_eq!(
         out,
-        "Error at tests/inputs/user.gleam (boom:27)\n  boom\nError: here\n"
+        "Error at tests/inputs/user.gleam (boom:29)\n  boom\nError: here\n"
     );
 }
 
@@ -1565,6 +1565,66 @@ fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
             format!("7\nError at {name} (boom:2)\n  boom\n")
         );
     }
+}
+
+#[test]
+fn repl_let_of_a_type_from_a_module_out_of_scope() {
+    // `maybe` returns an `Option`, and nothing in the session imports the
+    // module it comes from — the annotation the repl writes has to bring it in.
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q", input],
+        Some("let x = maybe()\n:type x\nlet y = x\ny"),
+    );
+    assert_eq!(err, "");
+    assert_eq!(out, "None\noption.Option(Int)\nNone\nNone\n");
+}
+
+#[test]
+fn repl_let_of_a_shadowed_prelude_type() {
+    // Taking the plain name sends the prelude's own to `gleam.List`, which the
+    // annotation has to qualify.
+    assert_eq!(
+        repl_exec("type List { L }\nlet x = [1]\n:type x\nx\nlet y = L\ny"),
+        "[1]\ngleam.List(Int)\n[1]\nL\nL"
+    );
+}
+
+#[test]
+fn repl_let_of_a_type_whose_module_name_the_user_took() {
+    // The annotation says `gleam.List` and the session's `gleam` is another
+    // module, which cannot reach it: the annotation is read in a module the
+    // repl writes every import of.
+    assert_eq!(
+        repl_exec("import gleam/int as gleam\ntype List { L }\nlet x = [1]\nx\n:type x"),
+        "[1]\n[1]\ngleam.List(Int)"
+    );
+}
+
+#[test]
+fn repl_let_of_two_types_whose_modules_share_a_name() {
+    // `option.Mine` and `gleam/option.Option` in one annotation: one of the two
+    // takes the short name, the other is aliased away from it.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::write(
+        dir.path().join("option.gleam"),
+        "import gleam/option as opt\n\npub type Mine {\n  Mine\n}\n\n\
+         pub fn mine() {\n  Mine\n}\n\npub fn maybe() -> opt.Option(Int) {\n  opt.None\n}\n",
+    )
+    .unwrap();
+
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["repl", "-q", "option.gleam"])
+        .write_stdin("let t = #(mine(), maybe())\nt\n")
+        .output()
+        .expect("run sgleam")
+        .stdout;
+
+    assert_eq!(
+        String::from_utf8_lossy(&out),
+        "#(Mine, None)\n#(Mine, None)\n"
+    );
 }
 
 #[test]

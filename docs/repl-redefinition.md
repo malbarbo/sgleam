@@ -109,11 +109,15 @@ value, and Gleam has no computed binding at module level. It stays a slot,
 reached by a module constant, `const x: A(Int) = load(0)`. But that constant
 carries the *name* of the type as text, and the text has to be written in a
 scope where it still means the right thing — which is why it goes into a
-companion module `replN_M_vals`, written right after the run, once. Rendered in
-the scope of the input that bound it and never re-read anywhere else, it cannot
-be rewritten by a later definition. What it costs is one extra module per input
-that binds a value; what it buys is that no annotation the REPL writes is ever
-read twice.
+companion module `replN_M_vals`, written right after the run, once, and holding
+nothing else.
+
+That module is the one place where the REPL goes back from a type to text, and
+it is the whole scope its own constants are read in: it imports what the
+annotations name and nothing else, under aliases chosen before they are
+rendered rather than matched afterwards. So the text means the same thing
+whenever it is compiled — no later definition reaches it, and no alias of the
+user's either. What it costs is one extra module per input that binds a value.
 
 The naming of a shadowed type costs nothing: Gleam already prints the qualified
 name only for the one whose plain name is taken, and the REPL prints a type
