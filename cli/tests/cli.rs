@@ -1359,6 +1359,33 @@ fn repl_warning() {
 }
 
 #[test]
+fn repl_warns_about_what_the_user_wrote() {
+    // A `todo` and a variable a function never reads: what a file would say,
+    // said by the repl too.
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn f() {\n  let a = 1\n  todo\n}"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_warns_once_about_a_pattern_it_copies() {
+    // The repl binds the input's pattern twice, so the compiler remarks on the
+    // assertion twice; the copy carrying the input's text is the one that shows.
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert x = 1\nx"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+#[test]
+fn repl_does_not_warn_about_its_own_scaffolding() {
+    // The name a `let` binds is read outside the copy that carries its text,
+    // and every name in scope reaches a generated module by import, used or not.
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some("import gleam/int\nimport gleam/list.{length}\nlet x = 1\nx"),
+    );
+    assert_eq!(err, "");
+}
+
+#[test]
 fn repl_let_result_does_not_warn() {
     // Saving the value must not warn about the unused `Result` it creates.
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let r = Ok(1)"));

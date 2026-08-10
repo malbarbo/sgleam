@@ -7,7 +7,7 @@ use std::{
 
 use ecow::EcoString;
 use gleam_core::{
-    Error,
+    Error, Warning,
     ast::{
         AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, SrcSpan,
         Statement, UntypedConstant, UntypedPattern, UntypedStatement,
@@ -17,7 +17,7 @@ use gleam_core::{
     error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     parse,
-    type_::{ModuleInterface, Type, TypeVar, printer::Names},
+    type_::{ModuleInterface, Type, TypeVar, error::VariableSyntax, printer::Names},
     warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
@@ -195,6 +195,9 @@ pub struct Repl<E: Engine> {
     // Copied verbatim into the generated module, so diagnostics can be moved
     // back to it.
     user_text: Option<String>,
+    // The names the `let` being run binds. The copy of it that carries the
+    // input's text does not read them — the wrapper around it does.
+    let_names: Vec<String>,
     // Internal function names with random suffix to avoid collisions with user code.
     repl_main: String,
     repl_print: String,
@@ -237,6 +240,7 @@ impl<E: Engine> Repl<E> {
             had_runtime_error: false,
             elapsed: std::time::Duration::ZERO,
             user_text: None,
+            let_names: Vec::new(),
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
             repl_save: format!("repl_save_{suffix}"),
@@ -591,10 +595,10 @@ impl<E: Engine> Repl<E> {
             warnings
                 .take()
                 .iter()
-                .filter(|warning| !is_repl_noise(warning))
+                .filter(|warning| !is_repl_noise(warning) && !self.is_let_copy_noise(warning))
                 .map(|warning| warning.to_diagnostic())
                 .collect(),
-            false,
+            true,
         );
 
         let mut modules = result?;
@@ -654,6 +658,19 @@ impl<E: Engine> Repl<E> {
                 name.into(),
             );
         }
+    }
+
+    /// An unused-variable warning about a name the `let` being run binds: what
+    /// reads it is the wrapper, outside the copy the warning points at.
+    fn is_let_copy_noise(&self, warning: &Warning) -> bool {
+        matches!(
+            warning,
+            Warning::Type {
+                warning: gleam_core::type_::Warning::UnusedVariable { origin, .. },
+                ..
+            } if matches!(&origin.syntax, VariableSyntax::Variable(name)
+                if self.let_names.iter().any(|bound| bound == name.as_str()))
+        )
     }
 
     /// Print diagnostics relocated to the user's input. `drop_unrelocated`
@@ -866,7 +883,10 @@ impl<E: Engine> Repl<E> {
         // appends, so `has_var` below only means "the save ran" while the two
         // agree on how many values there are.
         self.engine.truncate_vars(self.var_index);
-        let module = self.compile_and_run(&body)?;
+        self.let_names = names.to_vec();
+        let module = self.compile_and_run(&body);
+        self.let_names.clear();
+        let module = module?;
 
         if !self.engine.has_var(self.var_index) {
             // The value raised before being saved, so there is nothing to bind.

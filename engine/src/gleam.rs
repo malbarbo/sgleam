@@ -307,27 +307,25 @@ impl ConsoleWarningEmitter {
     }
 }
 
-/// Warnings caused by the scaffolding the repl generates around the input, or
-/// that make no sense for a single expression.
+/// Warnings about the scaffolding and not about what the user wrote. Every name
+/// in scope reaches a generated module by import, so one the input does not use
+/// is the rule there, and a module under two names is what a session does over
+/// time.
+///
+/// Nothing else is filtered: a definition of an input is public, so it is never
+/// reported unused, and what is left — a `todo`, an unreachable line, a variable
+/// a function never reads — is the compiler teaching, which is the point of the
+/// thing.
 pub fn is_repl_noise(warning: &Warning) -> bool {
     matches!(
         warning,
         Warning::Type {
             warning: gleam_core::type_::Warning::ModuleImportedTwice { .. }
-                | gleam_core::type_::Warning::Todo { .. }
-                | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
-                | gleam_core::type_::Warning::UnusedConstructor { .. }
                 | gleam_core::type_::Warning::UnusedImportedModule { .. }
                 | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
                 | gleam_core::type_::Warning::UnusedImportedValue { .. }
-                | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
-                | gleam_core::type_::Warning::TopLevelDefinitionShadowsImport { .. }
-                // | gleam_core::type_::Warning::UnusedLiteral { .. }
-                | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
-                | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
-                | gleam_core::type_::Warning::UnusedType { .. }
-                // | gleam_core::type_::Warning::UnusedValue { .. }
-                | gleam_core::type_::Warning::UnusedVariable { .. },
+                | gleam_core::type_::Warning::UnusedConstructor { imported: true, .. }
+                | gleam_core::type_::Warning::UnusedType { imported: true, .. },
             ..
         }
     )

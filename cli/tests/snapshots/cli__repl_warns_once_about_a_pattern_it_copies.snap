@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+warning: Redundant assertion
+  ┌─ <repl>:1:5
+  │
+1 │ let assert x = 1
+  │     ^^^^^^ You can remove this
+
+This assertion is redundant since the pattern covers all possibilities.
