@@ -465,20 +465,26 @@ pub fn run_main(
     let name = main.name();
     let kind = match &main {
         MainFunction::Main => "Main",
-        MainFunction::ReplMain(_) => "ReplMain",
+        MainFunction::ReplMain { .. } => "ReplMain",
         MainFunction::Smain => "Smain",
         MainFunction::SmainStdin => "SmainStdin",
         MainFunction::SmainStdinLines => "SmainStdinLines",
     };
-    // The location of an error raised in a generated module is internal.
-    let repl_file = match &main {
-        MainFunction::ReplMain(_) => format!(r#""src/{module}.gleam""#),
-        _ => "null".into(),
+    // The location of an error raised in a generated module is internal. They
+    // are declared here and not as each is compiled, so a module that ran
+    // nothing is still known by the time an input reaches into it.
+    let repl_files = match &main {
+        MainFunction::ReplMain { files, .. } => files
+            .iter()
+            .map(|file| format!(r#""src/{file}""#))
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => String::new(),
     };
     let code = formatdoc! {r#"
         import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
         import {{ {name} }} from "./{module}.mjs";
-        try_main({name}, "{kind}", {show_output}, {repl_file});
+        try_main({name}, "{kind}", {show_output}, [{repl_files}]);
         "#
     };
     run_script(context, code)

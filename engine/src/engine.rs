@@ -5,7 +5,13 @@ use crate::error::SgleamError;
 #[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
-    ReplMain(String),
+    /// The repl's entry point, and the files it wrote that the runtime has not
+    /// been told about yet — an error raised in one of them is reported with
+    /// no location, as the user never saw the file.
+    ReplMain {
+        name: String,
+        files: Vec<String>,
+    },
     Smain,
     SmainStdin,
     SmainStdinLines,
@@ -15,7 +21,7 @@ impl MainFunction {
     pub fn name(&self) -> &str {
         match self {
             MainFunction::Main => "main",
-            MainFunction::ReplMain(name) => name,
+            MainFunction::ReplMain { name, .. } => name,
             _ => "smain",
         }
     }

@@ -1712,6 +1712,29 @@ fn repl_user_module_import() {
     );
 }
 
+/// A module is the repl's because the repl wrote it, not because something ran
+/// in it: an input that only defines runs nothing, and the input that calls
+/// what it defined is where the error comes from.
+#[test]
+fn repl_error_in_a_module_that_ran_nothing() {
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            fn f() {{ panic as "boom" }}
+            f()"#
+        }),
+        "Error: boom"
+    );
+    // The same across two inputs, so the module holding `g` is older still.
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            fn g() {{ panic as "old" }}
+            fn h() {{ g() }}
+            h()"#
+        }),
+        "Error: old"
+    );
+}
+
 #[test]
 fn repl_user_module_error_keeps_the_location() {
     // Native only: the wasm backend loads a file by its base name, so the very

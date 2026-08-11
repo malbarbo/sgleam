@@ -236,6 +236,11 @@ pub struct Repl<E: Engine> {
     // written to. Each carries which of its bytes are a copy of the input,
     // which is what moves a diagnostic back onto what the user wrote.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
+    // Every module the repl has written and the runtime has not been told of.
+    // A module that ran nothing still raises later — a function of an input
+    // that only defined — so what marks a file as the repl's is having
+    // written it, not having run it.
+    pending_files: Vec<String>,
     // The import the input just wrote, kept while the module that checks it is
     // built: it goes in as a copy of the input, and what it brought is left
     // out of what the repl writes, so the line is not written twice.
@@ -282,6 +287,7 @@ impl<E: Engine> Repl<E> {
             had_runtime_error: false,
             elapsed: std::time::Duration::ZERO,
             generated: Vec::new(),
+            pending_files: Vec::new(),
             own_import: None,
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
@@ -663,6 +669,7 @@ impl<E: Engine> Repl<E> {
         let file = self.write_source(module_name, src.as_str());
         self.remember(&file, src);
         files.push(file);
+        self.pending_files.extend(files.iter().cloned());
 
         self.defined_modules.clear();
         // Collected instead of printed as they are emitted, so they can be
@@ -846,7 +853,10 @@ impl<E: Engine> Repl<E> {
         let start = std::time::Instant::now();
         let result = self.engine.run_main(
             &module.name,
-            MainFunction::ReplMain(self.repl_main.clone()),
+            MainFunction::ReplMain {
+                name: self.repl_main.clone(),
+                files: std::mem::take(&mut self.pending_files),
+            },
             false,
         );
         self.elapsed = start.elapsed();
