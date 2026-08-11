@@ -2,7 +2,7 @@ use gleam_core::{
     ast::{TargetedDefinition, UntypedStatement},
     parse::{
         Parser,
-        error::ParseError,
+        error::{LexicalError, LexicalErrorType, ParseError, ParseErrorType},
         lexer::{self, LexResult},
         token::Token,
     },
@@ -22,6 +22,45 @@ pub fn parse_repl(src: &str) -> Result<Vec<ReplItem>, ParseError> {
     let mut parser = Parser::new(lex);
     let definitions = parser.series_of(&Parser::parse_definition_or_statement, None);
     parser.ensure_no_errors_or_remaining_input(definitions)
+}
+
+/// Whether the input ends before what it started does, which is the one thing
+/// a reader has to know and cannot see in the text: a bracket inside a comment
+/// closes nothing, a string runs to the next line, and `use a <-` is unfinished
+/// with nothing open at all.
+///
+/// Only these two say so. Everything else the parser rejects is finished and
+/// wrong — `let x =` is a typo, not a line to go on typing — and a prompt that
+/// waited for it would have no way out.
+pub fn is_incomplete(src: &str) -> bool {
+    matches!(
+        parse_repl(src),
+        Err(ParseError {
+            error: ParseErrorType::UnexpectedEof
+                | ParseErrorType::LexError {
+                    error: LexicalError {
+                        error: LexicalErrorType::UnexpectedStringEnd,
+                        ..
+                    }
+                },
+            ..
+        })
+    )
+}
+
+/// How deep in blocks the input ends, which is what the next line is indented
+/// by. Counted in tokens, so a brace inside a comment or a string is text and
+/// not a block.
+pub fn nesting_depth(src: &str) -> usize {
+    let mut depth: i32 = 0;
+    for token in lexer::make_tokenizer(src).flatten() {
+        match token.1 {
+            Token::LeftBrace => depth += 1,
+            Token::RightBrace => depth -= 1,
+            _ => {}
+        }
+    }
+    depth.max(0) as usize
 }
 
 trait ParserRepl {

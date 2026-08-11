@@ -1712,6 +1712,24 @@ fn repl_user_module_import() {
     );
 }
 
+/// Where the input ends is the parser's answer, not the reader's guess. A
+/// bracket inside a comment opens nothing, and a reader waiting for it to close
+/// waits forever, swallowing every line after it.
+#[test]
+fn repl_reads_to_the_end_of_the_item() {
+    assert_eq!(repl_exec("1 + 1 // {\n5\n6"), "2\n5\n6");
+    // What goes on over lines, which the brackets used to be counted for.
+    assert_eq!(repl_exec("fn f(x) {\n  x + 1\n}\nf(1)"), "2");
+    // A string runs to the next line, which no bracket says.
+    assert_eq!(
+        repl_exec("import gleam/io\nio.println(\"a\nb\")"),
+        "a\nb\nNil"
+    );
+    assert_eq!(repl_exec("[1,\n2]"), "[1, 2]");
+    // A command is asked about the Gleam it carries, not read as Gleam.
+    assert_eq!(repl_exec(":type case Ok(1) {\n  _ -> 2\n}"), "Int");
+}
+
 /// A module is the repl's because the repl wrote it, not because something ran
 /// in it: an input that only defines runs nothing, and the input that calls
 /// what it defined is where the error comes from.

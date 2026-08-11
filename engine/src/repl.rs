@@ -111,6 +111,24 @@ impl<'a> Command<'a> {
             Command::Source(input)
         }
     }
+
+    /// The Gleam of the input, which is what says whether it is finished. A
+    /// command of the repl's own is finished when it is written.
+    fn gleam(&self) -> Option<&'a str> {
+        match self {
+            Command::Quit | Command::Debug => None,
+            Command::Type(src) | Command::Time(src) | Command::Source(src) => Some(src),
+        }
+    }
+}
+
+/// Whether the reader has to go on reading before this input can run. The
+/// command is stripped first, or `:type case x {` would be asked about as
+/// Gleam, which it is not.
+pub fn is_incomplete(input: &str) -> bool {
+    Command::parse(input)
+        .gleam()
+        .is_some_and(crate::parser::is_incomplete)
 }
 
 /// What a module is compiled for. One that only declares the scope, to check
