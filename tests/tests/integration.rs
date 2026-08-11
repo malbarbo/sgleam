@@ -245,3 +245,33 @@ fn completion_user_module_names() {
     assert!(c.contains(&"Num3".to_string()));
     assert!(c.contains(&"user.one".to_string()));
 }
+
+// --- Whole-input repl tests ---
+//
+// The cli reads a line at a time, so an item spread over several lines only
+// reaches the repl through the api the wasm binary exports — which takes the
+// whole input at once, as an editor holds it.
+
+fn run_repl(input: &str) -> (String, String) {
+    let mut repl = new_repl();
+    capture_output(|| {
+        repl.run(input);
+    })
+}
+
+/// `pub` is a token of the input, not a prefix of its text: it may be followed
+/// by a newline, and an attribute may come before it. What says the repl has to
+/// write one is the definition being private.
+#[test]
+fn repl_pub_on_a_line_of_its_own() {
+    for input in [
+        "pub\nfn f() { 1 }\nf()",
+        "pub\ttype T {\n  A\n}\nA",
+        "pub\nconst c = 1\nc",
+        "@internal\npub fn g() { 2 }\ng()",
+    ] {
+        let (out, err) = run_repl(input);
+        assert!(err.is_empty(), "{input:?} wrote to stderr:\n{err}");
+        assert!(!out.is_empty(), "{input:?} produced nothing");
+    }
+}

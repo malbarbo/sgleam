@@ -3,7 +3,7 @@ use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     Error, Warning,
-    ast::{Definition, UntypedDefinition},
+    ast::{Definition, SrcSpan, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
@@ -184,17 +184,38 @@ pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>
     )
 }
 
-pub fn get_definition_src<'a>(def: &UntypedDefinition, src: &'a str) -> &'a str {
-    let start = def.location().start as usize;
-    let end = def.location().end as usize;
+/// Whether the input kept the definition private, the one case that has no
+/// `pub` written at its keyword — `@internal` requires one.
+pub fn is_private(def: &UntypedDefinition) -> bool {
+    match def {
+        Definition::Function(f) => f.publicity.is_private(),
+        Definition::TypeAlias(t) => t.publicity.is_private(),
+        Definition::CustomType(t) => t.publicity.is_private(),
+        Definition::ModuleConstant(c) => c.publicity.is_private(),
+        Definition::Import(_) => false,
+    }
+}
+
+/// What the definition takes of the input it was parsed from, from `start`,
+/// where the item that produced it began: `location` starts at the keyword,
+/// leaving the attributes above it out, and stops at the head of the ones that
+/// have a body.
+pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     let end = match def {
-        Definition::TypeAlias(_) | Definition::Import(_) => end,
-        Definition::CustomType(type_) => type_.end_position as usize,
-        Definition::ModuleConstant(const_) => const_.value.location().end as usize,
-        Definition::Function(f) => f.end_position as usize,
+        Definition::TypeAlias(_) | Definition::Import(_) => def.location().end,
+        Definition::CustomType(type_) => type_.end_position,
+        Definition::ModuleConstant(const_) => const_.value.location().end,
+        // `end_position` is the closing brace, which a function with no body
+        // has none of: there it stops at the parameters, before the return
+        // annotation an external function is required to write.
+        Definition::Function(f) => f.end_position.max(
+            f.return_annotation
+                .as_ref()
+                .map_or(0, |annotation| annotation.location().end),
+        ),
     };
 
-    &src[start..end]
+    SrcSpan::new(start, end)
 }
 
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {

@@ -6,7 +6,13 @@ use insta::assert_snapshot;
 /// are deterministic.
 fn strip_repl_suffix(s: &str) -> String {
     let mut result = s.to_string();
-    for prefix in ["repl_main_", "repl_print_", "repl_save_", "repl_load_"] {
+    for prefix in [
+        "repl_main_",
+        "repl_print_",
+        "repl_memo_",
+        "repl_vals_",
+        "repl_value_",
+    ] {
         let mut start = 0;
         while let Some(pos) = result[start..].find(prefix) {
             let abs_pos = start + pos;
@@ -524,6 +530,24 @@ fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
 }
 
+/// The message comes after the value, and belongs to the line the repl writes
+/// the pattern on — not to the one that computes the value.
+#[test]
+fn repl_let_assert_message() {
+    let message = |input: &str| run_sgleam_cmd(&["repl", "-q"], Some(input)).0;
+    assert!(
+        message(r#"let assert Ok(v) = Error(1) as "what the user wrote""#)
+            .contains("Error: what the user wrote")
+    );
+    // Nothing to bind, so the statement is run as the expression it is.
+    assert!(message(r#"let assert Ok(_) = Error(1) as "discarded""#).contains("Error: discarded"));
+    // The message reads the session, as the value does.
+    assert!(
+        message("let m = \"from a let\"\nlet assert Ok(v) = Error(1) as m")
+            .contains("Error: from a let")
+    );
+}
+
 #[test]
 fn repl_fn_replace_let() {
     assert_eq!(
@@ -717,12 +741,24 @@ fn repl_the_module_of_an_input_needs_no_import() {
         }),
         "A\nA"
     );
-    // A value in its slot, read back from the companion module of its item.
+    // A value in its slot, under the same name a definition would have. Gleam
+    // has no value at module level, so the module holds the function that
+    // reads it back — which is what the plain name binds to as well.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 1
             let x = 2
-            #(repl1_1_vals.x, x)"
+            #(repl1.x(), x)"
+        }),
+        "1\n2\n#(1, 2)"
+    );
+    // An input that also defines needs its module for that, so the companion
+    // of the item holds the value.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn q() {{ 1 }} let x = 1
+            let x = 2
+            #(repl1_2_vals.x(), x)"
         }),
         "1\n2\n#(1, 2)"
     );
@@ -1021,6 +1057,58 @@ fn repl_fn_redefine() {
     );
 }
 
+/// An attribute is written above the keyword the parser records the definition
+/// from, so it only reaches the module if the item is taken from where the
+/// input opened it — and `pub` goes after it, where the keyword is.
+#[test]
+fn repl_fn_attributes() {
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(&formatdoc! {r#"
+            @deprecated("use g") fn f() {{ 1 }}
+            f()"#
+        }),
+    );
+    assert_eq!(out.trim(), "1");
+    assert!(err.contains("This value has been deprecated"), "{err}");
+}
+
+/// A type and a value of the same name are two names. The module of an input
+/// leaves out what the input defines, and that has to be read per namespace, or
+/// defining one of the two keeps the other from coming in.
+#[test]
+fn repl_defines_a_name_the_other_namespace_holds() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/option.{{type Option, Some}}
+            type Some {{ Wrapped(Int) }} fn f() {{ Some(1) }}
+            f()"
+        }),
+        "Some(1)"
+    );
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/option.{{type Option, Some}}
+            type Foo {{ Option }} fn g(x: Option(Int)) {{ x }}
+            g(Some(1))"
+        }),
+        "Some(1)"
+    );
+}
+
+/// A function with no body ends at its head, which is past the parameters the
+/// parser stops the body at.
+#[test]
+fn repl_fn_external() {
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print") fn p(a: Int) -> Int
+            p(7)"#
+        }),
+        "7\n7"
+    );
+}
+
 #[test]
 fn repl_fn_redefine_recursive() {
     // A recursive call in the new definition reaches the new definition, not the
@@ -1037,8 +1125,8 @@ fn repl_fn_redefine_recursive() {
 
 #[test]
 fn repl_value_in_guard() {
-    // A stored value reaches the generated module as an imported module
-    // constant, which a guard inlines as the call that loads it.
+    // A stored value is a binding of the body the guard is in, which is a
+    // thing a guard may read.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 5
@@ -1048,6 +1136,49 @@ fn repl_value_in_guard() {
         }),
         "5\n1\n0"
     );
+}
+
+#[test]
+fn repl_stored_value_runs_once() {
+    // The value is remembered by the run that bound it, so reading it back is
+    // never the expression running again.
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/io
+            let x = io.println("side")
+            x
+            fn f() {{ x }}
+            f()"#
+        }),
+        "side\nNil\nNil\nNil"
+    );
+}
+
+#[test]
+fn repl_a_name_a_body_already_has_is_not_bound_again() {
+    // A parameter and a `let` of the body take the name back from the value
+    // the session bound.
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let x = 1
+            fn f(x) {{ x }}
+            f(9)
+            fn g() {{ let x = 2 x }}
+            g()"
+        }),
+        "1\n9\n2"
+    );
+}
+
+#[test]
+fn repl_warns_inside_a_body_it_wrote_into() {
+    // The bindings the repl writes at the top of a body split the definition
+    // in two, and both halves still say where the input has them.
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some("let z = 5\nfn f() {\n  let a = 1\n  z\n}"),
+    );
+    assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
@@ -1147,7 +1278,7 @@ fn repl_imports_only_what_the_input_writes() {
     );
     // `x + 1` brings in the value, not the function.
     let expr = debug_module(&out, "repl3_1");
-    assert!(expr.contains("import repl2_1_vals.{x}"), "{expr}");
+    assert!(expr.contains("import repl2.{x}"), "{expr}");
     assert!(!expr.contains("untouched"), "{expr}");
     // Calling it brings it in.
     assert!(debug_module(&out, "repl4_1").contains("untouched"), "{out}");
@@ -1274,8 +1405,16 @@ fn repl_error_fn_body() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// A stored value is a module constant, so the definition reaches the generated
-// module whole: the head is still there and the lines still line up.
+// An error over a whole definition is over the `pub` the repl wrote as much as
+// over the input, and it is the input's definition it is about.
+#[test]
+fn repl_error_over_a_definition_head() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn f() { 1 } fn f() { 2 }"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
+// The repl writes into the body of a function that reads a stored value, so
+// its head is a copy of the input on its own: the error still lands on it.
 #[test]
 fn repl_error_fn_head_with_stored_value() {
     let (_, err) = run_sgleam_cmd(
@@ -1327,6 +1466,14 @@ fn repl_error_import_item() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+// An import that brings more than one name is not written back as one line,
+// so the error lands on the input by where it is, not by what it looks like.
+#[test]
+fn repl_error_import_item_among_others() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("import gleam/int.{to_string, nope}"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
 #[test]
 fn repl_error_import_module() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("import gleam/nope"));
@@ -1368,16 +1515,16 @@ fn repl_warns_about_what_the_user_wrote() {
 
 #[test]
 fn repl_warns_once_about_a_pattern_it_copies() {
-    // The repl binds the input's pattern twice, so the compiler remarks on the
-    // assertion twice; the copy carrying the input's text is the one that shows.
+    // The pattern goes in once, so what the compiler says about it is said
+    // once.
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert x = 1\nx"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
 fn repl_does_not_warn_about_its_own_scaffolding() {
-    // The name a `let` binds is read outside the copy that carries its text,
-    // and every name in scope reaches a generated module by import, used or not.
+    // Every name in scope reaches a generated module by import, used or not,
+    // and the module that checks an import uses none of what it brought.
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some("import gleam/int\nimport gleam/list.{length}\nlet x = 1\nx"),

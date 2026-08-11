@@ -3,10 +3,10 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Type used as a type constructor
-  ┌─ <repl>:1:13
+  ┌─ <repl>:1:26
   │
-1 │ type B { B(A(Int)) }
-  │             ^^^^^ You can remove this
+1 │ type A { A } type B { B(A(Int)) }
+  │                          ^^^^^ You can remove this
 
 `A` is a type with no parameters, but here it's being used as a type
 constructor.

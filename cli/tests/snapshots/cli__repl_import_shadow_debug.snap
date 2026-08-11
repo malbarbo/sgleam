@@ -4,11 +4,8 @@ expression: strip_repl_suffix(&out)
 ---
 Debug mode on.
 --- repl1_1.gleam ---
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
-pub fn repl_save_XXXXXXXX(value: a) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
-pub fn repl_load_XXXXXXXX(index: Int) -> a
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
+pub fn repl_memo_XXXXXXXX(index: Int, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a
@@ -17,20 +14,13 @@ import sgleam/io
 ---
 --- repl1_1.mjs ---
 import * as $io from "./sgleam/io.mjs";
-import {
-  repl_save as repl_save_XXXXXXXX,
-  repl_load as repl_load_XXXXXXXX,
-  repl_print as repl_print_XXXXXXXX,
-} from "./sgleam/sgleam_ffi.mjs";
+import { repl_memo as repl_memo_XXXXXXXX, repl_print as repl_print_XXXXXXXX } from "./sgleam/sgleam_ffi.mjs";
 
-export { repl_load_XXXXXXXX, repl_print_XXXXXXXX, repl_save_XXXXXXXX };
+export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX };
 ---
 --- repl2_1.gleam ---
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_save")
-pub fn repl_save_XXXXXXXX(value: a) -> a
-
-@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_load")
-pub fn repl_load_XXXXXXXX(index: Int) -> a
+@external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
+pub fn repl_memo_XXXXXXXX(index: Int, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a
@@ -43,13 +33,9 @@ pub fn repl_main_XXXXXXXX() {
 ---
 --- repl2_1.mjs ---
 import * as $io from "./sgleam/io.mjs";
-import {
-  repl_save as repl_save_XXXXXXXX,
-  repl_load as repl_load_XXXXXXXX,
-  repl_print as repl_print_XXXXXXXX,
-} from "./sgleam/sgleam_ffi.mjs";
+import { repl_memo as repl_memo_XXXXXXXX, repl_print as repl_print_XXXXXXXX } from "./sgleam/sgleam_ffi.mjs";
 
-export { repl_load_XXXXXXXX, repl_print_XXXXXXXX, repl_save_XXXXXXXX };
+export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX };
 
 export function repl_main_XXXXXXXX() {
   return repl_print_XXXXXXXX(($io.input("") + "ok"));

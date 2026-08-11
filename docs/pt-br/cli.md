@@ -141,6 +141,8 @@ List(Int)
 > :debug
 Debug mode on.
 > let x = 10
+--- repl1.gleam ---
+...
 --- repl1_1.gleam ---
 ...
 --- repl1_1.mjs ---

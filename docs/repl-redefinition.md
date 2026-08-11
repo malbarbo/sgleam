@@ -105,19 +105,42 @@ Two live modules can define `A`, and the one that was shadowed keeps working
 for everything built on it.
 
 A `let` cannot go there, and for a reason particular to Gleam: it is a computed
-value, and Gleam has no computed binding at module level. It stays a slot,
-reached by a module constant, `const x: A(Int) = load(0)`. But that constant
-carries the *name* of the type as text, and the text has to be written in a
-scope where it still means the right thing — which is why it goes into a
-companion module `replN_M_vals`, written right after the run, once, and holding
-nothing else.
+value, and Gleam has no computed binding at module level. What a language
+without them has instead is a function that runs once — so the input's own text
+goes into the module of its item, wrapped in a function that remembers what it
+produced:
 
-That module is the one place where the REPL goes back from a type to text, and
-it is the whole scope its own constants are read in: it imports what the
-annotations name and nothing else, under aliases chosen before they are
-rendered rather than matched afterwards. So the text means the same thing
-whenever it is compiled — no later definition reaches it, and no alias of the
-user's either. What it costs is one extra module per input that binds a value.
+    pub fn repl_vals() {
+      repl_memo(0, fn() {
+        let repl_value = <the value the user wrote>
+        <the pattern the user wrote> = repl_value
+        #(repl_value, x)
+      })
+    }
+
+The run of that input is what fills the slot, so reading the value back is
+never the expression running again — a `let` that prints, or reads a line,
+does it once, as it would in a file. A companion module then holds one
+accessor per name the pattern bound, over the tuple:
+
+    pub fn x() { repl_vals().1 }
+
+It takes `replN`, the name a definition of the input would have, so a saved
+value is reached almost as a type or a function is: `repl1.x()`. It can,
+because an input that binds a value at the prompt defines nothing — one line is
+one input, and `replN` is free. An input that does define keeps it for that,
+since it is compiled before the items run and is never rewritten, and its values
+fall back to `replN_M_vals`, one per item. So does the second value of an input
+that binds twice.
+
+A name the user reads still has to *be* the value and not the function, and
+that is settled where the difference is visible: at the top of a body. Every
+body the REPL writes — its own `repl_main`, and each function of an input —
+opens with `let x = x()` for the values its text names. At the first statement
+of a body the scope holds the module level names and the parameters, and
+nothing else, so leaving out the parameters and what the input defines is not a
+precaution against shadowing: it is the whole of it. The REPL never writes a
+type as text, and so never has to make a text mean the same thing twice.
 
 The naming of a shadowed type costs nothing: Gleam already prints the qualified
 name only for the one whose plain name is taken, and the REPL prints a type
@@ -134,8 +157,11 @@ message comes from, and it is the same message the other two give:
         repl1.Val
 
 Every definition of an input is made public, since a later input reaches it by
-import. `pub` goes in front of what the user wrote, which keeps its columns, so
-an error in it still lands where the user wrote it. The rule to state is that a
+import. `pub` goes in at the keyword, after the attributes above it, and the
+definition around it is the input's own text. A diagnostic over the whole of it
+is over what both wrote, and what it points at is the input's bytes it covers —
+so it lands on the definition the user wrote, at the columns they wrote it in.
+The rule to state is that a
 REPL definition has no visibility, which is also true of GHCi and OCaml, where
 the prompt has no export list at all. What it costs is one diagnostic a file
 would give and the REPL therefore never gives — a public type exposing a
