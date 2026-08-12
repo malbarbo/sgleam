@@ -1429,17 +1429,6 @@ fn constant_find_names(
                 constant_find_names(&argument.value, names, modules);
             }
         }
-        Constant::Call {
-            module,
-            name,
-            arguments,
-            ..
-        } => {
-            read(module, name, names, modules);
-            for argument in arguments {
-                constant_find_names(&argument.value, names, modules);
-            }
-        }
         // Expanded into a `Record`, so the generated code names the constructor.
         Constant::RecordUpdate {
             module,
