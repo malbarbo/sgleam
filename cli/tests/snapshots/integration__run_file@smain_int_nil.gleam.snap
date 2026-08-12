@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+error: smain function has an invalid signature
+
+`smain_int_nil.smain` has the invalid signature `fn(Int) -> Nil` and can not be run.
+
+Hint: Use one of the valid signatures for `smain` function:
+  fn() -> a
+  fn(String) -> a
+  fn(List(String)) -> a

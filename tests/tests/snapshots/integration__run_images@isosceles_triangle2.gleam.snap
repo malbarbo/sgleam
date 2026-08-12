@@ -1,8 +1,0 @@
----
-source: tests/tests/integration.rs
-expression: "format!(\"{out}\")"
-input_file: tests/tests/images/isosceles_triangle2.gleam
----
-<svg width="32.0" height="58.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 31.058285 57.95555 L 15.529143 0.0 L 0.0 57.95555 Z" fill="rgba(127, 255, 212, 1.0)" />
-</svg>

@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+["Hello", "World"]
+STDERR

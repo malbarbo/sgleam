@@ -597,3 +597,25 @@ Deno.test("panic handler intercepts Rust panics", async () => {
   );
   destroy(ctx);
 });
+
+// `pub` is a token of the input, not a prefix of its text: it may be followed
+// by a newline, and an attribute may come before it. What says the repl has to
+// write one is the definition being private. The cli reads a line at a time, so
+// an input holding several items only reaches the repl through this api, which
+// takes the whole of it at once — as an editor holds it.
+Deno.test("pub on a line of its own", async () => {
+  for (
+    const input of [
+      "pub\nfn f() { 1 }\nf()",
+      "pub\ttype T {\n  A\n}\nA",
+      "pub\nconst c = 1\nc",
+      "@internal\npub fn g() { 2 }\ng()",
+    ]
+  ) {
+    const ctx = await newRepl();
+    const r = run(ctx, input);
+    assertEquals(r.stderr, "", `${input} wrote to stderr`);
+    assertEquals(r.stdout.length > 0, true, `${input} produced nothing`);
+    destroy(ctx);
+  }
+});

@@ -1,0 +1,9 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+error: Target not supported
+
+`main_erlang` has a main function, but it does not support the JavaScript
+target, so it cannot be run.

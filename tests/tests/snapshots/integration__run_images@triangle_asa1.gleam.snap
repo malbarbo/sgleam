@@ -1,8 +1,0 @@
----
-source: tests/tests/integration.rs
-expression: "format!(\"{out}\")"
-input_file: tests/tests/images/triangle_asa1.gleam
----
-<svg width="197.0" height="35.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 0.0 0.0 L 167.819926 0.0 L 196.961551 34.729636 Z" fill="rgba(46, 139, 87, 1.0)" />
-</svg>

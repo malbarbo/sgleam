@@ -61,7 +61,6 @@ test: test-rs test-wasm test-wasm-cli
 test-rs:
 	cargo test
 	cargo test -p engine --features resvg
-	cargo test -p tests
 
 test-wasm: wasm
 	deno test --allow-read wasm/tests/

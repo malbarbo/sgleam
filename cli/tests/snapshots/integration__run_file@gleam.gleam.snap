@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+Ignoring `gleam.gleam`: `gleam` is a reserved module name.

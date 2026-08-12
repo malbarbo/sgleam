@@ -1,0 +1,12 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+warning: Invalid module name
+
+Module names must begin with a lowercase letter and contain only lowercase
+alphanumeric characters or underscores.
+
+Hint: Rename `/src/Invalid.gleam` to be valid, or remove this file from the
+project source.

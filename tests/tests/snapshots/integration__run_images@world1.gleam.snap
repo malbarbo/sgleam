@@ -1,7 +1,0 @@
----
-source: tests/tests/integration.rs
-expression: "format!(\"{out}\")"
-input_file: tests/tests/images/world1.gleam
----
-Image
-Image

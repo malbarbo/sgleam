@@ -38,8 +38,9 @@ fn debug_module<'a>(out: &'a str, name: &str) -> &'a str {
         .unwrap_or_default()
 }
 
-// These tests launch the sgleam binary as a subprocess. Tests that only need
-// Repl::run() can go in tests (which uses the capture feature).
+// These tests launch the sgleam binary as a subprocess. What a file prints is
+// snapshotted in integration.rs, one test per file; what only needs the scope
+// the repl holds goes in engine/tests/completion.rs.
 
 #[test]
 fn repl_smoke_test() {
@@ -2138,7 +2139,7 @@ fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(&root)
-        .args(["repl", "-q", "tests/tests/images/world1.gleam"])
+        .args(["repl", "-q", "cli/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();
@@ -2149,7 +2150,7 @@ fn world_run_in_repl_number() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(&root)
-        .args(["repl", "-n", "-q", "tests/tests/images/world1.gleam"])
+        .args(["repl", "-n", "-q", "cli/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();

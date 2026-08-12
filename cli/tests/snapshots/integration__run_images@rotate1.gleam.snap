@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+<svg width="45.0" height="45.0" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 43.573883 1.147476 A 30.0 10.0 -45.0 0 1 1.147476 43.573883 A 30.0 10.0 -45.0 0 1 43.573883 1.147476 Z" fill="rgba(107, 142, 35, 1.0)" />
+</svg>
