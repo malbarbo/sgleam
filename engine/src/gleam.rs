@@ -88,15 +88,18 @@ impl Project {
             .expect("Set modification time of a file in memory")
     }
 
-    pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<(), Error> {
+    /// The module the file was written as. A module is named after the path it
+    /// sits at under the source root, so only the write knows the name.
+    pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<EcoString, Error> {
         let content = std::fs::read_to_string(input).map_err(|err| Error::FileIo {
             kind: FileKind::File,
             action: FileIoAction::Read,
             path: input.into(),
             err: Some(err.to_string()),
         })?;
-        self.write_source(&input.as_str().replace('\\', "/"), &content);
-        Ok(())
+        let path = input.as_str().replace('\\', "/");
+        self.write_source(&path, &content);
+        Ok(path.strip_suffix(".gleam").unwrap_or(&path).into())
     }
 
     pub fn write_out(&mut self, name: &str, content: &str) {

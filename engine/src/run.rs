@@ -1,4 +1,5 @@
 use camino::{Utf8Path, Utf8PathBuf};
+use ecow::EcoString;
 
 use gleam_core::{
     ast::TypedFunction,
@@ -18,17 +19,14 @@ const SGLEAM_SMAIN: &str = "smain";
 
 pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
-    let modules = copy_files_and_build(&mut project, paths)?;
-    let name = paths[0].with_extension("");
-    let name = name.as_str().replace('\\', "/");
+    let built = copy_files_and_build(&mut project, paths)?;
+    let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
+        path: paths[0].clone(),
+    })?;
 
-    if let Some(module) = get_module(&modules, &name) {
-        let main = get_main(module)?;
-        let show_output = main != MainFunction::Main;
-        JsEngine::new(project.fs.clone()).run_main(&module.name, main, show_output)?;
-    } else {
-        // The compiler ignored the file because of the name and printed a warning.
-    }
+    let main = get_main(module)?;
+    let show_output = main != MainFunction::Main;
+    JsEngine::new(project.fs.clone()).run_main(&module.name, main, show_output)?;
 
     Ok(())
 }
@@ -41,24 +39,16 @@ pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
 
 pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
-    let modules = copy_files_and_build(&mut project, paths)?;
-    let modules: Vec<_> = modules
+    let built = copy_files_and_build(&mut project, paths)?;
+    let user_modules: Vec<_> = paths
         .iter()
-        .filter_map(|module| {
-            let path = module
-                .input_path
-                .strip_prefix("/src/")
-                .unwrap_or(Utf8Path::new(""))
-                .to_owned();
-            if user_files.contains(&path) {
-                Some(module.name.as_str())
-            } else {
-                None
-            }
-        })
+        .enumerate()
+        .filter(|(_, path)| user_files.contains(path))
+        .filter_map(|(index, _)| built.module(index))
+        .map(|module| module.name.as_str())
         .collect();
 
-    JsEngine::new(project.fs.clone()).run_tests(&modules)?;
+    JsEngine::new(project.fs.clone()).run_tests(&user_modules)?;
     Ok(())
 }
 
@@ -118,17 +108,39 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
+/// What a build knows that no one can work out from the paths it was given: the
+/// module each path was written as, in the order given, and `None` for a path
+/// that was never copied.
+pub struct Built {
+    pub modules: Vec<Module>,
+    pub names: Vec<Option<EcoString>>,
+}
+
+impl Built {
+    /// The module a given path was compiled into, by the name the copy wrote it
+    /// under — not by one derived from the path a second time.
+    pub fn module(&self, index: usize) -> Option<&Module> {
+        let name = self.names.get(index)?.as_ref()?;
+        get_module(&self.modules, name)
+    }
+}
+
 pub fn copy_files_and_build(
     project: &mut Project,
     paths: &[Utf8PathBuf],
-) -> Result<Vec<Module>, gleam_core::Error> {
-    for path in paths.iter().filter(|p| validate_path(p)) {
-        project.copy_file_to_source(path)?;
+) -> Result<Built, gleam_core::Error> {
+    let mut names = Vec::with_capacity(paths.len());
+    for path in paths {
+        names.push(if validate_path(path) {
+            Some(project.copy_file_to_source(path)?)
+        } else {
+            None
+        });
     }
     let mut modules = project.compile(false)?;
     modules
         .retain(|module| !module.name.starts_with("gleam/") && !module.name.starts_with("sgleam/"));
-    Ok(modules)
+    Ok(Built { modules, names })
 }
 
 fn validate_path(path: &Utf8Path) -> bool {

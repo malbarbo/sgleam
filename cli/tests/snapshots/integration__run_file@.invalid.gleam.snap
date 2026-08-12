@@ -11,3 +11,10 @@ alphanumeric characters or underscores.
 Hint: Rename `/src/.invalid.gleam` to be valid, or remove this file from
 the
 project source.
+
+error: no module to run
+
+`.invalid.gleam` was not compiled into a module.
+
+Hint: A module is named after the path of its file, which has to be a
+`.gleam` file under the current directory.

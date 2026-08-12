@@ -21,6 +21,9 @@ pub enum SgleamError {
         path: Utf8PathBuf,
     },
 
+    #[error("no module to run")]
+    NoModuleToRun { path: Utf8PathBuf },
+
     #[error("gleam error")]
     Gleam(gleam_core::Error),
 
@@ -80,6 +83,19 @@ pub fn show_error(err: &SgleamError) {
             title: "path is not within the current directory".into(),
             text: format!("`{path}` is outside of the current directory `{current_dir}`"),
             hint: Some("Change the current directory or specify another path.".into()),
+            level: Level::Error,
+            location: None,
+        }
+        .write(&mut buffer),
+
+        SgleamError::NoModuleToRun { path } => Diagnostic {
+            title: "no module to run".into(),
+            text: format!("`{path}` was not compiled into a module."),
+            hint: Some(
+                "A module is named after the path of its file, which has to be a \
+                 `.gleam` file under the current directory."
+                    .into(),
+            ),
             level: Level::Error,
             location: None,
         }

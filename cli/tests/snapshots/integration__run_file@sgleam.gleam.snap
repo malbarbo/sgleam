@@ -4,3 +4,9 @@ source: cli/tests/integration.rs
 STDOUT
 STDERR
 Ignoring `sgleam.gleam`: `sgleam` is a reserved module name.
+error: no module to run
+
+`sgleam.gleam` was not compiled into a module.
+
+Hint: A module is named after the path of its file, which has to be a
+`.gleam` file under the current directory.

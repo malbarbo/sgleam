@@ -13,7 +13,7 @@ use camino::Utf8PathBuf;
 use engine::{
     error::{SgleamError, show_error},
     format,
-    gleam::{Project, find_imports, get_module},
+    gleam::{Project, find_imports},
     quickjs::QuickJsEngine,
     repl::{DEBUG, QUIT, Repl, ReplOutput, TIME, TYPE, welcome_message},
     run::{copy_files_and_build, run_check, run_main, run_test},
@@ -223,12 +223,8 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     }
 
     let mut project = Project::default();
-    let modules = copy_files_and_build(&mut project, paths)?;
-    let module = paths.first().and_then(|input| {
-        let name = input.with_extension("");
-        let name = name.as_str().replace('\\', "/");
-        get_module(&modules, &name)
-    });
+    let built = copy_files_and_build(&mut project, paths)?;
+    let module = built.module(0);
 
     let mut repl = Repl::<QuickJsEngine>::new(project, module);
     let completions = repl_reader::Completions::default();
