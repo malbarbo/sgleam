@@ -53,7 +53,7 @@ impl Default for Project {
             }
         }
 
-        project.write_out("prelude.mjs", gleam_core::javascript::prelude());
+        project.write_out("prelude.mjs", gleam_core::javascript::PRELUDE);
         project
     }
 }
