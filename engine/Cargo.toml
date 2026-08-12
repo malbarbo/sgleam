@@ -26,7 +26,6 @@ flate2 = "1"
 tar = "0.4.41"
 
 [features]
-capture = []
 resvg = ["dep:resvg"]
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

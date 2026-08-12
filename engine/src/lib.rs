@@ -4,8 +4,6 @@
     clippy::result_large_err
 )]
 
-#[macro_use]
-pub mod output;
 pub mod engine;
 pub mod error;
 #[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]

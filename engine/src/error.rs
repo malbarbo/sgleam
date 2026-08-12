@@ -100,11 +100,8 @@ pub fn show_error(err: &SgleamError) {
     flush_buffer(&buffer_writer, &buffer);
 }
 
-pub fn flush_buffer(_buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
-    #[cfg(feature = "capture")]
-    eprint!("{}", String::from_utf8_lossy(buffer.as_slice()));
-    #[cfg(not(feature = "capture"))]
-    _buffer_writer.print(buffer).expect("Write to stderr");
+pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
+    buffer_writer.print(buffer).expect("Write to stderr");
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {
