@@ -119,7 +119,15 @@ fn run_image_captured(path: &str) -> (String, String) {
 // --- Completion tests ---
 
 fn new_repl() -> Repl<QuickJsEngine> {
-    Repl::new(Project::default(), None).expect("create repl")
+    Repl::new(Project::default(), None)
+}
+
+fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
+    let mut project = Project::default();
+    project.write_source("user.gleam", source);
+    let modules = project.compile(true).expect("compile user module");
+    let module = get_module(&modules, "user");
+    Repl::new(project, module)
 }
 
 fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String> {
@@ -130,19 +138,20 @@ fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String>
 }
 
 #[test]
-fn completion_default_module_aliases() {
+fn completion_no_module_before_import() {
     let repl = new_repl();
     let c = repl.completions();
-    // Default module aliases are available
-    assert!(c.contains(&"int".to_string()));
-    assert!(c.contains(&"list".to_string()));
-    assert!(c.contains(&"io".to_string()));
-    assert!(c.contains(&"float".to_string()));
+    assert!(!c.contains(&"int".to_string()));
+    assert!(completions_matching(&repl, "int.").is_empty());
 }
 
 #[test]
 fn completion_qualified_names() {
-    let repl = new_repl();
+    let mut repl = new_repl();
+    capture_output(|| {
+        repl.run("import gleam/int");
+        repl.run("import gleam/option");
+    });
     let c = completions_matching(&repl, "int.");
     assert!(c.contains(&"int.to_string".to_string()));
     assert!(c.contains(&"int.add".to_string()));
@@ -156,7 +165,7 @@ fn completion_qualified_names() {
 fn completion_after_let() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("let my_var = 42").unwrap();
+        repl.run("let my_var = 42");
     });
     let c = completions_matching(&repl, "my_");
     assert_eq!(c, vec!["my_var"]);
@@ -166,7 +175,7 @@ fn completion_after_let() {
 fn completion_after_fn() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("fn my_func(x) { x + 1 }").unwrap();
+        repl.run("fn my_func(x) { x + 1 }");
     });
     let c = completions_matching(&repl, "my_");
     assert_eq!(c, vec!["my_func"]);
@@ -176,27 +185,22 @@ fn completion_after_fn() {
 fn completion_after_import_alias() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/int as i").unwrap();
+        repl.run("import gleam/int as i");
     });
     // "i" alias should have qualified completions
     let c = completions_matching(&repl, "i.");
     assert!(c.contains(&"i.to_string".to_string()));
     assert!(c.contains(&"i.add".to_string()));
-    // "int" alias should also still work (default alias remains)
-    let c = completions_matching(&repl, "int.");
-    assert!(c.contains(&"int.to_string".to_string()));
+    // The alias replaces the short name, which is not bound
+    assert!(completions_matching(&repl, "int.").is_empty());
 }
 
 #[test]
 fn completion_after_import_new_module() {
     let mut repl = new_repl();
-    // sgleam/io is NOT in GLEAM_MODULES_NAMES (to avoid conflicting with gleam/io)
-    assert!(
-        completions_matching(&repl, "io.input").is_empty()
-            || !repl.completions().iter().any(|c| c == "io.input")
-    );
+    assert!(completions_matching(&repl, "io.input").is_empty());
     capture_output(|| {
-        repl.run("import sgleam/io").unwrap();
+        repl.run("import sgleam/io");
     });
     // After importing, io now points to sgleam/io, and io.input should be available
     let c = completions_matching(&repl, "io.input");
@@ -210,29 +214,64 @@ fn completion_after_import_new_module() {
 fn completion_after_import_unqualified() {
     let mut repl = new_repl();
     capture_output(|| {
-        repl.run("import gleam/int.{to_string}").unwrap();
+        repl.run("import gleam/int.{to_string}");
     });
     let c = completions_matching(&repl, "to_string");
     assert_eq!(c, vec!["to_string"]);
 }
 
 #[test]
-fn completion_fn_shadows_alias() {
+fn completion_fn_with_module_name() {
     let mut repl = new_repl();
-    assert!(completions_matching(&repl, "io.").len() > 0);
     capture_output(|| {
-        repl.run("fn io() { 1 }").unwrap();
+        repl.run("import gleam/io");
+        repl.run("fn io() { 1 }");
     });
-    // "io" is now a function, not a module alias — no io.* completions
+    // The module keeps its own namespace, so both stay available.
     let c = completions_matching(&repl, "io.");
     assert!(
-        c.is_empty(),
-        "expected no io.* completions after fn io(), got: {c:?}"
+        c.contains(&"io.println".to_string()),
+        "expected io.* completions after fn io(), got: {c:?}"
     );
-    // But "io" itself should still be a completion (as a function)
     assert!(repl.completions().contains(&"io".to_string()));
 }
 
-// TODO: user module public names loaded via file are not tracked in self.names,
-// so they don't appear in completions. They are imported via user_import string
-// and accessible at runtime but invisible to the completion system.
+#[test]
+fn completion_user_module_names() {
+    let repl = new_repl_with_source("pub const one = 1\n\npub type Three {\n  Num3\n}\n");
+    let c = repl.completions();
+    assert!(c.contains(&"one".to_string()));
+    assert!(c.contains(&"Three".to_string()));
+    assert!(c.contains(&"Num3".to_string()));
+    assert!(c.contains(&"user.one".to_string()));
+}
+
+// --- Whole-input repl tests ---
+//
+// The cli reads a line at a time, so an item spread over several lines only
+// reaches the repl through the api the wasm binary exports — which takes the
+// whole input at once, as an editor holds it.
+
+fn run_repl(input: &str) -> (String, String) {
+    let mut repl = new_repl();
+    capture_output(|| {
+        repl.run(input);
+    })
+}
+
+/// `pub` is a token of the input, not a prefix of its text: it may be followed
+/// by a newline, and an attribute may come before it. What says the repl has to
+/// write one is the definition being private.
+#[test]
+fn repl_pub_on_a_line_of_its_own() {
+    for input in [
+        "pub\nfn f() { 1 }\nf()",
+        "pub\ttype T {\n  A\n}\nA",
+        "pub\nconst c = 1\nc",
+        "@internal\npub fn g() { 2 }\ng()",
+    ] {
+        let (out, err) = run_repl(input);
+        assert!(err.is_empty(), "{input:?} wrote to stderr:\n{err}");
+        assert!(!out.is_empty(), "{input:?} produced nothing");
+    }
+}

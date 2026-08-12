@@ -3,9 +3,9 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Unknown variable
-  ┌─ <repl>:1:1
+  ┌─ <repl>:3:15
   │
-1 │ nope
-  │ ^^^^
+3 │   x + z + a + nope
+  │               ^^^^
 
 The name `nope` is not in scope here.

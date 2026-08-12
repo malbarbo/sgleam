@@ -3,9 +3,9 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Unknown module value
-  ┌─ <repl>:1:19
+  ┌─ <repl>:1:30
   │
-1 │ import gleam/int.{nope}
-  │                   ^^^^
+1 │ import gleam/int.{to_string, nope}
+  │                              ^^^^
 
 The module `gleam/int` does not have a `nope` value.

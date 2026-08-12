@@ -374,7 +374,10 @@ pub fn add_examples() {
 
 Deno.test("circle image produces SVG", async () => {
   const ctx = await newRepl();
-  const r = run(ctx, "import sgleam/stroke\nimage.circle(30, stroke.red)");
+  const r = run(
+    ctx,
+    "import sgleam/image\nimport sgleam/stroke\nimage.circle(30, stroke.red)",
+  );
   assertEquals(r.result, REPL_OK);
   assertEquals(
     r.svgs.length > 0,
@@ -387,7 +390,10 @@ Deno.test("circle image produces SVG", async () => {
 
 Deno.test("wedge image produces SVG", async () => {
   const ctx = await newRepl();
-  const r = run(ctx, "import sgleam/fill\nimage.wedge(40, 90, fill.red)");
+  const r = run(
+    ctx,
+    "import sgleam/image\nimport sgleam/fill\nimage.wedge(40, 90, fill.red)",
+  );
   assertEquals(r.result, REPL_OK);
   assertEquals(r.svgs.length > 0, true, "expected SVG output");
   destroy(ctx);
@@ -397,7 +403,7 @@ Deno.test("add_curve renders", async () => {
   const ctx = await newRepl();
   const r = run(
     ctx,
-    "import sgleam/stroke\nimage.add_curve(image.rectangle(100, 100, stroke.black), 20, 20, 0, 0.333, 80, 80, 0, 0.333, stroke.red)",
+    "import sgleam/image\nimport sgleam/stroke\nimage.add_curve(image.rectangle(100, 100, stroke.black), 20, 20, 0, 0.333, 80, 80, 0, 0.333, stroke.red)",
   );
   assertEquals(r.result, REPL_OK);
   assertEquals(r.stderr, "", `unexpected stderr: ${r.stderr}`);

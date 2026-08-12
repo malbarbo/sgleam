@@ -1,0 +1,11 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+warning: Unused variable
+  ┌─ <repl>:2:7
+  │
+2 │   let a = 1
+  │       ^ This variable is never used
+
+Hint: You can ignore it with an underscore: `_a`.

@@ -3,7 +3,7 @@ use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     Error, Warning,
-    ast::{Definition, Function, UntypedDefinition, UntypedExpr},
+    ast::{Definition, SrcSpan, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
@@ -12,7 +12,10 @@ use gleam_core::{
     error::{DefinedModuleOrigin, FileIoAction, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
-    type_::{Type, printer::Printer},
+    type_::{
+        Type,
+        printer::{Names, Printer},
+    },
     uid::UniqueIdGenerator,
     warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
 };
@@ -167,13 +170,13 @@ pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
     modules.iter().find(|m| m.name == name)
 }
 
-pub fn type_to_string(module: &Module, type_: &Type) -> String {
-    Printer::new(&module.ast.names).print_type(type_).into()
+pub fn type_to_string(names: &Names, type_: &Type) -> String {
+    Printer::new(names).print_type(type_).into()
 }
 
 pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>) -> String {
     type_to_string(
-        module,
+        &module.ast.names,
         &Type::Fn {
             arguments: args.into(),
             return_,
@@ -181,24 +184,38 @@ pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>
     )
 }
 
-pub fn get_definition_src<'a>(def: &UntypedDefinition, src: &'a str) -> &'a str {
-    let start = def.location().start as usize;
-    let end = def.location().end as usize;
-    let end = match def {
-        Definition::TypeAlias(_) | Definition::Import(_) => end,
-        Definition::CustomType(type_) => type_.end_position as usize,
-        Definition::ModuleConstant(const_) => const_.value.location().end as usize,
-        Definition::Function(f) => f.end_position as usize,
-    };
-
-    &src[start..end]
+/// Whether the input kept the definition private, the one case that has no
+/// `pub` written at its keyword — `@internal` requires one.
+pub fn is_private(def: &UntypedDefinition) -> bool {
+    match def {
+        Definition::Function(f) => f.publicity.is_private(),
+        Definition::TypeAlias(t) => t.publicity.is_private(),
+        Definition::CustomType(t) => t.publicity.is_private(),
+        Definition::ModuleConstant(c) => c.publicity.is_private(),
+        Definition::Import(_) => false,
+    }
 }
 
-pub fn get_args_names(fun: &Function<(), UntypedExpr>) -> Vec<String> {
-    fun.arguments
-        .iter()
-        .filter_map(|arg| arg.names.get_variable_name().map(String::from))
-        .collect()
+/// What the definition takes of the input it was parsed from, from `start`,
+/// where the item that produced it began: `location` starts at the keyword,
+/// leaving the attributes above it out, and stops at the head of the ones that
+/// have a body.
+pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
+    let end = match def {
+        Definition::TypeAlias(_) | Definition::Import(_) => def.location().end,
+        Definition::CustomType(type_) => type_.end_position,
+        Definition::ModuleConstant(const_) => const_.value.location().end,
+        // `end_position` is the closing brace, which a function with no body
+        // has none of: there it stops at the parameters, before the return
+        // annotation an external function is required to write.
+        Definition::Function(f) => f.end_position.max(
+            f.return_annotation
+                .as_ref()
+                .map_or(0, |annotation| annotation.location().end),
+        ),
+    };
+
+    SrcSpan::new(start, end)
 }
 
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
@@ -311,25 +328,25 @@ impl ConsoleWarningEmitter {
     }
 }
 
-/// Warnings caused by the scaffolding the repl generates around the input, or
-/// that make no sense for a single expression.
+/// Warnings about the scaffolding and not about what the user wrote. Every name
+/// in scope reaches a generated module by import, so one the input does not use
+/// is the rule there, and a module under two names is what a session does over
+/// time.
+///
+/// Nothing else is filtered: a definition of an input is public, so it is never
+/// reported unused, and what is left — a `todo`, an unreachable line, a variable
+/// a function never reads — is the compiler teaching, which is the point of the
+/// thing.
 pub fn is_repl_noise(warning: &Warning) -> bool {
     matches!(
         warning,
         Warning::Type {
-            warning: gleam_core::type_::Warning::Todo { .. }
-                | gleam_core::type_::Warning::UnreachableCodeAfterPanic { .. }
-                | gleam_core::type_::Warning::UnusedConstructor { .. }
+            warning: gleam_core::type_::Warning::ModuleImportedTwice { .. }
                 | gleam_core::type_::Warning::UnusedImportedModule { .. }
                 | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
                 | gleam_core::type_::Warning::UnusedImportedValue { .. }
-                | gleam_core::type_::Warning::RedundantAssertAssignment { .. }
-                // | gleam_core::type_::Warning::UnusedLiteral { .. }
-                | gleam_core::type_::Warning::UnusedPrivateFunction { .. }
-                | gleam_core::type_::Warning::UnusedPrivateModuleConstant { .. }
-                | gleam_core::type_::Warning::UnusedType { .. }
-                // | gleam_core::type_::Warning::UnusedValue { .. }
-                | gleam_core::type_::Warning::UnusedVariable { .. },
+                | gleam_core::type_::Warning::UnusedConstructor { imported: true, .. }
+                | gleam_core::type_::Warning::UnusedType { imported: true, .. },
             ..
         }
     )

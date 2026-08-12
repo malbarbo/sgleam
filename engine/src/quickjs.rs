@@ -69,6 +69,14 @@ impl Engine for QuickJsEngine {
         })
     }
 
+    fn truncate_vars(&self, count: usize) {
+        self.context.with(|ctx| {
+            if let Ok(vars) = ctx.globals().get::<_, Object>("repl_vars") {
+                let _ = vars.set("length", count);
+            }
+        })
+    }
+
     fn run_tests(&self, modules: &[&str]) -> std::result::Result<(), SgleamError> {
         run_tests(&self.context, modules)
     }
@@ -457,15 +465,35 @@ pub fn run_main(
     let name = main.name();
     let kind = match &main {
         MainFunction::Main => "Main",
-        MainFunction::ReplMain(_) => "ReplMain",
+        MainFunction::ReplMain { .. } => "ReplMain",
         MainFunction::Smain => "Smain",
         MainFunction::SmainStdin => "SmainStdin",
         MainFunction::SmainStdinLines => "SmainStdinLines",
     };
+    // A place in a generated module is read against the input it was copied
+    // from, which is what the lines of each file say. They are declared here
+    // and not as each is compiled, so a module that ran nothing is still known
+    // by the time an input reaches into it.
+    let repl_files = match &main {
+        MainFunction::ReplMain { files, .. } => files
+            .iter()
+            .map(|file| {
+                let lines = file
+                    .lines
+                    .iter()
+                    .map(u32::to_string)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                format!(r#"["src/{}", [{lines}]]"#, file.path)
+            })
+            .collect::<Vec<_>>()
+            .join(", "),
+        _ => String::new(),
+    };
     let code = formatdoc! {r#"
         import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
         import {{ {name} }} from "./{module}.mjs";
-        try_main({name}, "{kind}", {show_output});
+        try_main({name}, "{kind}", {show_output}, [{repl_files}]);
         "#
     };
     run_script(context, code)

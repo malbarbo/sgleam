@@ -1,0 +1,20 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+warning: Unused variable
+  ┌─ <repl>:2:7
+  │
+2 │   let a = 1
+  │       ^ This variable is never used
+
+Hint: You can ignore it with an underscore: `_a`.
+
+warning: Todo found
+  ┌─ <repl>:3:3
+  │
+3 │   todo
+  │   ^^^^ This code is incomplete
+
+This code will crash if it is run. Be sure to finish it before
+running your program.

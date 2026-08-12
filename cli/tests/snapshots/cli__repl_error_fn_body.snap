@@ -3,7 +3,7 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Type mismatch
-  ┌─ /src/repl1_1.gleam:1:15
+  ┌─ <repl>:1:15
   │
 1 │ fn f(a) { a + "x" }
   │               ^^^

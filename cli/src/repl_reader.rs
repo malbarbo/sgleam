@@ -34,7 +34,7 @@ impl ReplReader {
         let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
 
         editor.set_helper(Some(InputHelper {
-            validator: BracketsStringValidator {},
+            validator: CompleteInputValidator {},
             completions,
             color,
         }));
@@ -136,7 +136,7 @@ fn history_path() -> Option<PathBuf> {
 #[derive(Helper, Hinter, Validator)]
 struct InputHelper {
     #[rustyline(Validator)]
-    validator: BracketsStringValidator,
+    validator: CompleteInputValidator,
     completions: Completions,
     color: bool,
 }
@@ -345,77 +345,23 @@ fn highlight_gleam(input: &str) -> String {
     out
 }
 
-struct BracketsStringValidator {}
+struct CompleteInputValidator {}
 
-impl Validator for BracketsStringValidator {
+impl Validator for CompleteInputValidator {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult> {
-        Ok(validate_brackets_and_string(ctx.input()))
+        Ok(validate(ctx.input()))
     }
 }
 
-fn validate_brackets_and_string(string: &str) -> ValidationResult {
-    let mut stack = Vec::new();
-    let mut chars = string.chars();
-
-    while let Some(c) = chars.next() {
-        match c {
-            '"' => {
-                stack.push('"');
-                while let Some(c) = chars.next() {
-                    if c == '"' {
-                        stack.pop();
-                        break;
-                    }
-                    if c == '\\' && matches!(chars.clone().next(), Some('\\' | '\"')) {
-                        chars.next();
-                        continue;
-                    }
-                }
-            }
-
-            '(' | '[' | '{' => stack.push(c),
-
-            ')' | ']' | '}' if !bracket_match(stack.pop().unwrap_or(' '), c) => {
-                // Mismatched bracket: submit as-is and let the compiler report the error.
-                return ValidationResult::Valid(None);
-            }
-            ')' | ']' | '}' => {}
-            _ => {}
-        }
-    }
-
-    if stack.is_empty() {
-        ValidationResult::Valid(None)
-    } else {
+/// Whether the line the user just ended is the whole input. Asked of the
+/// parser: counting brackets in the text takes one inside a comment for an
+/// open block, and the prompt then waits for a `}` that is never coming.
+fn validate(input: &str) -> ValidationResult {
+    if engine::repl::is_incomplete(input) {
         ValidationResult::Incomplete
+    } else {
+        ValidationResult::Valid(None)
     }
-}
-
-fn bracket_match(a: char, b: char) -> bool {
-    matches!([a, b], ['(', ')'] | ['[', ']'] | ['{', '}'])
-}
-
-fn nesting_depth(input: &str) -> usize {
-    let mut depth: i32 = 0;
-    let mut in_string = false;
-    let mut chars = input.chars().peekable();
-    while let Some(c) = chars.next() {
-        if in_string {
-            if c == '\\' {
-                chars.next();
-            } else if c == '"' {
-                in_string = false;
-            }
-        } else {
-            match c {
-                '"' => in_string = true,
-                '{' => depth += 1,
-                '}' => depth -= 1,
-                _ => {}
-            }
-        }
-    }
-    depth.max(0) as usize
 }
 
 struct AutoIndentHandler;
@@ -430,11 +376,8 @@ impl ConditionalEventHandler for AutoIndentHandler {
     ) -> Option<Cmd> {
         let input = ctx.line();
         let at_end = ctx.pos() == input.len();
-        if matches!(
-            validate_brackets_and_string(input),
-            ValidationResult::Incomplete
-        ) {
-            let depth = nesting_depth(input);
+        if matches!(validate(input), ValidationResult::Incomplete) {
+            let depth = engine::parser::nesting_depth(input);
             let indent = "  ".repeat(depth);
             Some(Cmd::Insert(1, format!("\n{indent}")))
         } else if !at_end {
@@ -525,29 +468,65 @@ impl ConditionalEventHandler for AutoDedent {
 mod tests {
     use rustyline::validate::ValidationResult;
 
-    use crate::repl_reader::validate_brackets_and_string;
+    use crate::repl_reader::validate;
+
+    fn incomplete(input: &str) -> bool {
+        matches!(validate(input), ValidationResult::Incomplete)
+    }
 
     #[test]
-    fn test_brackets_and_string_ok() {
-        assert!(matches!(
-            validate_brackets_and_string("4 + (3 * { [4] - 2 })"),
-            ValidationResult::Valid(None)
-        ));
-        assert!(matches!(
-            validate_brackets_and_string("\"ca\\\"sa\""),
-            ValidationResult::Valid(None)
-        ));
-        assert!(matches!(
-            validate_brackets_and_string("\"ca\"sa\""),
-            ValidationResult::Incomplete
-        ));
-        assert!(matches!(
-            validate_brackets_and_string("4 + 3 * { 4 - 2 })"),
-            ValidationResult::Valid(None)
-        ));
-        assert!(matches!(
-            validate_brackets_and_string("4 + (3 * { 4 - 2 )"),
-            ValidationResult::Valid(None)
-        ));
+    fn an_input_that_ends_before_what_it_started() {
+        // Nothing is open in the text of either.
+        assert!(incomplete("use a <-"));
+        assert!(incomplete("todo as"));
+
+        assert!(incomplete("case 1 {"));
+        assert!(incomplete("pub fn f() {\n  1"));
+        assert!(incomplete("io.println("));
+        assert!(incomplete("[1, 2"));
+        assert!(incomplete("import gleam/io.{"));
+        // A string is written over as many lines as the user wants.
+        assert!(incomplete("\"ca\"sa\""));
+        assert!(incomplete("let x = \"abc"));
+    }
+
+    /// A bracket the compiler never sees closes nothing, which is what waiting
+    /// for it to close cannot know.
+    #[test]
+    fn a_bracket_the_input_only_mentions() {
+        assert!(!incomplete("1 + 1 // {"));
+        assert!(!incomplete("// {"));
+        assert!(!incomplete("1 + 1 // \""));
+        assert!(!incomplete("\"{\""));
+    }
+
+    /// Finished and wrong is finished: the compiler says what is wrong with it,
+    /// and a prompt that went on waiting would have nothing to wait for.
+    #[test]
+    fn an_input_that_is_whole_and_does_not_compile() {
+        assert!(!incomplete("let x ="));
+        assert!(!incomplete("1 +"));
+        assert!(!incomplete("4 + 3 * { 4 - 2 })"));
+        assert!(!incomplete("4 + (3 * { 4 - 2 )"));
+        assert!(!incomplete("4 + (3 * { [4] - 2 })"));
+    }
+
+    /// A command of the repl's own is not Gleam, and the Gleam it carries is
+    /// read on its own.
+    #[test]
+    fn a_command_is_asked_about_what_it_carries() {
+        assert!(incomplete(":type case 1 {"));
+        assert!(incomplete(":time [1,"));
+        assert!(!incomplete(":quit"));
+        assert!(!incomplete(":debug"));
+        assert!(!incomplete(":type 1 + 1"));
+    }
+
+    #[test]
+    fn a_whole_input_is_whole() {
+        assert!(!incomplete("4 + 3 * { [4] - 2 }"));
+        assert!(!incomplete("\"ca\\\"sa\""));
+        assert!(!incomplete(""));
+        assert!(!incomplete("pub fn f() {\n  1\n}"));
     }
 }

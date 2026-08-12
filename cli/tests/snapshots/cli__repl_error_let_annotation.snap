@@ -3,15 +3,15 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 error: Type mismatch
-  ┌─ <repl>:1:16
+  ┌─ <repl>:1:17
   │
-1 │ const x: Int = "a"
-  │                ^^^
+1 │ let x: String = 2
+  │                 ^
 
 Expected type:
 
-    Int
+    String
 
 Found type:
 
-    String
+    Int

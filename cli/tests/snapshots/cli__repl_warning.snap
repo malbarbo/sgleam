@@ -3,7 +3,7 @@ source: cli/tests/cli.rs
 expression: strip_repl_suffix(&err)
 ---
 warning: Redundant comparison
-  ┌─ /src/repl1_1.gleam:1:8
+  ┌─ <repl>:1:8
   │
 1 │ assert 1 == 1
   │        ^^^^^^ This is always `True`
