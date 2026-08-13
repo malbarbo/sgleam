@@ -54,7 +54,14 @@ pub fn is_incomplete(src: &str) -> bool {
         | ParseErrorType::ExpectedType
         | ParseErrorType::ExpectedValue
         | ParseErrorType::NoValueAfterEqual
-        | ParseErrorType::OpNakedRight => ends_there(src, location.end),
+        | ParseErrorType::OpNakedRight
+        // Reported at the attributes, above what they attach to.
+        | ParseErrorType::ExpectedDefinition
+        | ParseErrorType::ExpectedFunctionDefinition => ends_there(src, location.end),
+        // The one token that opens a definition and says nothing else.
+        ParseErrorType::UnexpectedToken {
+            token: Token::Pub, ..
+        } => ends_there(src, location.end),
         _ => false,
     }
 }
@@ -137,6 +144,11 @@ mod tests {
             "let x = \"abc",
             "use a <-",
             "import gleam/",
+            // An attribute goes above what it attaches to.
+            "@deprecated(\"old\")",
+            "@target(javascript)",
+            "@external(javascript, \"./x.mjs\", \"f\")",
+            "pub",
             // What the user typed before going on is not what comes after.
             "let x = 1 + // hi",
             "let x =\n\n",
@@ -162,6 +174,10 @@ mod tests {
             "case x { 1 -> }",
             "case x { -> 1 }",
             "let #(a, = 1",
+            // An attribute over something that is not a definition.
+            "@deprecated(\"old\") 1",
+            "@external(javascript, \"./x.mjs\", \"f\") type T { T }",
+            "pub 1",
             // A closer with nothing open, which is the one that must not hang.
             "}",
             ")",
