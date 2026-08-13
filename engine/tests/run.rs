@@ -5,7 +5,7 @@
 
 use camino::Utf8PathBuf;
 
-use engine::{error::SgleamError, run::run_main};
+use engine::{error::SgleamError, gleam::Project, run::run_main};
 
 #[test]
 fn an_absolute_path_names_no_module() {
@@ -19,4 +19,12 @@ fn an_absolute_path_names_no_module() {
         run_main(&[path]),
         Err(SgleamError::NoModuleToRun { .. })
     ));
+}
+
+/// What the rejection above keeps unreachable: the write lands outside the
+/// source root, where no compilation looks.
+#[test]
+#[should_panic(expected = "is not under the source root")]
+fn an_absolute_name_is_written_nowhere() {
+    Project::default().write_source("/elsewhere/a.gleam", "");
 }

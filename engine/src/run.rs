@@ -10,7 +10,7 @@ use gleam_core::{
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{Project, fn_type_to_string, get_module},
+    gleam::{Project, fn_type_to_string, get_module, is_module_path},
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -144,6 +144,13 @@ pub fn copy_files_and_build(
 }
 
 fn validate_path(path: &Utf8Path) -> bool {
+    // The path is the module name, so it cannot leave the directory the program
+    // runs in.
+    if !is_module_path(path.as_str()) {
+        eprintln!("Ignoring `{path}`: is not a path within the current directory.");
+        return false;
+    }
+
     let stem = path.file_stem().unwrap_or("");
     if path.extension() != Some("gleam") || stem.is_empty() {
         eprintln!("Ignoring `{path}`: is not a valid gleam file.");

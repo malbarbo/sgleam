@@ -1,4 +1,4 @@
-use camino::{Utf8Path, Utf8PathBuf};
+use camino::{Utf8Component, Utf8Path, Utf8PathBuf};
 use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
@@ -78,7 +78,14 @@ impl Project {
         "/build/prelude.mjs".into()
     }
 
+    /// `name` is the module the content will be compiled as, hence a path under
+    /// the source root: one that is not joins to itself, landing where nothing
+    /// compiles it.
     pub fn write_source(&mut self, name: &str, content: &str) {
+        assert!(
+            is_module_path(name),
+            "`{name}` is not under the source root"
+        );
         let path = Project::source().join(name);
         self.fs
             .write(&path, content)
@@ -167,6 +174,15 @@ impl Project {
             .map(|out| out.modules)
             .into_result()
     }
+}
+
+/// Whether the path names the module it would be written as: relative, and
+/// made of names alone.
+pub fn is_module_path(path: &str) -> bool {
+    !path.is_empty()
+        && Utf8Path::new(path)
+            .components()
+            .all(|component| matches!(component, Utf8Component::Normal(_)))
 }
 
 pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
