@@ -1445,7 +1445,7 @@ fn repl_error_multiline_fn() {
 
 #[test]
 fn repl_error_syntax() {
-    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = "));
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = )"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 

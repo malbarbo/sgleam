@@ -5,5 +5,5 @@ expression: strip_repl_suffix(&err)
 error: Syntax error
   ┌─ <repl>:1:7
   │
-1 │ let x = 
+1 │ let x = )
   │       ^ I was expecting a value after this

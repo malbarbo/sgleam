@@ -488,6 +488,10 @@ mod tests {
         // A string is written over as many lines as the user wants.
         assert!(incomplete("\"ca\"sa\""));
         assert!(incomplete("let x = \"abc"));
+        // The input stops where the parser asked for more.
+        assert!(incomplete("let x ="));
+        assert!(incomplete("1 +"));
+        assert!(incomplete("case 1 { 1 ->"));
     }
 
     /// A bracket the compiler never sees closes nothing, which is what waiting
@@ -504,8 +508,8 @@ mod tests {
     /// and a prompt that went on waiting would have nothing to wait for.
     #[test]
     fn an_input_that_is_whole_and_does_not_compile() {
-        assert!(!incomplete("let x ="));
-        assert!(!incomplete("1 +"));
+        assert!(!incomplete("let x = )"));
+        assert!(!incomplete("1 + + 1"));
         assert!(!incomplete("4 + 3 * { 4 - 2 })"));
         assert!(!incomplete("4 + (3 * { 4 - 2 )"));
         assert!(!incomplete("4 + (3 * { [4] - 2 })"));
