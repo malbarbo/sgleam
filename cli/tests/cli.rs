@@ -1449,6 +1449,14 @@ fn repl_error_syntax() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+/// The file ends in the middle of an input, which the editor was still reading
+/// for. It is what the user wrote, so it is compiled and it is complained about.
+#[test]
+fn repl_input_the_file_ends_in_the_middle_of() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1\ncase x {"));
+    assert_snapshot!(strip_repl_suffix(&err));
+}
+
 #[test]
 fn repl_error_assert() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"assert 1 == "a""#));

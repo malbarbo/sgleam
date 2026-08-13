@@ -1,0 +1,9 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&err)
+---
+error: Syntax error
+  ┌─ <repl>:1:8
+  │
+1 │ case x {
+  │        ^ The module ended unexpectedly

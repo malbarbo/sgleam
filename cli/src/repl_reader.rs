@@ -34,7 +34,7 @@ impl ReplReader {
         let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
 
         editor.set_helper(Some(InputHelper {
-            validator: CompleteInputValidator {},
+            validator: CompleteInputValidator::default(),
             completions,
             color,
         }));
@@ -108,6 +108,8 @@ impl Iterator for ReplReader {
                 Some(input)
             }
             Err(ReadlineError::Interrupted) => {
+                // What it was reading for is abandoned, not pending.
+                take_pending(&editor);
                 self.editor = Some(editor);
                 Some("".into())
             }
@@ -118,10 +120,19 @@ impl Iterator for ReplReader {
                 if let Some(history) = &history_path() {
                     let _ = editor.save_history(history);
                 }
-                None
+                // An input the file ended in the middle of is still an input,
+                // and what is wrong with it is the user's to read.
+                let pending = take_pending(&editor);
+                (!pending.trim().is_empty()).then_some(pending)
             }
         }
     }
+}
+
+fn take_pending(editor: &Editor<InputHelper, FileHistory>) -> String {
+    editor
+        .helper()
+        .map_or_else(String::new, |helper| helper.validator.pending.take())
 }
 
 fn history_path() -> Option<PathBuf> {
@@ -345,11 +356,21 @@ fn highlight_gleam(input: &str) -> String {
     out
 }
 
-struct CompleteInputValidator {}
+#[derive(Default)]
+struct CompleteInputValidator {
+    /// What the editor went on reading for, kept in case the input runs out
+    /// before it arrives — the editor drops it and the error says nothing.
+    pending: RefCell<String>,
+}
 
 impl Validator for CompleteInputValidator {
     fn validate(&self, ctx: &mut ValidationContext) -> Result<ValidationResult> {
-        Ok(validate(ctx.input()))
+        let result = validate(ctx.input());
+        *self.pending.borrow_mut() = match result {
+            ValidationResult::Incomplete => ctx.input().into(),
+            _ => String::new(),
+        };
+        Ok(result)
     }
 }
 
