@@ -130,7 +130,8 @@ pub fn is_incomplete(input: &str) -> bool {
 }
 
 /// What a module is compiled for. One that only declares the scope, to check
-/// an import, uses nothing in it, so an unused-import warning there is vacuous.
+/// an import, uses nothing in it, so an unused-import warning there is vacuous
+/// — and it runs nothing, so the runtime is never told of it either.
 #[derive(PartialEq, Eq)]
 enum Purpose {
     Run,
@@ -240,8 +241,8 @@ pub struct Repl<E: Engine> {
     // The modules written for the item being run, by the path they were written
     // to, each keeping which of its bytes are a copy of the input.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
-    // Every module the repl wrote that the runtime has not been told of. One
-    // that ran nothing still raises later, from a function it defined.
+    // Every module the repl wrote to run that the runtime has not been told of.
+    // One that ran nothing still raises later, from a function it defined.
     pending_files: Vec<ReplFile>,
     // The import the input just wrote, kept while the module that checks it is
     // built: it goes in as a copy, so the repl does not write the line again.
@@ -663,8 +664,13 @@ impl<E: Engine> Repl<E> {
         let file = self.write_source(module_name, src.as_str());
         self.remember(&file, src);
         files.push(file);
-        let repl_files: Vec<_> = files.iter().map(|file| self.repl_file(file)).collect();
-        self.pending_files.extend(repl_files);
+        // A module that only declares the scope defines nothing and is imported
+        // by nothing, so no place in it is ever reached — and its map is as long
+        // as the whole scope.
+        if purpose == Purpose::Run {
+            let repl_files: Vec<_> = files.iter().map(|file| self.repl_file(file)).collect();
+            self.pending_files.extend(repl_files);
+        }
 
         self.defined_modules.clear();
         // Collected, not printed as emitted, so they are relocated like errors.

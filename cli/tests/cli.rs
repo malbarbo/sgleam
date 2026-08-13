@@ -1819,6 +1819,31 @@ fn repl_echo_is_located_in_the_input() {
     );
 }
 
+/// And it holds however far behind the input that wrote it is: a function and
+/// a closure of an earlier input are reached from a later one.
+#[test]
+fn repl_echo_of_an_earlier_input_is_still_located() {
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            fn g(x) {{
+              echo x
+            }}
+            import gleam/int
+            import gleam/float
+            g(5)"
+        }),
+        "<repl>:2\n5\n5"
+    );
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            let f = fn() {{ echo 7 }}
+            import gleam/list
+            f()"
+        }),
+        "//fn() { ... }\n<repl>:1\n7\n7"
+    );
+}
+
 /// And a file the user wrote keeps it, which is the whole point of printing it.
 #[test]
 fn user_module_echo_keeps_the_location() {
