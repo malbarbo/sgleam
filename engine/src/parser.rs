@@ -10,9 +10,8 @@ use gleam_core::{
 
 #[derive(Debug)]
 pub enum ReplItem {
-    /// A definition and where the input starts it. The location the parser
-    /// records begins at the keyword, so the attributes above it are only
-    /// reachable from the token the item opened with.
+    /// A definition and where the input starts it: the location the parser
+    /// records begins at the keyword, leaving the attributes above it out.
     ReplDefinition(TargetedDefinition, u32),
     ReplStatement(UntypedStatement),
 }
@@ -24,14 +23,12 @@ pub fn parse_repl(src: &str) -> Result<Vec<ReplItem>, ParseError> {
     parser.ensure_no_errors_or_remaining_input(definitions)
 }
 
-/// Whether the input ends before what it started does, which is the one thing
-/// a reader has to know and cannot see in the text: a bracket inside a comment
-/// closes nothing, a string runs to the next line, and `use a <-` is unfinished
-/// with nothing open at all.
+/// Whether the input ends before what it started does, which the reader cannot
+/// see in the text: a bracket inside a comment closes nothing, a string runs to
+/// the next line, and `use a <-` is unfinished with nothing open at all.
 ///
 /// Only these two say so. Everything else the parser rejects is finished and
-/// wrong — `let x =` is a typo, not a line to go on typing — and a prompt that
-/// waited for it would have no way out.
+/// wrong — `let x =` is a typo, not a line to go on typing.
 pub fn is_incomplete(src: &str) -> bool {
     matches!(
         parse_repl(src),
@@ -49,8 +46,7 @@ pub fn is_incomplete(src: &str) -> bool {
 }
 
 /// How deep in blocks the input ends, which is what the next line is indented
-/// by. Counted in tokens, so a brace inside a comment or a string is text and
-/// not a block.
+/// by. Counted in tokens, so a brace inside a comment or a string is text.
 pub fn nesting_depth(src: &str) -> usize {
     let mut depth: i32 = 0;
     for token in lexer::make_tokenizer(src).flatten() {

@@ -234,10 +234,8 @@ pub fn is_private(def: &UntypedDefinition) -> bool {
     }
 }
 
-/// What the definition takes of the input it was parsed from, from `start`,
-/// where the item that produced it began: `location` starts at the keyword,
-/// leaving the attributes above it out, and stops at the head of the ones that
-/// have a body.
+/// What the definition takes of the input, from `start`, where the item that
+/// produced it began: `location` stops at the head of the ones with a body.
 pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     let end = match def {
         Definition::TypeAlias(_) | Definition::Import(_) => def.location().end,
@@ -245,7 +243,7 @@ pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
         Definition::ModuleConstant(const_) => const_.value.location().end,
         // `end_position` is the closing brace, which a function with no body
         // has none of: there it stops at the parameters, before the return
-        // annotation an external function is required to write.
+        // annotation an external function must write.
         Definition::Function(f) => f.end_position.max(
             f.return_annotation
                 .as_ref()
@@ -371,10 +369,8 @@ impl ConsoleWarningEmitter {
 /// is the rule there, and a module under two names is what a session does over
 /// time.
 ///
-/// Nothing else is filtered: a definition of an input is public, so it is never
-/// reported unused, and what is left — a `todo`, an unreachable line, a variable
-/// a function never reads — is the compiler teaching, which is the point of the
-/// thing.
+/// Nothing else is filtered: a `todo`, an unreachable line, a variable a
+/// function never reads — that is the compiler teaching.
 pub fn is_repl_noise(warning: &Warning) -> bool {
     matches!(
         warning,

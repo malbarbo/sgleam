@@ -46,20 +46,16 @@ pub fn welcome_message() -> String {
 }
 
 /// Where a name in scope comes from: the module that defines it and the name
-/// it has there. Every name reaches the input being run this way — an import,
-/// a definition of an earlier input, or a `let` read back from its slot by the
-/// companion module of the input that bound it.
+/// it has there. Every name is reached this way, a saved value included.
 #[derive(Clone)]
 struct NameEntry {
     module: String,
     original: String,
-    /// A `let`: a function of its companion module, read back by a binding the
-    /// repl writes at the top of every body that names it. The one kind of
-    /// value a const may not read.
+    /// A `let`, read back by a binding written at the top of every body that
+    /// names it. The one kind of value a const may not read.
     runtime: bool,
-    /// What a const reads: a guard inlines it, and the inlined text names these
-    /// where the const was defined. `None` for a name an import brought, whose
-    /// const the repl never read — so it always comes in.
+    /// What a const reads: a guard inlines it, and the inlined text names
+    /// these. `None` for a name an import brought, which always comes in.
     reads: Option<Vec<String>>,
 }
 
@@ -74,8 +70,8 @@ impl NameEntry {
     }
 }
 
-/// What the import the input just wrote brings, so the repl can leave it out
-/// of what it writes itself and put the input's own line in instead.
+/// What the import the input just wrote brings, so the repl writes the input's
+/// own line instead of one of its own.
 #[derive(Clone)]
 struct OwnImport {
     input: Rc<str>,
@@ -116,7 +112,7 @@ impl<'a> Command<'a> {
     }
 
     /// The Gleam of the input, which is what says whether it is finished. A
-    /// command of the repl's own is finished when it is written.
+    /// command of the repl's own always is.
     fn gleam(&self) -> Option<&'a str> {
         match self {
             Command::Quit | Command::Debug => None,
@@ -126,8 +122,7 @@ impl<'a> Command<'a> {
 }
 
 /// Whether the reader has to go on reading before this input can run. The
-/// command is stripped first, or `:type case x {` would be asked about as
-/// Gleam, which it is not.
+/// command is stripped first, or `:type case x {` would be read as Gleam.
 pub fn is_incomplete(input: &str) -> bool {
     Command::parse(input)
         .gleam()
@@ -135,16 +130,15 @@ pub fn is_incomplete(input: &str) -> bool {
 }
 
 /// What a module is compiled for. One that only declares the scope, to check
-/// an import, uses nothing in it — so there, and only there, a warning that
-/// something is never used says nothing about what the user wrote.
+/// an import, uses nothing in it, so an unused-import warning there is vacuous.
 #[derive(PartialEq, Eq)]
 enum Purpose {
     Run,
     DeclareScope,
 }
 
-/// Which diagnostics reach the screen: the ones about the input alone, or
-/// those too when nothing landed on it.
+/// Which diagnostics reach the screen: the ones about the input, and the rest
+/// only when none landed on it.
 #[derive(PartialEq, Eq)]
 enum Show {
     CopiesOnly,
@@ -153,7 +147,6 @@ enum Show {
 
 /// Why an input did not run.
 enum InputError {
-    /// What the compiler said about it.
     Compile(Error),
     /// A rule of the repl it broke, in the words the student reads.
     Repl(String),
@@ -171,21 +164,18 @@ struct Bail;
 /// A definition of the input being run that goes to a module of its own,
 /// instead of being re-emitted into every module generated later.
 struct Def {
-    /// The name it binds as a type, when it is one.
     type_name: Option<String>,
-    /// The names it binds as values: a function, a const, or the constructors
-    /// of a type.
+    /// A function, a const, or the constructors of a type.
     value_names: Vec<String>,
     /// What it reads, when it is a const, a module of a qualified name included.
     reads: Vec<String>,
     /// What it takes of the input, the attributes above it included.
     span: SrcSpan,
-    /// Where its keyword is, which is where `pub` goes: an attribute comes
-    /// before it, and nothing may come between them.
+    /// Where `pub` goes: after the attributes, and nothing may come between.
     keyword: u32,
     /// Whether the input left it private, which is what asks for the `pub`.
-    /// Read off the definition and not off the text in front of the keyword,
-    /// which is `pub` under any spacing the lexer accepts, or none.
+    /// Read off the definition: the text before the keyword is `pub` under any
+    /// spacing the lexer accepts, or none.
     private: bool,
     /// The body of a function, which the repl writes into.
     body: Option<Body>,
@@ -197,10 +187,8 @@ struct Body {
     params: Vec<String>,
 }
 
-/// What an input defines itself, which the module holding those definitions
-/// imports from nowhere. One list per namespace, as the scope is kept: a type
-/// and a value of the same name are two names, and defining one may not keep
-/// the other from coming in.
+/// What an input defines itself, which its own module imports from nowhere.
+/// One list per namespace: a type and a value of the same name are two names.
 #[derive(Default)]
 struct Defined {
     types: Vec<String>,
@@ -224,12 +212,9 @@ impl Defined {
 
 #[derive(Clone)]
 pub struct Repl<E: Engine> {
-    // One map per Gleam namespace, so a name in one cannot evict a name in
-    // another: `import gleam/list`, `type list` and `fn list()` all coexist.
-    //
-    // BTreeMap (not HashMap) so the generated source lists imports, types and
-    // functions in a stable, cross-run order — compiler diagnostics that
-    // reference line numbers in it stay reproducible.
+    // One map per Gleam namespace, so `import gleam/list`, `type list` and
+    // `fn list()` all coexist. BTreeMap and not HashMap so the generated
+    // imports come out in a stable order, and so do the diagnostics about them.
     /// `import gleam/int as i` → "i" → "gleam/int"
     modules: BTreeMap<String, String>,
     types: BTreeMap<String, NameEntry>,
@@ -244,8 +229,7 @@ pub struct Repl<E: Engine> {
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
-    // The input being run and the item of it being run, which name the module
-    // they are compiled into.
+    // The input and the item being run, which name the module they compile into.
     input: usize,
     item: usize,
     var_index: usize,
@@ -253,18 +237,14 @@ pub struct Repl<E: Engine> {
     had_runtime_error: bool,
     // What `:time` reports.
     elapsed: std::time::Duration,
-    // The modules written for the item being run, by the path they were
-    // written to. Each carries which of its bytes are a copy of the input,
-    // which is what moves a diagnostic back onto what the user wrote.
+    // The modules written for the item being run, by the path they were written
+    // to, each keeping which of its bytes are a copy of the input.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
-    // Every module the repl has written and the runtime has not been told of.
-    // A module that ran nothing still raises later — a function of an input
-    // that only defined — so what marks a file as the repl's is having
-    // written it, not having run it.
+    // Every module the repl wrote that the runtime has not been told of. One
+    // that ran nothing still raises later, from a function it defined.
     pending_files: Vec<ReplFile>,
     // The import the input just wrote, kept while the module that checks it is
-    // built: it goes in as a copy of the input, and what it brought is left
-    // out of what the repl writes, so the line is not written twice.
+    // built: it goes in as a copy, so the repl does not write the line again.
     own_import: Option<OwnImport>,
     // Internal function names with random suffix to avoid collisions with user code.
     repl_main: String,
@@ -319,8 +299,7 @@ impl<E: Engine> Repl<E> {
         if let Some(module) = user_module {
             repl.seed_module(module);
         }
-        // Initial compilation, so the module interfaces completion reads are
-        // available before the first input.
+        // Compiled once here, so completion has the module interfaces to read.
         repl.skip_taken_names();
         let _ = repl.run_check();
         repl
@@ -392,7 +371,6 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// Numbers the input and reports how it ended.
     fn run_input(&mut self, run: impl FnOnce(&mut Self) -> Result<(), Bail>) -> ReplOutput {
         // A failed input still spends its number: a module name is never
         // reused, as the engine holds the module it loaded under it.
@@ -408,7 +386,7 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Runs one unit of the input — its definitions, or one of its items —
-    /// undoing it if it does not go in: only a unit that never ran leaves
+    /// undoing it if it does not go in. Only a unit that never ran leaves
     /// nothing behind.
     fn guarded(
         &mut self,
@@ -436,10 +414,9 @@ impl<E: Engine> Repl<E> {
     fn run_source(&mut self, src: &str) -> Result<(), Bail> {
         let input: Rc<str> = src.into();
         let mut items = Vec::new();
-        // The definitions go in first, together in a module of their own, so
-        // they can reference each other and the items below only have to import
-        // them — the one unit that goes in whole or not at all, which costs
-        // nothing before anything has run.
+        // The definitions go in first, in a module of their own, so they can
+        // reference each other. All or nothing, which costs nothing: no item
+        // has run yet.
         self.guarded(|repl| {
             items = parse(&input)?;
             if let Some(reason) = repl.const_refusal(&items) {
@@ -455,8 +432,7 @@ impl<E: Engine> Repl<E> {
         for item in items {
             self.item += 1;
             self.guarded(|repl| match item {
-                // Everything but an import is already compiled and bound by
-                // `run_defs`.
+                // Everything but an import is already bound by `run_defs`.
                 ReplItem::ReplDefinition(targeted, start) => {
                     if let Definition::Import(import) = &targeted.definition {
                         let span = get_definition_span(&targeted.definition, start);
@@ -466,8 +442,7 @@ impl<E: Engine> Repl<E> {
                 }
                 ReplItem::ReplStatement(statement) => repl.run_statement(&input, statement),
             })?;
-            // What an item that raised did stays: its output is on the screen
-            // either way.
+            // What an item that raised did stays: its output is on the screen.
             if self.had_runtime_error {
                 return Err(Bail);
             }
@@ -478,21 +453,19 @@ impl<E: Engine> Repl<E> {
 
     // --- Source generation ---
 
-    /// What the input has in scope, as source: the externals, the modules in
-    /// scope and the names taken from them, `skip` aside, which are the names
-    /// the generated module defines itself. Every name, a saved value included,
-    /// comes in by import — no annotation is written here, so nothing a later
-    /// input redefines can change what this module reads.
+    /// What the input has in scope, as source: the externals, the modules and
+    /// the names taken from them, `skip` aside — the names the module defines
+    /// itself. No annotation is written here, so nothing a later input
+    /// redefines can change what this module reads.
     ///
-    /// Only the names `code` mentions come in, so an input does not pay for the
-    /// whole scope. `None` writes them all, which is what checks an import.
+    /// Only the names `code` mentions come in, so an input does not pay for
+    /// the whole scope. `None` writes them all, which is what checks an import.
     fn build_source(&self, code: Option<&str>, skip: &Defined) -> Source {
         let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
         let mut src = Source::new();
         src.write(&self.build_externals());
-        // The input's own import goes in as the input wrote it, so a
-        // diagnostic about it is about a copy and not about a line the repl
-        // reconstructed to look like one.
+        // The input's own import goes in as the input wrote it, so a diagnostic
+        // about it is about a copy and not about a line the repl rebuilt.
         if let Some(own) = &self.own_import {
             src.copy(&own.input, own.span);
             src.write("\n");
@@ -517,8 +490,7 @@ impl<E: Engine> Repl<E> {
                 swriteln!(src, "import {path} as {name}");
             }
         }
-        // A module of this session comes in when the input names it: what a
-        // redefinition took the plain name of is reached through it. Unless an
+        // A module of this session comes in when the input names it, unless an
         // import already writes the line — under that name, or of that module.
         for module in &self.own_modules {
             if mentioned
@@ -534,10 +506,8 @@ impl<E: Engine> Repl<E> {
         }
         // A value an import brought always comes in: a guard inlines a const,
         // and the repl never read what that one names. Nothing inlines a type.
-        //
-        // What the input defines is left out per namespace: a type and a value
-        // of the same name are two names, and defining one may not keep the
-        // other from coming in.
+        // What the input defines is left out per namespace, as a type and a
+        // value of the same name are two names.
         for (kind, entries, inlinable, skip) in [
             ("", &self.values, true, &skip.values),
             ("type ", &self.types, false, &skip.types),
@@ -567,8 +537,7 @@ impl<E: Engine> Repl<E> {
         src
     }
 
-    /// Closes `names` over what its consts read, which the inlined text names
-    /// where the source that reads the const never did.
+    /// Closes `names` over what its consts read, which the inlined text names.
     fn with_inlined(&self, mut names: HashSet<EcoString>) -> HashSet<EcoString> {
         let mut queue: Vec<EcoString> = names.iter().cloned().collect();
         while let Some(name) = queue.pop() {
@@ -597,14 +566,11 @@ impl<E: Engine> Repl<E> {
         "#}
     }
 
-    /// The bindings a body reads before what the user wrote: Gleam has no
-    /// value at module level, so a `let` of an earlier item is a function of
-    /// its companion module, and reading it back is what makes the name mean
-    /// the value in the text that names it.
-    ///
-    /// At the first statement of a body the scope holds the module level names
-    /// and the parameters, and nothing else — so leaving out the parameters
-    /// and what this input defines is not a precaution, it is the whole of it.
+    /// The bindings a body reads, ahead of what the user wrote: a `let` is a
+    /// function of its companion module, and reading it back is what makes the
+    /// name mean the value. At the first statement the scope holds the module
+    /// level names and the parameters, so leaving those out — and what this
+    /// input defines — is all that keeps a binding from shadowing.
     fn injections(&self, code: &str, defined: &[String], params: &[String]) -> String {
         let mentioned = mentioned(code);
         let mut src = String::new();
@@ -622,9 +588,8 @@ impl<E: Engine> Repl<E> {
 
     // --- Compilation helpers ---
 
-    /// The definitions of an input take the plain name, as the user reads it
-    /// back in the type of a value the input that redefined the name left
-    /// behind.
+    /// The definitions of an input take the plain name, as it is what the user
+    /// reads back in the type of a value a later redefinition left behind.
     fn module_name(&self) -> String {
         match self.item {
             0 => format!("repl{}", self.input),
@@ -632,7 +597,6 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// Writes a module of this session, producing its file name.
     fn write_source(&mut self, module_name: &str, code: &str) -> String {
         let file = format!("{module_name}.gleam");
         if self.debug {
@@ -681,8 +645,7 @@ impl<E: Engine> Repl<E> {
         self.generated.clear();
         let mut files = vec![];
         // The module the values of this item are read back from goes in here,
-        // and not in a pass of its own: one pass compiles both, so a `let`
-        // costs what any other input costs.
+        // and not in a pass of its own, so a `let` costs one compilation.
         if let Some((name, vals)) = self.pending_vals.take() {
             files.push(self.write_source(&name, vals.as_str()));
             self.remember(&files[0], vals);
@@ -694,8 +657,7 @@ impl<E: Engine> Repl<E> {
         self.pending_files.extend(repl_files);
 
         self.defined_modules.clear();
-        // Collected instead of printed as they are emitted, so they can be
-        // relocated like the errors.
+        // Collected, not printed as emitted, so they are relocated like errors.
         let warnings = VectorWarningEmitterIO::new();
         let result = self.project.compile_with_modules(
             Rc::new(warnings.clone()),
@@ -712,8 +674,8 @@ impl<E: Engine> Repl<E> {
                 .expect("To delete repl file");
         }
 
-        // A warning that does not land on a copy of the input is about what
-        // the repl wrote, and the user cannot act on it.
+        // A warning that lands on no copy of the input is about what the repl
+        // wrote, and the user cannot act on it.
         self.show_diagnostics(
             warnings
                 .take()
@@ -741,14 +703,12 @@ impl<E: Engine> Repl<E> {
         Ok(modules.swap_remove(pos))
     }
 
-    /// Keeps what a module was written from, so a diagnostic about it can be
-    /// read against the input it copied.
+    /// Keeps what a module was written from, for the diagnostics about it.
     fn remember(&mut self, file: &str, src: Source) {
         self.generated.push((Project::source().join(file), src));
     }
 
-    /// A module the repl wrote, for the runtime: the lines of the input it was
-    /// copied from, which is how a place in it reaches the user's own text.
+    /// A module the repl wrote, for the runtime: the input lines it came from.
     fn repl_file(&self, file: &str) -> ReplFile {
         let path = Project::source().join(file);
         let lines = self
@@ -763,7 +723,6 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// Compile source with a `repl_main` body appended.
     fn compile_main(&mut self, body: &Source) -> Result<Module, Error> {
         let mut code = Source::new();
         code.write(&format!("pub fn {}() {{\n", self.repl_main));
@@ -789,9 +748,8 @@ impl<E: Engine> Repl<E> {
     }
 
     /// The names a type is printed in: those of the module it was compiled in,
-    /// which hold only what that module named, plus the scope over them.
-    /// Registering takes the plain name from whatever had it, so it goes to the
-    /// newest definition, as it does for the user.
+    /// plus the scope over them. Registering takes the plain name from whatever
+    /// had it, so it goes to the newest definition, as it does for the user.
     fn type_names(&self, module: &Module) -> Names {
         let mut names = module.ast.names.clone();
         self.register_types(&mut names);
@@ -813,7 +771,6 @@ impl<E: Engine> Repl<E> {
         *purpose == Purpose::DeclareScope && is_repl_noise(warning)
     }
 
-    /// Print diagnostics moved onto the input they are about.
     fn show_diagnostics(&self, diags: Vec<Diagnostic>, show: Show) {
         use std::io::Write as _;
         if diags.is_empty() {
@@ -828,10 +785,9 @@ impl<E: Engine> Repl<E> {
             })
             .collect();
 
-        // One that stayed put is about what the repl wrote. It is dropped
-        // outright for a warning, and for an error only when another one says
-        // the same thing about the input — an error the repl cannot place is
-        // worth more on the screen than nothing at all.
+        // One that stayed put is about what the repl wrote: dropped outright
+        // for a warning, and for an error only when another one lands on the
+        // input, as an error with no place still says something.
         if show == Show::CopiesOnly || diags.iter().any(|(_, moved)| *moved) {
             diags.retain(|(_, moved)| *moved);
         }
@@ -842,8 +798,8 @@ impl<E: Engine> Repl<E> {
         let buffer_writer = crate::error::stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         for (diag, _) in &mut diags {
-            // One that stayed put is about a module the user loaded, known by
-            // the path they gave.
+            // One that stayed put is about a module the user loaded, which
+            // they know by the path they gave.
             relocate_to_user_paths(diag);
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
@@ -852,8 +808,7 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Move `diag` onto what the input it points into wrote, producing whether
-    /// it pointed into one. A diagnostic about another module, or about what
-    /// the repl wrote, stays where it is.
+    /// it pointed into one. Anything else stays where it is.
     fn move_onto_input(&self, diag: &mut Diagnostic) -> bool {
         let Some(loc) = &mut diag.location else {
             return false;
@@ -883,7 +838,6 @@ impl<E: Engine> Repl<E> {
         true
     }
 
-    /// Compile and execute a `repl_main` body.
     fn compile_and_run(&mut self, body: &Source) -> Result<Module, Error> {
         let module = self.compile_main(body)?;
         self.run_repl_main(&module);
@@ -919,9 +873,8 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Builds the module the values an item binds are read back from: one
-    /// function per name, over the tuple the run memoized. It says nothing
-    /// about the session but the module that computes the tuple, so a name of
-    /// it can never clash with one the input took.
+    /// function per name, over the tuple the run memoized, and nothing else of
+    /// the session — so no name of it can clash with one the input took.
     fn queue_vals_module(&mut self, from: &str, names: &[String]) -> String {
         // The plain name when the input has no definitions to hold it, so a
         // value is reached the way a type and a function are: `repl1.x()`.
@@ -988,13 +941,10 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Binds what the input's pattern binds. Gleam has no value at module
-    /// level, so what the session keeps is a function that runs the input once
-    /// and remembers the tuple it produced — the annotation the repl used to
-    /// write is the type Gleam reads off the input's own text instead.
-    ///
-    /// The value takes a name of the repl's before the pattern reads it, so
-    /// each half of the input is written once: the annotation is checked where
-    /// the user wrote it, and so is the pattern.
+    /// level, so the session keeps a function that runs the input once and
+    /// remembers the tuple it produced. The value takes a name of the repl's
+    /// before the pattern reads it, so the annotation and the pattern each go
+    /// in once, checked where the user wrote them.
     fn run_assignment(
         &mut self,
         input: &Rc<str>,
@@ -1009,8 +959,7 @@ impl<E: Engine> Repl<E> {
         let (vals, val) = (self.repl_vals.clone(), self.repl_value.clone());
 
         // Only the value and the message of a `let assert` read what the
-        // session bound; a pattern names types and binds, so what it mentions
-        // asks for no binding of its own.
+        // session bound; a pattern names types and binds, and reads nothing.
         let mut compute = Source::new();
         compute.write(&format!("let {val}"));
         if let Some(annotation) = annotation {
@@ -1053,9 +1002,8 @@ impl<E: Engine> Repl<E> {
         let mut src = self.build_source(Some(code.as_str()), &Defined::default());
         src.append(&code);
 
-        // Drops what an input that failed after binding left behind: the
-        // engine appends, so `has_var` below only means "the value ran" while
-        // the two agree on how many values there are.
+        // Drops what an input that failed after binding left behind: the engine
+        // appends, so `has_var` below only holds while the counts agree.
         self.engine.truncate_vars(self.var_index);
         let module = self.compile(&module, src, Purpose::Run)?;
         self.run_repl_main(&module);
@@ -1119,8 +1067,7 @@ impl<E: Engine> Repl<E> {
         Ok(())
     }
 
-    /// Takes a statement, not an expression: a `let` is one, and timing it
-    /// binds like anywhere else.
+    /// Takes a statement, not an expression, so a `let` under it binds.
     fn run_time_cmd(&mut self, expr: &str) -> Result<(), InputError> {
         self.item += 1;
         let statement = Self::command_statement(TIME, expr)?;
@@ -1193,10 +1140,8 @@ impl<E: Engine> Repl<E> {
     }
 
     /// The reason a const of the input cannot be accepted, when there is one.
-    /// What makes it a const is otherwise already checked: the parser accepts
-    /// only a constant expression, and the one thing the parser cannot know is
-    /// that a name it reads is a `let`, out of reach from module level as it
-    /// would be in a source file.
+    /// The parser accepts only a constant expression; the one thing it cannot
+    /// know is that a name it reads is a `let`, out of reach from module level.
     fn const_refusal(&self, items: &[ReplItem]) -> Option<String> {
         let (mut read, mut qualified) = (vec![], vec![]);
         for item in items {
@@ -1216,9 +1161,8 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Compiles the definitions of the input into a module of its own, kept for
-    /// the rest of the session, and binds each name to that module. A later
-    /// input imports the name instead of defining it again, so a redefinition
-    /// leaves what was built on the old one untouched.
+    /// the rest of the session, and binds each name to it. A later input
+    /// imports the name instead, so a redefinition leaves the old one working.
     fn run_defs(&mut self, input: &Rc<str>, defs: &[Def]) -> Result<(), Error> {
         let defined = Defined::of(defs);
 
@@ -1231,8 +1175,8 @@ impl<E: Engine> Repl<E> {
                 code.write("pub ");
             }
             match &def.body {
-                // The bindings a body reads go in ahead of what the user wrote,
-                // splitting the definition in two copies of the input.
+                // The bindings go in ahead of the user's text, splitting the
+                // definition in two copies of the input.
                 Some(body) => {
                     code.copy(input, SrcSpan::new(def.keyword, body.start));
                     code.write(&self.injections(text, &defined.values, &body.params));
@@ -1269,8 +1213,7 @@ impl<E: Engine> Repl<E> {
 }
 
 /// The names the source mentions, as the lexer reads them: a label and a local
-/// count too. Over-approximate on purpose — an import too many is noise, an
-/// import missing is an error.
+/// count too. Over-approximate on purpose, as a missing import is an error.
 fn mentioned(code: &str) -> HashSet<EcoString> {
     parse::lexer::make_tokenizer(code)
         .filter_map(|token| match token {
@@ -1305,8 +1248,7 @@ fn format_duration(elapsed: std::time::Duration) -> String {
     }
 }
 
-/// The types, the functions and the consts the input defines, in the order it
-/// defines them.
+/// The definitions of the input, in the order it writes them.
 fn defs(items: &[ReplItem]) -> Vec<Def> {
     let mut defs = vec![];
     for item in items {
@@ -1326,8 +1268,7 @@ fn defs(items: &[ReplItem]) -> Vec<Def> {
             Definition::TypeAlias(t) => (Some(t.alias.to_string()), vec![]),
             Definition::Function(f) => {
                 let name = f.name.clone().expect("A function must have a name").1;
-                // An external function has no body, and so nothing to read the
-                // session from.
+                // An external function has no body to read the session from.
                 body = f.body_start.map(|brace| Body {
                     start: brace + 1,
                     params: f

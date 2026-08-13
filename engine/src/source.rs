@@ -6,15 +6,13 @@ use gleam_core::{ast::SrcSpan, line_numbers::LineNumbers};
 
 /// A module the repl writes: what it says itself, and the regions it copied
 /// from the input. Moving a diagnostic back onto the input is then a lookup
-/// instead of a search through the text for something that looks like it.
+/// and not a search through the text for something that looks like it.
 ///
 /// A copy carries where in the input it came from, so the repl can write
-/// between two halves of one definition — which is how a body gets the
-/// bindings it reads — and the halves still read against the whole input, at
-/// the line and column the user sees.
+/// between two halves of one definition and both still read against the input,
+/// at the line and column the user sees.
 ///
-/// `fmt::Write` writes the repl's own text, so `swriteln!` says the same thing
-/// as [`Source::write`].
+/// `fmt::Write` writes the repl's own text, so `swriteln!` is [`Source::write`].
 #[derive(Clone, Default)]
 pub struct Source {
     text: String,
@@ -26,8 +24,7 @@ pub struct Source {
 struct Copied {
     /// Where the copy starts in the generated text.
     at: u32,
-    /// The input, which is what a diagnostic moved onto the copy is read
-    /// against, and where in it the copy was taken.
+    /// The input the copy was taken from, and where in it.
     input: Rc<str>,
     from: u32,
     len: u32,
@@ -80,14 +77,12 @@ impl Source {
     }
 
     /// What `span` points at in the input: the smallest range holding every
-    /// byte of it the span takes in. `None` when it takes in none — the repl
-    /// wrote that text, and the user cannot be shown a place they did not
-    /// write.
+    /// byte of it the span takes in. `None` when it takes in none, as the repl
+    /// wrote that text.
     ///
     /// A span that reaches over what the repl put in — the `pub` before a
-    /// definition, the bindings at the top of a body — is about the definition
-    /// it is written into, which is the user's. Narrowing it to their bytes is
-    /// what says so.
+    /// definition, the bindings at the top of a body — is about the user's
+    /// definition, and narrowing it to their bytes says so.
     pub fn locate(&self, span: SrcSpan) -> Option<Located<'_>> {
         let mut located: Option<Located> = None;
         for copy in &self.copies {
@@ -126,10 +121,8 @@ impl Source {
     /// indexed by line — so the first element stands for no line at all, and 0
     /// for a line the repl wrote itself.
     ///
-    /// This is what names a place in a generated module by the input it came
-    /// from, for a runtime that has only the line to go on: `echo` is compiled
-    /// to the file and line it was written at, and the file is one the user
-    /// never saw.
+    /// It is what a runtime with only a line to go on names a place by: `echo`
+    /// is compiled to the file and line it was written at.
     pub fn input_lines(&self) -> Vec<u32> {
         let mut lines = vec![0];
         let mut at = 0;
@@ -181,9 +174,8 @@ mod tests {
         assert_eq!(src.locate(span(21, 21)).unwrap().span, span(5, 5));
     }
 
-    /// The repl writes `pub` in front of a definition and its bindings into a
-    /// body, so a span over a whole definition is a span over what both wrote.
-    /// It is the user's definition, and pointing at their bytes says so.
+    /// The repl writes `pub` in front of a definition and bindings into its
+    /// body, so a span over the whole of it covers what both wrote.
     #[test]
     fn a_span_over_both_narrows_to_what_the_user_wrote() {
         let input: Rc<str> = "fn f() { 1 }".into();
@@ -200,8 +192,7 @@ mod tests {
         assert_eq!(src.locate(span(0, 28)).unwrap().span, span(0, 12));
     }
 
-    /// The same text twice, only one of which is the copy the input is read
-    /// against — which is what searching for it cannot tell apart.
+    /// The same text twice, only one of which is a copy of the input.
     #[test]
     fn the_copy_is_found_by_where_it_is_not_by_what_it_says() {
         let mut src = Source::new();
@@ -245,8 +236,7 @@ mod tests {
     }
 
     /// What the repl writes between two halves of one definition, which is how
-    /// a body gets the bindings it reads: both halves still read against the
-    /// input, at the position the user wrote them in.
+    /// a body gets the bindings it reads.
     #[test]
     fn a_definition_split_around_what_the_repl_writes() {
         let input: Rc<str> = "fn f(a) {\n  a + x\n}".into();
