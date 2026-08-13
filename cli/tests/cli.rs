@@ -1793,7 +1793,7 @@ fn user_module_echo_keeps_the_location() {
 
     assert_eq!(
         String::from_utf8_lossy(&out),
-        "src/eu.gleam:2\n42\nsrc/eu.gleam:3 nota\n7\n"
+        "eu.gleam:2\n42\neu.gleam:3 nota\n7\n"
     );
 }
 

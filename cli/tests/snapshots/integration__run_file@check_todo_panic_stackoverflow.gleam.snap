@@ -4,7 +4,7 @@ source: cli/tests/integration.rs
 STDOUT
 STDERR
 warning: Todo found
-  ┌─ /src/check_todo_panic_stackoverflow.gleam:5:10
+  ┌─ check_todo_panic_stackoverflow.gleam:5:10
   │
 5 │     0 -> todo
   │          ^^^^ This code is incomplete
@@ -16,7 +16,7 @@ Hint: I think its type is `Int`.
 
 
 warning: Todo found
-  ┌─ /src/check_todo_panic_stackoverflow.gleam:6:10
+  ┌─ check_todo_panic_stackoverflow.gleam:6:10
   │
 6 │     1 -> todo as "not implemented"
   │          ^^^^^^^^^^^^^^^^^^^^^^^^^ This code is incomplete

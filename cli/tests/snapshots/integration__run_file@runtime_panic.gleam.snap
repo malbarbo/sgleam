@@ -7,7 +7,7 @@ Error at runtime_panic.gleam (main:2)
   value: Error("boom")
 STDERR
 warning: Assertion that will always fail
-  ┌─ /src/runtime_panic.gleam:2:14
+  ┌─ runtime_panic.gleam:2:14
   │
 2 │   let assert Ok(x) = Error("boom")
   │              ^^^^^

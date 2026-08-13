@@ -23,7 +23,10 @@ use indoc::formatdoc;
 
 use crate::{
     engine::{Engine, MainFunction, ReplFile},
-    gleam::{Project, get_definition_span, is_private, is_repl_noise, type_to_string},
+    gleam::{
+        Project, get_definition_span, is_private, is_repl_noise, relocate_to_user_paths,
+        type_to_string,
+    },
     parser::{self, ReplItem},
     run::get_function,
     source::Source,
@@ -838,7 +841,10 @@ impl<E: Engine> Repl<E> {
 
         let buffer_writer = crate::error::stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
-        for (diag, _) in &diags {
+        for (diag, _) in &mut diags {
+            // One that stayed put is about a module the user loaded, known by
+            // the path they gave.
+            relocate_to_user_paths(diag);
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
         }

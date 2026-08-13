@@ -6,7 +6,7 @@ Error at main_empty.gleam (main:1)
   `todo` expression evaluated. This code has not yet been implemented.
 STDERR
 warning: Unimplemented function
-  ┌─ /src/main_empty.gleam:1:1
+  ┌─ main_empty.gleam:1:1
   │
 1 │ pub fn main() {}
   │ ^^^^^^^^^^^^^ This code is incomplete

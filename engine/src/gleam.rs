@@ -9,6 +9,7 @@ use gleam_core::{
         TargetCodegenConfiguration,
     },
     config::PackageConfig,
+    diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
@@ -173,6 +174,24 @@ impl Project {
             )
             .map(|out| out.modules)
             .into_result()
+    }
+}
+
+/// The path the user gave, from the one its copy sits at.
+pub fn user_path(path: &Utf8Path) -> Utf8PathBuf {
+    path.strip_prefix(Project::source())
+        .map_or_else(|_| path.to_path_buf(), Utf8Path::to_path_buf)
+}
+
+pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
+    let Some(location) = &mut diagnostic.location else {
+        return;
+    };
+    location.path = user_path(&location.path);
+    for extra in &mut location.extra_labels {
+        if let Some((_, path)) = &mut extra.src_info {
+            *path = user_path(path);
+        }
     }
 }
 
@@ -376,9 +395,20 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
         if self.repl && is_repl_noise(&warning) {
             return;
         }
+        // This one writes the path into its hint, leaving no location to move.
+        let warning = match warning {
+            Warning::InvalidSource { path } => Warning::InvalidSource {
+                path: user_path(&path),
+            },
+            warning => warning,
+        };
+        let mut diagnostic = warning.to_diagnostic();
+        relocate_to_user_paths(&mut diagnostic);
+
         let buffer_writer = stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
-        warning.pretty(&mut buffer);
+        diagnostic.write(&mut buffer);
+        writeln!(buffer).expect("write newline after a warning");
         flush_buffer(&buffer_writer, &buffer);
     }
 }

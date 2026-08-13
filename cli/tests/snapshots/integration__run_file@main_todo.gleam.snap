@@ -6,7 +6,7 @@ Error at main_todo.gleam (main:2)
   `todo` expression evaluated. This code has not yet been implemented.
 STDERR
 warning: Todo found
-  ┌─ /src/main_todo.gleam:2:3
+  ┌─ main_todo.gleam:2:3
   │
 2 │   todo
   │   ^^^^ This code is incomplete

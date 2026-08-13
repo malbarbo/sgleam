@@ -7,6 +7,8 @@ use indoc::formatdoc;
 use termcolor::{BufferWriter, ColorChoice};
 use thiserror::Error;
 
+use crate::gleam::relocate_to_user_paths;
+
 #[derive(Debug, Error)]
 pub enum SgleamError {
     #[error("invalid smain signature")]
@@ -59,7 +61,11 @@ pub fn show_error(err: &SgleamError) {
 
     match err {
         SgleamError::Gleam(err) => {
-            err.pretty(&mut buffer);
+            for mut diagnostic in err.to_diagnostics() {
+                relocate_to_user_paths(&mut diagnostic);
+                diagnostic.write(&mut buffer);
+                writeln!(buffer).expect("write newline after a diagnostic");
+            }
         }
         SgleamError::InvalidSMain { module, signature } => Diagnostic {
             title: "smain function has an invalid signature".into(),
