@@ -414,34 +414,39 @@ impl<E: Engine> Repl<E> {
     fn run_source(&mut self, src: &str) -> Result<(), Bail> {
         let input: Rc<str> = src.into();
         let mut items = Vec::new();
-        // The definitions go in first, in a module of their own, so they can
-        // reference each other. All or nothing, which costs nothing: no item
-        // has run yet.
         self.guarded(|repl| {
             items = parse(&input)?;
             if let Some(reason) = repl.const_refusal(&items) {
                 return Err(InputError::Repl(reason));
             }
-            let defs = defs(&items);
-            if !defs.is_empty() {
-                repl.run_defs(&input, &defs)?;
-            }
             Ok(())
         })?;
 
-        for item in items {
+        // The imports go in ahead of everything else: a definition is compiled
+        // against the scope, and what its own input imported is part of it.
+        for (import, span) in imports(&items) {
             self.item += 1;
-            self.guarded(|repl| match item {
-                // Everything but an import is already bound by `run_defs`.
-                ReplItem::ReplDefinition(targeted, start) => {
-                    if let Definition::Import(import) = &targeted.definition {
-                        let span = get_definition_span(&targeted.definition, start);
-                        repl.run_import(import, &input, span)?;
-                    }
-                    Ok(())
-                }
-                ReplItem::ReplStatement(statement) => repl.run_statement(&input, statement),
+            self.guarded(|repl| {
+                repl.run_import(import, &input, span)
+                    .map_err(InputError::from)
             })?;
+        }
+
+        // The definitions go in next, in a module of their own, so they can
+        // reference each other. All or nothing, which costs nothing: no item
+        // has run yet.
+        let defs = defs(&items);
+        if !defs.is_empty() {
+            self.guarded(|repl| repl.run_defs(&input, &defs).map_err(InputError::from))?;
+        }
+
+        for item in items {
+            // Everything but a statement is already in by now.
+            let ReplItem::ReplStatement(statement) = item else {
+                continue;
+            };
+            self.item += 1;
+            self.guarded(|repl| repl.run_statement(&input, statement))?;
             // What an item that raised did stays: its output is on the screen.
             if self.had_runtime_error {
                 return Err(Bail);
@@ -588,13 +593,18 @@ impl<E: Engine> Repl<E> {
 
     // --- Compilation helpers ---
 
-    /// The definitions of an input take the plain name, as it is what the user
-    /// reads back in the type of a value a later redefinition left behind.
     fn module_name(&self) -> String {
         match self.item {
             0 => format!("repl{}", self.input),
             item => format!("repl{}_{item}", self.input),
         }
+    }
+
+    /// The definitions of an input take the plain name, as it is what the user
+    /// reads back in the type of a value a later redefinition left behind. Not
+    /// `module_name`: the imports are items, and they went first.
+    fn defs_module_name(&self) -> String {
+        format!("repl{}", self.input)
     }
 
     fn write_source(&mut self, module_name: &str, code: &str) -> String {
@@ -1189,7 +1199,7 @@ impl<E: Engine> Repl<E> {
         let mut src = self.build_source(Some(code.as_str()), &defined);
         src.append(&code);
 
-        let module = self.module_name();
+        let module = self.defs_module_name();
         self.compile(&module, src, Purpose::Run)?;
 
         for def in defs {
@@ -1246,6 +1256,23 @@ fn format_duration(elapsed: std::time::Duration) -> String {
     } else {
         format!("{} ns", elapsed.as_nanos())
     }
+}
+
+/// The imports of the input, in the order it writes them, with what each
+/// takes of it.
+fn imports(items: &[ReplItem]) -> Vec<(&gleam_core::ast::Import<()>, SrcSpan)> {
+    items
+        .iter()
+        .filter_map(|item| match item {
+            ReplItem::ReplDefinition(targeted, start) => match &targeted.definition {
+                Definition::Import(import) => {
+                    Some((import, get_definition_span(&targeted.definition, *start)))
+                }
+                _ => None,
+            },
+            ReplItem::ReplStatement(_) => None,
+        })
+        .collect()
 }
 
 /// The definitions of the input, in the order it writes them.

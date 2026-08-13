@@ -300,6 +300,17 @@ Deno.test("repl smoke test", async () => {
   destroy(ctx);
 });
 
+Deno.test("an import of a pasted input is in scope for its definitions", async () => {
+  const ctx = await newRepl();
+  const r = run(
+    ctx,
+    "import gleam/int\n\npub fn f(n) {\n  int.to_string(n)\n}\n\nf(5)\n",
+  );
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}\nstdout:\n${r.stdout}`);
+  assertEquals(r.stdout, '"5"\n');
+  destroy(ctx);
+});
+
 Deno.test(":quit returns quit status", async () => {
   const ctx = await newRepl();
   const r = run(ctx, ":quit");

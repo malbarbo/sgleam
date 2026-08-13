@@ -193,6 +193,34 @@ fn repl_import() {
 }
 
 #[test]
+fn repl_import_of_the_input_is_in_scope_for_its_definitions() {
+    // The definitions are compiled before any item runs, so the imports of
+    // their own input have to have gone in first. On one line here, as the
+    // reader submits one; the wasm api takes a whole paste as one input.
+    assert_eq!(
+        repl_exec("import gleam/int fn f() { int.to_string(1) } f()"),
+        r#""1""#
+    );
+    assert_eq!(
+        repl_exec("import gleam/int.{to_string} fn f() { to_string(2) } f()"),
+        r#""2""#
+    );
+    assert_eq!(
+        repl_exec(
+            "import gleam/option.{type Option} type Box { Box(Option(Int)) } Box(option.None)"
+        ),
+        "Box(None)"
+    );
+    // A const of the input reads it too, and is inlined at a guard.
+    assert_eq!(
+        repl_exec(
+            "import gleam/int.{max} const m = 3 fn f(x) { case x { n if n > m -> max(n, 0) _ -> 0 } } f(4)"
+        ),
+        "4"
+    );
+}
+
+#[test]
 fn repl_import_unqualified_survives_alias_shadow() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
         import gleam/io.{{println}}
@@ -754,10 +782,19 @@ fn repl_the_module_of_an_input_needs_no_import() {
         "1\n2\n#(1, 2)"
     );
     // An input that also defines needs its module for that, so the companion
-    // of the item holds the value.
+    // of the item holds the value. Only an import and a statement take a
+    // number, in that order.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn q() {{ 1 }} let x = 1
+            let x = 2
+            #(repl1_1_vals.x(), x)"
+        }),
+        "1\n2\n#(1, 2)"
+    );
+    assert_eq!(
+        repl_exec(&formatdoc! {"
+            import gleam/int fn q() {{ 1 }} let x = 1
             let x = 2
             #(repl1_2_vals.x(), x)"
         }),
