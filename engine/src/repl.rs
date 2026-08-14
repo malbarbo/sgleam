@@ -269,11 +269,11 @@ pub struct Repl<E: Engine> {
     modules: BTreeMap<String, String>,
     types: BTreeMap<String, NameEntry>,
     values: BTreeMap<String, NameEntry>,
-    // The modules this session wrote that hold names: one per input that
-    // defines, one per item that binds.
+    /// The modules this session wrote that hold names: one per input that
+    /// defines, one per item that binds.
     own_modules: Vec<String>,
-    // The module the values of the item being run are read back from, compiled
-    // in the same pass as the module that computes them.
+    /// The module the values of the item being run are read back from,
+    /// compiled in the same pass as the module that computes them.
     pending_vals: Option<(String, Source)>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
@@ -285,16 +285,17 @@ pub struct Repl<E: Engine> {
     var_index: usize,
     debug: bool,
     had_runtime_error: bool,
-    // What `:time` reports.
+    /// What `:time` reports.
     elapsed: std::time::Duration,
-    // The modules written for the item being run, by the path they were written
-    // to, each keeping which of its bytes are a copy of the input.
+    /// The modules written for the item being run, by the path they were
+    /// written to, each keeping which of its bytes are a copy of the input.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
-    // Every module the repl wrote to run that the runtime has not been told of.
-    // One that ran nothing still raises later, from a function it defined.
+    /// Every module the repl wrote to run that the runtime has not been told
+    /// of. One that ran nothing still raises later, from a function it defined.
     pending_files: Vec<ReplFile>,
-    // The import the input just wrote, kept while the module that checks it is
-    // built: it goes in as a copy, so the repl does not write the line again.
+    /// The import the input just wrote, kept while the module that checks it
+    /// is built: it goes in as a copy, so the repl does not write the line
+    /// again.
     own_import: Option<OwnImport>,
     // Internal function names with random suffix to avoid collisions with user code.
     repl_main: String,
@@ -453,7 +454,9 @@ impl<E: Engine> Repl<E> {
         run: impl FnOnce(&mut Self) -> Result<(), InputError>,
     ) -> Result<(), Bail> {
         // The snapshot is cheap — engine and project use reference counting
-        // internally (Rc), so only the maps are copied.
+        // internally (Rc), so only the maps are copied. The sharing also means
+        // they are not rolled back: a module the engine loaded stays loaded,
+        // which is fine because nothing of the session names it anymore.
         let snapshot = (*self).clone();
         let Err(error) = run(self) else {
             return Ok(());
@@ -894,6 +897,9 @@ impl<E: Engine> Repl<E> {
             let Some(extra_located) = src.locate(extra.label.span) else {
                 return false;
             };
+            // Every copy in a generated module is of the one input `loc.src`
+            // now holds.
+            debug_assert!(Rc::ptr_eq(extra_located.input, located.input));
             extra.label.span = extra_located.span;
             true
         });
@@ -1195,6 +1201,8 @@ impl<E: Engine> Repl<E> {
     /// The parser accepts only a constant expression; the one thing it cannot
     /// know is that a name it reads is a `let`, out of reach from module level.
     fn const_refusal(&self, items: &[ReplItem]) -> Option<String> {
+        // The qualified names go to `qualified` and stay there: only a plain
+        // name can be a `let`.
         let (mut read, mut qualified) = (vec![], vec![]);
         for item in items {
             if let ReplItem::ReplDefinition(targeted, _) = item
