@@ -42,11 +42,9 @@ impl Engine for Recorder {
     }
 
     // Nothing ran, so nothing raised before the value was remembered.
-    fn has_var(&self, _index: usize) -> bool {
+    fn has_var(&self, _key: &str) -> bool {
         true
     }
-
-    fn truncate_vars(&self, _count: usize) {}
 
     fn run_tests(&self, _modules: &[&str]) -> Result<(), SgleamError> {
         Ok(())

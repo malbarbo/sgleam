@@ -47,10 +47,8 @@ pub trait Engine: Clone {
         show_output: bool,
     ) -> Result<(), SgleamError>;
 
-    fn has_var(&self, index: usize) -> bool;
-
-    /// Drops the values saved past `count`.
-    fn truncate_vars(&self, count: usize);
+    /// Whether the run remembered a value under `key`.
+    fn has_var(&self, key: &str) -> bool;
 
     fn run_tests(&self, modules: &[&str]) -> Result<(), SgleamError>;
 

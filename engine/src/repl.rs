@@ -203,7 +203,6 @@ pub struct Repl<E: Engine> {
     // The input and the item being run, which name the module they compile into.
     input_number: usize,
     item_number: usize,
-    var_index: usize,
     debug: bool,
     had_runtime_error: bool,
     /// What `:time` reports.
@@ -248,7 +247,6 @@ impl<E: Engine> Repl<E> {
             engine: E::new(fs),
             input_number: 0,
             item_number: 0,
-            var_index: 0,
             debug: false,
             had_runtime_error: false,
             elapsed: std::time::Duration::ZERO,
@@ -416,7 +414,7 @@ impl<E: Engine> Repl<E> {
         let (memo, print) = (&self.repl_memo, &self.repl_print);
         formatdoc! {r#"
             @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
-            pub fn {memo}(index: Int, value: fn() -> a) -> a
+            pub fn {memo}(key: String, value: fn() -> a) -> a
 
             @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
             pub fn {print}(value: a) -> a
@@ -785,7 +783,6 @@ impl<E: Engine> Repl<E> {
         message: Option<SrcSpan>,
         names: &[String],
     ) -> Result<(), InputError> {
-        let slot = self.var_index;
         let (memo, print) = (self.repl_memo.clone(), self.repl_print.clone());
         let (vals, val) = (self.repl_vals.clone(), self.repl_value.clone());
 
@@ -820,30 +817,30 @@ impl<E: Engine> Repl<E> {
         }
         bind.write(")");
 
+        // The value is remembered under the module's own name — never reused,
+        // so no other input can fill it or read it.
+        let module = self.module_name();
         let mut code = Source::new();
-        code.write(&format!("pub fn {vals}() {{\n{memo}({slot}, fn() {{\n"));
+        code.write(&format!(
+            "pub fn {vals}() {{\n{memo}(\"{module}\", fn() {{\n"
+        ));
         code.append(&bind);
         code.write(&format!(
             "\n}})\n}}\n\npub fn {main}() {{\n{print}({vals}().0)\n}}\n",
             main = self.repl_main
         ));
 
-        let module = self.module_name();
         let vals_module = self.queue_vals_module(&module, names);
         let mut src = self.build_source(Some(code.as_str()), &Defined::default());
         src.append(&code);
 
-        // Drops what an input that failed after binding left behind: the engine
-        // appends, so `has_var` below only holds while the counts agree.
-        self.engine.truncate_vars(self.var_index);
         let module = self.compile(&module, src, Purpose::Run)?;
         self.run_repl_main(&module);
 
-        if !self.engine.has_var(self.var_index) {
+        if !self.engine.has_var(&module.name) {
             // The value raised before it was remembered, so nothing binds.
             return Ok(());
         }
-        self.var_index += 1;
 
         for name in names {
             self.scope.values.insert(

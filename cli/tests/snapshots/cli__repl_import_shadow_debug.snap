@@ -5,7 +5,7 @@ expression: strip_repl_suffix(&out)
 Debug mode on.
 --- repl1_1.gleam ---
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
-pub fn repl_memo_XXXXXXXX(index: Int, value: fn() -> a) -> a
+pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a
@@ -20,7 +20,7 @@ export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX };
 ---
 --- repl2_1.gleam ---
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
-pub fn repl_memo_XXXXXXXX(index: Int, value: fn() -> a) -> a
+pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a

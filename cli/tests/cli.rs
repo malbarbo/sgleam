@@ -554,6 +554,23 @@ fn repl_binding_that_did_not_run_is_not_bound() {
 }
 
 #[test]
+fn repl_binding_that_raised_frees_its_slot_for_the_next() {
+    // The raise left the slot empty, so the next binding takes it. What the
+    // engine saved and the repl counted must still agree: the binding before
+    // keeps its value, the one after reads its own.
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            let x = 1
+            let y = {{ panic as "boom" }}
+            let y = 10
+            y
+            x"#
+        }),
+        "1\nError at <repl>:1\n  boom\n10\n10\n1"
+    );
+}
+
+#[test]
 fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");

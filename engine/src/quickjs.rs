@@ -11,8 +11,8 @@ use std::{
 };
 
 use rquickjs::{
-    Array, CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise,
-    Result, Runtime, Value,
+    CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise, Result,
+    Runtime, Value,
     context::EvalOptions,
     loader::{Loader, Resolver},
     module::Declared,
@@ -60,20 +60,12 @@ impl Engine for QuickJsEngine {
         run_main(&self.context, module, main, show_output)
     }
 
-    fn has_var(&self, index: usize) -> bool {
+    fn has_var(&self, key: &str) -> bool {
         self.context.with(|ctx| {
             ctx.globals()
-                .get::<_, Array>("repl_vars")
-                .map(|a| index < a.len())
+                .get::<_, Object>("repl_vars")
+                .and_then(|vars| vars.contains_key(key))
                 .unwrap_or(false)
-        })
-    }
-
-    fn truncate_vars(&self, count: usize) {
-        self.context.with(|ctx| {
-            if let Ok(vars) = ctx.globals().get::<_, Object>("repl_vars") {
-                let _ = vars.set("length", count);
-            }
         })
     }
 
