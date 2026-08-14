@@ -51,21 +51,42 @@ pub fn welcome_message() -> String {
 struct NameEntry {
     module: String,
     original: String,
-    /// A `let`, read back by a binding written at the top of every body that
-    /// names it. The one kind of value a const may not read.
-    runtime: bool,
-    /// What a const reads: a guard inlines it, and the inlined text names
-    /// these. `None` for a name an import brought, which always comes in.
-    reads: Option<Vec<String>>,
+    origin: Origin,
+}
+
+/// How the name entered the session, which decides when a generated module
+/// imports it and what a const may do with it.
+#[derive(Clone)]
+enum Origin {
+    /// Brought by an import, or seeded from the user's module.
+    Import,
+    /// Defined by an input. `reads` holds, for a const, the names its value
+    /// reads, a module of a qualified name included: Gleam inlines a const at
+    /// a `case` guard, and the inlined code still names them.
+    Def { reads: Vec<String> },
+    /// Bound by a `let`, read back by a binding written at the top of every
+    /// body that names it. The one kind of value a const may not read.
+    Binding,
 }
 
 impl NameEntry {
-    fn defined_in(module: &str, original: impl AsRef<str>) -> NameEntry {
+    fn new(module: &str, original: impl AsRef<str>, origin: Origin) -> NameEntry {
         NameEntry {
             module: module.into(),
             original: original.as_ref().into(),
-            runtime: false,
-            reads: None,
+            origin,
+        }
+    }
+
+    fn is_binding(&self) -> bool {
+        matches!(self.origin, Origin::Binding)
+    }
+
+    /// What a const of the session reads, empty for everything else.
+    fn reads(&self) -> &[String] {
+        match &self.origin {
+            Origin::Def { reads } => reads,
+            Origin::Import | Origin::Binding => &[],
         }
     }
 }
@@ -342,13 +363,17 @@ impl<E: Engine> Repl<E> {
             .insert(short_name(&path).to_string(), path.clone());
 
         for type_ in interface.public_type_names() {
-            self.types
-                .insert(type_.to_string(), NameEntry::defined_in(&path, type_));
+            self.types.insert(
+                type_.to_string(),
+                NameEntry::new(&path, type_, Origin::Import),
+            );
         }
 
         for value in interface.public_value_names() {
-            self.values
-                .insert(value.to_string(), NameEntry::defined_in(&path, value));
+            self.values.insert(
+                value.to_string(),
+                NameEntry::new(&path, value, Origin::Import),
+            );
         }
     }
 
@@ -498,6 +523,8 @@ impl<E: Engine> Repl<E> {
     /// the whole scope. `None` writes them all, which is what checks an import.
     fn build_source(&self, code: Option<&str>, skip: &Defined) -> Source {
         let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
+        let mentions = |name: &str| mentioned.as_ref().is_some_and(|names| names.contains(name));
+        let wanted = |name: &str| mentioned.is_none() || mentions(name);
         let mut src = Source::new();
         src.write(&self.build_externals());
         // The input's own import goes in as the input wrote it, so a diagnostic
@@ -514,10 +541,7 @@ impl<E: Engine> Repl<E> {
             {
                 continue;
             }
-            if mentioned
-                .as_ref()
-                .is_some_and(|names| !names.contains(name.as_str()))
-            {
+            if !wanted(name) {
                 continue;
             }
             if short_name(path) == name {
@@ -529,9 +553,7 @@ impl<E: Engine> Repl<E> {
         // A module of this session comes in when the input names it, unless an
         // import already writes the line — under that name, or of that module.
         for module in &self.own_modules {
-            if mentioned
-                .as_ref()
-                .is_some_and(|names| names.contains(module.as_str()))
+            if mentions(module)
                 && !self
                     .modules
                     .iter()
@@ -540,27 +562,26 @@ impl<E: Engine> Repl<E> {
                 swriteln!(src, "import {module}");
             }
         }
-        // A value an import brought always comes in: a guard inlines a const,
-        // and the repl never read what that one names. Nothing inlines a type.
         // What the input defines is left out per namespace, as a type and a
         // value of the same name are two names.
-        for (kind, entries, inlinable, skip) in [
-            ("", &self.values, true, &skip.values),
-            ("type ", &self.types, false, &skip.types),
+        for (kind, entries, skip) in [
+            ("", &self.values, &skip.values),
+            ("type ", &self.types, &skip.types),
         ] {
+            let values = kind.is_empty();
             for (name, entry) in entries {
                 let NameEntry {
                     module, original, ..
                 } = entry;
-                let dropped = (!inlinable || entry.reads.is_some())
-                    && mentioned
-                        .as_ref()
-                        .is_some_and(|names| !names.contains(name.as_str()));
+                // A value an import brought comes in even unmentioned: a guard
+                // inlines a const, and the repl never read what an imported one
+                // names. Nothing inlines a type.
+                let needed = (values && matches!(entry.origin, Origin::Import)) || wanted(name);
                 let own = self.own_import.as_ref().is_some_and(|own| {
                     &own.path == module
-                        && if inlinable { &own.values } else { &own.types }.contains(name)
+                        && if values { &own.values } else { &own.types }.contains(name)
                 });
-                if skip.contains(name) || dropped || own {
+                if skip.contains(name) || !needed || own {
                     continue;
                 }
                 if name == original {
@@ -580,7 +601,7 @@ impl<E: Engine> Repl<E> {
             let Some(entry) = self.values.get(name.as_str()) else {
                 continue;
             };
-            for read in entry.reads.iter().flatten() {
+            for read in entry.reads() {
                 let read: EcoString = read.into();
                 if names.insert(read.clone()) {
                     queue.push(read);
@@ -611,7 +632,7 @@ impl<E: Engine> Repl<E> {
         let mentioned = mentioned(code);
         let mut src = String::new();
         for (name, entry) in &self.values {
-            if entry.runtime
+            if entry.is_binding()
                 && mentioned.contains(name.as_str())
                 && !defined.contains(name)
                 && !params.contains(name)
@@ -1058,12 +1079,7 @@ impl<E: Engine> Repl<E> {
         for name in names {
             self.values.insert(
                 name.clone(),
-                NameEntry {
-                    module: vals_module.clone(),
-                    original: name.clone(),
-                    runtime: true,
-                    reads: Some(vec![]),
-                },
+                NameEntry::new(&vals_module, name, Origin::Binding),
             );
         }
         self.own_modules.push(vals_module);
@@ -1165,7 +1181,7 @@ impl<E: Engine> Repl<E> {
                 .unwrap_or_else(|| uv.name.to_string());
             own.values.push(effective.clone());
             self.values
-                .insert(effective, NameEntry::defined_in(&module, &uv.name));
+                .insert(effective, NameEntry::new(&module, &uv.name, Origin::Import));
         }
 
         // Handle unqualified types
@@ -1177,7 +1193,7 @@ impl<E: Engine> Repl<E> {
                 .unwrap_or_else(|| ut.name.to_string());
             own.types.push(effective.clone());
             self.types
-                .insert(effective, NameEntry::defined_in(&module, &ut.name));
+                .insert(effective, NameEntry::new(&module, &ut.name, Origin::Import));
         }
 
         self.own_import = Some(own);
@@ -1200,7 +1216,7 @@ impl<E: Engine> Repl<E> {
         }
         let var = read
             .iter()
-            .find(|name| self.values.get(*name).is_some_and(|entry| entry.runtime))?;
+            .find(|name| self.values.get(*name).is_some_and(NameEntry::is_binding))?;
         Some(format!(
             "`{var}` is a variable, not a constant. A constant can only use \
              literals, other constants and functions."
@@ -1241,16 +1257,21 @@ impl<E: Engine> Repl<E> {
 
         for def in defs {
             if let Some(name) = &def.type_name {
-                self.types
-                    .insert(name.clone(), NameEntry::defined_in(&module, name));
+                self.types.insert(
+                    name.clone(),
+                    NameEntry::new(&module, name, Origin::Def { reads: vec![] }),
+                );
             }
             for name in &def.value_names {
                 self.values.insert(
                     name.clone(),
-                    NameEntry {
-                        reads: Some(def.reads.clone()),
-                        ..NameEntry::defined_in(&module, name)
-                    },
+                    NameEntry::new(
+                        &module,
+                        name,
+                        Origin::Def {
+                            reads: def.reads.clone(),
+                        },
+                    ),
                 );
             }
         }
