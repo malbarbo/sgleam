@@ -1,5 +1,6 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 38
 ---
 STDOUT
 STDERR
@@ -29,7 +30,8 @@ Hint: I think its type is `Int`.
 
 error: Module does not have a main function
 
-`check_todo_panic_stackoverflow` does not have a main function so the module can not be run.
+`check_todo_panic_stackoverflow` does not have a main function so the
+module can not be run.
 
 Hint: Add a public `main` function to
 `src/check_todo_panic_stackoverflow.gleam`.

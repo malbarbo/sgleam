@@ -11,6 +11,7 @@ flate2 = "1"
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
+gleam-format = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8" }
 im = "15.1.0"
 indoc = "2.0.5"
 rquickjs = { version = "0.11.0", features = ["loader"] }

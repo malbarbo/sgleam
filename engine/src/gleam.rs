@@ -372,18 +372,18 @@ impl ConsoleWarningEmitter {
 /// Nothing else is filtered: a `todo`, an unreachable line, a variable a
 /// function never reads — that is the compiler teaching.
 pub fn is_repl_noise(warning: &Warning) -> bool {
-    matches!(
-        warning,
-        Warning::Type {
-            warning: gleam_core::type_::Warning::ModuleImportedTwice { .. }
+    match warning {
+        Warning::Type { warning, .. } => matches!(
+            **warning,
+            gleam_core::type_::Warning::ModuleImportedTwice { .. }
                 | gleam_core::type_::Warning::UnusedImportedModule { .. }
                 | gleam_core::type_::Warning::UnusedImportedModuleAlias { .. }
                 | gleam_core::type_::Warning::UnusedImportedValue { .. }
                 | gleam_core::type_::Warning::UnusedConstructor { imported: true, .. }
-                | gleam_core::type_::Warning::UnusedType { imported: true, .. },
-            ..
-        }
-    )
+                | gleam_core::type_::Warning::UnusedType { imported: true, .. }
+        ),
+        _ => false,
+    }
 }
 
 impl WarningEmitterIO for ConsoleWarningEmitter {

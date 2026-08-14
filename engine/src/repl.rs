@@ -612,7 +612,7 @@ impl<E: Engine> Repl<E> {
         let file = format!("{module_name}.gleam");
         if self.debug {
             let mut formatted = String::new();
-            if gleam_core::format::pretty(
+            if gleam_format::pretty(
                 &mut formatted,
                 &code.into(),
                 camino::Utf8Path::new(&file),
@@ -1422,7 +1422,7 @@ fn constant_find_names(
             ..
         } => {
             read(module, name, names, modules);
-            for argument in arguments {
+            for argument in arguments.iter().flatten() {
                 constant_find_names(&argument.value, names, modules);
             }
         }
@@ -1453,6 +1453,11 @@ fn constant_find_names(
         Constant::StringConcatenation { left, right, .. } => {
             constant_find_names(left, names, modules);
             constant_find_names(right, names, modules);
+        }
+        Constant::Todo { message, .. } => {
+            if let Some(message) = message {
+                constant_find_names(message, names, modules);
+            }
         }
     }
 }

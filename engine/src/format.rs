@@ -14,7 +14,7 @@ use camino::{Utf8Path, Utf8PathBuf};
 
 pub fn format_source(source: &str) -> Result<String> {
     let mut out = String::new();
-    gleam_core::format::pretty(&mut out, &source.into(), Utf8Path::new("user.gleam"))?;
+    gleam_format::pretty(&mut out, &source.into(), Utf8Path::new("user.gleam"))?;
     Ok(out)
 }
 
@@ -29,7 +29,7 @@ pub fn run(check: bool, files: Vec<Utf8PathBuf>) -> Result<()> {
 fn process_stdin(check: bool) -> Result<()> {
     let src = read_stdin()?.into();
     let mut out = String::new();
-    gleam_core::format::pretty(&mut out, &src, Utf8Path::new("<stdin>"))?;
+    gleam_format::pretty(&mut out, &src, Utf8Path::new("<stdin>"))?;
 
     if !check {
         print!("{out}");
@@ -93,7 +93,7 @@ fn unformatted_files(files: Vec<Utf8PathBuf>) -> Result<Vec<Unformatted>> {
 fn format_file(problem_files: &mut Vec<Unformatted>, path: Utf8PathBuf) -> Result<()> {
     let src = read(&path)?.into();
     let mut output = String::new();
-    gleam_core::format::pretty(&mut output, &src, &path)?;
+    gleam_format::pretty(&mut output, &src, &path)?;
 
     if src != output {
         problem_files.push(Unformatted {

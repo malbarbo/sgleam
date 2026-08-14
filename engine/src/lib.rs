@@ -26,7 +26,7 @@ use rust_embed::Embed;
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
-pub const GLEAM_STDLIB_VERSION: &str = "1.0.0";
+pub const GLEAM_STDLIB_VERSION: &str = "1.0.5";
 
 #[derive(Embed)]
 #[folder = "../lib/sgleam/"]

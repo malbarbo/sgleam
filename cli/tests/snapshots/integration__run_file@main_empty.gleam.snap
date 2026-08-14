@@ -1,5 +1,6 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 38
 ---
 STDOUT
 Error at main_empty.gleam (main:1)
@@ -11,5 +12,8 @@ warning: Unimplemented function
 1 │ pub fn main() {}
   │ ^^^^^^^^^^^^^ This code is incomplete
 
-This code will crash if it is run. Be sure to finish it before
+A function must always have an implementation.
+
+A todo expression has been used in place of the missing body,
+so this code will crash if it is run. Be sure to finish it before
 running your program.

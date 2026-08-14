@@ -1,10 +1,12 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 38
 ---
 STDOUT
 STDERR
 error: Module does not have a main function
 
-`check_true_false` does not have a main function so the module can not be run.
+`check_true_false` does not have a main function so the module can not be
+run.
 
 Hint: Add a public `main` function to `src/check_true_false.gleam`.
