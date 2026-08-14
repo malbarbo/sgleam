@@ -116,7 +116,7 @@ enum Command<'a> {
     /// `:type`. No Gleam starts with `:`, so the parser's complaint about one
     /// would only mislead.
     Unknown(&'a str),
-    Source(&'a str),
+    Gleam(&'a str),
 }
 
 impl<'a> Command<'a> {
@@ -134,7 +134,7 @@ impl<'a> Command<'a> {
             Command::Unknown(trimmed)
         } else {
             // Not trimmed: the spans of the parsed input index this string.
-            Command::Source(input)
+            Command::Gleam(input)
         }
     }
 
@@ -143,7 +143,7 @@ impl<'a> Command<'a> {
     fn gleam(&self) -> Option<&'a str> {
         match self {
             Command::Quit | Command::Debug | Command::Unknown(_) => None,
-            Command::Type(src) | Command::Time(src) | Command::Source(src) => Some(src),
+            Command::Type(src) | Command::Time(src) | Command::Gleam(src) => Some(src),
         }
     }
 }
@@ -183,12 +183,16 @@ enum Purpose {
     DeclareScope,
 }
 
-/// Which diagnostics reach the screen: the ones about the input, and the rest
-/// only when none landed on it.
+/// Which diagnostics reach the screen, after each is moved onto the copy of
+/// the input it points into.
 #[derive(PartialEq, Eq)]
 enum Show {
-    CopiesOnly,
-    PreferCopies,
+    /// Only the ones that landed on the input: one that did not is about text
+    /// the repl wrote, which the user cannot act on.
+    OnInputOnly,
+    /// The rest only when none landed on the input: an error with no place
+    /// still says something.
+    PreferOnInput,
 }
 
 /// Why an input did not run.
@@ -276,8 +280,8 @@ pub struct Repl<E: Engine> {
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
     // The input and the item being run, which name the module they compile into.
-    input: usize,
-    item: usize,
+    input_number: usize,
+    item_number: usize,
     var_index: usize,
     debug: bool,
     had_runtime_error: bool,
@@ -327,8 +331,8 @@ impl<E: Engine> Repl<E> {
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
             engine: E::new(fs),
-            input: 0,
-            item: 0,
+            input_number: 0,
+            item_number: 0,
             var_index: 0,
             debug: false,
             had_runtime_error: false,
@@ -385,9 +389,9 @@ impl<E: Engine> Repl<E> {
             .map(String::as_str)
     }
 
-    /// Returns all completion candidates: unqualified names, qualified
-    /// module.member names, and does NOT include keywords/commands (those
-    /// are added by the CLI).
+    /// The completion candidates: every name in scope, and the public members
+    /// of the imported modules, qualified. Keywords and commands are the CLI's
+    /// to add.
     pub fn completions(&self) -> Vec<String> {
         let mut result: Vec<String> = self.names().map(String::from).collect();
         for (alias, path) in &self.modules {
@@ -423,15 +427,15 @@ impl<E: Engine> Repl<E> {
                 println!("{}", unknown_command(input));
                 ReplOutput::Error
             }
-            Command::Source(src) => self.run_input(|repl| repl.run_source(src)),
+            Command::Gleam(src) => self.run_input(|repl| repl.run_source(src)),
         }
     }
 
     fn run_input(&mut self, run: impl FnOnce(&mut Self) -> Result<(), Bail>) -> ReplOutput {
         // A failed input still spends its number: a module name is never
         // reused, as the engine holds the module it loaded under it.
-        self.input += 1;
-        self.item = 0;
+        self.input_number += 1;
+        self.item_number = 0;
         self.skip_taken_names();
 
         if run(self).is_err() || self.had_runtime_error {
@@ -481,7 +485,7 @@ impl<E: Engine> Repl<E> {
         // The imports go in ahead of everything else: a definition is compiled
         // against the scope, and what its own input imported is part of it.
         for (import, span) in imports(&items) {
-            self.item += 1;
+            self.item_number += 1;
             self.guarded(|repl| {
                 repl.run_import(import, &input, span)
                     .map_err(InputError::from)
@@ -501,7 +505,7 @@ impl<E: Engine> Repl<E> {
             let ReplItem::ReplStatement(statement) = item else {
                 continue;
             };
-            self.item += 1;
+            self.item_number += 1;
             self.guarded(|repl| repl.run_statement(&input, statement))?;
             // What an item that raised did stays: its output is on the screen.
             if self.had_runtime_error {
@@ -646,9 +650,9 @@ impl<E: Engine> Repl<E> {
     // --- Compilation helpers ---
 
     fn module_name(&self) -> String {
-        match self.item {
-            0 => format!("repl{}", self.input),
-            item => format!("repl{}_{item}", self.input),
+        match self.item_number {
+            0 => format!("repl{}", self.input_number),
+            item => format!("repl{}_{item}", self.input_number),
         }
     }
 
@@ -656,7 +660,7 @@ impl<E: Engine> Repl<E> {
     /// reads back in the type of a value a later redefinition left behind. Not
     /// `module_name`: the imports are items, and they went first.
     fn defs_module_name(&self) -> String {
-        format!("repl{}", self.input)
+        format!("repl{}", self.input_number)
     }
 
     fn write_source(&mut self, module_name: &str, code: &str) -> String {
@@ -679,12 +683,12 @@ impl<E: Engine> Repl<E> {
     /// is a plausible file name, and the module written over it would be lost.
     fn skip_taken_names(&mut self) {
         while self.name_taken() {
-            self.input += 1;
+            self.input_number += 1;
         }
     }
 
     fn name_taken(&self) -> bool {
-        let name = format!("repl{}", self.input);
+        let name = format!("repl{}", self.input_number);
         let prefix = format!("{name}_");
         self.project.fs.files().iter().any(|path| {
             path.parent() == Some(Project::source())
@@ -704,12 +708,13 @@ impl<E: Engine> Repl<E> {
         let mut files = vec![];
         // The module the values of this item are read back from goes in here,
         // and not in a pass of its own, so a `let` costs one compilation.
-        if let Some((name, vals)) = self.pending_vals.take() {
-            files.push(self.write_source(&name, vals.as_str()));
-            self.remember(&files[0], vals);
+        if let Some((vals_module, vals)) = self.pending_vals.take() {
+            let file = self.write_source(&vals_module, vals.as_str());
+            self.generated.push((Project::source().join(&file), vals));
+            files.push(file);
         }
         let file = self.write_source(module_name, src.as_str());
-        self.remember(&file, src);
+        self.generated.push((Project::source().join(&file), src));
         files.push(file);
         // Only a module compiled to run: nothing ever reaches a place in the
         // others, and loading them would cost the next run a module apiece.
@@ -745,7 +750,7 @@ impl<E: Engine> Repl<E> {
                 .filter(|warning| !self.is_noise(warning, &purpose))
                 .map(|warning| warning.to_diagnostic())
                 .collect(),
-            Show::CopiesOnly,
+            Show::OnInputOnly,
         );
 
         let mut modules = result?;
@@ -763,11 +768,6 @@ impl<E: Engine> Repl<E> {
             .expect("The repl module");
 
         Ok(modules.swap_remove(pos))
-    }
-
-    /// Keeps what a module was written from, for the diagnostics about it.
-    fn remember(&mut self, file: &str, src: Source) {
-        self.generated.push((Project::source().join(file), src));
     }
 
     /// A module the repl wrote, for the runtime: the input lines it came from.
@@ -806,7 +806,7 @@ impl<E: Engine> Repl<E> {
                 self.register_types(&mut module.names);
             }
         }
-        self.show_diagnostics(err.to_diagnostics(), Show::PreferCopies);
+        self.show_diagnostics(err.to_diagnostics(), Show::PreferOnInput);
     }
 
     /// The names a type is printed in: those of the module it was compiled in,
@@ -850,7 +850,7 @@ impl<E: Engine> Repl<E> {
         // One that stayed put is about what the repl wrote: dropped outright
         // for a warning, and for an error only when another one lands on the
         // input, as an error with no place still says something.
-        if show == Show::CopiesOnly || diags.iter().any(|(_, moved)| *moved) {
+        if show == Show::OnInputOnly || diags.iter().any(|(_, moved)| *moved) {
             diags.retain(|(_, moved)| *moved);
         }
         if diags.is_empty() {
@@ -940,9 +940,9 @@ impl<E: Engine> Repl<E> {
     fn queue_vals_module(&mut self, from: &str, names: &[String]) -> String {
         // The plain name when the input has no definitions to hold it, so a
         // value is reached the way a type and a function are: `repl1.x()`.
-        let plain = format!("repl{}", self.input);
+        let plain = format!("repl{}", self.input_number);
         let module = if self.existing_modules.contains_key(plain.as_str()) {
-            format!("repl{}_{}_vals", self.input, self.item)
+            format!("repl{}_{}_vals", self.input_number, self.item_number)
         } else {
             plain
         };
@@ -1103,7 +1103,8 @@ impl<E: Engine> Repl<E> {
 
     /// The one statement `:type` and `:time` take.
     fn command_statement(cmd: &str, input: &str) -> Result<UntypedStatement, InputError> {
-        let refuse = |reason: &str| InputError::Repl(format!("{cmd}command {reason}"));
+        let refuse =
+            |reason: &str| InputError::Repl(format!("{} command {reason}", cmd.trim_end()));
         let mut items = parse(input)?;
         if items.len() != 1 {
             return Err(refuse("expects exactly one expression."));
@@ -1117,7 +1118,7 @@ impl<E: Engine> Repl<E> {
     fn run_type_cmd(&mut self, expr: &str) -> Result<(), InputError> {
         // A command is an item of the input, not its definitions: item 0 names
         // the module a `let` of an input with none is read back from.
-        self.item += 1;
+        self.item_number += 1;
         Self::command_statement(TYPE, expr)?;
         let input: Rc<str> = expr.into();
         let module =
@@ -1132,7 +1133,7 @@ impl<E: Engine> Repl<E> {
 
     /// Takes a statement, not an expression, so a `let` under it binds.
     fn run_time_cmd(&mut self, expr: &str) -> Result<(), InputError> {
-        self.item += 1;
+        self.item_number += 1;
         let statement = Self::command_statement(TIME, expr)?;
         self.run_statement(&expr.into(), statement)?;
         if !self.had_runtime_error {
@@ -1157,7 +1158,6 @@ impl<E: Engine> Repl<E> {
             types: vec![],
         };
 
-        // Handle module alias / short name.
         match &import.as_name {
             Some((gleam_core::ast::AssignName::Variable(name), _)) => {
                 self.modules.insert(name.to_string(), module.clone());
@@ -1172,29 +1172,18 @@ impl<E: Engine> Repl<E> {
             }
         }
 
-        // Handle unqualified values
-        for uv in &import.unqualified_values {
-            let effective = uv
-                .as_name
-                .as_ref()
-                .map(|n| n.to_string())
-                .unwrap_or_else(|| uv.name.to_string());
-            own.values.push(effective.clone());
-            self.values
-                .insert(effective, NameEntry::new(&module, &uv.name, Origin::Import));
-        }
-
-        // Handle unqualified types
-        for ut in &import.unqualified_types {
-            let effective = ut
-                .as_name
-                .as_ref()
-                .map(|n| n.to_string())
-                .unwrap_or_else(|| ut.name.to_string());
-            own.types.push(effective.clone());
-            self.types
-                .insert(effective, NameEntry::new(&module, &ut.name, Origin::Import));
-        }
+        register_unqualified(
+            &import.unqualified_values,
+            &module,
+            &mut self.values,
+            &mut own.values,
+        );
+        register_unqualified(
+            &import.unqualified_types,
+            &module,
+            &mut self.types,
+            &mut own.types,
+        );
 
         self.own_import = Some(own);
         let result = self.run_check();
@@ -1523,6 +1512,21 @@ fn bit_array_size_find_names(bit_array_size: &BitArraySize<()>, names: &mut Vec<
             bit_array_size_find_names(left, names);
             bit_array_size_find_names(right, names);
         }
+    }
+}
+
+/// Registers the unqualified names an import brings, each under the name the
+/// input gave it.
+fn register_unqualified(
+    imported: &[gleam_core::ast::UnqualifiedImport],
+    module: &str,
+    entries: &mut BTreeMap<String, NameEntry>,
+    own: &mut Vec<String>,
+) {
+    for import in imported {
+        let name = import.as_name.as_ref().unwrap_or(&import.name).to_string();
+        own.push(name.clone());
+        entries.insert(name, NameEntry::new(module, &import.name, Origin::Import));
     }
 }
 
