@@ -1,0 +1,8 @@
+---
+source: cli/tests/cli.rs
+expression: strip_repl_suffix(&out)
+---
+Unknown command :typ.
+The commands are :quit, :debug, :type <expr> and :time <expr>.
+The :type command takes an expression: `:type 1 + 1`.
+The :quit command takes nothing after it.

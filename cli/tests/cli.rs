@@ -1486,6 +1486,14 @@ fn repl_error_syntax() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+// A near-miss of a command would otherwise reach the Gleam parser, whose
+// complaint about the `:` says nothing the user can act on.
+#[test]
+fn repl_unknown_command() {
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":typ x\n:type\n:quit now"));
+    assert_snapshot!(strip_repl_suffix(&out));
+}
+
 /// The file ends in the middle of an input, which the editor was still reading
 /// for. It is what the user wrote, so it is compiled and it is complained about.
 #[test]

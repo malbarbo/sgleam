@@ -91,6 +91,10 @@ enum Command<'a> {
     Type(&'a str),
     /// An expression, and how long evaluating it takes.
     Time(&'a str),
+    /// An input that starts like a command but is none: `:typ x`, a bare
+    /// `:type`. No Gleam starts with `:`, so the parser's complaint about one
+    /// would only mislead.
+    Unknown(&'a str),
     Source(&'a str),
 }
 
@@ -105,6 +109,8 @@ impl<'a> Command<'a> {
             Command::Type(expr)
         } else if let Some(expr) = trimmed.strip_prefix(TIME) {
             Command::Time(expr)
+        } else if trimmed.starts_with(':') {
+            Command::Unknown(trimmed)
         } else {
             // Not trimmed: the spans of the parsed input index this string.
             Command::Source(input)
@@ -115,9 +121,24 @@ impl<'a> Command<'a> {
     /// command of the repl's own always is.
     fn gleam(&self) -> Option<&'a str> {
         match self {
-            Command::Quit | Command::Debug => None,
+            Command::Quit | Command::Debug | Command::Unknown(_) => None,
             Command::Type(src) | Command::Time(src) | Command::Source(src) => Some(src),
         }
+    }
+}
+
+/// What is wrong with an input that starts like a command but is none.
+fn unknown_command(input: &str) -> String {
+    let cmd = input.split_whitespace().next().unwrap_or(input);
+    if cmd == QUIT || cmd == DEBUG {
+        format!("The {cmd} command takes nothing after it.")
+    } else if cmd == TYPE.trim_end() || cmd == TIME.trim_end() {
+        format!("The {cmd} command takes an expression: `{cmd} 1 + 1`.")
+    } else {
+        format!(
+            "Unknown command {cmd}.\nThe commands are {QUIT}, {DEBUG}, \
+             {TYPE}<expr> and {TIME}<expr>."
+        )
     }
 }
 
@@ -129,12 +150,15 @@ pub fn is_incomplete(input: &str) -> bool {
         .is_some_and(crate::parser::is_incomplete)
 }
 
-/// What a module is compiled for. One that only declares the scope, to check
-/// an import, uses nothing in it, so an unused-import warning there is vacuous
-/// — and it runs nothing, so the runtime is never told of it either.
+/// What a module is compiled for. Only one compiled to run is queued for the
+/// runtime: one that answers `:type` is never called, and one that only
+/// declares the scope, to check an import, is not even referenced. The latter
+/// also uses nothing of the scope, so an unused-import warning there is
+/// vacuous and dropped.
 #[derive(PartialEq, Eq)]
 enum Purpose {
     Run,
+    Type,
     DeclareScope,
 }
 
@@ -269,7 +293,7 @@ impl<E: Engine> Repl<E> {
             "{:08x}",
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .subsec_nanos()
         );
         let mut repl = Repl {
@@ -302,7 +326,9 @@ impl<E: Engine> Repl<E> {
         }
         // Compiled once here, so completion has the module interfaces to read.
         repl.skip_taken_names();
-        let _ = repl.run_check();
+        if let Err(error) = repl.run_check() {
+            repl.show_gleam_error(&error);
+        }
         repl
     }
 
@@ -368,6 +394,10 @@ impl<E: Engine> Repl<E> {
             }
             Command::Type(expr) => self.run_input(|repl| repl.guarded(|r| r.run_type_cmd(expr))),
             Command::Time(expr) => self.run_input(|repl| repl.guarded(|r| r.run_time_cmd(expr))),
+            Command::Unknown(input) => {
+                println!("{}", unknown_command(input));
+                ReplOutput::Error
+            }
             Command::Source(src) => self.run_input(|repl| repl.run_source(src)),
         }
     }
@@ -612,12 +642,8 @@ impl<E: Engine> Repl<E> {
         let file = format!("{module_name}.gleam");
         if self.debug {
             let mut formatted = String::new();
-            if gleam_format::pretty(
-                &mut formatted,
-                &code.into(),
-                camino::Utf8Path::new(&file),
-            )
-            .is_ok()
+            if gleam_format::pretty(&mut formatted, &code.into(), camino::Utf8Path::new(&file))
+                .is_ok()
             {
                 println!("--- {file} ---\n{formatted}---");
             } else {
@@ -664,9 +690,8 @@ impl<E: Engine> Repl<E> {
         let file = self.write_source(module_name, src.as_str());
         self.remember(&file, src);
         files.push(file);
-        // A module that only declares the scope defines nothing and is imported
-        // by nothing, so no place in it is ever reached — and its map is as long
-        // as the whole scope.
+        // Only a module compiled to run: nothing ever reaches a place in the
+        // others, and loading them would cost the next run a module apiece.
         if purpose == Purpose::Run {
             let repl_files: Vec<_> = files.iter().map(|file| self.repl_file(file)).collect();
             self.pending_files.extend(repl_files);
@@ -739,7 +764,7 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    fn compile_main(&mut self, body: &Source) -> Result<Module, Error> {
+    fn compile_main(&mut self, body: &Source, purpose: Purpose) -> Result<Module, Error> {
         let mut code = Source::new();
         code.write(&format!("pub fn {}() {{\n", self.repl_main));
         code.write(&self.injections(body.as_str(), &[], &[]));
@@ -748,7 +773,7 @@ impl<E: Engine> Repl<E> {
         let mut src = self.build_source(Some(code.as_str()), &Defined::default());
         src.append(&code);
         let module = self.module_name();
-        self.compile(&module, src, Purpose::Run)
+        self.compile(&module, src, purpose)
     }
 
     fn show_gleam_error(&self, err: &Error) {
@@ -855,7 +880,7 @@ impl<E: Engine> Repl<E> {
     }
 
     fn compile_and_run(&mut self, body: &Source) -> Result<Module, Error> {
-        let module = self.compile_main(body)?;
+        let module = self.compile_main(body, Purpose::Run)?;
         self.run_repl_main(&module);
         Ok(module)
     }
@@ -944,7 +969,7 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_expr(&mut self, input: &Rc<str>, expr: SrcSpan) -> Result<(), InputError> {
-        let module = self.compile_expr(input, expr)?;
+        let module = self.compile_expr(input, expr, Purpose::Run)?;
         self.run_repl_main(&module);
         Ok(())
     }
@@ -1047,12 +1072,17 @@ impl<E: Engine> Repl<E> {
     }
 
     /// Compiles one expression, printed when it runs.
-    fn compile_expr(&mut self, input: &Rc<str>, expr: SrcSpan) -> Result<Module, Error> {
+    fn compile_expr(
+        &mut self,
+        input: &Rc<str>,
+        expr: SrcSpan,
+        purpose: Purpose,
+    ) -> Result<Module, Error> {
         let mut body = Source::new();
         body.write(&format!("{}({{\n", self.repl_print));
         body.copy(input, expr);
         body.write("\n})");
-        self.compile_main(&body)
+        self.compile_main(&body, purpose)
     }
 
     /// The one statement `:type` and `:time` take.
@@ -1074,7 +1104,8 @@ impl<E: Engine> Repl<E> {
         self.item += 1;
         Self::command_statement(TYPE, expr)?;
         let input: Rc<str> = expr.into();
-        let module = self.compile_expr(&input, SrcSpan::new(0, expr.len() as u32))?;
+        let module =
+            self.compile_expr(&input, SrcSpan::new(0, expr.len() as u32), Purpose::Type)?;
         let main = get_function(&module, &self.repl_main).expect("repl main function");
         println!(
             "{}",
