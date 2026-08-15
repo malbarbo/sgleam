@@ -456,8 +456,9 @@ mod tests {
     #[test]
     fn the_inputs_own_import_goes_in_as_its_own_line() {
         let input: Rc<str> = "import gleam/int.{max} as i".into();
-        let ReplItem::ReplDefinition(targeted, _) =
-            parser::parse_repl(&input).unwrap().swap_remove(0)
+        let ReplItem::ReplDefinition(targeted, _) = parser::parse_repl(&input)
+            .expect("parse the import")
+            .swap_remove(0)
         else {
             panic!("an import");
         };

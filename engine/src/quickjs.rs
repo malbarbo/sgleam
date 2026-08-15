@@ -46,7 +46,7 @@ impl Engine for QuickJsEngine {
         }
 
         QuickJsEngine {
-            context: create_context(fs).unwrap(),
+            context: create_context(fs).expect("Create the quickjs context"),
         }
     }
 

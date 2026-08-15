@@ -125,8 +125,10 @@ impl Project {
     #[allow(unused)]
     pub fn dump(&mut self) {
         for path in self.fs.files() {
-            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, self.fs.read_bytes(&path).unwrap()).unwrap();
+            let dir = path.parent().expect("A file in memory sits in a directory");
+            std::fs::create_dir_all(dir).expect("Create a directory to dump into");
+            let content = self.fs.read_bytes(&path).expect("Read a file in memory");
+            std::fs::write(&path, content).expect("Dump a file to disk");
         }
     }
 

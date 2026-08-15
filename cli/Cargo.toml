@@ -4,6 +4,9 @@ version = "0.8.0-dev"
 edition = "2024"
 default-run = "sgleam"
 
+[lints]
+workspace = true
+
 [dependencies]
 engine = { path = "../engine" }
 camino = "1.1.9"

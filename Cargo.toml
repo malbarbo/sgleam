@@ -3,6 +3,11 @@ members = ["engine", "cli", "wasm"]
 default-members = ["engine", "cli"]
 resolver = "2"
 
+# A panic reaches the user as a crash report asking them to file a bug, so what
+# it panicked on has to be written where it happened.
+[workspace.lints.clippy]
+unwrap_used = "deny"
+
 [profile.release]
 opt-level = 2
 lto = true

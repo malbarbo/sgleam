@@ -1300,12 +1300,12 @@ fn repl_const_in_guard_reaches_what_it_names() {
 #[test]
 fn repl_const_update_in_guard_reaches_its_constructor() {
     // The update expands into the constructor, which the base does not bring in.
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("u.gleam"),
         "pub type P {\n  P(a: Int, b: Int)\n}\n\npub const base = P(1, 2)\n",
     )
-    .unwrap();
+    .expect("write the module");
 
     let out = assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(dir.path())
@@ -1326,12 +1326,12 @@ fn repl_const_update_in_guard_reaches_its_constructor() {
 #[test]
 fn repl_const_of_a_user_module_in_guard() {
     // What such a const reads is never parsed, so it cannot be filtered.
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("v.gleam"),
         "pub type P {\n  P(Int)\n}\n\npub const c = P(1)\n",
     )
-    .unwrap();
+    .expect("write the module");
 
     let out = assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(dir.path())
@@ -1351,18 +1351,18 @@ fn repl_const_of_a_user_module_in_guard() {
 fn repl_loads_the_modules_the_file_imports() {
     // The file is compiled where nothing else was copied, so what it imports has
     // to be copied along with it, as `run` does.
-    let dir = tempfile::tempdir().unwrap();
-    std::fs::create_dir(dir.path().join("util")).unwrap();
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::create_dir(dir.path().join("util")).expect("create the directory");
     std::fs::write(
         dir.path().join("util/mat.gleam"),
         "pub fn double(x: Int) -> Int {\n  x * 2\n}\n",
     )
-    .unwrap();
+    .expect("write the module");
     std::fs::write(
         dir.path().join("main.gleam"),
         "import util/mat\n\npub fn main() {\n  mat.double(21)\n}\n",
     )
-    .unwrap();
+    .expect("write the module");
 
     let out = assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(dir.path())
@@ -1922,12 +1922,12 @@ fn repl_echo_of_an_earlier_input_is_still_located() {
 /// And a file the user wrote keeps it, which is the whole point of printing it.
 #[test]
 fn user_module_echo_keeps_the_location() {
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("eu.gleam"),
         "pub fn main() {\n  echo 42\n  echo 7 as \"nota\"\n}\n",
     )
-    .unwrap();
+    .expect("write the module");
 
     let out = assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(dir.path())
@@ -1988,12 +1988,12 @@ fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
     // `repl0` is the module of the check the repl runs on start and `repl1` the
     // one of the first input: both would be written over the user's.
     for name in ["repl0.gleam", "repl1.gleam"] {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("a temporary directory");
         std::fs::write(
             dir.path().join(name),
             "pub fn boom() {\n  panic as \"boom\"\n}\n",
         )
-        .unwrap();
+        .expect("write the module");
 
         let out = assert_cmd::cargo::cargo_bin_cmd!()
             .current_dir(dir.path())
@@ -2048,13 +2048,13 @@ fn repl_let_of_a_type_whose_module_name_the_user_took() {
 fn repl_let_of_two_types_whose_modules_share_a_name() {
     // `option.Mine` and `gleam/option.Option` in one annotation: one of the two
     // takes the short name, the other is aliased away from it.
-    let dir = tempfile::tempdir().unwrap();
+    let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("option.gleam"),
         "import gleam/option as opt\n\npub type Mine {\n  Mine\n}\n\n\
          pub fn mine() {\n  Mine\n}\n\npub fn maybe() -> opt.Option(Int) {\n  opt.None\n}\n",
     )
-    .unwrap();
+    .expect("write the module");
 
     let out = assert_cmd::cargo::cargo_bin_cmd!()
         .current_dir(dir.path())
@@ -2215,9 +2215,9 @@ fn error_output_has_ansi_colors() {
     // Use a file within the current directory to trigger a compile error with source location.
     // This exercises write_span() → codespan_reporting, which must emit ANSI codes.
     let file = std::env::current_dir()
-        .unwrap()
+        .expect("the current directory")
         .join("tests/inputs/unknown_variable.gleam");
-    std::fs::write(&file, "pub fn main() { unknown_variable }\n").unwrap();
+    std::fs::write(&file, "pub fn main() { unknown_variable }\n").expect("write the module");
 
     let output = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
         .expect("cargo bin")
@@ -2225,7 +2225,7 @@ fn error_output_has_ansi_colors() {
         .arg("run")
         .arg(&file)
         .output()
-        .unwrap();
+        .expect("run sgleam");
 
     let _ = std::fs::remove_file(&file);
 
@@ -2247,7 +2247,7 @@ fn examples_compile() {
         if path.extension().and_then(|e| e.to_str()) == Some("gleam") {
             let output = assert_cmd::cargo::cargo_bin_cmd!()
                 .current_dir(&project_root)
-                .args(["check", path.to_str().unwrap()])
+                .args(["check", path.to_str().expect("a utf8 path")])
                 .output()
                 .expect("run sgleam check");
             let err = String::from_utf8_lossy(&output.stderr);

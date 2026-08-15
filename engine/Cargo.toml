@@ -3,6 +3,9 @@ name = "engine"
 version = "0.8.0-dev"
 edition = "2024"
 
+[lints]
+workspace = true
+
 [dependencies]
 base64 = "0.22"
 camino = "1.1.9"

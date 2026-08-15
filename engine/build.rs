@@ -1,3 +1,7 @@
+// What fails here fails the build, in front of whoever ran it, and not in front
+// of a user with a crash report to fill in.
+#![allow(clippy::unwrap_used)]
+
 use std::{
     env, fs,
     path::{Path, PathBuf},

@@ -153,6 +153,13 @@ mod tests {
         SrcSpan { start, end }
     }
 
+    /// Where the span lands in the input, for the cases that expect it to land
+    /// anywhere at all.
+    fn locate(src: &Source, span: SrcSpan) -> Located<'_> {
+        src.locate(span)
+            .unwrap_or_else(|| panic!("{span:?} is over a copy of the input"))
+    }
+
     /// A whole input of one line.
     fn copy_all(src: &mut Source, text: &str) {
         src.copy(&text.into(), span(0, text.len() as u32));
@@ -168,10 +175,10 @@ mod tests {
         assert_eq!(src.as_str(), "pub fn main() {\n1 + 1\n}\n");
         assert!(src.locate(span(0, 3)).is_none());
         assert!(src.locate(span(21, 24)).is_none());
-        assert_eq!(src.locate(span(16, 21)).unwrap().span, span(0, 5));
-        assert_eq!(src.locate(span(20, 21)).unwrap().span, span(4, 5));
+        assert_eq!(locate(&src, span(16, 21)).span, span(0, 5));
+        assert_eq!(locate(&src, span(20, 21)).span, span(4, 5));
         // No width, so it points at a place instead of taking bytes in.
-        assert_eq!(src.locate(span(21, 21)).unwrap().span, span(5, 5));
+        assert_eq!(locate(&src, span(21, 21)).span, span(5, 5));
     }
 
     /// The repl writes `pub` in front of a definition and bindings into its
@@ -187,9 +194,9 @@ mod tests {
 
         assert_eq!(src.as_str(), "pub fn f() {let x = x()\n 1 }");
         // The head, as the compiler reports it: `pub fn f()`.
-        assert_eq!(src.locate(span(0, 10)).unwrap().span, span(0, 6));
+        assert_eq!(locate(&src, span(0, 10)).span, span(0, 6));
         // The definition whole, over both halves and what went between them.
-        assert_eq!(src.locate(span(0, 28)).unwrap().span, span(0, 12));
+        assert_eq!(locate(&src, span(0, 28)).span, span(0, 12));
     }
 
     /// The same text twice, only one of which is a copy of the input.
@@ -232,7 +239,7 @@ mod tests {
         src.append(&body);
 
         assert_eq!(src.as_str(), "import gleam/io\necho x");
-        assert_eq!(src.locate(span(21, 22)).unwrap().input.as_ref(), "x");
+        assert_eq!(locate(&src, span(21, 22)).input.as_ref(), "x");
     }
 
     /// What the repl writes between two halves of one definition, which is how
@@ -247,7 +254,7 @@ mod tests {
 
         assert_eq!(src.as_str(), "fn f(a) {\nlet x = x()\n  a + x\n}");
         // `x` of the second half, which the input has at 16.
-        assert_eq!(src.locate(span(28, 29)).unwrap().span, span(16, 17));
+        assert_eq!(locate(&src, span(28, 29)).span, span(16, 17));
         // The `x` the repl wrote is not the input's.
         assert!(src.locate(span(14, 15)).is_none());
     }
@@ -261,7 +268,7 @@ mod tests {
         src.write("\npub ");
         src.copy(&input, span(13, 25));
 
-        assert_eq!(src.locate(span(4, 16)).unwrap().span, span(0, 12));
-        assert_eq!(src.locate(span(21, 33)).unwrap().span, span(13, 25));
+        assert_eq!(locate(&src, span(4, 16)).span, span(0, 12));
+        assert_eq!(locate(&src, span(21, 33)).span, span(13, 25));
     }
 }
