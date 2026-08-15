@@ -45,7 +45,7 @@ impl Engine for QuickJsEngine {
         }
 
         QuickJsEngine {
-            context: create_context(fs, Project::out().into()).unwrap(),
+            context: create_context(fs).unwrap(),
         }
     }
 
@@ -457,7 +457,7 @@ fn load_bitmap(path: String) -> (f64, f64, String) {
     wasm::load_bitmap(path)
 }
 
-pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
+pub fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
     let runtime = Runtime::new()?;
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
@@ -469,7 +469,7 @@ pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> 
             (STACK_SIZE - 1024 * 1024) as _,
         );
     });
-    runtime.set_loader(FileResolver { base }, ScriptLoader { fs });
+    runtime.set_loader(FileResolver, ScriptLoader { fs });
     context
         .with(|ctx| {
             seed_bigint_flag(&ctx)?;
@@ -548,6 +548,10 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
+        // The script imports its neighbors, so it is named as one of them —
+        // without the extension only a loadable module has, which is what
+        // keeps an import from ever finding it.
+        options.filename = Some(Project::out().join("eval_script").into_string());
         let promise = ctx.eval_with_options::<Promise, _>(source, options)?;
         match promise.finish::<Value>().catch(&ctx) {
             Err(CaughtError::Exception(value)) if is_interrupt(&value) => {
@@ -639,9 +643,7 @@ fn print_no_newline(s: String) {
 }
 
 #[derive(Debug)]
-struct FileResolver {
-    base: PathBuf,
-}
+struct FileResolver;
 
 impl Resolver for FileResolver {
     fn resolve<'js>(
@@ -651,19 +653,10 @@ impl Resolver for FileResolver {
         name: &str,
         _attributes: Option<ImportAttributes<'js>>,
     ) -> Result<String> {
-        let result = if base == "eval_script" {
-            self.base.join(name.strip_prefix("./").unwrap_or(name))
-        } else {
-            resolve_path(
-                &Path::new(base)
-                    .parent()
-                    .ok_or_else(|| {
-                        Error::new_resolving_message(base, name, format!("no parent for {base}"))
-                    })?
-                    .join(name),
-            )
-        };
-        Ok(result.to_string_lossy().into())
+        let dir = Path::new(base).parent().ok_or_else(|| {
+            Error::new_resolving_message(base, name, format!("no parent for {base}"))
+        })?;
+        Ok(resolve_path(&dir.join(name)).to_string_lossy().into())
     }
 }
 
