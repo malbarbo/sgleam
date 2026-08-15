@@ -1942,6 +1942,51 @@ fn user_module_echo_keeps_the_location() {
     );
 }
 
+/// `sgleam run x.gleam | head` leaves the program printing to a pipe no one
+/// reads. The write fails, and a failed print used to panic, which the hook
+/// reports as a bug in the gleam compiler for the student to go and file.
+#[test]
+#[cfg(unix)]
+fn a_reader_that_went_away_is_not_a_crash() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        dir.path().join("count.gleam"),
+        indoc! {"
+            import gleam/int
+            import gleam/io
+
+            pub fn count(n: Int) -> Nil {
+              case n {
+                0 -> Nil
+                _ -> {
+                  io.println(int.to_string(n))
+                  count(n - 1)
+                }
+              }
+            }
+
+            pub fn main() {
+              count(200000)
+            }
+        "},
+    )
+    .expect("write the module");
+
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_sgleam"))
+        .current_dir(dir.path())
+        .args(["run", "count.gleam"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("run sgleam");
+    // Closed while the file is still being compiled, so every print of the
+    // program lands on it.
+    drop(child.stdout.take());
+    let out = child.wait_with_output().expect("wait for sgleam");
+
+    assert_eq!(String::from_utf8_lossy(&out.stderr), "");
+}
+
 /// A runtime error says where it happened, in the same terms an `echo` and a
 /// diagnostic do: the line of the input the user wrote it on. The file it was
 /// compiled to is not one they can be shown.

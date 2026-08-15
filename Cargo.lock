@@ -2884,6 +2884,7 @@ dependencies = [
  "gleam-core",
  "indoc",
  "insta",
+ "libc",
  "rustyline",
  "tempfile",
 ]

@@ -97,7 +97,25 @@ fn cli() -> bpaf::OptionParser<Option<Command>> {
         .descr("The student version of gleam")
 }
 
+/// A program run under `| head` keeps printing after the reader has gone. Rust
+/// starts with `SIGPIPE` ignored, which turns that write into an error, and a
+/// failed `println!` into a panic — so the student is handed a compiler bug to
+/// report for having piped. At the default the process dies there instead, as
+/// every other program in the pipe does.
+#[cfg(unix)]
+fn die_on_a_closed_pipe() {
+    // SAFETY: puts a signal back to the disposition the process started with,
+    // before anything of ours runs or writes.
+    unsafe {
+        libc::signal(libc::SIGPIPE, libc::SIG_DFL);
+    }
+}
+
+#[cfg(not(unix))]
+fn die_on_a_closed_pipe() {}
+
 fn main() {
+    die_on_a_closed_pipe();
     engine::panic::add_handler();
     engine::logger::initialise_logger();
     // Error is handled by the panic hook.

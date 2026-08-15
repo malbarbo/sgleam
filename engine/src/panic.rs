@@ -9,21 +9,45 @@ use crate::error::stderr_buffer_writer;
 
 pub fn add_handler() {
     std::panic::set_hook(Box::new(move |info: &PanicHookInfo<'_>| {
+        // Nowhere left to print to is not a bug in the compiler, and the report
+        // would go where the output already could not. On unix the process
+        // never gets here: the write raises SIGPIPE, which the cli puts back to
+        // killing it. Windows has no such signal, so the failure is handed to
+        // the print, which panics on it.
+        if is_a_failed_print(&panic_message(info)) {
+            // Without a word, because a reader that went away is what this
+            // almost always is; and without claiming success, because what
+            // else it can be — a disk that filled — did not get written
+            // either.
+            std::process::exit(1);
+        }
         if print_compiler_bug_message(info).is_err() {
             println!("Failed to print compiler bug message.");
         }
     }));
 }
 
-fn print_compiler_bug_message(info: &PanicHookInfo<'_>) -> std::io::Result<()> {
-    let message = match (
+/// What `println!` and its family panic with when the write under them fails.
+/// The error itself is gone by then — std formats it into the message — and
+/// what is left of it is the system's to word, and to translate, so the prefix
+/// is all there is to go by.
+fn is_a_failed_print(message: &str) -> bool {
+    message.starts_with("failed printing to ")
+}
+
+fn panic_message(info: &PanicHookInfo<'_>) -> String {
+    match (
         info.payload().downcast_ref::<&str>(),
         info.payload().downcast_ref::<String>(),
     ) {
         (Some(s), _) => (*s).to_string(),
         (_, Some(s)) => s.to_string(),
         (None, None) => "unknown error".into(),
-    };
+    }
+}
+
+fn print_compiler_bug_message(info: &PanicHookInfo<'_>) -> std::io::Result<()> {
+    let message = panic_message(info);
     let location = match info.location() {
         None => "".into(),
         Some(location) => format!("{}:{}\n\t", location.file(), location.line()),
@@ -60,4 +84,23 @@ variable set.
     )?;
     buffer_writer.print(&buffer)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_a_failed_print;
+
+    /// The messages are std's, from `print_to` in `std::io::stdio`.
+    #[test]
+    fn a_write_that_failed_is_not_a_bug() {
+        assert!(is_a_failed_print(
+            "failed printing to stdout: Broken pipe (os error 32)"
+        ));
+        // Whatever the system called it, and wherever it was going.
+        assert!(is_a_failed_print(
+            "failed printing to stderr: Rohrleitung unterbrochen (os error 32)"
+        ));
+        // Every other panic is one to report.
+        assert!(!is_a_failed_print("index out of bounds: the len is 0"));
+    }
 }
