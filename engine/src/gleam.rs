@@ -29,7 +29,6 @@ use std::{
     time::SystemTime,
 };
 use tar::Archive;
-use termcolor::{Color, ColorSpec, WriteColor};
 
 use crate::{
     GLEAM_STDLIB,
@@ -63,8 +62,10 @@ impl Default for Project {
     }
 }
 
+/// Where the project puts what it holds. Only the two directories another
+/// module names a path under are public.
 impl Project {
-    pub fn root() -> &'static Utf8Path {
+    fn root() -> &'static Utf8Path {
         "/".into()
     }
 
@@ -76,7 +77,7 @@ impl Project {
         "/build".into()
     }
 
-    pub fn prelude() -> &'static Utf8Path {
+    fn prelude() -> &'static Utf8Path {
         "/build/prelude.mjs".into()
     }
 
@@ -179,7 +180,7 @@ impl Project {
 }
 
 /// The path the user gave, from the one its copy sits at.
-pub fn user_path(path: &Utf8Path) -> Utf8PathBuf {
+fn user_path(path: &Utf8Path) -> Utf8PathBuf {
     path.strip_prefix(Project::source())
         .map_or_else(|_| path.to_path_buf(), Utf8Path::to_path_buf)
 }
@@ -346,28 +347,8 @@ fn to_error_stdio(err: std::io::Error) -> Error {
     }
 }
 
-pub fn to_error_nonutf8_path(path: PathBuf) -> Error {
+fn to_error_nonutf8_path(path: PathBuf) -> Error {
     Error::NonUtf8Path { path }
-}
-
-pub fn print_colourful_prefix(prefix: &str, text: &str) {
-    let buffer_writer = stderr_buffer_writer();
-    let mut buffer = buffer_writer.buffer();
-    buffer
-        .set_color(
-            ColorSpec::new()
-                .set_intense(true)
-                .set_fg(Some(Color::Magenta)),
-        )
-        .expect("print_colourful_prefix");
-    write!(buffer, "{prefix: >11}").expect("print_colourful_prefix");
-    buffer
-        .set_color(&ColorSpec::new())
-        .expect("print_colourful_prefix");
-    writeln!(buffer, " {text}").expect("print_colourful_prefix");
-    buffer_writer
-        .print(&buffer)
-        .expect("print_colourful_prefix");
 }
 
 #[derive(Debug, Clone, Copy)]
