@@ -553,7 +553,16 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
         // without the extension only a loadable module has, which is what
         // keeps an import from ever finding it.
         options.filename = Some(Project::out().join("eval_script").into_string());
-        let promise = ctx.eval_with_options::<Promise, _>(source, options)?;
+        // Caught here, and not handed on as it comes: the error left from an
+        // exception only says that there was one, and the top level of every
+        // module the script imports runs inside this call, so what fails here
+        // is anything from an import that did not resolve to a module that
+        // threw on its way up. None of it reaches `try_main`, so nothing else
+        // is going to say what it was.
+        let promise = ctx
+            .eval_with_options::<Promise, _>(source, options)
+            .catch(&ctx)
+            .map_err(script_error)?;
         match promise.finish::<Value>().catch(&ctx) {
             Err(CaughtError::Exception(value)) if is_interrupt(&value) => {
                 Err(SgleamError::Interrupted)
@@ -563,6 +572,17 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
             Ok(_) => Ok(()),
         }
     })
+}
+
+/// Read while it can still be read: the message of a caught exception comes
+/// from the context it was caught in, so it is turned into text here rather
+/// than carried out as something to format later.
+fn script_error(err: CaughtError<'_>) -> SgleamError {
+    match &err {
+        CaughtError::Exception(exception) if is_interrupt(exception) => SgleamError::Interrupted,
+        // Its `Display` ends in a newline, which the one printing it adds.
+        _ => SgleamError::Script(err.to_string().trim_end().to_string()),
+    }
 }
 
 /// What an interruption throws is QuickJS's own InternalError, which is not
