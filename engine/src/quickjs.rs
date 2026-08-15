@@ -1,11 +1,12 @@
 use gleam_core::io::{FileSystemReader, memory::InMemoryFileSystem};
 use indoc::formatdoc;
+use path_clean::clean;
 
 use crate::error::SgleamError;
 
 use std::{
     fmt::Write as _,
-    path::{Component, Path, PathBuf},
+    path::Path,
     sync::atomic::{AtomicBool, Ordering},
 };
 
@@ -656,28 +657,11 @@ impl Resolver for FileResolver {
         let dir = Path::new(base).parent().ok_or_else(|| {
             Error::new_resolving_message(base, name, format!("no parent for {base}"))
         })?;
-        Ok(resolve_path(&dir.join(name)).to_string_lossy().into())
+        // The generated modules import each other through `..`, which the file
+        // system does not resolve: it looks a path up as the components it is
+        // written with.
+        Ok(clean(dir.join(name)).to_string_lossy().into())
     }
-}
-
-fn resolve_path(path: &Path) -> PathBuf {
-    let mut components = Vec::new();
-
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                if let Some(Component::Normal(_)) = components.last() {
-                    components.pop();
-                }
-            }
-            Component::CurDir => {}
-            _ => {
-                components.push(component);
-            }
-        }
-    }
-
-    components.iter().collect()
 }
 
 struct ScriptLoader {
