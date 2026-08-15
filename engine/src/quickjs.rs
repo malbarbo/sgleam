@@ -311,22 +311,36 @@ fn image_dimensions(data: &[u8]) -> (u32, u32) {
         let h = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
         return (w, h);
     }
-    // JPEG: scan for SOF0/SOF2 marker
-    if data.len() >= 2 && data[0] == 0xFF && data[1] == 0xD8 {
+    // JPEG: walk the marker segments up to a start of frame, which is where
+    // the dimensions are
+    if data.len() >= 2 && data[0..2] == [0xFF, 0xD8] {
         let mut i = 2;
-        while i + 9 < data.len() {
-            if data[i] != 0xFF {
-                i += 1;
-                continue;
+        while i + 1 < data.len() && data[i] == 0xFF {
+            match data[i + 1] {
+                // A marker may be padded with extra 0xFF bytes.
+                0xFF => i += 1,
+                // TEM, RST0-7, SOI and EOI carry no segment.
+                0x01 | 0xD0..=0xD9 => i += 2,
+                // Every kind of frame says its size the same way: length,
+                // precision, height, width.
+                0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
+                    if i + 9 > data.len() {
+                        break;
+                    }
+                    let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
+                    let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
+                    return (w, h);
+                }
+                // The frame comes before the scan, so there is nothing ahead
+                // but entropy-coded data.
+                0xDA => break,
+                _ => {
+                    if i + 4 > data.len() {
+                        break;
+                    }
+                    i += 2 + u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
+                }
             }
-            let marker = data[i + 1];
-            if marker == 0xC0 || marker == 0xC2 {
-                let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
-                let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
-                return (w, h);
-            }
-            let len = u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
-            i += 2 + len;
         }
     }
     // GIF: bytes 6-9 contain width and height as u16 little-endian
@@ -356,6 +370,34 @@ mod bitmap_tests {
         data.extend_from_slice(&10u32.to_be_bytes()); // width
         data.extend_from_slice(&20u32.to_be_bytes()); // height
         assert_eq!(image_dimensions(&data), (10, 20));
+    }
+
+    #[test]
+    fn jpeg_dimensions() {
+        let mut data = vec![0xFF, 0xD8]; // SOI
+        data.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x04, b'J', b'F']); // APP0
+        data.extend_from_slice(&[0xFF, 0xFF]); // fill bytes before the marker
+        data.extend_from_slice(&[0xFF, 0xC1, 0x00, 0x0B, 8]); // SOF1
+        data.extend_from_slice(&70u16.to_be_bytes()); // height
+        data.extend_from_slice(&80u16.to_be_bytes()); // width
+        assert_eq!(image_dimensions(&data), (80, 70));
+    }
+
+    #[test]
+    fn jpeg_marker_inside_a_segment_is_data() {
+        let mut data = vec![0xFF, 0xD8]; // SOI
+        // An APP0 whose payload happens to spell a SOF0
+        data.extend_from_slice(&[0xFF, 0xE0, 0x00, 0x06, 0xFF, 0xC0, 0x00, 0x00]);
+        data.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x0B, 8]); // SOF0
+        data.extend_from_slice(&10u16.to_be_bytes()); // height
+        data.extend_from_slice(&20u16.to_be_bytes()); // width
+        assert_eq!(image_dimensions(&data), (20, 10));
+    }
+
+    #[test]
+    fn truncated_jpeg() {
+        let data = [0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B];
+        assert_eq!(image_dimensions(&data), (0, 0));
     }
 
     #[test]
