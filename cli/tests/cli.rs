@@ -2386,9 +2386,6 @@ fn normalize_warning_locations(s: &str) -> String {
     let mut result = String::with_capacity(s.len());
     let mut chars = s.chars().peekable();
     while let Some(c) = chars.next() {
-        if c == '/' && s.len() > 0 {
-            // no-op, handled below
-        }
         result.push(c);
         // Detect pattern like ".gleam:NN:MM" and replace numbers
         if result.ends_with(".gleam:") {
