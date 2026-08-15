@@ -2,5 +2,14 @@
 source: cli/tests/integration.rs
 ---
 STDOUT
-RangeError: Maximum call stack size exceeded
+Stack overflow
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:2:15)
+  ...
 STDERR

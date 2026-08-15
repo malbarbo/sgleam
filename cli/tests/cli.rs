@@ -517,6 +517,19 @@ fn repl_input_stops_at_a_runtime_error() {
 }
 
 #[test]
+fn repl_stack_overflow_shows_the_frames() {
+    // Told apart by the message quickjs-ng throws, which once was the one
+    // Bellard's quickjs threw, and this printed a raw RangeError.
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some("pub fn f(x: Int) -> Int { 1 + f(x + 1) }\nf(1)"),
+    );
+    let frames = "  at f (/build/repl1.mjs:6:21)\n".repeat(8);
+    assert_eq!(out, format!("Stack overflow\n{frames}  ...\n"));
+    assert_eq!(err, "");
+}
+
+#[test]
 fn repl_panic_saying_interrupted_is_still_a_panic() {
     // Ctrl-C was once told apart by message alone, so this panic also said
     // `Interrupted.`.
