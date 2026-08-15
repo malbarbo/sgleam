@@ -1,0 +1,20 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+error: Unknown module
+  ┌─ import_unknown.gleam:3:1
+  │
+3 │ import nowhere/at_all
+  │ ^^^^^^^^^^^^^^^^^^^^^
+
+No module has been found with the name `nowhere/at_all`.
+
+error: Unknown module
+  ┌─ import_unknown.gleam:6:3
+  │
+6 │   at_all.thing()
+  │   ^^^^^^
+
+No module has been found with the name `at_all`.

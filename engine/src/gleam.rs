@@ -265,20 +265,30 @@ fn is_builtin_module(module: &str) -> bool {
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
     let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
-    let mut pending = VecDeque::from(paths);
-    while let Some(path) = pending.pop_front() {
+    // A path an import led to is only a guess at where the module is written,
+    // so it is allowed not to be there; one the caller gave is not.
+    let mut pending: VecDeque<_> = paths.into_iter().map(|path| (path, true)).collect();
+    while let Some((path, given)) = pending.pop_front() {
         if files.contains(&path) {
             continue;
         }
 
-        files.push(path.clone());
+        let src = match std::fs::read_to_string(&path) {
+            Ok(src) => src,
+            // Nothing was found to compile the import against, which the
+            // compiler says at the line that wrote it.
+            Err(err) if !given && err.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(err) => {
+                return Err(gleam_core::Error::FileIo {
+                    kind: FileKind::File,
+                    action: FileIoAction::Read,
+                    path,
+                    err: Some(err.to_string()),
+                });
+            }
+        };
 
-        let src = std::fs::read_to_string(&path).map_err(|err| gleam_core::Error::FileIo {
-            kind: FileKind::File,
-            action: FileIoAction::Read,
-            path: path.clone(),
-            err: Some(err.to_string()),
-        })?;
+        files.push(path.clone());
 
         let parsed = parse_module(path.clone(), &src, &warning_emitter).map_err(|error| {
             gleam_core::Error::Parse {
@@ -298,7 +308,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
                         path.push(p);
                     }
                     path.set_extension("gleam");
-                    pending.push_back(path);
+                    pending.push_back((path, false));
                 }
                 _ => continue,
             }
