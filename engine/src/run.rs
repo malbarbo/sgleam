@@ -162,5 +162,10 @@ fn validate_path(path: &Utf8Path) -> bool {
         return false;
     }
 
+    if let Some(dir @ ("gleam" | "sgleam")) = path.iter().next() {
+        eprintln!("Ignoring `{path}`: `{dir}` is a reserved directory.");
+        return false;
+    }
+
     true
 }
