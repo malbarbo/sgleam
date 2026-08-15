@@ -10,12 +10,12 @@ use std::{
 };
 
 use rquickjs::{
-    CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise, Result,
-    Runtime, Value,
+    CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Function, Module, Object, Promise,
+    Result, Runtime, Value,
     context::EvalOptions,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
-    qjs::{JS_FreeCString, JS_GetRuntime, JS_SetMaxStackSize, JS_ToCStringLen},
+    qjs::{JS_GetRuntime, JS_SetMaxStackSize},
 };
 
 use crate::{
@@ -604,17 +604,8 @@ fn getline() -> Option<String> {
     }
 }
 
-fn log(value: Value) {
-    let ctx_ptr = value.ctx().as_raw().as_ptr();
-    let raw = value.as_raw();
-    let mut len = std::mem::MaybeUninit::uninit();
-    let ptr = unsafe { JS_ToCStringLen(ctx_ptr, len.as_mut_ptr(), raw) };
-    assert!(!ptr.is_null());
-    let len = unsafe { len.assume_init() };
-    let bytes: &[u8] = unsafe { std::slice::from_raw_parts(ptr as _, len as _) };
-    let s = std::str::from_utf8(bytes).unwrap_or("");
-    println!("{s}");
-    unsafe { JS_FreeCString(ctx_ptr, ptr) };
+fn log(value: Coerced<String>) {
+    println!("{}", value.0);
 }
 
 fn print_no_newline(s: String) {
