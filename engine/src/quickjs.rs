@@ -13,6 +13,7 @@ use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Function, Module, Object, Promise,
     Result, Runtime, Value,
     context::EvalOptions,
+    function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
     qjs::{JS_GetRuntime, JS_SetMaxStackSize},
@@ -519,68 +520,41 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {
-    let global = ctx.globals();
     let console = Object::new(ctx.clone())?;
-    console.set("log", Function::new(ctx.clone(), log)?.with_name("log")?)?;
-    global.set("console", console)?;
-    Ok(())
+    set_fn(&console, "log", log)?;
+    ctx.globals().set("console", console)
 }
 
 fn add_sgleam(ctx: &Ctx) -> Result<()> {
-    let global = ctx.globals();
     let sgleam = Object::new(ctx.clone())?;
-    sgleam.set(
-        "getline",
-        Function::new(ctx.clone(), getline)?.with_name("getline")?,
-    )?;
-    sgleam.set(
-        "print",
-        Function::new(ctx.clone(), print_no_newline)?.with_name("print")?,
-    )?;
-    sgleam.set(
-        "sleep",
-        Function::new(ctx.clone(), sleep)?.with_name("sleep")?,
-    )?;
-    sgleam.set(
-        "now_ms",
-        Function::new(ctx.clone(), now_ms)?.with_name("now_ms")?,
-    )?;
+    set_fn(&sgleam, "getline", getline)?;
+    set_fn(&sgleam, "print", print_no_newline)?;
+    set_fn(&sgleam, "sleep", sleep)?;
+    set_fn(&sgleam, "now_ms", now_ms)?;
     #[cfg(target_arch = "wasm32")]
-    sgleam.set(
-        "draw_svg",
-        Function::new(ctx.clone(), wasm::draw_svg)?.with_name("draw_svg")?,
-    )?;
+    set_fn(&sgleam, "draw_svg", wasm::draw_svg)?;
     #[cfg(target_arch = "wasm32")]
-    sgleam.set(
-        "get_key_event",
-        Function::new(ctx.clone(), wasm::get_key_event)?.with_name("get_key_event")?,
-    )?;
-    sgleam.set(
-        "text_width",
-        Function::new(ctx.clone(), text_width)?.with_name("text_width")?,
-    )?;
-    sgleam.set(
-        "text_height",
-        Function::new(ctx.clone(), text_height)?.with_name("text_height")?,
-    )?;
-    sgleam.set(
-        "text_x_offset",
-        Function::new(ctx.clone(), text_x_offset)?.with_name("text_x_offset")?,
-    )?;
-    sgleam.set(
-        "text_y_offset",
-        Function::new(ctx.clone(), text_y_offset)?.with_name("text_y_offset")?,
-    )?;
-    sgleam.set(
-        "load_bitmap",
-        Function::new(ctx.clone(), move |path: String| -> Vec<String> {
-            let (w, h, data_uri) = load_bitmap(path);
-            vec![w.to_string(), h.to_string(), data_uri]
-        })?
-        .with_name("load_bitmap")?,
-    )?;
-    global.set("sgleam", sgleam)?;
-    Ok(())
+    set_fn(&sgleam, "get_key_event", wasm::get_key_event)?;
+    set_fn(&sgleam, "text_width", text_width)?;
+    set_fn(&sgleam, "text_height", text_height)?;
+    set_fn(&sgleam, "text_x_offset", text_x_offset)?;
+    set_fn(&sgleam, "text_y_offset", text_y_offset)?;
+    set_fn(&sgleam, "load_bitmap", |path: String| -> Vec<String> {
+        let (w, h, data_uri) = load_bitmap(path);
+        vec![w.to_string(), h.to_string(), data_uri]
+    })?;
+    ctx.globals().set("sgleam", sgleam)
+}
+
+/// The property, and also what a stack trace calls the function.
+fn set_fn<'js, F, P>(object: &Object<'js>, name: &str, f: F) -> Result<()>
+where
+    F: IntoJsFunc<'js, P> + 'js,
+{
+    object.set(
+        name,
+        Function::new(object.ctx().clone(), f)?.with_name(name)?,
+    )
 }
 
 fn getline() -> Option<String> {
@@ -616,7 +590,7 @@ fn print_no_newline(s: String) {
 
 #[derive(Debug)]
 struct FileResolver {
-    pub(crate) base: PathBuf,
+    base: PathBuf,
 }
 
 impl Resolver for FileResolver {
