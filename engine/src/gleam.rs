@@ -254,6 +254,14 @@ pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     SrcSpan::new(start, end)
 }
 
+/// Whether the module is one sgleam brings itself — the prelude, the standard
+/// library, the sgleam library — and so is not a file to be looked for.
+fn is_builtin_module(module: &str) -> bool {
+    matches!(module, "gleam" | "sgleam")
+        || module.starts_with("gleam/")
+        || module.starts_with("sgleam/")
+}
+
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
     let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
@@ -283,9 +291,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
         for definition in &parsed.module.definitions {
             match &definition.definition {
                 gleam_core::ast::Definition::Import(import)
-                    if import.module != "sgleam"
-                        && !import.module.starts_with("sgleam/")
-                        && !import.module.starts_with("gleam/") =>
+                    if !is_builtin_module(import.module.as_str()) =>
                 {
                     let mut path = Utf8PathBuf::new();
                     for p in import.module.split("/") {
