@@ -192,7 +192,8 @@ mod wasm {
         let w = unsafe { ffi::load_bitmap_width() };
         let h = unsafe { ffi::load_bitmap_height() };
         let mut buf = vec![0u8; data_uri_len];
-        unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
+        let filled = unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
+        buf.truncate(filled);
         let data_uri = String::from_utf8_lossy(&buf).into_owned();
         (w, h, data_uri)
     }
