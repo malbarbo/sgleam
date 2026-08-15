@@ -69,8 +69,20 @@ fn parse_config_bigint(config: &str) -> bool {
 
 // --- REPL ---
 
-fn default_repl() -> Repl<QuickJsEngine> {
+fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     Repl::new(Project::default(), None)
+}
+
+/// The repl the host holds on to, or the null that says there is none, with
+/// what stopped it shown where the compiler's errors are shown.
+fn leak_repl(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Repl<QuickJsEngine> {
+    match repl {
+        Ok(repl) => Box::leak(Box::new(repl)),
+        Err(err) => {
+            show_error(&err);
+            std::ptr::null_mut()
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -90,7 +102,7 @@ pub unsafe extern "C" fn repl_new(
     }
 
     if source.trim().is_empty() {
-        return Box::leak(Box::new(default_repl()));
+        return leak_repl(default_repl());
     }
 
     let mut project = Project::default();
@@ -103,10 +115,12 @@ pub unsafe extern "C" fn repl_new(
         Ok(modules) => modules,
     };
     let module = get_module(&modules, "user");
-    if module.map(has_examples).unwrap_or(false) {
-        let _ = QuickJsEngine::new(project.fs.clone()).run_tests(&["user"]);
+    if module.map(has_examples).unwrap_or(false)
+        && let Ok(engine) = QuickJsEngine::new(project.fs.clone())
+    {
+        let _ = engine.run_tests(&["user"]);
     }
-    Box::leak(Box::new(Repl::new(project, module)))
+    leak_repl(Repl::new(project, module))
 }
 
 fn has_examples(module: &Module) -> bool {

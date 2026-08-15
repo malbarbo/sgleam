@@ -18,6 +18,7 @@ use indoc::formatdoc;
 
 use crate::{
     engine::{Engine, MainFunction, ReplFile},
+    error::SgleamError,
     gleam::{
         Project, get_definition_span, is_private, is_repl_noise, relocate_to_user_paths,
         type_to_string,
@@ -229,7 +230,7 @@ pub enum ReplOutput {
 }
 
 impl<E: Engine> Repl<E> {
-    pub fn new(project: Project, user_module: Option<&Module>) -> Repl<E> {
+    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
         let fs = project.fs.clone();
         let suffix = format!(
             "{:08x}",
@@ -244,7 +245,7 @@ impl<E: Engine> Repl<E> {
             project,
             existing_modules: im::HashMap::new(),
             defined_modules: im::HashMap::new(),
-            engine: E::new(fs),
+            engine: E::new(fs)?,
             input_number: 0,
             item_number: 0,
             debug: false,
@@ -266,7 +267,7 @@ impl<E: Engine> Repl<E> {
         if let Err(error) = repl.run_check() {
             repl.show_gleam_error(&error);
         }
-        repl
+        Ok(repl)
     }
 
     /// The completion candidates: every name in scope, and the public members

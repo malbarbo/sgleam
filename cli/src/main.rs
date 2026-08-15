@@ -226,7 +226,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0);
 
-    let mut repl = Repl::<QuickJsEngine>::new(project, module);
+    let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
     let completions = repl_reader::Completions::default();
     update_completions(&repl, &completions);
     let reader = repl_reader::ReplReader::new(completions.clone())

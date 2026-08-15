@@ -24,9 +24,9 @@ thread_local! {
 struct Recorder;
 
 impl Engine for Recorder {
-    fn new(_fs: InMemoryFileSystem) -> Recorder {
+    fn new(_fs: InMemoryFileSystem) -> Result<Recorder, SgleamError> {
         HANDED_OVER.with_borrow_mut(Vec::clear);
-        Recorder
+        Ok(Recorder)
     }
 
     fn run_main(
@@ -69,7 +69,7 @@ fn handed_over_paths() -> Vec<String> {
 /// later, from a function it defined.
 #[test]
 fn the_runtime_is_told_of_the_modules_it_can_reach() {
-    let mut repl: Repl<Recorder> = Repl::new(Project::default(), None);
+    let mut repl: Repl<Recorder> = Repl::new(Project::default(), None).expect("start the repl");
     run(&mut repl, "fn f() { 1 }");
     run(&mut repl, "import gleam/int");
     run(&mut repl, "import gleam/float");

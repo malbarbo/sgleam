@@ -38,7 +38,9 @@ impl MainFunction {
 }
 
 pub trait Engine: Clone {
-    fn new(fs: InMemoryFileSystem) -> Self;
+    /// Nothing can be run without a runtime to run it in, so what stopped one
+    /// from being made is for the caller to report and not to panic on.
+    fn new(fs: InMemoryFileSystem) -> Result<Self, SgleamError>;
 
     fn run_main(
         &self,

@@ -26,7 +26,7 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
 
     let main = get_main(module)?;
     let show_output = main != MainFunction::Main;
-    JsEngine::new(project.fs.clone()).run_main(&module.name, main, show_output)?;
+    JsEngine::new(project.fs.clone())?.run_main(&module.name, main, show_output)?;
 
     Ok(())
 }
@@ -48,7 +48,7 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
         .map(|module| module.name.as_str())
         .collect();
 
-    JsEngine::new(project.fs.clone()).run_tests(&user_modules)?;
+    JsEngine::new(project.fs.clone())?.run_tests(&user_modules)?;
     Ok(())
 }
 
