@@ -38,11 +38,17 @@ impl Engine for QuickJsEngine {
     fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
         #[cfg(not(target_arch = "wasm32"))]
         {
-            use std::sync::Once;
-            static CTRLC_INIT: Once = Once::new();
-            CTRLC_INIT.call_once(|| {
-                ctrlc::set_handler(interrupt).expect("Add ctrlc handlers");
-            });
+            use std::sync::OnceLock;
+            // Installed once for the process, and what came of it kept, so
+            // that a second engine is told the same thing as the first and
+            // not silently left without a way to be stopped.
+            static CTRLC: OnceLock<std::result::Result<(), String>> = OnceLock::new();
+            let installed =
+                CTRLC.get_or_init(|| ctrlc::set_handler(interrupt).map_err(|err| err.to_string()));
+            // Shown as it came: what ctrlc says already names its subject.
+            if let Err(err) = installed {
+                return Err(SgleamError::Other(err.clone().into()));
+            }
         }
 
         Ok(QuickJsEngine {
