@@ -517,6 +517,15 @@ fn repl_input_stops_at_a_runtime_error() {
 }
 
 #[test]
+fn repl_panic_saying_interrupted_is_still_a_panic() {
+    // Ctrl-C was once told apart by message alone, so this panic also said
+    // `Interrupted.`.
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"panic as "interrupted""#));
+    assert_eq!(out, "Error at <repl>:1\n  interrupted\n");
+    assert_eq!(err, "");
+}
+
+#[test]
 fn repl_rollback_failed_fn() {
     // A function is pre-registered before being compiled, so a failing one must
     // not survive into the next input.

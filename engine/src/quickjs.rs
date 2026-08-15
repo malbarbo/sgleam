@@ -10,8 +10,8 @@ use std::{
 };
 
 use rquickjs::{
-    CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Function, Module, Object, Promise,
-    Result, Runtime, Value,
+    CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
+    Promise, Result, Runtime, Value,
     context::EvalOptions,
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
@@ -509,7 +509,7 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
         options.global = false;
         let promise = ctx.eval_with_options::<Promise, _>(source, options)?;
         match promise.finish::<Value>().catch(&ctx) {
-            Err(CaughtError::Exception(value)) if value.message() == Some("interrupted".into()) => {
+            Err(CaughtError::Exception(value)) if is_interrupt(&value) => {
                 Err(SgleamError::Interrupted)
             }
             Err(CaughtError::Error(err)) => Err(err.into()),
@@ -517,6 +517,15 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
             Ok(_) => Ok(()),
         }
     })
+}
+
+/// What an interruption throws is QuickJS's own InternalError, which is not
+/// what a panic saying "interrupted" is.
+fn is_interrupt(exception: &Exception) -> bool {
+    exception.message() == Some("interrupted".into())
+        && exception
+            .get("name")
+            .is_ok_and(|name: String| name == "InternalError")
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {
