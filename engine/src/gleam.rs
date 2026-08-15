@@ -11,7 +11,7 @@ use gleam_core::{
     config::PackageConfig,
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileKind},
-    io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
+    io::{FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
     type_::{
         Type,
@@ -120,16 +120,6 @@ impl Project {
         self.fs
             .write(&path, content)
             .expect("Write a file in memory");
-    }
-
-    #[allow(unused)]
-    pub fn dump(&mut self) {
-        for path in self.fs.files() {
-            let dir = path.parent().expect("A file in memory sits in a directory");
-            std::fs::create_dir_all(dir).expect("Create a directory to dump into");
-            let content = self.fs.read_bytes(&path).expect("Read a file in memory");
-            std::fs::write(&path, content).expect("Dump a file to disk");
-        }
     }
 
     pub fn compile(&mut self, repl: bool) -> Result<Vec<Module>, Error> {
