@@ -282,20 +282,18 @@ fn load_bitmap(path: String) -> (f64, f64, String) {
         eprintln!("Error: could not detect image dimensions for {path}");
         return (0.0, 0.0, String::new());
     }
-    let mime = if path.ends_with(".png") {
-        "image/png"
-    } else if path.ends_with(".jpg") || path.ends_with(".jpeg") {
-        "image/jpeg"
-    } else if path.ends_with(".gif") {
-        "image/gif"
-    } else if path.ends_with(".bmp") {
-        "image/bmp"
-    } else if path.ends_with(".webp") {
-        "image/webp"
-    } else if path.ends_with(".svg") {
-        "image/svg+xml"
-    } else {
-        "application/octet-stream"
+    let extension = Path::new(&path)
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(str::to_ascii_lowercase);
+    let mime = match extension.as_deref() {
+        Some("png") => "image/png",
+        Some("jpg" | "jpeg") => "image/jpeg",
+        Some("gif") => "image/gif",
+        Some("bmp") => "image/bmp",
+        Some("webp") => "image/webp",
+        Some("svg") => "image/svg+xml",
+        _ => "application/octet-stream",
     };
     use base64::Engine as _;
     let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
