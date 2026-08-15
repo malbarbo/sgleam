@@ -82,7 +82,8 @@ impl Project {
     }
 
     /// `name` is the module the content will be compiled as, hence a path under
-    /// the source root: one that is not joins to itself, landing where nothing
+    /// the source root. A name that is not one joins to somewhere else — an
+    /// absolute one replaces the root outright — and lands where nothing
     /// compiles it.
     pub fn write_source(&mut self, name: &str, content: &str) {
         assert!(
@@ -107,6 +108,8 @@ impl Project {
             path: input.into(),
             err: Some(err.to_string()),
         })?;
+        // A module name is written with `/` wherever the path it came from
+        // separates with, which on Windows is not what the caller has.
         let path = input.as_str().replace('\\', "/");
         self.write_source(&path, &content);
         Ok(path.strip_suffix(".gleam").unwrap_or(&path).into())
@@ -182,7 +185,8 @@ impl Project {
 /// The path the user gave, from the one its copy sits at.
 fn user_path(path: &Utf8Path) -> Utf8PathBuf {
     path.strip_prefix(Project::source())
-        .map_or_else(|_| path.to_path_buf(), Utf8Path::to_path_buf)
+        .unwrap_or(path)
+        .to_path_buf()
 }
 
 pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
