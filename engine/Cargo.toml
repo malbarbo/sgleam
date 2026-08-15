@@ -19,7 +19,9 @@ im = "15.1.0"
 indoc = "2.0.5"
 path-clean = "1.0.1"
 rquickjs = { version = "0.12.2", features = ["loader"] }
-rust-embed = "8.7.2"
+# debug-embed: without it a debug build reads lib/sgleam from the disk of the
+# machine it was built on, so a debug binary anywhere else has no library.
+rust-embed = { version = "8.7.2", features = ["debug-embed"] }
 tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"
