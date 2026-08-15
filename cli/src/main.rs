@@ -118,8 +118,9 @@ fn main() {
     die_on_a_closed_pipe();
     engine::panic::add_handler();
     engine::logger::initialise_logger();
-    // Error is handled by the panic hook.
-    let result = std::thread::Builder::new()
+    // Everything runs in here and not in main, for a stack deep enough to
+    // recurse on, which is more than a process is given by default.
+    let spawned = std::thread::Builder::new()
         .stack_size(engine::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
@@ -128,10 +129,24 @@ fn main() {
                 return false;
             }
             true
-        })
-        .expect("Create the run thread")
-        .join();
-    if !matches!(result, Ok(true)) {
+        });
+
+    let finished = match spawned {
+        // A machine with no room left for the thread is not a compiler bug,
+        // and there is no smaller one to fall back to: the stack is the whole
+        // reason it is here. Said plainly, since what io reports is only the
+        // system's side of it.
+        Err(err) => {
+            show_error(&SgleamError::Other(
+                format!("Could not start the thread the program runs in: {err}").into(),
+            ));
+            false
+        }
+        // A panic inside it was already reported by the hook.
+        Ok(thread) => matches!(thread.join(), Ok(true)),
+    };
+
+    if !finished {
         std::process::exit(1);
     }
 }
