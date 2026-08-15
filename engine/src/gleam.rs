@@ -49,12 +49,13 @@ impl Default for Project {
 
         extract_tar(&mut project.fs, GLEAM_STDLIB, Project::source()).expect("Extract stdlib");
 
+        // Every one of these is part of the build, and a module the input is
+        // free to import: one that did not make it in is not a file to do
+        // without, it is a library with a hole in it.
         for path in crate::Sgleam::iter() {
-            if let Some(content) = crate::Sgleam::get(&path)
-                && let Ok(content) = std::str::from_utf8(&content.data)
-            {
-                project.write_source(&path, content);
-            }
+            let file = crate::Sgleam::get(&path).expect("Read an embedded sgleam file");
+            let content = std::str::from_utf8(&file.data).expect("An embedded sgleam file is utf8");
+            project.write_source(&path, content);
         }
 
         project.write_out("prelude.mjs", gleam_core::javascript::PRELUDE);
