@@ -14,9 +14,9 @@ use rquickjs::{
     CatchResultExt, CaughtError, Context, Ctx, Error, Function, Module, Object, Promise, Result,
     Runtime, Value,
     context::EvalOptions,
-    loader::{Loader, Resolver},
+    loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
-    qjs::{JS_FreeCString, JS_ToCStringLen},
+    qjs::{JS_FreeCString, JS_GetRuntime, JS_SetMaxStackSize, JS_ToCStringLen},
 };
 
 use crate::{
@@ -430,9 +430,16 @@ fn load_bitmap(path: String) -> (f64, f64, String) {
 
 pub fn create_context(fs: InMemoryFileSystem, base: PathBuf) -> Result<Context> {
     let runtime = Runtime::new()?;
-    runtime.set_max_stack_size(STACK_SIZE - 1024 * 1024);
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
+    // Not `Runtime::set_max_stack_size`: since rquickjs 0.12 it disables the
+    // check above 16 MiB, and student recursion needs the whole thread.
+    context.with(|ctx| unsafe {
+        JS_SetMaxStackSize(
+            JS_GetRuntime(ctx.as_raw().as_ptr()),
+            (STACK_SIZE - 1024 * 1024) as _,
+        );
+    });
     runtime.set_loader(FileResolver { base }, ScriptLoader { fs });
     context
         .with(|ctx| {
@@ -635,7 +642,13 @@ struct FileResolver {
 }
 
 impl Resolver for FileResolver {
-    fn resolve(&mut self, _ctx: &Ctx, base: &str, name: &str) -> Result<String> {
+    fn resolve<'js>(
+        &mut self,
+        _ctx: &Ctx<'js>,
+        base: &str,
+        name: &str,
+        _attributes: Option<ImportAttributes<'js>>,
+    ) -> Result<String> {
         let result = if base == "eval_script" {
             self.base.join(name.strip_prefix("./").unwrap_or(name))
         } else {
@@ -677,7 +690,12 @@ struct ScriptLoader {
 }
 
 impl Loader for ScriptLoader {
-    fn load<'js>(&mut self, ctx: &Ctx<'js>, path: &str) -> Result<Module<'js, Declared>> {
+    fn load<'js>(
+        &mut self,
+        ctx: &Ctx<'js>,
+        path: &str,
+        _attributes: Option<ImportAttributes<'js>>,
+    ) -> Result<Module<'js, Declared>> {
         tracing::debug!("Loading {path}");
         let src = self
             .fs
