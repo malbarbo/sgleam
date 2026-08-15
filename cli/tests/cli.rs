@@ -1348,6 +1348,34 @@ fn repl_const_of_a_user_module_in_guard() {
 }
 
 #[test]
+fn repl_loads_the_modules_the_file_imports() {
+    // The file is compiled where nothing else was copied, so what it imports has
+    // to be copied along with it, as `run` does.
+    let dir = tempfile::tempdir().unwrap();
+    std::fs::create_dir(dir.path().join("util")).unwrap();
+    std::fs::write(
+        dir.path().join("util/mat.gleam"),
+        "pub fn double(x: Int) -> Int {\n  x * 2\n}\n",
+    )
+    .unwrap();
+    std::fs::write(
+        dir.path().join("main.gleam"),
+        "import util/mat\n\npub fn main() {\n  mat.double(21)\n}\n",
+    )
+    .unwrap();
+
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["repl", "-q", "main.gleam"])
+        .write_stdin("main()\nimport util/mat\nmat.double(1)\n")
+        .output()
+        .expect("run sgleam")
+        .stdout;
+
+    assert_eq!(String::from_utf8_lossy(&out), "42\n2\n");
+}
+
+#[test]
 fn repl_imports_only_what_the_input_writes() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],

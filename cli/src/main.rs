@@ -142,11 +142,11 @@ fn run() -> Result<(), SgleamError> {
             Ok(())
         }
         Command::Repl { file, quiet, .. } => {
-            let paths = file
-                .map(|f| make_relative_to_current_dir(f.into()))
-                .transpose()?;
-            let paths = paths.as_slice();
-            run_interactive(paths, quiet)
+            let paths = match file {
+                Some(file) => find_imports(vec![make_relative_to_current_dir(file.into())?])?,
+                None => vec![],
+            };
+            run_interactive(&paths, quiet)
         }
         Command::Run { file, .. } => {
             let file = make_relative_to_current_dir(file.into())?;
