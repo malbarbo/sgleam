@@ -52,18 +52,25 @@ macro_rules! swriteln {
     };
 }
 
-pub const QUICKJS_VERSION: &str = "0.11.0";
+/// Asked of the engine that is linked in, and not written down beside it: a
+/// number kept by hand goes on being reported long after the build it named
+/// was replaced.
+pub fn quickjs_version() -> &'static str {
+    // SAFETY: quickjs hands back a pointer to a string constant of its own,
+    // which is there before any runtime is and outlives everything reading it.
+    let version = unsafe { std::ffi::CStr::from_ptr(rquickjs::qjs::JS_GetVersion()) };
+    version.to_str().unwrap_or("unknown")
+}
 
 pub fn version() -> String {
-    format!(
-        "sgleam {SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {QUICKJS_VERSION})"
-    )
+    format!("sgleam {}", version_short())
 }
 
 /// Version string without the "sgleam" prefix, for use with `--version`
 /// (the CLI framework prepends the binary name automatically).
 pub fn version_short() -> String {
+    let quickjs = quickjs_version();
     format!(
-        "{SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {QUICKJS_VERSION})"
+        "{SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {quickjs})"
     )
 }
