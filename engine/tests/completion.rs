@@ -52,7 +52,6 @@ fn completion_qualified_names() {
     let c = completions_matching(&repl, "int.");
     assert!(c.contains(&"int.to_string".to_string()));
     assert!(c.contains(&"int.add".to_string()));
-    // Types too
     let c = completions_matching(&repl, "option.");
     assert!(c.contains(&"option.Some".to_string()));
     assert!(c.contains(&"option.None".to_string()));
@@ -78,11 +77,9 @@ fn completion_after_fn() {
 fn completion_after_import_alias() {
     let mut repl = new_repl();
     run(&mut repl, "import gleam/int as i");
-    // "i" alias should have qualified completions
     let c = completions_matching(&repl, "i.");
     assert!(c.contains(&"i.to_string".to_string()));
     assert!(c.contains(&"i.add".to_string()));
-    // The alias replaces the short name, which is not bound
     assert!(completions_matching(&repl, "int.").is_empty());
 }
 
@@ -91,7 +88,6 @@ fn completion_after_import_new_module() {
     let mut repl = new_repl();
     assert!(completions_matching(&repl, "io.input").is_empty());
     run(&mut repl, "import sgleam/io");
-    // After importing, io now points to sgleam/io, and io.input should be available
     let c = completions_matching(&repl, "io.input");
     assert!(
         c.contains(&"io.input".to_string()),
@@ -112,7 +108,6 @@ fn completion_fn_with_module_name() {
     let mut repl = new_repl();
     run(&mut repl, "import gleam/io");
     run(&mut repl, "fn io() { 1 }");
-    // The module keeps its own namespace, so both stay available.
     let c = completions_matching(&repl, "io.");
     assert!(
         c.contains(&"io.println".to_string()),

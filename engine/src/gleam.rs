@@ -49,8 +49,8 @@ impl Default for Project {
         extract_tar(&mut project.fs, GLEAM_STDLIB, Project::source()).expect("Extract stdlib");
 
         // Every one of these is part of the build, and a module the input is
-        // free to import: one that did not make it in is not a file to do
-        // without, it is a library with a hole in it.
+        // free to import: one that did not make it in is a library with a hole
+        // in it.
         for path in crate::Sgleam::iter() {
             let file = crate::Sgleam::get(&path).expect("Read an embedded sgleam file");
             let content = std::str::from_utf8(&file.data).expect("An embedded sgleam file is utf8");
@@ -108,8 +108,8 @@ impl Project {
             path: input.into(),
             err: Some(err.to_string()),
         })?;
-        // A module name is written with `/` wherever the path it came from
-        // separates with, which on Windows is not what the caller has.
+        // A module name always separates with `/`, which on Windows the path
+        // does not.
         let path = input.as_str().replace('\\', "/");
         self.write_source(&path, &content);
         Ok(path.strip_suffix(".gleam").unwrap_or(&path).into())

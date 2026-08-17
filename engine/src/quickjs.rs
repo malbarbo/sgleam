@@ -560,11 +560,9 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
         // keeps an import from ever finding it.
         options.filename = Some(Project::out().join("eval_script").into_string());
         // Caught here, and not handed on as it comes: the error left from an
-        // exception only says that there was one, and the top level of every
-        // module the script imports runs inside this call, so what fails here
-        // is anything from an import that did not resolve to a module that
-        // threw on its way up. None of it reaches `try_main`, so nothing else
-        // is going to say what it was.
+        // exception only says that there was one. The top level of every module
+        // the script imports runs inside this call, and none of it reaches
+        // `try_main`, so nothing else is going to say what failed.
         let promise = ctx
             .eval_with_options::<Promise, _>(source, options)
             .catch(&ctx)
@@ -581,8 +579,7 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
 }
 
 /// Read while it can still be read: the message of a caught exception comes
-/// from the context it was caught in, so it is turned into text here rather
-/// than carried out as something to format later.
+/// from the context it was caught in, so it is turned into text here.
 fn script_error(err: CaughtError<'_>) -> SgleamError {
     match &err {
         CaughtError::Exception(exception) if is_interrupt(exception) => SgleamError::Interrupted,

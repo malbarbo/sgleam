@@ -15,10 +15,9 @@ pub fn add_handler() {
         // killing it. Windows has no such signal, so the failure is handed to
         // the print, which panics on it.
         if is_a_failed_print(&panic_message(info)) {
-            // Without a word, because a reader that went away is what this
-            // almost always is; and without claiming success, because what
-            // else it can be — a disk that filled — did not get written
-            // either.
+            // Without a word, as a reader that went away almost always is what
+            // this is; and not with a success, as a disk that filled did not
+            // get written either.
             std::process::exit(1);
         }
         if print_compiler_bug_message(info).is_err() {
@@ -28,9 +27,8 @@ pub fn add_handler() {
 }
 
 /// What `println!` and its family panic with when the write under them fails.
-/// The error itself is gone by then — std formats it into the message — and
-/// what is left of it is the system's to word, and to translate, so the prefix
-/// is all there is to go by.
+/// The error itself is gone by then — std formats it into the message, whose
+/// tail the system words and translates — so the prefix is all to go by.
 fn is_a_failed_print(message: &str) -> bool {
     message.starts_with("failed printing to ")
 }
@@ -100,7 +98,6 @@ mod tests {
         assert!(is_a_failed_print(
             "failed printing to stderr: Rohrleitung unterbrochen (os error 32)"
         ));
-        // Every other panic is one to report.
         assert!(!is_a_failed_print("index out of bounds: the len is 0"));
     }
 }

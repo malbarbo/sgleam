@@ -39,8 +39,8 @@ fn debug_module<'a>(out: &'a str, name: &str) -> &'a str {
 }
 
 // These tests launch the sgleam binary as a subprocess. What a file prints is
-// snapshotted in integration.rs, one test per file; what only needs the scope
-// the repl holds goes in engine/tests/completion.rs.
+// snapshotted in integration.rs; tests that only need Repl's scope go in
+// engine/tests/completion.rs.
 
 #[test]
 fn repl_smoke_test() {
@@ -79,7 +79,6 @@ fn repl_constructor_types() {
 
 #[test]
 fn repl_import() {
-    // Basic import with unqualified value
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int.{{to_string}}
@@ -87,7 +86,6 @@ fn repl_import() {
         }),
         r#""1""#
     );
-    // Merge imports from same module
     assert_eq!(
         repl_exec(&formatdoc! {"
             import gleam/int.{{to_string}}
@@ -99,7 +97,6 @@ fn repl_import() {
         r#"3
 "1.0""#
     );
-    // Import with rename
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int.{{to_string as its}}
@@ -107,7 +104,6 @@ fn repl_import() {
         }),
         r#""42""#
     );
-    // Function replaces imported name
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int.{{to_string}}
@@ -116,7 +112,6 @@ fn repl_import() {
         }),
         r#""custom""#
     );
-    // Function replaces renamed imported item
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int.{{to_string as its}}
@@ -125,7 +120,6 @@ fn repl_import() {
         }),
         r#""custom""#
     );
-    // Import type
     assert_eq!(
         repl_exec(&formatdoc! {"
             import gleam/option.{{type Option}}
@@ -134,7 +128,6 @@ fn repl_import() {
         }),
         "Some(1)\nSome(1)"
     );
-    // Type definition replaces imported type
     assert_eq!(
         repl_exec(&formatdoc! {"
             import gleam/option.{{type Option}}
@@ -143,7 +136,6 @@ fn repl_import() {
         }),
         "Custom"
     );
-    // Import with same short name shadows the old alias
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/io.{{println}}
@@ -152,7 +144,6 @@ fn repl_import() {
         }),
         r#""ok""#
     );
-    // Explicit as avoids conflict
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import sgleam/io as sio
@@ -160,7 +151,6 @@ fn repl_import() {
         }),
         r#""ok""#
     );
-    // Multiple import aliases used together
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int as i
@@ -171,7 +161,6 @@ fn repl_import() {
         r#""1"
 "1.0""#
     );
-    // Alias that conflicts with another module's short name
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int as io
@@ -179,7 +168,6 @@ fn repl_import() {
         }),
         r#""1""#
     );
-    // Multiple aliases for the same module
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/int as i
@@ -194,9 +182,6 @@ fn repl_import() {
 
 #[test]
 fn repl_import_of_the_input_is_in_scope_for_its_definitions() {
-    // The definitions are compiled before any item runs, so the imports of
-    // their own input have to have gone in first. On one line here, as the
-    // reader submits one; the wasm api takes a whole paste as one input.
     assert_eq!(
         repl_exec("import gleam/int fn f() { int.to_string(1) } f()"),
         r#""1""#
@@ -211,7 +196,6 @@ fn repl_import_of_the_input_is_in_scope_for_its_definitions() {
         ),
         "Box(None)"
     );
-    // A const of the input reads it too, and is inlined at a guard.
     assert_eq!(
         repl_exec(
             "import gleam/int.{max} const m = 3 fn f(x) { case x { n if n > m -> max(n, 0) _ -> 0 } } f(4)"
@@ -305,8 +289,6 @@ fn repl_import_alias_shadows_module() {
 
 #[test]
 fn repl_import_two_aliases_for_one_module() {
-    // Both names work, and the file the repl writes has both import lines —
-    // which is only ever a remark about its own scaffolding.
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {r#"
@@ -322,7 +304,6 @@ fn repl_import_two_aliases_for_one_module() {
 
 #[test]
 fn repl_import_discard_alias() {
-    // `as _` brings in `input` without taking the `io` name from gleam/io.
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {r#"
@@ -422,7 +403,6 @@ fn repl_const_shadows_module_name() {
 #[test]
 fn repl_let() {
     assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
-    // No name collision with internal repl_main
     assert_eq!(repl_exec("let repl_main = 10"), "10");
     assert_eq!(
         repl_exec("let #(repl_main, b) = #(1, 2)\nrepl_main\nb"),
@@ -432,7 +412,6 @@ fn repl_let() {
 
 #[test]
 fn repl_let_annotation() {
-    // The annotation narrows what the inference alone would produce.
     assert_eq!(repl_exec("let e: List(Int) = []\n:type e"), "[]\nList(Int)");
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let w: Float = 1"));
     assert!(err.contains("Expected type:\n\n    Float"), "{err}");
@@ -486,8 +465,6 @@ fn repl_let_string_prefix_pattern() {
 
 #[test]
 fn repl_input_stops_at_the_first_error() {
-    // The item that failed leaves nothing behind and stops the ones below it,
-    // but what already ran stays: the value of `x` is on the screen.
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {r#"
@@ -516,10 +493,10 @@ fn repl_input_stops_at_a_runtime_error() {
     assert!(err.contains("`b` is not in scope"), "got: {err}");
 }
 
+/// Told apart by the message quickjs-ng throws. With Bellard's quickjs the
+/// message was another one, and this printed a raw RangeError.
 #[test]
 fn repl_stack_overflow_shows_the_frames() {
-    // Told apart by the message quickjs-ng throws, which once was the one
-    // Bellard's quickjs threw, and this printed a raw RangeError.
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some("pub fn f(x: Int) -> Int { 1 + f(x + 1) }\nf(1)"),
@@ -529,10 +506,10 @@ fn repl_stack_overflow_shows_the_frames() {
     assert_eq!(err, "");
 }
 
+/// Ctrl-C was once told apart by message alone, so this panic also said
+/// `Interrupted.`.
 #[test]
 fn repl_panic_saying_interrupted_is_still_a_panic() {
-    // Ctrl-C was once told apart by message alone, so this panic also said
-    // `Interrupted.`.
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"panic as "interrupted""#));
     assert_eq!(out, "Error at <repl>:1\n  interrupted\n");
     assert_eq!(err, "");
@@ -540,8 +517,6 @@ fn repl_panic_saying_interrupted_is_still_a_panic() {
 
 #[test]
 fn repl_rollback_failed_fn() {
-    // A function is pre-registered before being compiled, so a failing one must
-    // not survive into the next input.
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn g(a) { a + \"x\" }\nlet y = 2"));
     assert_eq!(err.matches("Type mismatch").count(), 1, "got: {err}");
     assert_eq!(out.trim(), "2");
@@ -549,8 +524,6 @@ fn repl_rollback_failed_fn() {
 
 #[test]
 fn repl_rollback_drops_the_values_it_saved() {
-    // The engine appends to the saved values and the repl counts them, so a
-    // value saved by an input that then failed would shift every later one.
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             let a = "hello" let b = bad_name
@@ -577,9 +550,6 @@ fn repl_binding_that_did_not_run_is_not_bound() {
 
 #[test]
 fn repl_binding_that_raised_frees_its_slot_for_the_next() {
-    // The raise left the slot empty, so the next binding takes it. What the
-    // engine saved and the repl counted must still agree: the binding before
-    // keeps its value, the one after reads its own.
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             let x = 1
@@ -598,8 +568,6 @@ fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
 }
 
-/// The message comes after the value, and belongs to the line the repl writes
-/// the pattern on — not to the one that computes the value.
 #[test]
 fn repl_let_assert_message() {
     let message = |input: &str| run_sgleam_cmd(&["repl", "-q"], Some(input)).0;
@@ -607,9 +575,7 @@ fn repl_let_assert_message() {
         message(r#"let assert Ok(v) = Error(1) as "what the user wrote""#)
             .contains("  what the user wrote")
     );
-    // Nothing to bind, so the statement is run as the expression it is.
     assert!(message(r#"let assert Ok(_) = Error(1) as "discarded""#).contains("  discarded"));
-    // The message reads the session, as the value does.
     assert!(
         message("let m = \"from a let\"\nlet assert Ok(v) = Error(1) as m")
             .contains("  from a let")
@@ -652,7 +618,6 @@ fn repl_type_redefine() {
         }),
         "B(1)"
     );
-    // Types without pub are automatically made pub in the REPL
     assert_eq!(
         repl_exec(&formatdoc! {"
             type Color {{ Red Green Blue }}
@@ -660,8 +625,6 @@ fn repl_type_redefine() {
         }),
         "Red"
     );
-    // A variable of the type outlives the redefinition, and reads back as the
-    // module of the input that defined the type it holds.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type Val {{ A(Int) }}
@@ -672,7 +635,6 @@ fn repl_type_redefine() {
         }),
         "A(42)\nA(42)\nrepl1.Val"
     );
-    // Mixing the two is what fails, and the message names both.
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {"
@@ -688,8 +650,6 @@ fn repl_type_redefine() {
 
 #[test]
 fn repl_type_redefine_keeps_the_old() {
-    // A type of an earlier input keeps the type it was defined against, which
-    // is still reachable through the names the redefinition did not take.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ MkA(x) }}
@@ -699,7 +659,6 @@ fn repl_type_redefine_keeps_the_old() {
         }),
         "MkB(MkA(1))"
     );
-    // Redefining both in the same input is fine.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ A(x) }}
@@ -709,7 +668,6 @@ fn repl_type_redefine_keeps_the_old() {
         }),
         "B(A)"
     );
-    // A value of the shadowed type reads back as the module that defines it.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ MkA(x) }}
@@ -719,8 +677,6 @@ fn repl_type_redefine_keeps_the_old() {
         }),
         "MkA(1)\nrepl1.A(Int)"
     );
-    // A function of an earlier input keeps the type it was defined against, so
-    // a redefinition no longer has to be refused on its account.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ MkA(x) }}
@@ -730,8 +686,6 @@ fn repl_type_redefine_keeps_the_old() {
         }),
         "MkA(1)"
     );
-    // Redefining one type of a mutually recursive pair leaves the other one
-    // pointing at the old one.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A {{ MkA(B) }} type B {{ MkB(Int) }}
@@ -740,8 +694,6 @@ fn repl_type_redefine_keeps_the_old() {
         }),
         "MkA(MkB(1))"
     );
-    // A `let` of the old type outlives a redefinition that takes over even the
-    // name of its constructor.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type A(x) {{ A(x) }}
@@ -756,7 +708,6 @@ fn repl_type_redefine_keeps_the_old() {
 
 #[test]
 fn repl_fn_redefine_keeps_the_old() {
-    // A function of an earlier input calls the one it was defined against.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g() {{ 1 }}
@@ -767,8 +718,6 @@ fn repl_fn_redefine_keeps_the_old() {
         }),
         "10\n100"
     );
-    // The shadowed one is still reachable through the module of its input,
-    // which an explicit import also reaches.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g() {{ 1 }}
@@ -778,7 +727,6 @@ fn repl_fn_redefine_keeps_the_old() {
         }),
         "1"
     );
-    // Mutually recursive functions of one input see each other.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn even(n) {{ case n {{ 0 -> True _ -> odd(n - 1) }} }} fn odd(n) {{ case n {{ 0 -> False _ -> even(n - 1) }} }}
@@ -790,7 +738,6 @@ fn repl_fn_redefine_keeps_the_old() {
 
 #[test]
 fn repl_the_module_of_an_input_needs_no_import() {
-    // Writing the name is what brings the module in, as in GHCi.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g() {{ 1 }}
@@ -799,7 +746,6 @@ fn repl_the_module_of_an_input_needs_no_import() {
         }),
         "#(1, 2)"
     );
-    // A type and a constructor the redefinition took the name of.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type T {{ A }}
@@ -809,9 +755,6 @@ fn repl_the_module_of_an_input_needs_no_import() {
         }),
         "A\nA"
     );
-    // A value in its slot, under the same name a definition would have. Gleam
-    // has no value at module level, so the module holds the function that
-    // reads it back — which is what the plain name binds to as well.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 1
@@ -820,9 +763,6 @@ fn repl_the_module_of_an_input_needs_no_import() {
         }),
         "1\n2\n#(1, 2)"
     );
-    // An input that also defines needs its module for that, so the companion
-    // of the item holds the value. Only an import and a statement take a
-    // number, in that order.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn q() {{ 1 }} let x = 1
@@ -839,7 +779,6 @@ fn repl_the_module_of_an_input_needs_no_import() {
         }),
         "1\n2\n#(1, 2)"
     );
-    // An import of that name shadows, as any other import does.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g() {{ 1 }}
@@ -850,8 +789,8 @@ fn repl_the_module_of_an_input_needs_no_import() {
     );
 }
 
-// What follows are the transcripts of docs/repl-redefinition.md, written as
-// the doc writes them: what changes here has to change there.
+// What follows are the transcripts of docs/repl-redefinition.md: what changes
+// here has to change there.
 
 #[test]
 fn doc_a_value_outlives_the_type_it_holds() {
@@ -894,7 +833,6 @@ fn doc_the_old_and_the_new_do_not_mix() {
 
 #[test]
 fn doc_a_redefinition_does_not_reach_back() {
-    // A value read by an earlier function.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 1
@@ -904,7 +842,6 @@ fn doc_a_redefinition_does_not_reach_back() {
         }),
         "1\n100\n2"
     );
-    // A function called by an earlier function.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn g(n) {{ n + 1 }}
@@ -932,15 +869,11 @@ fn doc_mutual_recursion_across_inputs_is_unbound() {
 
 #[test]
 fn doc_a_fn_cannot_read_a_let_of_its_own_input() {
-    // And the `let` does not bind: the definitions fail as one, before the
-    // items of the input run.
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 fn f() { x }\nx"));
     assert_eq!(out, "");
     assert_eq!(err.matches("is not in scope").count(), 2, "got: {err}");
 }
 
-// The types of an input are compiled together, in a module of their own, so an
-// error in one of them can surface while another one is being read.
 #[test]
 fn repl_error_type_beside_type() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("type A { A } type B { B(A(Int)) }"));
@@ -983,7 +916,6 @@ fn repl_let_shadows_a_const_another_const_uses() {
             a"
         }),
     );
-    // `b` keeps the value it was defined with, the way a fn body would.
     assert_eq!(err, "");
     assert_eq!(out, "5\n1\n5\n");
 }
@@ -1046,8 +978,6 @@ fn repl_const_can_use_a_fn() {
 
 #[test]
 fn repl_const_survives_a_name_taken_over() {
-    // Only the redefined name changes: `a` becoming a variable leaves `b`
-    // alone, and a new const can still read it.
     assert_eq!(
         repl_exec(&formatdoc! {"
             const a = 1
@@ -1062,7 +992,6 @@ fn repl_const_survives_a_name_taken_over() {
 
 #[test]
 fn repl_const_redefine_keeps_the_others() {
-    // A redefinition takes only its own name, like `let` and `fn`.
     assert_eq!(
         repl_exec(&formatdoc! {"
             const a = 1
@@ -1088,8 +1017,6 @@ fn repl_const_must_be_a_constant_expression() {
 
 #[test]
 fn repl_const_cannot_reference_a_runtime_value() {
-    // A `let` is out of reach of a const, as it would be in a source file.
-    // Rejected before compiling, so the message is the repl's own.
     let out = repl_exec(&formatdoc! {"
         let y = 1
         const c = y
@@ -1100,7 +1027,6 @@ fn repl_const_cannot_reference_a_runtime_value() {
         "1\n`y` is a variable, not a constant. A constant can only use \
          literals, other constants and functions.\n1"
     );
-    // A module alias is not a value, even when a `let` goes by the same name.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let option = 1
@@ -1119,9 +1045,6 @@ fn repl_fn() {
 
 #[test]
 fn repl_fn_redefine() {
-    // When f is redefined, g still calls the version of f that existed when g
-    // was defined (functions are stored as runtime values, not recompiled from
-    // source).
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn f() {{ 1 }}
@@ -1134,9 +1057,6 @@ fn repl_fn_redefine() {
     );
 }
 
-/// An attribute is written above the keyword the parser records the definition
-/// from, so it only reaches the module if the item is taken from where the
-/// input opened it — and `pub` goes after it, where the keyword is.
 #[test]
 fn repl_fn_attributes() {
     let (out, err) = run_sgleam_cmd(
@@ -1150,9 +1070,6 @@ fn repl_fn_attributes() {
     assert!(err.contains("This value has been deprecated"), "{err}");
 }
 
-/// A type and a value of the same name are two names. The module of an input
-/// leaves out what the input defines, and that has to be read per namespace, or
-/// defining one of the two keeps the other from coming in.
 #[test]
 fn repl_defines_a_name_the_other_namespace_holds() {
     assert_eq!(
@@ -1173,8 +1090,6 @@ fn repl_defines_a_name_the_other_namespace_holds() {
     );
 }
 
-/// A function with no body ends at its head, which is past the parameters the
-/// parser stops the body at.
 #[test]
 fn repl_fn_external() {
     assert_eq!(
@@ -1188,8 +1103,6 @@ fn repl_fn_external() {
 
 #[test]
 fn repl_fn_redefine_recursive() {
-    // A recursive call in the new definition reaches the new definition, not the
-    // stored value of the old one.
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn f(n) {{ 100 }}
@@ -1202,8 +1115,6 @@ fn repl_fn_redefine_recursive() {
 
 #[test]
 fn repl_value_in_guard() {
-    // A stored value is a binding of the body the guard is in, which is a
-    // thing a guard may read.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 5
@@ -1217,8 +1128,6 @@ fn repl_value_in_guard() {
 
 #[test]
 fn repl_stored_value_runs_once() {
-    // The value is remembered by the run that bound it, so reading it back is
-    // never the expression running again.
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import gleam/io
@@ -1233,8 +1142,6 @@ fn repl_stored_value_runs_once() {
 
 #[test]
 fn repl_a_name_a_body_already_has_is_not_bound_again() {
-    // A parameter and a `let` of the body take the name back from the value
-    // the session bound.
     assert_eq!(
         repl_exec(&formatdoc! {"
             let x = 1
@@ -1249,8 +1156,6 @@ fn repl_a_name_a_body_already_has_is_not_bound_again() {
 
 #[test]
 fn repl_warns_inside_a_body_it_wrote_into() {
-    // The bindings the repl writes at the top of a body split the definition
-    // in two, and both halves still say where the input has them.
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some("let z = 5\nfn f() {\n  let a = 1\n  z\n}"),
@@ -1260,8 +1165,6 @@ fn repl_warns_inside_a_body_it_wrote_into() {
 
 #[test]
 fn repl_const_in_guard_reaches_what_it_names() {
-    // A guard inlines the const, naming the constructor in an input that never
-    // wrote it.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type T {{ A B }}
@@ -1271,7 +1174,6 @@ fn repl_const_in_guard_reaches_what_it_names() {
         }),
         "A\n\"eq\""
     );
-    // Through a second const, and through the arguments of a constructor.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type T {{ A B }}
@@ -1283,8 +1185,6 @@ fn repl_const_in_guard_reaches_what_it_names() {
         }),
         "P(A)\n\"eq\""
     );
-    // Qualified, through the module of the input that defined it, which the
-    // input using the const does not name either.
     assert_eq!(
         repl_exec(&formatdoc! {"
             type T {{ A B }}
@@ -1299,7 +1199,6 @@ fn repl_const_in_guard_reaches_what_it_names() {
 
 #[test]
 fn repl_const_update_in_guard_reaches_its_constructor() {
-    // The update expands into the constructor, which the base does not bring in.
     let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("u.gleam"),
@@ -1325,7 +1224,6 @@ fn repl_const_update_in_guard_reaches_its_constructor() {
 
 #[test]
 fn repl_const_of_a_user_module_in_guard() {
-    // What such a const reads is never parsed, so it cannot be filtered.
     let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("v.gleam"),
@@ -1349,8 +1247,6 @@ fn repl_const_of_a_user_module_in_guard() {
 
 #[test]
 fn repl_loads_the_modules_the_file_imports() {
-    // The file is compiled where nothing else was copied, so what it imports has
-    // to be copied along with it, as `run` does.
     let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::create_dir(dir.path().join("util")).expect("create the directory");
     std::fs::write(
@@ -1381,11 +1277,9 @@ fn repl_imports_only_what_the_input_writes() {
         &["repl", "-q"],
         Some(":debug\nfn untouched() { 1 }\nlet x = 2\nx + 1\nuntouched()"),
     );
-    // `x + 1` brings in the value, not the function.
     let expr = debug_module(&out, "repl3_1");
     assert!(expr.contains("import repl2.{x}"), "{expr}");
     assert!(!expr.contains("untouched"), "{expr}");
-    // Calling it brings it in.
     assert!(debug_module(&out, "repl4_1").contains("untouched"), "{out}");
 }
 
@@ -1410,7 +1304,6 @@ fn repl_fn_calling_fn() {
         }),
         "12"
     );
-    // Mutual recursion (both functions on the same line = same run() call)
     assert_eq!(
         repl_exec(
             "fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }\nis_even(4)\nis_odd(3)"
@@ -1510,16 +1403,12 @@ fn repl_error_fn_body() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// An error over a whole definition is over the `pub` the repl wrote as much as
-// over the input, and it is the input's definition it is about.
 #[test]
 fn repl_error_over_a_definition_head() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn f() { 1 } fn f() { 2 }"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// The repl writes into the body of a function that reads a stored value, so
-// its head is a copy of the input on its own: the error still lands on it.
 #[test]
 fn repl_error_fn_head_with_stored_value() {
     let (_, err) = run_sgleam_cmd(
@@ -1553,16 +1442,12 @@ fn repl_error_syntax() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// A near-miss of a command would otherwise reach the Gleam parser, whose
-// complaint about the `:` says nothing the user can act on.
 #[test]
 fn repl_unknown_command() {
     let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":typ x\n:type\n:quit now"));
     assert_snapshot!(strip_repl_suffix(&out));
 }
 
-/// The file ends in the middle of an input, which the editor was still reading
-/// for. It is what the user wrote, so it is compiled and it is complained about.
 #[test]
 fn repl_input_the_file_ends_in_the_middle_of() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1\ncase x {"));
@@ -1587,8 +1472,6 @@ fn repl_error_import_item() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// An import that brings more than one name is not written back as one line,
-// so the error lands on the input by where it is, not by what it looks like.
 #[test]
 fn repl_error_import_item_among_others() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("import gleam/int.{to_string, nope}"));
@@ -1601,7 +1484,6 @@ fn repl_error_import_module() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
-// Each assertion kind reports the values it evaluated, and nothing else.
 #[test]
 fn repl_assert_failure() {
     let (out, _) = run_sgleam_cmd(
@@ -1628,24 +1510,18 @@ fn repl_warning() {
 
 #[test]
 fn repl_warns_about_what_the_user_wrote() {
-    // A `todo` and a variable a function never reads: what a file would say,
-    // said by the repl too.
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn f() {\n  let a = 1\n  todo\n}"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
 fn repl_warns_once_about_a_pattern_it_copies() {
-    // The pattern goes in once, so what the compiler says about it is said
-    // once.
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert x = 1\nx"));
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
 fn repl_does_not_warn_about_its_own_scaffolding() {
-    // Every name in scope reaches a generated module by import, used or not,
-    // and the module that checks an import uses none of what it brought.
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some("import gleam/int\nimport gleam/list.{length}\nlet x = 1\nx"),
@@ -1655,12 +1531,10 @@ fn repl_does_not_warn_about_its_own_scaffolding() {
 
 #[test]
 fn repl_let_result_does_not_warn() {
-    // Saving the value must not warn about the unused `Result` it creates.
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let r = Ok(1)"));
     assert_eq!(err, "");
 }
 
-// The pattern fails in both generated bindings; only the relocated one shows.
 #[test]
 fn repl_error_let_pattern() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert Ok(v) = 1"));
@@ -1669,7 +1543,6 @@ fn repl_error_let_pattern() {
 
 #[test]
 fn repl_no_collision_with_internal_names() {
-    // User variable named repl_print doesn't break expressions
     assert_eq!(
         repl_exec(&formatdoc! {"
             let repl_print = 10
@@ -1677,7 +1550,6 @@ fn repl_no_collision_with_internal_names() {
             1 + 2"}),
         "10\n10\n3"
     );
-    // User variable named repl_save doesn't break let bindings
     assert_eq!(
         repl_exec(&formatdoc! {"
             let repl_save = 10
@@ -1685,14 +1557,12 @@ fn repl_no_collision_with_internal_names() {
             x"}),
         "10\n1\n1"
     );
-    // User function named repl_print works
     assert_eq!(
         repl_exec(&formatdoc! {"
             fn repl_print(x) {{ x + 1 }}
             repl_print(10)"}),
         "11"
     );
-    // User variable named repl_main works
     assert_eq!(repl_exec("let repl_main = 42\nrepl_main"), "42\n42");
 }
 
@@ -1713,7 +1583,6 @@ fn repl_debug() {
         &["repl", "-q"],
         Some(":debug\nlet x = 1\n:debug\nlet y = 2"),
     );
-    // Debug on: output contains the generated code and the result
     assert!(
         out.contains("--- repl1_1.gleam ---"),
         "expected generated code header"
@@ -1723,7 +1592,6 @@ fn repl_debug() {
         "expected repl_main in generated code"
     );
     assert!(out.contains("1"), "expected result");
-    // Debug off: output contains only the result
     assert!(
         !out.contains("repl2_1.gleam"),
         "expected no generated code after :debug off"
@@ -1735,7 +1603,6 @@ fn repl_debug() {
 fn repl_type_cmd() {
     assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
     assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
-    // :type does not create variables
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TYPE} let x = 10\nx")));
     assert_eq!(out.trim(), "Int");
     assert!(
@@ -1750,7 +1617,6 @@ fn repl_type_cmd() {
         repl_exec(&format!("import gleam/list\n{TYPE} list.filter_map")),
         "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
-    // :type does not evaluate
     assert_eq!(
         repl_exec(&format!(
             "import gleam/io\n{TYPE} {{ io.println(\"\") Ok(1) }}"
@@ -1777,7 +1643,6 @@ fn repl_type_cmd_def() {
 
 #[test]
 fn repl_time_cmd() {
-    // A `let` is an expression, so `:time` takes it — and it binds, as it ran.
     let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} let x = 10\nx")));
     let lines: Vec<_> = out.lines().collect();
     assert_eq!(lines[0], "10");
@@ -1787,7 +1652,6 @@ fn repl_time_cmd() {
 
 #[test]
 fn repl_time_cmd_error() {
-    // Nothing to report: it did not finish.
     let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} panic as \"boom\"")));
     assert_eq!(out, "Error at <repl>:1\n  boom\n");
 }
@@ -1839,22 +1703,15 @@ fn repl_user_module_import() {
 #[test]
 fn repl_reads_to_the_end_of_the_item() {
     assert_eq!(repl_exec("1 + 1 // {\n5\n6"), "2\n5\n6");
-    // What goes on over lines, which the brackets used to be counted for.
     assert_eq!(repl_exec("fn f(x) {\n  x + 1\n}\nf(1)"), "2");
-    // A string runs to the next line, which no bracket says.
     assert_eq!(
         repl_exec("import gleam/io\nio.println(\"a\nb\")"),
         "a\nb\nNil"
     );
     assert_eq!(repl_exec("[1,\n2]"), "[1, 2]");
-    // A command is asked about the Gleam it carries, not read as Gleam.
     assert_eq!(repl_exec(":type case Ok(1) {\n  _ -> 2\n}"), "Int");
 }
 
-/// A module is the repl's because the repl wrote it, not because something ran
-/// in it: an input that only defines runs nothing, and the input that calls
-/// what it defined is where the error comes from. The place it names is in the
-/// input that defined it, which is why its lines are known before it runs.
 #[test]
 fn repl_error_in_a_module_that_ran_nothing() {
     assert_eq!(
@@ -1864,7 +1721,6 @@ fn repl_error_in_a_module_that_ran_nothing() {
         }),
         "Error at <repl>:1\n  boom"
     );
-    // The same across two inputs, so the module holding `g` is older still.
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             fn g() {{
@@ -1877,25 +1733,16 @@ fn repl_error_in_a_module_that_ran_nothing() {
     );
 }
 
-/// An `echo` of an input is compiled to a file the repl generated, at a line
-/// counting the imports and bindings it wrote above the user's. It is printed
-/// as the input it was copied from, at the line the user wrote it on — the same
-/// place a diagnostic about that line names.
 #[test]
 fn repl_echo_is_located_in_the_input() {
     assert_eq!(repl_exec("echo 42"), "<repl>:1\n42\n42");
-    // The message is the user's and stays.
     assert_eq!(repl_exec(r#"echo 42 as "nota""#), "<repl>:1 nota\n42\n42");
-    // An input of several lines: each echo says the line it is on, which is
-    // what counting the generated file's lines would get wrong.
     assert_eq!(
         repl_exec("fn g(x) {\n  echo x\n  echo x * 2\n}\ng(5)"),
         "<repl>:2\n5\n<repl>:3\n10\n10"
     );
 }
 
-/// And it holds however far behind the input that wrote it is: a function and
-/// a closure of an earlier input are reached from a later one.
 #[test]
 fn repl_echo_of_an_earlier_input_is_still_located() {
     assert_eq!(
@@ -1919,7 +1766,6 @@ fn repl_echo_of_an_earlier_input_is_still_located() {
     );
 }
 
-/// And a file the user wrote keeps it, which is the whole point of printing it.
 #[test]
 fn user_module_echo_keeps_the_location() {
     let dir = tempfile::tempdir().expect("a temporary directory");
@@ -1987,18 +1833,13 @@ fn a_reader_that_went_away_is_not_a_crash() {
     assert_eq!(String::from_utf8_lossy(&out.stderr), "");
 }
 
-/// A runtime error says where it happened, in the same terms an `echo` and a
-/// diagnostic do: the line of the input the user wrote it on. The file it was
-/// compiled to is not one they can be shown.
 #[test]
 fn repl_runtime_error_is_located_in_the_input() {
     assert_eq!(repl_exec(r#"panic as "boom""#), "Error at <repl>:1\n  boom");
-    // Deep in an input, and not on the line the value came from.
     assert_eq!(
         repl_exec("fn f(x) {\n  let y = x + 1\n  panic as \"deep\"\n}\nf(1)"),
         "Error at <repl>:3\n  deep"
     );
-    // What the compiler adds to the message stays under it.
     assert_eq!(
         repl_exec("let assert Ok(v) = Error(1)"),
         "Error at <repl>:1\n  Pattern match failed, no pattern matched the value.\n  value: Error(1)"
@@ -2030,8 +1871,6 @@ fn repl_user_module_error_keeps_the_location() {
 
 #[test]
 fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
-    // `repl0` is the module of the check the repl runs on start and `repl1` the
-    // one of the first input: both would be written over the user's.
     for name in ["repl0.gleam", "repl1.gleam"] {
         let dir = tempfile::tempdir().expect("a temporary directory");
         std::fs::write(
@@ -2057,8 +1896,6 @@ fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
 
 #[test]
 fn repl_let_of_a_type_from_a_module_out_of_scope() {
-    // `maybe` returns an `Option`, and nothing in the session imports the
-    // module it comes from — the annotation the repl writes has to bring it in.
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q", input],
@@ -2070,8 +1907,6 @@ fn repl_let_of_a_type_from_a_module_out_of_scope() {
 
 #[test]
 fn repl_let_of_a_shadowed_prelude_type() {
-    // Taking the plain name sends the prelude's own to `gleam.List`, which the
-    // annotation has to qualify.
     assert_eq!(
         repl_exec("type List { L }\nlet x = [1]\n:type x\nx\nlet y = L\ny"),
         "[1]\ngleam.List(Int)\n[1]\nL\nL"
@@ -2080,9 +1915,6 @@ fn repl_let_of_a_shadowed_prelude_type() {
 
 #[test]
 fn repl_let_of_a_type_whose_module_name_the_user_took() {
-    // The annotation says `gleam.List` and the session's `gleam` is another
-    // module, which cannot reach it: the annotation is read in a module the
-    // repl writes every import of.
     assert_eq!(
         repl_exec("import gleam/int as gleam\ntype List { L }\nlet x = [1]\nx\n:type x"),
         "[1]\n[1]\ngleam.List(Int)"
@@ -2091,8 +1923,6 @@ fn repl_let_of_a_type_whose_module_name_the_user_took() {
 
 #[test]
 fn repl_let_of_two_types_whose_modules_share_a_name() {
-    // `option.Mine` and `gleam/option.Option` in one annotation: one of the two
-    // takes the short name, the other is aliased away from it.
     let dir = tempfile::tempdir().expect("a temporary directory");
     std::fs::write(
         dir.path().join("option.gleam"),

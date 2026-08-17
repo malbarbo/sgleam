@@ -134,8 +134,7 @@ fn main() {
     let finished = match spawned {
         // A machine with no room left for the thread is not a compiler bug,
         // and there is no smaller one to fall back to: the stack is the whole
-        // reason it is here. Said plainly, since what io reports is only the
-        // system's side of it.
+        // reason it is here.
         Err(err) => {
             show_error(&SgleamError::Other(
                 format!("Could not start the thread the program runs in: {err}").into(),

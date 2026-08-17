@@ -64,9 +64,6 @@ fn handed_over_paths() -> Vec<String> {
     HANDED_OVER.with_borrow(|handed| handed.iter().map(|file| file.path.clone()).collect())
 }
 
-/// A module compiled to check an import defines nothing, so no place in it is
-/// ever reached. Everything else goes over: one that ran nothing still raises
-/// later, from a function it defined.
 #[test]
 fn the_runtime_is_told_of_the_modules_it_can_reach() {
     let mut repl: Repl<Recorder> = Repl::new(Project::default(), None).expect("start the repl");

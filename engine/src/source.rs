@@ -8,10 +8,6 @@ use gleam_core::{ast::SrcSpan, line_numbers::LineNumbers};
 /// from the input. Moving a diagnostic back onto the input is then a lookup
 /// and not a search through the text for something that looks like it.
 ///
-/// A copy carries where in the input it came from, so the repl can write
-/// between two halves of one definition and both still read against the input,
-/// at the line and column the user sees.
-///
 /// `fmt::Write` writes the repl's own text, so `swriteln!` is [`Source::write`].
 #[derive(Clone, Default)]
 pub struct Source {
@@ -177,12 +173,9 @@ mod tests {
         assert!(src.locate(span(21, 24)).is_none());
         assert_eq!(locate(&src, span(16, 21)).span, span(0, 5));
         assert_eq!(locate(&src, span(20, 21)).span, span(4, 5));
-        // No width, so it points at a place instead of taking bytes in.
         assert_eq!(locate(&src, span(21, 21)).span, span(5, 5));
     }
 
-    /// The repl writes `pub` in front of a definition and bindings into its
-    /// body, so a span over the whole of it covers what both wrote.
     #[test]
     fn a_span_over_both_narrows_to_what_the_user_wrote() {
         let input: Rc<str> = "fn f() { 1 }".into();
@@ -195,11 +188,9 @@ mod tests {
         assert_eq!(src.as_str(), "pub fn f() {let x = x()\n 1 }");
         // The head, as the compiler reports it: `pub fn f()`.
         assert_eq!(locate(&src, span(0, 10)).span, span(0, 6));
-        // The definition whole, over both halves and what went between them.
         assert_eq!(locate(&src, span(0, 28)).span, span(0, 12));
     }
 
-    /// The same text twice, only one of which is a copy of the input.
     #[test]
     fn the_copy_is_found_by_where_it_is_not_by_what_it_says() {
         let mut src = Source::new();
@@ -242,8 +233,6 @@ mod tests {
         assert_eq!(locate(&src, span(21, 22)).input.as_ref(), "x");
     }
 
-    /// What the repl writes between two halves of one definition, which is how
-    /// a body gets the bindings it reads.
     #[test]
     fn a_definition_split_around_what_the_repl_writes() {
         let input: Rc<str> = "fn f(a) {\n  a + x\n}".into();
@@ -255,7 +244,6 @@ mod tests {
         assert_eq!(src.as_str(), "fn f(a) {\nlet x = x()\n  a + x\n}");
         // `x` of the second half, which the input has at 16.
         assert_eq!(locate(&src, span(28, 29)).span, span(16, 17));
-        // The `x` the repl wrote is not the input's.
         assert!(src.locate(span(14, 15)).is_none());
     }
 

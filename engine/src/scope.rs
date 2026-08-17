@@ -1,6 +1,5 @@
 //! The names a repl session has in scope, and the imports that put them in
-//! front of a generated module. Everything here is plain data over the maps,
-//! so it is cheap to snapshot and simple to test.
+//! front of a generated module.
 
 use std::{
     collections::{BTreeMap, HashSet},
@@ -225,8 +224,6 @@ impl Scope {
                 swriteln!(src, "import {module}");
             }
         }
-        // What the input defines is left out per namespace, as a type and a
-        // value of the same name are two names.
         for (kind, entries, skip) in [
             ("", &self.values, &skip.values),
             ("type ", &self.types, &skip.types),
@@ -367,7 +364,6 @@ mod tests {
         scope.values.insert("f".into(), def("repl1", "f"));
         assert_eq!(imports(&scope, Some("f() + 1")), "import repl1.{f} as _\n");
         assert_eq!(imports(&scope, Some("g() + 1")), "");
-        // `None` writes the whole scope, which is what checks an import.
         assert_eq!(imports(&scope, None), "import repl1.{f} as _\n");
     }
 
@@ -382,8 +378,6 @@ mod tests {
             "Order".into(),
             NameEntry::new("gleam/order", "Order", Origin::Import),
         );
-        // The value: a guard inlines a const, and what an imported one read is
-        // not the repl's to know. The type: nothing inlines one.
         assert_eq!(
             imports(&scope, Some("1 + 1")),
             "import gleam/int.{max} as _\n"
@@ -433,7 +427,6 @@ mod tests {
             types: vec!["T".into()],
             values: vec![],
         };
-        // The type is the input's own; the constructor is still the session's.
         assert_eq!(
             imports_skipping(&scope, Some("T"), &skip),
             "import repl1.{T} as _\n"
@@ -467,7 +460,6 @@ mod tests {
         };
         let mut scope = Scope::default();
         scope.register_import(import, &input, SrcSpan::new(0, input.len() as u32));
-        // The line is the input's, copied, and nothing of it is written again.
         assert_eq!(imports(&scope, None), "import gleam/int.{max} as i\n");
         scope.own_import = None;
         assert_eq!(

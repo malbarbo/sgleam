@@ -516,8 +516,6 @@ impl<E: Engine> Repl<E> {
                 .expect("To delete repl file");
         }
 
-        // A warning that lands on no copy of the input is about what the repl
-        // wrote, and the user cannot act on it.
         self.show_diagnostics(
             warnings
                 .take()
@@ -1245,7 +1243,6 @@ mod tests {
         assert!(matches!(Command::parse(":debug"), Command::Debug));
         assert!(matches!(Command::parse(":type 1"), Command::Type("1")));
         assert!(matches!(Command::parse(":time f()"), Command::Time("f()")));
-        // Not trimmed: the spans of the parsed input index this string.
         assert!(matches!(
             Command::parse(" 1 + 1 "),
             Command::Gleam(" 1 + 1 ")
@@ -1259,7 +1256,6 @@ mod tests {
                 matches!(Command::parse(input), Command::Unknown(_)),
                 "{input:?}"
             );
-            // And nothing to keep reading for, either.
             assert!(!is_incomplete(input), "{input:?}");
         }
     }

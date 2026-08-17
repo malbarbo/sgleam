@@ -374,9 +374,8 @@ impl Validator for CompleteInputValidator {
     }
 }
 
-/// Whether the line the user just ended is the whole input. Asked of the
-/// parser: counting brackets in the text takes one inside a comment for an
-/// open block, and the prompt then waits for a `}` that is never coming.
+/// Whether the line the user just ended is the whole input, which only the
+/// parser can say.
 fn validate(input: &str) -> ValidationResult {
     if engine::repl::is_incomplete(input) {
         ValidationResult::Incomplete
@@ -497,7 +496,6 @@ mod tests {
 
     #[test]
     fn an_input_that_ends_before_what_it_started() {
-        // Nothing is open in the text of either.
         assert!(incomplete("use a <-"));
         assert!(incomplete("todo as"));
 
@@ -506,17 +504,13 @@ mod tests {
         assert!(incomplete("io.println("));
         assert!(incomplete("[1, 2"));
         assert!(incomplete("import gleam/io.{"));
-        // A string is written over as many lines as the user wants.
         assert!(incomplete("\"ca\"sa\""));
         assert!(incomplete("let x = \"abc"));
-        // The input stops where the parser asked for more.
         assert!(incomplete("let x ="));
         assert!(incomplete("1 +"));
         assert!(incomplete("case 1 { 1 ->"));
     }
 
-    /// A bracket the compiler never sees closes nothing, which is what waiting
-    /// for it to close cannot know.
     #[test]
     fn a_bracket_the_input_only_mentions() {
         assert!(!incomplete("1 + 1 // {"));
@@ -525,8 +519,6 @@ mod tests {
         assert!(!incomplete("\"{\""));
     }
 
-    /// Finished and wrong is finished: the compiler says what is wrong with it,
-    /// and a prompt that went on waiting would have nothing to wait for.
     #[test]
     fn an_input_that_is_whole_and_does_not_compile() {
         assert!(!incomplete("let x = )"));
@@ -536,8 +528,6 @@ mod tests {
         assert!(!incomplete("4 + (3 * { [4] - 2 })"));
     }
 
-    /// A command of the repl's own is not Gleam, and the Gleam it carries is
-    /// read on its own.
     #[test]
     fn a_command_is_asked_about_what_it_carries() {
         assert!(incomplete(":type case 1 {"));

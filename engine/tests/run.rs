@@ -21,8 +21,6 @@ fn an_absolute_path_names_no_module() {
     ));
 }
 
-/// What the rejection above keeps unreachable: the write lands outside the
-/// source root, where no compilation looks.
 #[test]
 #[should_panic(expected = "is not under the source root")]
 fn an_absolute_name_is_written_nowhere() {

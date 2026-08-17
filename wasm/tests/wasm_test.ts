@@ -492,7 +492,6 @@ Deno.test("world.run does not crash (sleep regression)", async () => {
 
 Deno.test("repl_complete returns candidates", async () => {
   const ctx = await newRepl();
-  // Define a function, then complete on its prefix
   run(ctx, "fn my_func() { 1 }");
   const input = "my_f";
   const [ptr, len] = encodeString(ctx.exports, input);
@@ -609,11 +608,8 @@ Deno.test("panic handler intercepts Rust panics", async () => {
   destroy(ctx);
 });
 
-// `pub` is a token of the input, not a prefix of its text: it may be followed
-// by a newline, and an attribute may come before it. What says the repl has to
-// write one is the definition being private. The cli reads a line at a time, so
-// an input holding several items only reaches the repl through this api, which
-// takes the whole of it at once — as an editor holds it.
+// The cli reads a line at a time, so an input holding several items only
+// reaches the repl through this api, which takes the whole of it at once.
 Deno.test("pub on a line of its own", async () => {
   for (
     const input of [

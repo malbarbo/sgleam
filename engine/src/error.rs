@@ -33,9 +33,9 @@ pub enum SgleamError {
     QuickJs(rquickjs::Error),
 
     /// An exception raised while the script itself was being evaluated, which
-    /// is before the program it starts exists to report anything. Kept as the
-    /// text it was read as, because what an exception says lives in the JS
-    /// context, and the context is gone by the time this is shown.
+    /// is before the program it starts exists to report anything. Kept as
+    /// text: what an exception says lives in the JS context, which is gone by
+    /// the time this is shown.
     #[error("script error")]
     Script(String),
 

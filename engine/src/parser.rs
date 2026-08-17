@@ -32,8 +32,8 @@ pub fn parse_repl(src: &str) -> Result<Vec<ReplItem>, ParseError> {
 /// a value and not what it found instead. What tells them apart is whether any
 /// of the input is left after that: if none is, there was nothing to reject.
 ///
-/// A wrong `true` is the costly one — it hangs the prompt on a stray `}`, and
-/// only Ctrl-C gets out — so an error that says neither is taken as finished.
+/// A wrong `true` hangs the prompt on a stray `}`, so an error that says
+/// neither is taken as finished.
 pub fn is_incomplete(src: &str) -> bool {
     let Err(ParseError { error, location }) = parse_repl(src) else {
         return false;
@@ -144,12 +144,10 @@ mod tests {
             "let x = \"abc",
             "use a <-",
             "import gleam/",
-            // An attribute goes above what it attaches to.
             "@deprecated(\"old\")",
             "@target(javascript)",
             "@external(javascript, \"./x.mjs\", \"f\")",
             "pub",
-            // What the user typed before going on is not what comes after.
             "let x = 1 + // hi",
             "let x =\n\n",
             "case x {\n  1 -> \n",
@@ -174,7 +172,6 @@ mod tests {
             "case x { 1 -> }",
             "case x { -> 1 }",
             "let #(a, = 1",
-            // An attribute over something that is not a definition.
             "@deprecated(\"old\") 1",
             "@external(javascript, \"./x.mjs\", \"f\") type T { T }",
             "pub 1",
@@ -184,7 +181,6 @@ mod tests {
             "let x = 1 } ",
             "fn f() { 1 } )",
             "import gleam/list }",
-            // Finished and right.
             "let x = 1",
             "1 + 1",
             "fn f() { 1 }",
