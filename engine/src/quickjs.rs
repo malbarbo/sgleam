@@ -257,7 +257,7 @@ mod native {
 
     #[cfg(not(feature = "resvg"))]
     pub fn text_width(text: String, font_css: String) -> f64 {
-        text.len() as f64 * parse_size(&font_css) * 0.6
+        text.chars().count() as f64 * parse_size(&font_css) * 0.6
     }
 
     #[cfg(not(feature = "resvg"))]

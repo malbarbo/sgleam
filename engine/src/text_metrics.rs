@@ -75,7 +75,7 @@ fn html_escape(s: &str) -> String {
 
 fn heuristic(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
     let size = parse_font_css(font_css).size;
-    let width = text.len() as f64 * size * 0.6;
+    let width = text.chars().count() as f64 * size * 0.6;
     (width, size, 0.0, 0.0)
 }
 
