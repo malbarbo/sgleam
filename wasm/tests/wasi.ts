@@ -28,6 +28,28 @@ export function makeWasi(options: WasiOptions) {
   const encoder = new TextEncoder();
   const buf = () => options.getBuffer();
 
+  // Total size of the buffer args_get/environ_get write into: every string
+  // null terminated, one after the other.
+  const tableSize = (strings: string[]) =>
+    strings.reduce((size, s) => size + encoder.encode(s).length + 1, 0);
+
+  // The layout both args_get and environ_get produce: the strings, null
+  // terminated, in `bufPtr`, and a pointer to each one, followed by a null
+  // pointer, in `ptrPtr`.
+  const writeTable = (strings: string[], ptrPtr: number, bufPtr: number) => {
+    const byteView = new Uint8Array(buf());
+    const dataView = new DataView(buf());
+    let offset = bufPtr;
+    strings.forEach((s, i) => {
+      const encoded = encoder.encode(s);
+      dataView.setInt32(ptrPtr + i * 4, offset, true);
+      byteView.set(encoded, offset);
+      offset += encoded.length;
+      byteView[offset++] = 0;
+    });
+    dataView.setInt32(ptrPtr + strings.length * 4, 0, true);
+  };
+
   return {
     clock_time_get: (
       clockId: number,
@@ -70,21 +92,7 @@ export function makeWasi(options: WasiOptions) {
       environBufPtr: number,
     ): number => {
       try {
-        const dataView = new DataView(buf());
-        const envPtrs: number[] = [];
-        let currentBufPtr = environBufPtr;
-        const byteView = new Uint8Array(buf());
-        for (const envVar of env) {
-          envPtrs.push(currentBufPtr);
-          const encoded = encoder.encode(envVar);
-          byteView.set(encoded, currentBufPtr);
-          currentBufPtr += encoded.length;
-          byteView[currentBufPtr++] = 0; // null terminator
-        }
-        for (let i = 0; i < envPtrs.length; i++) {
-          dataView.setInt32(environPtr + i * 4, envPtrs[i], true);
-        }
-        dataView.setInt32(environPtr + envPtrs.length * 4, 0, true); // array terminator
+        writeTable(env, environPtr, environBufPtr);
         return WASI_ESUCCESS;
       } catch {
         console.error("environ_get failed");
@@ -97,12 +105,8 @@ export function makeWasi(options: WasiOptions) {
     ): number => {
       try {
         const dataView = new DataView(buf());
-        let environBufSize = 0;
-        for (const envVar of env) {
-          environBufSize += encoder.encode(envVar).length + 1;
-        }
         dataView.setInt32(environCountPtr, env.length, true);
-        dataView.setInt32(environBufSizePtr, environBufSize, true);
+        dataView.setInt32(environBufSizePtr, tableSize(env), true);
         return WASI_ESUCCESS;
       } catch {
         console.error("environ_sizes_get failed");
@@ -196,13 +200,9 @@ export function makeWasi(options: WasiOptions) {
       argvBufSizePtr: number,
     ): number => {
       try {
-        let argvBufSize = 0;
-        for (const arg of args) {
-          argvBufSize += encoder.encode(arg).length + 1;
-        }
         const dataView = new DataView(buf());
         dataView.setInt32(argcPtr, args.length, true);
-        dataView.setInt32(argvBufSizePtr, argvBufSize, true);
+        dataView.setInt32(argvBufSizePtr, tableSize(args), true);
         return WASI_ESUCCESS;
       } catch {
         console.error("args_sizes_get failed");
@@ -211,26 +211,7 @@ export function makeWasi(options: WasiOptions) {
     },
     args_get: (argvPtr: number, argvBuf: number): number => {
       try {
-        let offset = 0;
-        const argPointers: number[] = [];
-        const byteView = new Uint8Array(buf());
-        for (const arg of args) {
-          const encodedArg = encoder.encode(arg);
-          argPointers.push(argvBuf + offset);
-          byteView.set(encodedArg, argvBuf + offset);
-          offset += encodedArg.length;
-          byteView[argvBuf + offset] = 0; // null terminator
-          offset++;
-        }
-        const dataView = new DataView(buf());
-        for (let i = 0; i < argPointers.length; i++) {
-          dataView.setInt32(
-            argvPtr + i * 4,
-            argPointers[i],
-            true,
-          );
-        }
-        dataView.setInt32(argvPtr + args.length * 4, 0, true);
+        writeTable(args, argvPtr, argvBuf);
         return WASI_ESUCCESS;
       } catch {
         console.error("args_get failed");
