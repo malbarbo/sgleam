@@ -204,6 +204,27 @@ async function runFormat(): Promise<number> {
   return 0;
 }
 
+function newRepl(
+  exports: WasmExports,
+  source: string,
+  number: boolean,
+): number {
+  const config = number ? "" : "bigint=true";
+  const [codePtr, codeLen] = encodeString(exports, source);
+  const [cfgPtr, cfgLen] = encodeString(exports, config);
+  const repl = exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
+  exports.string_deallocate(codePtr, codeLen);
+  exports.string_deallocate(cfgPtr, cfgLen);
+  return repl;
+}
+
+function writeWelcome(exports: WasmExports) {
+  const verPtr = exports.version();
+  const ver = readCstr(exports, verPtr);
+  exports.cstr_deallocate(verPtr);
+  writeOut(1, `Welcome to ${ver}.\nType ctrl-d or ":quit" to exit.\n`);
+}
+
 function runReplStatements(
   ctx: WasmCtx,
   repl: number,
@@ -244,22 +265,9 @@ async function runRepl(opts: {
   const ctx = await loadWasm(args, stdin);
   const { exports } = ctx;
 
-  if (!opts.quiet) {
-    const verPtr = exports.version();
-    const ver = readCstr(exports, verPtr);
-    exports.cstr_deallocate(verPtr);
-    writeOut(
-      1,
-      `Welcome to ${ver}.\nType ctrl-d or ":quit" to exit.\n`,
-    );
-  }
+  if (!opts.quiet) writeWelcome(exports);
 
-  const config = opts.number ? "" : "bigint=true";
-  const [codePtr, codeLen] = encodeString(exports, source);
-  const [cfgPtr, cfgLen] = encodeString(exports, config);
-  const repl = exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  exports.string_deallocate(codePtr, codeLen);
-  exports.string_deallocate(cfgPtr, cfgLen);
+  const repl = newRepl(exports, source, opts.number);
   if (repl === 0) return 1;
 
   const status = runReplStatements(ctx, repl, stdin);
@@ -279,12 +287,7 @@ async function runFile(opts: {
   );
   const { exports } = ctx;
 
-  const config = opts.number ? "" : "bigint=true";
-  const [codePtr, codeLen] = encodeString(exports, source);
-  const [cfgPtr, cfgLen] = encodeString(exports, config);
-  const repl = exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  exports.string_deallocate(codePtr, codeLen);
-  exports.string_deallocate(cfgPtr, cfgLen);
+  const repl = newRepl(exports, source, opts.number);
   if (repl === 0) return 1;
 
   const [ptr, len] = encodeString(exports, "main()");
@@ -347,10 +350,7 @@ function parseArgs(argv: string[]): ParsedArgs {
 
 async function runWelcome(): Promise<number> {
   const { exports } = await loadWasm(["sgleam"], "");
-  const verPtr = exports.version();
-  const ver = readCstr(exports, verPtr);
-  exports.cstr_deallocate(verPtr);
-  writeOut(1, `Welcome to ${ver}.\nType ctrl-d or ":quit" to exit.\n`);
+  writeWelcome(exports);
   return 0;
 }
 
