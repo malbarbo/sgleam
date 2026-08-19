@@ -302,6 +302,16 @@ interface ParsedArgs {
   unknown?: string;
 }
 
+function unknownArg(arg: string): ParsedArgs {
+  return {
+    command: "unknown",
+    quiet: false,
+    number: false,
+    file: null,
+    unknown: arg,
+  };
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) {
     return { command: "welcome", quiet: false, number: false, file: null };
@@ -314,15 +324,7 @@ function parseArgs(argv: string[]): ParsedArgs {
     command = first;
     rest = argv.slice(1);
   } else if (first.startsWith("-")) {
-    command = "unknown";
-    rest = argv;
-    return {
-      command,
-      quiet: false,
-      number: false,
-      file: null,
-      unknown: first,
-    };
+    return unknownArg(first);
   } else {
     // Treat bare file as `run FILE`
     command = "run";
@@ -335,24 +337,9 @@ function parseArgs(argv: string[]): ParsedArgs {
   for (const arg of rest) {
     if (arg === "-q") quiet = true;
     else if (arg === "-n") number = true;
-    else if (arg.startsWith("-")) {
-      return {
-        command: "unknown",
-        quiet: false,
-        number: false,
-        file: null,
-        unknown: arg,
-      };
-    } else if (file === null) file = arg;
-    else {
-      return {
-        command: "unknown",
-        quiet: false,
-        number: false,
-        file: null,
-        unknown: arg,
-      };
-    }
+    else if (arg.startsWith("-")) return unknownArg(arg);
+    else if (file === null) file = arg;
+    else return unknownArg(arg);
   }
 
   return { command, quiet, number, file };
