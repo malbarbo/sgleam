@@ -66,16 +66,7 @@ export function makeWasi(options: WasiOptions) {
           case 1:
           case 2:
           case 3:
-            if (
-              typeof performance !== "undefined" &&
-              typeof performance.now === "function"
-            ) {
-              timestamp = BigInt(
-                Math.round(performance.now() * 1_000_000),
-              );
-            } else {
-              timestamp = BigInt(Date.now()) * 1_000_000n;
-            }
+            timestamp = BigInt(Math.round(performance.now() * 1_000_000));
             break;
           default:
             return WASI_EINVAL;
