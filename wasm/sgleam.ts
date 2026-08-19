@@ -134,7 +134,6 @@ function splitStatements(input: string): Statement[] {
   const statements: Statement[] = [];
   let depth = 0;
   let inString = false;
-  let stringQuote = "";
   let stmtStart = 0;
   let i = 0;
 
@@ -157,7 +156,7 @@ function splitStatements(input: string): Statement[] {
         i += 2;
         continue;
       }
-      if (c === stringQuote) inString = false;
+      if (c === '"') inString = false;
       i++;
       continue;
     }
@@ -167,7 +166,6 @@ function splitStatements(input: string): Statement[] {
     }
     if (c === '"') {
       inString = true;
-      stringQuote = '"';
       i++;
       continue;
     }
@@ -183,7 +181,7 @@ function splitStatements(input: string): Statement[] {
     }
     if (c === "\n") {
       i++;
-      if (!inString && depth <= 0) emit(i);
+      if (depth <= 0) emit(i);
       continue;
     }
     i++;
