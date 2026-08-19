@@ -51,27 +51,8 @@ function writeOut(fd: number, text: string) {
   }
 }
 
-async function readAllStdin(): Promise<string> {
-  const chunks: Uint8Array[] = [];
-  const reader = Deno.stdin.readable.getReader();
-  try {
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      chunks.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  let total = 0;
-  for (const c of chunks) total += c.length;
-  const merged = new Uint8Array(total);
-  let offset = 0;
-  for (const c of chunks) {
-    merged.set(c, offset);
-    offset += c.length;
-  }
-  return decoder.decode(merged);
+function readAllStdin(): Promise<string> {
+  return new Response(Deno.stdin.readable).text();
 }
 
 function wasmPath(): string {
