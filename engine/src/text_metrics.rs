@@ -75,15 +75,8 @@ fn html_escape(s: &str) -> String {
         .replace('"', "&quot;")
 }
 
-fn parse_size(font_css: &str) -> f64 {
-    font_css
-        .split_whitespace()
-        .find_map(|s| s.strip_suffix("px").and_then(|n| n.parse().ok()))
-        .unwrap_or(14.0)
-}
-
 fn heuristic(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
-    let size = parse_size(font_css);
+    let size = parse_font_css(font_css).size;
     let width = text.len() as f64 * size * 0.6;
     (width, size, 0.0, 0.0)
 }
