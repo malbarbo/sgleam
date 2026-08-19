@@ -50,6 +50,11 @@ jobs:
       - name: Build & Test
         run: make test-wasm
 
+      # Compares the output of the native backend with the wasm one, so it
+      # needs both. Only here: the other platforms would run the same wasm.
+      - name: Test the CLI against both backends
+        run: make test-wasm-cli
+
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
     runs-on: ${{ matrix.os }}
