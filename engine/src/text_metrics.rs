@@ -14,13 +14,12 @@ fn parse_font_css(font_css: &str) -> FontProps {
     let mut family = "sans-serif".to_string();
 
     let parts: Vec<&str> = font_css.split_whitespace().collect();
-    let mut i = 0;
-    while i < parts.len() {
-        if parts[i] == "italic" || parts[i] == "oblique" {
-            style = parts[i].to_string();
-        } else if parts[i] == "bold" || parts[i] == "lighter" {
-            weight = parts[i].to_string();
-        } else if let Some(s) = parts[i].strip_suffix("px")
+    for (i, part) in parts.iter().enumerate() {
+        if *part == "italic" || *part == "oblique" {
+            style = part.to_string();
+        } else if *part == "bold" || *part == "lighter" {
+            weight = part.to_string();
+        } else if let Some(s) = part.strip_suffix("px")
             && let Ok(v) = s.parse::<f64>()
         {
             size = v;
@@ -28,7 +27,6 @@ fn parse_font_css(font_css: &str) -> FontProps {
             family = parts[i + 1..].join(" ");
             break;
         }
-        i += 1;
     }
     FontProps {
         family,
