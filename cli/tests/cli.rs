@@ -495,9 +495,13 @@ fn repl_input_stops_at_a_runtime_error() {
 
 /// Told apart by the message quickjs-ng throws. With Bellard's quickjs the
 /// message was another one, and this printed a raw RangeError.
+///
+/// Native only: `update_stack_limit` in quickjs.c leaves the limit at zero
+/// under `__wasi__`, so the wasm build never raises this itself. The recursion
+/// runs until the host stack is gone and the module traps, printing nothing.
 #[test]
 fn repl_stack_overflow_shows_the_frames() {
-    let (out, err) = run_sgleam_cmd(
+    let (out, err) = run_native(
         &["repl", "-q"],
         Some("pub fn f(x: Int) -> Int { 1 + f(x + 1) }\nf(1)"),
     );
