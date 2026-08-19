@@ -21,13 +21,11 @@ fn config_path() -> Option<PathBuf> {
 }
 
 pub fn load() -> Config {
-    let path = match config_path() {
-        Some(p) => p,
-        None => return Config::default(),
+    let Some(path) = config_path() else {
+        return Config::default();
     };
-    let content = match std::fs::read_to_string(&path) {
-        Ok(c) => c,
-        Err(_) => return Config::default(),
+    let Ok(content) = std::fs::read_to_string(&path) else {
+        return Config::default();
     };
     let mut config = Config::default();
     for line in content.lines() {
@@ -41,9 +39,8 @@ pub fn load() -> Config {
 }
 
 pub fn save(theme: &str) {
-    let path = match config_path() {
-        Some(p) => p,
-        None => return,
+    let Some(path) = config_path() else {
+        return;
     };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
