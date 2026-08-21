@@ -3,11 +3,12 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Running tests...
-Failure at check_true_false.gleam (eq_examples:5)
-  Actual  : False
-  Expected: True
-Failure at check_true_false.gleam (eq_examples:6)
-  Actual  : True
-  Expected: False
-4 tests, 2 success(es), 2 failure(s) and 0 error(s).
+  check_true_false.gleam/eq_examples
+    Failure at line 5
+      Actual  : False
+      Expected: True
+    Failure at line 6
+      Actual  : True
+      Expected: False
+4 tests, 2 successes, 2 failures and 0 errors.
 STDERR

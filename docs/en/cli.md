@@ -198,10 +198,12 @@ sgleam test test.gleam
 
 ```
 Running tests...
-Failure at test.gleam (double_examples:11)
-  Actual  : 8
-  Expected: 9
-5 tests, 4 success(es), 1 failure(s) and 0 error(s).
+  test.gleam/double_examples
+    Failure at line 11
+      Actual  : 8
+      Expected: 9
+  test.gleam/sum_examples
+5 tests, 4 successes, 1 failure and 0 errors.
 ```
 
 In this case, the test `check.eq(2 * 4, 9)`{.gleam} failed because `2 * 4`{.gleam} is `8`{.gleam}, not `9`{.gleam}.

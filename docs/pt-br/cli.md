@@ -200,10 +200,12 @@ sgleam test teste.gleam
 
 ```
 Running tests...
-Failure at teste.gleam (dobro_examples:11)
-  Actual  : 8
-  Expected: 9
-5 tests, 4 success(es), 1 failure(s) and 0 error(s).
+  teste.gleam/dobro_examples
+    Failure at line 11
+      Actual  : 8
+      Expected: 9
+  teste.gleam/soma_examples
+5 tests, 4 successes, 1 failure and 0 errors.
 ```
 
 Neste caso, o teste `check.eq(2 * 4, 9)`{.gleam} falhou porque `2 * 4`{.gleam} é `8`{.gleam}, não `9`{.gleam}.

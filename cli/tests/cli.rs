@@ -2139,6 +2139,115 @@ fn examples_compile() {
     }
 }
 
+/// Every backend agreement test until now is a repl session: the file
+/// commands print through the same JS and were never compared. Listing the
+/// file is the whole test — `run_sgleam_cmd` runs both backends and asserts
+/// they agree.
+///
+/// The paths are relative to the crate directory, which is the cwd of both:
+/// neither `run_native` nor `run_wasm` sets one.
+#[test]
+fn test_output_agrees_between_backends() {
+    // Not `check_todo_panic_stackoverflow`: the wasm build never raises the
+    // overflow itself, as `repl_stack_overflow_shows_the_frames` says.
+    for file in [
+        "tests/inputs/check_eq.gleam",
+        "tests/inputs/check_approx.gleam",
+        "tests/inputs/check_true_false.gleam",
+        "tests/inputs/check_progress.gleam",
+    ] {
+        run_sgleam_cmd(&["test", file], None);
+    }
+}
+
+#[test]
+fn check_output_agrees_between_backends() {
+    // Not a file with examples: the wasm wrapper reaches `check` through
+    // `repl_new`, which runs them. Nor `Invalid.gleam`, whose whole diagnostic
+    // is about a file name the wasm library is never given, nor `gleam.gleam`.
+    for file in [
+        "tests/inputs/hello_world.gleam",
+        "tests/inputs/import_unknown.gleam",
+        "tests/inputs/main_todo.gleam",
+    ] {
+        run_sgleam_cmd(&["check", file], None);
+    }
+}
+
+#[test]
+fn check_location_is_relative_to_the_test() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        dir.path().join("helper.gleam"),
+        indoc! {"
+            pub fn boom() -> Int {
+              panic as \"boom\"
+            }
+        "},
+    )
+    .expect("write the helper");
+    std::fs::write(
+        dir.path().join("t.gleam"),
+        indoc! {"
+            import helper
+            import sgleam/check
+
+            pub fn boom_examples() {
+              check.eq(helper.boom(), 1)
+              check.eq(1 + 1, 3)
+            }
+        "},
+    )
+    .expect("write the module");
+
+    let output = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["test", "t.gleam"])
+        .output()
+        .expect("run sgleam");
+    let out = String::from_utf8_lossy(&output.stdout);
+
+    assert!(out.contains("  t.gleam/boom_examples\n"), "got: {out}");
+    assert!(out.contains("Error at helper.gleam (boom:2)"), "got: {out}");
+    assert!(out.contains("Failure at line 6"), "got: {out}");
+}
+
+/// What every other test runner says in its exit code, and all a CI job has
+/// of the run to read.
+#[test]
+fn failing_tests_exit_with_nonzero() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/check_eq.gleam");
+    let output = assert_cmd::cargo::cargo_bin_cmd!()
+        .args(["test", input])
+        .output()
+        .expect("run sgleam");
+    assert!(
+        !output.status.success(),
+        "expected non-zero exit code for a failed check"
+    );
+}
+
+#[test]
+fn passing_tests_exit_with_zero() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        dir.path().join("ok.gleam"),
+        indoc! {"
+            import sgleam/check
+
+            pub fn add_examples() {
+              check.eq(1 + 1, 2)
+            }
+        "},
+    )
+    .expect("write the module");
+    assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path())
+        .args(["test", "ok.gleam"])
+        .assert()
+        .success();
+}
+
 #[test]
 fn runtime_error_exits_with_nonzero() {
     let input = concat!(
@@ -2243,7 +2352,7 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
         // line numbers depending on HashMap iteration order would cause
         // spurious diffs between backends.
         let normalize = |s: &str| {
-            let s = strip_repl_suffix(s);
+            let s = normalize_user_module(&strip_repl_suffix(s), args);
             normalize_durations(&normalize_warning_locations(&s))
         };
         assert_eq!(
@@ -2258,6 +2367,20 @@ fn run_sgleam_cmd(args: &[&str], input: Option<&str>) -> (String, String) {
         );
     }
     native
+}
+
+/// The wasm library is given source and not a path, so everything it compiles
+/// is `user.gleam`. The name of the file is the one thing the two backends
+/// cannot be made to agree on without changing what the library is asked for.
+#[cfg(feature = "wasm-backend")]
+fn normalize_user_module(s: &str, args: &[&str]) -> String {
+    let mut s = s.to_string();
+    for arg in args {
+        if arg.ends_with(".gleam") {
+            s = s.replace(arg, "user.gleam");
+        }
+    }
+    s
 }
 
 #[cfg(feature = "wasm-backend")]

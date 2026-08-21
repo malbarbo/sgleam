@@ -3,17 +3,18 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Running tests...
-Error at check_todo_panic_stackoverflow.gleam (f:5)
-  `todo` expression evaluated. This code has not yet been implemented.
-Error at check_todo_panic_stackoverflow.gleam (f:6)
-  not implemented
-Error at check_todo_panic_stackoverflow.gleam (f:7)
-  `panic` expression evaluated.
-Error at check_todo_panic_stackoverflow.gleam (f:8)
-  invalid input
-Error at check_todo_panic_stackoverflow.gleam (f_examples:19)
-  Maximum call stack size exceeded
-6 tests, 1 success(es), 0 failure(s) and 5 error(s).
+  check_todo_panic_stackoverflow.gleam/f_examples
+    Error at f:5
+      `todo` expression evaluated. This code has not yet been implemented.
+    Error at f:6
+      not implemented
+    Error at f:7
+      `panic` expression evaluated.
+    Error at f:8
+      invalid input
+    Error at line 19
+      Maximum call stack size exceeded
+6 tests, 1 success, 0 failures and 5 errors.
 STDERR
 warning: Todo found
   ┌─ check_todo_panic_stackoverflow.gleam:5:10

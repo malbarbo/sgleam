@@ -540,15 +540,26 @@ pub fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(),
         &mut src,
         r#"import {{ run_tests }} from "./sgleam/sgleam_ffi.mjs";"#
     );
-    let mut imports = vec![];
+    let mut entries = vec![];
     for module in modules {
         let import = module.replace("/", "_");
         swriteln!(&mut src, r#"import * as {import} from "./{module}.mjs";"#);
-        imports.push(import);
+        // The runtime cannot ask for the file name; the module name is it.
+        entries.push(format!(r#"["{module}.gleam", {import}]"#));
     }
-    let modules = imports.join(", ");
-    swriteln!(&mut src, "run_tests([{modules}]);");
-    run_script(context, src)
+    let modules = entries.join(", ");
+    swriteln!(
+        &mut src,
+        "globalThis.tests_passed = run_tests([{modules}]);"
+    );
+    run_script(context, src)?;
+    // Set by the script above, which ran without raising.
+    let passed = context.with(|ctx| ctx.globals().get("tests_passed").unwrap_or(false));
+    if passed {
+        Ok(())
+    } else {
+        Err(SgleamError::TestsFailed)
+    }
 }
 
 pub fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {

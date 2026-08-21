@@ -297,8 +297,24 @@ async function runFile(opts: {
   return status === REPL_ERROR ? 1 : 0;
 }
 
+// `test` and `check` need no export of their own: `repl_new` compiles, prints
+// the diagnostics, and runs the `_examples` of the module it loaded — which is
+// the whole of both commands. It runs them for `check` too, so a file with
+// examples is not one this can be asked to check.
+async function runCompiled(
+  command: "test" | "check",
+  file: string,
+): Promise<number> {
+  const source = await loadSource(file);
+  const ctx = await loadWasm(["sgleam", command, file], "");
+  const repl = newRepl(ctx.exports, source, false);
+  if (repl === 0) return 1;
+  ctx.exports.repl_destroy(repl);
+  return 0;
+}
+
 interface ParsedArgs {
-  command: "repl" | "format" | "run" | "welcome" | "unknown";
+  command: "repl" | "format" | "run" | "test" | "check" | "welcome" | "unknown";
   quiet: boolean;
   number: boolean;
   file: string | null;
@@ -323,7 +339,10 @@ function parseArgs(argv: string[]): ParsedArgs {
   const first = argv[0];
   let command: ParsedArgs["command"];
   let rest: string[];
-  if (first === "repl" || first === "format" || first === "run") {
+  if (
+    first === "repl" || first === "format" || first === "run" ||
+    first === "test" || first === "check"
+  ) {
     command = first;
     rest = argv.slice(1);
   } else if (first.startsWith("-")) {
@@ -376,6 +395,13 @@ async function main(): Promise<number> {
         number: parsed.number,
         file: parsed.file,
       });
+    case "test":
+    case "check":
+      if (!parsed.file) {
+        writeOut(2, `error: \`${parsed.command}\` requires a FILE argument\n`);
+        return 1;
+      }
+      return await runCompiled(parsed.command, parsed.file);
     case "unknown":
       writeOut(2, `error: unknown argument: ${parsed.unknown}\n`);
       return 1;

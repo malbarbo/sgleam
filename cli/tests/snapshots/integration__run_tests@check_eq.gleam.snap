@@ -3,10 +3,12 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Running tests...
-Failure at check_eq.gleam (string_examples:9)
-  Actual  : "wrong string"
-  Expected: "not this"
-4 tests, 3 success(es), 1 failure(s) and 0 error(s).
+  check_eq.gleam/arithmetic_examples
+  check_eq.gleam/string_examples
+    Failure at line 9
+      Actual  : "wrong string"
+      Expected: "not this"
+4 tests, 3 successes, 1 failure and 0 errors.
 STDERR
 warning: Unused private function
   ┌─ check_eq.gleam:3:1
