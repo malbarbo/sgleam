@@ -1203,76 +1203,58 @@ fn repl_const_in_guard_reaches_what_it_names() {
 
 #[test]
 fn repl_const_update_in_guard_reaches_its_constructor() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("u.gleam"),
-        "pub type P {\n  P(a: Int, b: Int)\n}\n\npub const base = P(1, 2)\n",
-    )
-    .expect("write the module");
-
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["repl", "-q", "u.gleam"])
-        .write_stdin(formatdoc! {"
+    let out = out_in_dir(
+        &[(
+            "u.gleam",
+            "pub type P {\n  P(a: Int, b: Int)\n}\n\npub const base = P(1, 2)\n",
+        )],
+        &["repl", "-q", "u.gleam"],
+        Some(&formatdoc! {"
             import u.{{type P, P, base}}
             const c = P(..base, b: 3)
             let y = P(1, 3)
             case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
-        "})
-        .output()
-        .expect("run sgleam")
-        .stdout;
+        "}),
+    );
 
-    assert_eq!(String::from_utf8_lossy(&out), "P(a: 1, b: 3)\n\"eq\"\n");
+    assert_eq!(out, "P(a: 1, b: 3)\n\"eq\"\n");
 }
 
 #[test]
 fn repl_const_of_a_user_module_in_guard() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("v.gleam"),
-        "pub type P {\n  P(Int)\n}\n\npub const c = P(1)\n",
-    )
-    .expect("write the module");
-
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["repl", "-q", "v.gleam"])
-        .write_stdin(formatdoc! {"
+    let out = out_in_dir(
+        &[(
+            "v.gleam",
+            "pub type P {\n  P(Int)\n}\n\npub const c = P(1)\n",
+        )],
+        &["repl", "-q", "v.gleam"],
+        Some(&formatdoc! {"
             let y = c
             case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
-        "})
-        .output()
-        .expect("run sgleam")
-        .stdout;
+        "}),
+    );
 
-    assert_eq!(String::from_utf8_lossy(&out), "P(1)\n\"eq\"\n");
+    assert_eq!(out, "P(1)\n\"eq\"\n");
 }
 
 #[test]
 fn repl_loads_the_modules_the_file_imports() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::create_dir(dir.path().join("util")).expect("create the directory");
-    std::fs::write(
-        dir.path().join("util/mat.gleam"),
-        "pub fn double(x: Int) -> Int {\n  x * 2\n}\n",
-    )
-    .expect("write the module");
-    std::fs::write(
-        dir.path().join("main.gleam"),
-        "import util/mat\n\npub fn main() {\n  mat.double(21)\n}\n",
-    )
-    .expect("write the module");
+    let out = out_in_dir(
+        &[
+            (
+                "util/mat.gleam",
+                "pub fn double(x: Int) -> Int {\n  x * 2\n}\n",
+            ),
+            (
+                "main.gleam",
+                "import util/mat\n\npub fn main() {\n  mat.double(21)\n}\n",
+            ),
+        ],
+        &["repl", "-q", "main.gleam"],
+        Some("main()\nimport util/mat\nmat.double(1)\n"),
+    );
 
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["repl", "-q", "main.gleam"])
-        .write_stdin("main()\nimport util/mat\nmat.double(1)\n")
-        .output()
-        .expect("run sgleam")
-        .stdout;
-
-    assert_eq!(String::from_utf8_lossy(&out), "42\n2\n");
+    assert_eq!(out, "42\n2\n");
 }
 
 #[test]
@@ -1772,24 +1754,16 @@ fn repl_echo_of_an_earlier_input_is_still_located() {
 
 #[test]
 fn user_module_echo_keeps_the_location() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("eu.gleam"),
-        "pub fn main() {\n  echo 42\n  echo 7 as \"nota\"\n}\n",
-    )
-    .expect("write the module");
-
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["eu.gleam"])
-        .output()
-        .expect("run sgleam")
-        .stdout;
-
-    assert_eq!(
-        String::from_utf8_lossy(&out),
-        "eu.gleam:2\n42\neu.gleam:3 nota\n7\n"
+    let out = out_in_dir(
+        &[(
+            "eu.gleam",
+            "pub fn main() {\n  echo 42\n  echo 7 as \"nota\"\n}\n",
+        )],
+        &["eu.gleam"],
+        None,
     );
+
+    assert_eq!(out, "eu.gleam:2\n42\neu.gleam:3 nota\n7\n");
 }
 
 /// `sgleam run x.gleam | head` leaves the program printing to a pipe no one
@@ -1876,25 +1850,13 @@ fn repl_user_module_error_keeps_the_location() {
 #[test]
 fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
     for name in ["repl0.gleam", "repl1.gleam"] {
-        let dir = tempfile::tempdir().expect("a temporary directory");
-        std::fs::write(
-            dir.path().join(name),
-            "pub fn boom() {\n  panic as \"boom\"\n}\n",
-        )
-        .expect("write the module");
-
-        let out = assert_cmd::cargo::cargo_bin_cmd!()
-            .current_dir(dir.path())
-            .args(["repl", "-q", name])
-            .write_stdin("fn g() { 7 }\ng()\nboom()\n")
-            .output()
-            .expect("run sgleam")
-            .stdout;
-
-        assert_eq!(
-            String::from_utf8_lossy(&out),
-            format!("7\nError at {name} (boom:2)\n  boom\n")
+        let out = out_in_dir(
+            &[(name, "pub fn boom() {\n  panic as \"boom\"\n}\n")],
+            &["repl", "-q", name],
+            Some("fn g() { 7 }\ng()\nboom()\n"),
         );
+
+        assert_eq!(out, format!("7\nError at {name} (boom:2)\n  boom\n"));
     }
 }
 
@@ -1927,26 +1889,17 @@ fn repl_let_of_a_type_whose_module_name_the_user_took() {
 
 #[test]
 fn repl_let_of_two_types_whose_modules_share_a_name() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("option.gleam"),
-        "import gleam/option as opt\n\npub type Mine {\n  Mine\n}\n\n\
-         pub fn mine() {\n  Mine\n}\n\npub fn maybe() -> opt.Option(Int) {\n  opt.None\n}\n",
-    )
-    .expect("write the module");
-
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["repl", "-q", "option.gleam"])
-        .write_stdin("let t = #(mine(), maybe())\nt\n")
-        .output()
-        .expect("run sgleam")
-        .stdout;
-
-    assert_eq!(
-        String::from_utf8_lossy(&out),
-        "#(Mine, None)\n#(Mine, None)\n"
+    let out = out_in_dir(
+        &[(
+            "option.gleam",
+            "import gleam/option as opt\n\npub type Mine {\n  Mine\n}\n\n\
+             pub fn mine() {\n  Mine\n}\n\npub fn maybe() -> opt.Option(Int) {\n  opt.None\n}\n",
+        )],
+        &["repl", "-q", "option.gleam"],
+        Some("let t = #(mine(), maybe())\nt\n"),
     );
+
+    assert_eq!(out, "#(Mine, None)\n#(Mine, None)\n");
 }
 
 #[test]
@@ -2176,36 +2129,32 @@ fn check_output_agrees_between_backends() {
 
 #[test]
 fn check_location_is_relative_to_the_test() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("helper.gleam"),
-        indoc! {"
-            pub fn boom() -> Int {
-              panic as \"boom\"
-            }
-        "},
-    )
-    .expect("write the helper");
-    std::fs::write(
-        dir.path().join("t.gleam"),
-        indoc! {"
-            import helper
-            import sgleam/check
+    let out = out_in_dir(
+        &[
+            (
+                "helper.gleam",
+                indoc! {"
+                    pub fn boom() -> Int {
+                      panic as \"boom\"
+                    }
+                "},
+            ),
+            (
+                "t.gleam",
+                indoc! {"
+                    import helper
+                    import sgleam/check
 
-            pub fn boom_examples() {
-              check.eq(helper.boom(), 1)
-              check.eq(1 + 1, 3)
-            }
-        "},
-    )
-    .expect("write the module");
-
-    let output = assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["test", "t.gleam"])
-        .output()
-        .expect("run sgleam");
-    let out = String::from_utf8_lossy(&output.stdout);
+                    pub fn boom_examples() {
+                      check.eq(helper.boom(), 1)
+                      check.eq(1 + 1, 3)
+                    }
+                "},
+            ),
+        ],
+        &["test", "t.gleam"],
+        None,
+    );
 
     assert!(out.contains("  t.gleam/boom_examples\n"), "got: {out}");
     assert!(out.contains("Error at helper.gleam (boom:2)"), "got: {out}");
@@ -2229,23 +2178,23 @@ fn failing_tests_exit_with_nonzero() {
 
 #[test]
 fn passing_tests_exit_with_zero() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("ok.gleam"),
-        indoc! {"
-            import sgleam/check
+    let status = run_in_dir(
+        &[(
+            "ok.gleam",
+            indoc! {"
+                import sgleam/check
 
-            pub fn add_examples() {
-              check.eq(1 + 1, 2)
-            }
-        "},
+                pub fn add_examples() {
+                  check.eq(1 + 1, 2)
+                }
+            "},
+        )],
+        &["test", "ok.gleam"],
+        None,
     )
-    .expect("write the module");
-    assert_cmd::cargo::cargo_bin_cmd!()
-        .current_dir(dir.path())
-        .args(["test", "ok.gleam"])
-        .assert()
-        .success();
+    .status;
+
+    assert!(status.success(), "expected a zero exit code, got: {status}");
 }
 
 #[test]
@@ -2287,6 +2236,31 @@ fn world_run_in_repl_number() {
         .write_stdin("main()\n")
         .assert()
         .success();
+}
+
+/// A project of its own: the files written into a fresh directory, and the
+/// binary run there. A test that needs a module of the user's needs somewhere
+/// to put it, which is most of what writing one takes.
+fn run_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> std::process::Output {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    for (name, source) in files {
+        let path = dir.path().join(name);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).expect("create the directory");
+        }
+        std::fs::write(path, source).expect("write the module");
+    }
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    cmd.current_dir(dir.path()).args(args);
+    if let Some(input) = input {
+        cmd.write_stdin(input.to_string());
+    }
+    cmd.output().expect("run sgleam")
+}
+
+/// What `run_in_dir` printed.
+fn out_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> String {
+    String::from_utf8_lossy(&run_in_dir(files, args, input).stdout).into_owned()
 }
 
 fn run_native(args: &[&str], input: Option<&str>) -> (String, String) {
