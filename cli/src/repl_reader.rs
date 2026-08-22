@@ -387,6 +387,22 @@ fn validate(input: &str) -> ValidationResult {
     }
 }
 
+/// The indentation of the caret's own line, a level deeper after a bracket the
+/// text in front of it leaves open — what the new line starts with when the
+/// engine's answer is not the one for where the caret is.
+fn local_indent(input: &str, pos: usize) -> String {
+    let before = &input[..pos];
+    let line = before.rsplit_once('\n').map_or(before, |(_, line)| line);
+    let current: String = line.chars().take_while(|c| c.is_whitespace()).collect();
+    if line.trim_end().ends_with(['(', '[', '{']) {
+        format!("{current}  ")
+    } else {
+        current
+    }
+}
+
+/// Enter, in the three shapes the prompt in the browser gives it: a line opened
+/// inside an input of several lines, a line accepted, a line grown by one.
 struct AutoIndentHandler;
 
 impl ConditionalEventHandler for AutoIndentHandler {
@@ -398,16 +414,24 @@ impl ConditionalEventHandler for AutoIndentHandler {
         ctx: &EventContext,
     ) -> Option<Cmd> {
         let input = ctx.line();
-        let at_end = ctx.pos() == input.len();
-        let ready = engine::repl::ready_state(input);
-        if ready >= 0 {
-            let indent = " ".repeat(ready as usize);
-            Some(Cmd::Insert(1, format!("\n{indent}")))
-        } else if !at_end {
-            Some(Cmd::Newline)
-        } else {
-            None // default behavior (accept line)
+        let pos = ctx.pos();
+        let at_end = pos == input.len();
+
+        if !at_end && input.contains('\n') {
+            return Some(Cmd::Insert(1, format!("\n{}", local_indent(input, pos))));
         }
+
+        let ready = engine::repl::ready_state(input);
+        if ready < 0 {
+            return None; // default behavior (accept line)
+        }
+
+        let indent = if at_end {
+            " ".repeat(ready as usize)
+        } else {
+            local_indent(input, pos)
+        };
+        Some(Cmd::Insert(1, format!("\n{indent}")))
     }
 }
 
@@ -550,6 +574,18 @@ mod tests {
         // how a function with two statements in it is written.
         assert!(incomplete("case 1 {\n  "));
         assert!(incomplete("pub fn f() {\n  let x = 1\n"));
+    }
+
+    #[test]
+    fn an_indent_read_off_the_caret_s_own_line() {
+        use crate::repl_reader::local_indent;
+        assert_eq!(local_indent("case x {", 8), "  ");
+        assert_eq!(local_indent("  f(", 4), "    ");
+        assert_eq!(local_indent("  f(x)", 6), "  ");
+        assert_eq!(local_indent("a\n  b", 5), "  ");
+        assert_eq!(local_indent("case x {\n  1 -> 2", 17), "  ");
+        assert_eq!(local_indent("f(1)", 0), "");
+        assert_eq!(local_indent("  [\n    1,\n  ]", 13), "  ");
     }
 
     #[test]
