@@ -18,6 +18,12 @@ export interface WasiOptions {
   /** When false, fd_fdstat_get reports stdout/stderr as regular files so
    * `std::io::IsTerminal` returns false. Defaults to true. */
   isTty?: boolean;
+  /** Epoch milliseconds, for a caller that wants the clock to be its own:
+   * a test that advances one by hand fires the `world` loop's ticks without
+   * burning wall-clock time. Defaults to the real clock, and replaces both
+   * the realtime and the monotonic one when given -- a clock stopped for the
+   * engine has to be stopped whichever it asks for. */
+  now?: () => bigint;
 }
 
 export function makeWasi(options: WasiOptions) {
@@ -58,15 +64,20 @@ export function makeWasi(options: WasiOptions) {
     ): number => {
       try {
         const dataView = new DataView(buf());
+        const now = options.now;
         let timestamp: bigint;
         switch (clockId) {
           case 0: // CLOCK_REALTIME
-            timestamp = BigInt(Date.now()) * 1_000_000n;
+            timestamp = now
+              ? now() * 1_000_000n
+              : BigInt(Date.now()) * 1_000_000n;
             break;
           case 1:
           case 2:
           case 3:
-            timestamp = BigInt(Math.round(performance.now() * 1_000_000));
+            timestamp = now
+              ? now() * 1_000_000n
+              : BigInt(Math.round(performance.now() * 1_000_000));
             break;
           default:
             return WASI_EINVAL;

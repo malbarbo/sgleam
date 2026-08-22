@@ -89,6 +89,19 @@ pub fn interrupt() {
     STOP.store(true, Ordering::Relaxed);
 }
 
+/// The clock `world` schedules its ticks against, and what `system.now_ms`
+/// gives a program. It was a host import (`env.now_ms`) until it turned out
+/// not to have to be: `SystemTime` reads the WASI clock on wasm32-wasip1 and
+/// the system clock natively, so one implementation serves both targets and a
+/// host has one less function to provide.
+fn now_ms() -> u64 {
+    use std::time::SystemTime;
+    SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
+}
+
 #[cfg(target_arch = "wasm32")]
 mod wasm {
     mod ffi {
@@ -96,7 +109,6 @@ mod wasm {
         unsafe extern "C" {
             pub fn check_interrupt() -> bool;
             pub fn sleep(ms: u64);
-            pub fn now_ms() -> u64;
             pub fn draw_svg(str: *const u8, len: usize);
             pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
             pub fn text_width(
@@ -139,10 +151,6 @@ mod wasm {
 
     pub fn sleep(ms: u64) {
         unsafe { ffi::sleep(ms) };
-    }
-
-    pub fn now_ms() -> u64 {
-        unsafe { ffi::now_ms() }
     }
 
     pub fn draw_svg(str: String) {
@@ -217,14 +225,6 @@ mod native {
 
     pub fn sleep(ms: u64) {
         std::thread::sleep(std::time::Duration::from_millis(ms));
-    }
-
-    pub fn now_ms() -> u64 {
-        use std::time::SystemTime;
-        SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .map(|d| d.as_millis() as u64)
-            .unwrap_or(0)
     }
 
     #[cfg(feature = "resvg")]
@@ -453,11 +453,9 @@ mod bitmap_tests {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
-use native::{
-    check_interrupt, now_ms, sleep, text_height, text_width, text_x_offset, text_y_offset,
-};
+use native::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
 #[cfg(target_arch = "wasm32")]
-use wasm::{check_interrupt, now_ms, sleep, text_height, text_width, text_x_offset, text_y_offset};
+use wasm::{check_interrupt, sleep, text_height, text_width, text_x_offset, text_y_offset};
 
 #[cfg(target_arch = "wasm32")]
 fn load_bitmap(path: String) -> (f64, f64, String) {

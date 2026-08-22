@@ -67,18 +67,23 @@ interface EnvOptions {
   keyEvents?: EnvKeyEvent[];
 }
 
+// Fake clock, advanced by sleep so the world loop's scheduling fires ticks
+// deterministically without burning real wall-clock time. The engine reads
+// the time through WASI, so this is handed to both sides: `sleep` here moves
+// it, `makeWasi` reads it.
+interface FakeClock {
+  ms: bigint;
+}
+
 function makeEnv(
   getBuffer: () => ArrayBufferLike,
   svgs: string[],
+  clock: FakeClock,
   options: EnvOptions = {},
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
   const interruptAfter = options.interruptAfter ?? Infinity;
   const keyEvents = [...(options.keyEvents ?? [])];
-  // Fake clock: advanced by sleep so the world loop's now_ms-based
-  // scheduling can fire ticks deterministically without burning real
-  // wall-clock time.
-  let fakeClockMs = 0n;
 
   return {
     check_interrupt: (): number => {
@@ -86,9 +91,8 @@ function makeEnv(
       return interruptCount >= interruptAfter ? 1 : 0;
     },
     sleep: (ms: bigint): void => {
-      fakeClockMs += ms;
+      clock.ms += ms;
     },
-    now_ms: (): bigint => fakeClockMs,
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
@@ -158,6 +162,8 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   let exports: WasmExports;
 
+  const clock: FakeClock = { ms: 0n };
+
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
     write: (fd, text) => {
@@ -165,11 +171,13 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
       else stdout.push(text);
     },
     env: ["RUST_BACKTRACE=1"],
+    now: () => clock.ms,
   });
 
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
+    clock,
     {
       interruptAfter: options.interruptAfter,
       keyEvents: options.keyEvents,
