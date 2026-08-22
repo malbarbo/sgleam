@@ -83,14 +83,20 @@ fn ends_there(src: &str, at: u32) -> bool {
         .all(|(start, _, _)| start < at)
 }
 
-/// How deep in blocks the input ends, which is what the next line is indented
-/// by. Counted in tokens, so a brace inside a comment or a string is text.
+/// How deep in brackets the input ends, which is what the next line is
+/// indented by. Counted in tokens, so a bracket inside a comment or a string
+/// is text.
+///
+/// Every kind of bracket is worth a level: a call or a list left open asks for
+/// the next line to be indented as much as a block does. This counts what is
+/// still open and nothing else, so a block hugging the call that opens it --
+/// `list.map(l, fn(x) {` -- is two levels here where the formatter writes one.
 pub fn nesting_depth(src: &str) -> usize {
     let mut depth: i32 = 0;
     for token in lexer::make_tokenizer(src).flatten() {
         match token.1 {
-            Token::LeftBrace => depth += 1,
-            Token::RightBrace => depth -= 1,
+            Token::LeftBrace | Token::LeftParen | Token::LeftSquare => depth += 1,
+            Token::RightBrace | Token::RightParen | Token::RightSquare => depth -= 1,
             _ => {}
         }
     }

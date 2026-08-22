@@ -51,10 +51,12 @@ impl ReplReader {
             KeyEvent(KeyCode::Backspace, Modifiers::NONE),
             EventHandler::Conditional(Box::new(SmartBackspace)),
         );
-        editor.bind_sequence(
-            KeyEvent(KeyCode::Char('}'), Modifiers::NONE),
-            EventHandler::Conditional(Box::new(AutoDedent)),
-        );
+        for close in [']', ')', '}'] {
+            editor.bind_sequence(
+                KeyEvent(KeyCode::Char(close), Modifiers::NONE),
+                EventHandler::Conditional(Box::new(AutoDedent(close))),
+            );
+        }
 
         if let Some(history) = &history_path() {
             let _ = editor.load_history(history);
@@ -460,9 +462,10 @@ impl ConditionalEventHandler for SmartBackspace {
     }
 }
 
-/// When `}` is typed on a continuation line with only whitespace, removes one
-/// indent level (2 spaces) before inserting `}`.
-struct AutoDedent;
+/// When a closing bracket is typed on a continuation line with only
+/// whitespace, removes one indent level (2 spaces) before inserting it. Every
+/// kind of bracket costs a level going in, so every kind gives one back.
+struct AutoDedent(char);
 
 impl ConditionalEventHandler for AutoDedent {
     fn handle(
@@ -477,7 +480,7 @@ impl ConditionalEventHandler for AutoDedent {
         let line_start = line[..pos].rfind('\n').map_or(0, |i| i + 1);
         let current_line = &line[line_start..pos];
         if line_start > 0 && current_line.len() >= 2 && current_line.bytes().all(|b| b == b' ') {
-            Some(Cmd::Replace(Movement::BackwardChar(2), Some("}".into())))
+            Some(Cmd::Replace(Movement::BackwardChar(2), Some(self.0.into())))
         } else {
             None
         }
