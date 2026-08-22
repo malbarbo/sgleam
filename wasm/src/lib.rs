@@ -145,6 +145,20 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, 
     ret
 }
 
+/// Whether the line at the prompt is finished: -1 to run it, otherwise the
+/// indentation the next line starts with. See SimpleCode's ENGINE.md.
+///
+/// The repl is not asked: what a Gleam input is waiting on is in its text, and
+/// the parser reads it without a session.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn repl_ready(
+    _repl: *mut Repl<QuickJsEngine>,
+    ptr: *mut u8,
+    len: usize,
+) -> i32 {
+    engine::repl::ready_state(&new_string(ptr, len))
+}
+
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
     unsafe {

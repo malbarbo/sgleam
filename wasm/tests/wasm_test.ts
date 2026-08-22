@@ -19,6 +19,7 @@ interface WasmExports {
     len: number,
     cursor_pos: number,
   ): number;
+  repl_ready?(repl: number, ptr: number, len: number): number;
   repl_stop(): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
@@ -530,6 +531,39 @@ Deno.test("repl_complete returns null for empty prefix", async () => {
     0,
     "repl_complete should return null for empty input",
   );
+  destroy(ctx);
+});
+
+// --- Ready ---
+
+Deno.test("repl_ready says what the input still needs", async () => {
+  const ctx = await newRepl();
+  const cases: [string, number][] = [
+    // Finished: run it.
+    ["1 + 2", -1],
+    ["pub fn f() {\n  1\n}", -1],
+    // Waiting on a value, with no bracket open.
+    ["let x =", 0],
+    // A level per bracket left open, whatever the bracket is.
+    ["case x {", 2],
+    ["io.println(", 2],
+    ["let x = [1,", 2],
+    ["pub fn f() {\n  case x {", 4],
+    // A bracket the input only mentions opens nothing.
+    ["1 + 1 // {", -1],
+    // The way out of an input that will not close: with nothing open, a
+    // blank line runs it and the error it earns is the engine's to give.
+    ["let x =\n", -1],
+    // With a bracket open it is a blank line inside the input -- how a
+    // function with two statements in it is written.
+    ["pub fn f() {\n  let x = 1\n", 2],
+  ];
+  for (const [input, expected] of cases) {
+    const [ptr, len] = encodeString(ctx.exports, input);
+    const result = ctx.exports.repl_ready!(ctx.repl, ptr, len);
+    ctx.exports.string_deallocate(ptr, len);
+    assertEquals(result, expected, JSON.stringify(input));
+  }
   destroy(ctx);
 });
 
