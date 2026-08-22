@@ -377,12 +377,13 @@ impl Validator for CompleteInputValidator {
 }
 
 /// Whether the line the user just ended is the whole input, which only the
-/// parser can say.
+/// parser can say. The prompt in the browser asks the same function, through
+/// the `repl_ready` export.
 fn validate(input: &str) -> ValidationResult {
-    if engine::repl::is_incomplete(input) {
-        ValidationResult::Incomplete
-    } else {
+    if engine::repl::ready_state(input) < 0 {
         ValidationResult::Valid(None)
+    } else {
+        ValidationResult::Incomplete
     }
 }
 
@@ -398,9 +399,9 @@ impl ConditionalEventHandler for AutoIndentHandler {
     ) -> Option<Cmd> {
         let input = ctx.line();
         let at_end = ctx.pos() == input.len();
-        if matches!(validate(input), ValidationResult::Incomplete) {
-            let depth = engine::parser::nesting_depth(input);
-            let indent = "  ".repeat(depth);
+        let ready = engine::repl::ready_state(input);
+        if ready >= 0 {
+            let indent = " ".repeat(ready as usize);
             Some(Cmd::Insert(1, format!("\n{indent}")))
         } else if !at_end {
             Some(Cmd::Newline)
@@ -538,6 +539,17 @@ mod tests {
         assert!(!incomplete(":quit"));
         assert!(!incomplete(":debug"));
         assert!(!incomplete(":type 1 + 1"));
+    }
+
+    #[test]
+    fn a_blank_line_ends_an_input_with_nothing_open() {
+        // The reader has nothing else to offer: `let x =` has no bracket to
+        // type, and what the compiler says about it is what the user is after.
+        assert!(!incomplete("let x =\n"));
+        // With a bracket open it is a blank line inside the input, which is
+        // how a function with two statements in it is written.
+        assert!(incomplete("case 1 {\n  "));
+        assert!(incomplete("pub fn f() {\n  let x = 1\n"));
     }
 
     #[test]

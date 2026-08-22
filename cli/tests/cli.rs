@@ -1440,6 +1440,20 @@ fn repl_input_the_file_ends_in_the_middle_of() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+/// The way out of one that will not close. Without it the `1 + 1` below is
+/// swallowed by the input above it and never runs.
+#[test]
+fn repl_blank_line_ends_an_input_with_nothing_open() {
+    assert_eq!(repl_exec("let x =\n\n1 + 1"), "2");
+}
+
+/// And with a bracket open it is a blank line inside the input, which is how
+/// a function with two statements in it is written.
+#[test]
+fn repl_blank_line_inside_a_block_is_part_of_the_input() {
+    assert_eq!(repl_exec("pub fn f() {\n  let x = 1\n\n  x\n}\nf()"), "1");
+}
+
 #[test]
 fn repl_error_assert() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"assert 1 == "a""#));

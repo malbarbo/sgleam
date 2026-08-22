@@ -110,6 +110,40 @@ pub fn is_incomplete(input: &str) -> bool {
         .is_some_and(crate::parser::is_incomplete)
 }
 
+/// What the prompt does with the input as it stands: `-1` runs it, and
+/// anything else is how far in the next line starts, in spaces.
+///
+/// This is the whole of the question a reader asks on Enter, and both readers
+/// ask it here -- the one in the terminal and the one the browser calls
+/// through `repl_ready` (see SimpleCode's ENGINE.md).
+///
+/// An input with nothing open ends at a blank line, finished or not. That is
+/// the only way out of one that will not close: an open bracket can be typed
+/// shut, but `let x =` has none to type, and without this the line can only be
+/// erased -- while the error the engine gives for it is the answer the user is
+/// after. With a bracket open the rule would cost more than it gives, taking
+/// the blank line between two statements of a function for the end of it.
+pub fn ready_state(input: &str) -> i32 {
+    if !is_incomplete(input) {
+        return -1;
+    }
+    // Over the Gleam of the input, the way is_incomplete reads it: the command
+    // in front of it is none of the brackets the next line lines up with.
+    let depth = Command::parse(input)
+        .gleam()
+        .map_or(0, crate::parser::nesting_depth);
+    if depth == 0
+        && let Some((_, last)) = input.rsplit_once('\n')
+        && last.trim().is_empty()
+    {
+        return -1;
+    }
+    (depth * INDENT) as i32
+}
+
+/// What one level of indentation is worth, in spaces.
+const INDENT: usize = 2;
+
 /// What a module is compiled for. Only one compiled to run is queued for the
 /// runtime: one that answers `:type` is never called, and one that only
 /// declares the scope, to check an import, is not even referenced. The latter
@@ -1258,6 +1292,49 @@ mod tests {
             );
             assert!(!is_incomplete(input), "{input:?}");
         }
+    }
+
+    #[test]
+    fn a_finished_input_is_run() {
+        for input in ["1 + 1", "", "let x = 1", "pub fn f() {\n  1\n}", ":quit"] {
+            assert_eq!(ready_state(input), -1, "{input:?}");
+        }
+    }
+
+    #[test]
+    fn an_unfinished_input_says_how_far_in_the_next_line_starts() {
+        // Nothing is open: the input is waiting on a value, not on a bracket.
+        assert_eq!(ready_state("let x ="), 0);
+        assert_eq!(ready_state("1 +"), 0);
+        // Every kind of bracket is worth a level.
+        assert_eq!(ready_state("case x {"), 2);
+        assert_eq!(ready_state("io.println("), 2);
+        assert_eq!(ready_state("let x = [1,"), 2);
+        assert_eq!(ready_state("let x = #(1,"), 2);
+        assert_eq!(ready_state("pub fn f() {\n  case x {"), 4);
+        // And one that is closed is worth none.
+        assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
+        // A command is asked about what it carries.
+        assert_eq!(ready_state(":type case x {"), 2);
+    }
+
+    #[test]
+    fn a_blank_last_line_ends_an_input_with_nothing_open() {
+        // The way out of an input that has no bracket left to type.
+        assert_eq!(ready_state("let x =\n"), -1);
+        assert_eq!(ready_state("let x = \"abc\n"), -1);
+        assert_eq!(ready_state(":type 1 +\n"), -1);
+        // A line with something on it is not one of these.
+        assert_eq!(ready_state("1 +\n  2 +"), 0);
+    }
+
+    #[test]
+    fn a_blank_line_inside_brackets_is_part_of_the_input() {
+        // A function is written with blank lines between its statements, and
+        // reading one as the end of the input cuts it in half.
+        assert_eq!(ready_state("pub fn f() {\n  let x = 1\n"), 2);
+        assert_eq!(ready_state("case x {\n  "), 2);
+        assert_eq!(ready_state("let x = [\n  1,\n\n"), 2);
     }
 
     #[test]
