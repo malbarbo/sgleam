@@ -1440,6 +1440,17 @@ fn repl_input_the_file_ends_in_the_middle_of() {
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
+// The reader's own rules, run on both backends: the wasm wrapper reads a line
+// the same way the native one does, or these three come out as different
+// inputs there.
+
+/// An input the reader goes on reading for with nothing open in it: the
+/// brackets are balanced and `1 +` is unfinished all the same.
+#[test]
+fn repl_input_that_ends_with_no_bracket_open() {
+    assert_eq!(repl_exec("1 +\n2"), "3");
+}
+
 /// The way out of one that will not close. Without it the `1 + 1` below is
 /// swallowed by the input above it and never runs.
 #[test]

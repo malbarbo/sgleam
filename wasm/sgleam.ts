@@ -13,6 +13,7 @@ interface WasmExports {
     config_len: number,
   ): number;
   repl_run(repl: number, ptr: number, len: number): number;
+  repl_ready(repl: number, ptr: number, len: number): number;
   repl_destroy(repl: number): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
@@ -125,68 +126,57 @@ interface Statement {
   endOffset: number;
 }
 
-// Splits piped stdin into statements with the same granularity as rustyline's
-// continuation mode: accumulate lines until brackets/braces/parens are balanced
-// (ignoring content inside string literals and line comments). `endOffset` is
-// the position in the original input immediately after this statement's
-// trailing newline, matching where rustyline would have consumed stdin up to.
-function splitStatements(input: string): Statement[] {
-  const statements: Statement[] = [];
-  let depth = 0;
-  let inString = false;
-  let stmtStart = 0;
-  let i = 0;
+// Whether the input at the prompt is finished: -1 to run it, otherwise the
+// indentation the next line starts with. Only the sign is read here.
+function replReady(ctx: WasmCtx, repl: number, text: string): number {
+  const [ptr, len] = encodeString(ctx.exports, text);
+  const result = ctx.exports.repl_ready(repl, ptr, len);
+  ctx.exports.string_deallocate(ptr, len);
+  return result;
+}
 
-  const emit = (end: number) => {
-    const raw = input.slice(stmtStart, end);
-    if (raw.trim().length > 0) {
-      // Match rustyline: it returns one line (or a continuation block) without
-      // the trailing newline; the REPL's line/column tracking uses this form.
-      const text = raw.replace(/\n+$/, "");
-      statements.push({ text, endOffset: end });
-    }
-    stmtStart = end;
-    depth = 0;
+// Splits piped stdin into the inputs the native reader would have made of it.
+// Rustyline reads one line at a time, gives the validator what it has, and
+// goes on reading while the answer is "incomplete" -- and that validator is
+// `ready_state`, which is what `repl_ready` exports. So this asks the engine
+// the same question instead of counting brackets on its own, where it used to
+// disagree with the native reader over an input like `1 +`, balanced and
+// unfinished.
+//
+// `endOffset` is the position in the original input just past this statement's
+// last line, which is where rustyline would have consumed stdin up to.
+function splitStatements(
+  ctx: WasmCtx,
+  repl: number,
+  input: string,
+): Statement[] {
+  const statements: Statement[] = [];
+  // What the reader has taken and not run yet, in the form it asks about: the
+  // lines joined by the newlines between them, with none at the end. The line
+  // rustyline is on has had its newline taken off, so a blank line shows up
+  // here as the empty tail of `"case x {\n"` -- which is what makes it the end
+  // of an input rather than nothing at all.
+  let pending = "";
+  let pos = 0;
+
+  const emit = (text: string, end: number) => {
+    if (text.trim().length > 0) statements.push({ text, endOffset: end });
   };
 
-  while (i < input.length) {
-    const c = input[i];
-    if (inString) {
-      if (c === "\\" && i + 1 < input.length) {
-        i += 2;
-        continue;
-      }
-      if (c === '"') inString = false;
-      i++;
-      continue;
+  while (pos < input.length) {
+    const nl = input.indexOf("\n", pos);
+    const line = nl === -1 ? input.slice(pos) : input.slice(pos, nl);
+    pos = nl === -1 ? input.length : nl + 1;
+    pending = pending === "" ? line : `${pending}\n${line}`;
+    if (replReady(ctx, repl, pending) < 0) {
+      emit(pending, pos);
+      pending = "";
     }
-    if (c === "/" && input[i + 1] === "/") {
-      while (i < input.length && input[i] !== "\n") i++;
-      continue;
-    }
-    if (c === '"') {
-      inString = true;
-      i++;
-      continue;
-    }
-    if (c === "{" || c === "(" || c === "[") {
-      depth++;
-      i++;
-      continue;
-    }
-    if (c === "}" || c === ")" || c === "]") {
-      depth--;
-      i++;
-      continue;
-    }
-    if (c === "\n") {
-      i++;
-      if (depth <= 0) emit(i);
-      continue;
-    }
-    i++;
   }
-  if (stmtStart < input.length) emit(input.length);
+  // The input ran out in the middle of one. It is still an input, and what is
+  // wrong with it is the user's to read: the native reader hands over what it
+  // was waiting on when the file ends.
+  emit(pending, pos);
   return statements;
 }
 
@@ -230,7 +220,7 @@ function runReplStatements(
   repl: number,
   input: string,
 ): number {
-  const statements = splitStatements(input);
+  const statements = splitStatements(ctx, repl, input);
   let lastStatus = REPL_OK;
   for (const stmt of statements) {
     ctx.setStdinCursor(stmt.endOffset);
