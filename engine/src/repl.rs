@@ -184,6 +184,11 @@ impl<E: Engine> Repl<E> {
         Ok(repl)
     }
 
+    /// The runtime the repl runs what it writes in.
+    pub fn engine(&self) -> &E {
+        &self.engine
+    }
+
     /// The completion candidates: every name in scope, and the public members
     /// of the imported modules, qualified.
     pub fn completions(&self) -> Vec<String> {

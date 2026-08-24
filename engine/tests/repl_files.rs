@@ -4,7 +4,7 @@
 //! test's own process, over an engine that runs nothing and keeps what it was
 //! told.
 
-use std::cell::RefCell;
+use std::{cell::RefCell, rc::Rc};
 
 use engine::{
     engine::{Engine, MainFunction, ReplFile},
@@ -14,19 +14,19 @@ use engine::{
 };
 use gleam_core::io::memory::InMemoryFileSystem;
 
-thread_local! {
-    static HANDED_OVER: RefCell<Vec<ReplFile>> = const { RefCell::new(Vec::new()) };
-}
-
-/// The engine has no way of being handed anything at construction, and libtest
-/// gives each test a thread of its own, which is what keeps these apart.
+/// `run_main` takes `&self`, and the repl clones the engine to snapshot itself,
+/// so what it was told is kept behind an `Rc` — which is also what keeps a
+/// rollback from taking it back, as it does not take back a real run either.
 #[derive(Clone)]
-struct Recorder;
+struct Recorder {
+    handed: Rc<RefCell<Vec<ReplFile>>>,
+}
 
 impl Engine for Recorder {
     fn new(_fs: InMemoryFileSystem) -> Result<Recorder, SgleamError> {
-        HANDED_OVER.with_borrow_mut(Vec::clear);
-        Ok(Recorder)
+        Ok(Recorder {
+            handed: Rc::default(),
+        })
     }
 
     fn run_main(
@@ -36,7 +36,7 @@ impl Engine for Recorder {
         _show_output: bool,
     ) -> Result<(), SgleamError> {
         if let MainFunction::ReplMain { files, .. } = main {
-            HANDED_OVER.with_borrow_mut(|handed| handed.extend(files));
+            self.handed.borrow_mut().extend(files);
         }
         Ok(())
     }
@@ -57,8 +57,13 @@ fn run(repl: &mut Repl<Recorder>, input: &str) {
     assert!(repl.run(input).is_ok(), "{input:?} did not run");
 }
 
-fn handed_over_paths() -> Vec<String> {
-    HANDED_OVER.with_borrow(|handed| handed.iter().map(|file| file.path.clone()).collect())
+fn handed_over_paths(repl: &Repl<Recorder>) -> Vec<String> {
+    repl.engine()
+        .handed
+        .borrow()
+        .iter()
+        .map(|file| file.path.clone())
+        .collect()
 }
 
 #[test]
@@ -72,7 +77,7 @@ fn the_runtime_is_told_of_the_modules_it_can_reach() {
 
     // `repl2_1` and `repl3_1` are what checked the two imports.
     assert_eq!(
-        handed_over_paths(),
+        handed_over_paths(&repl),
         [
             "repl1.gleam",
             "repl4.gleam",
