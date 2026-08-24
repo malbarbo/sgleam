@@ -119,30 +119,22 @@ fn main() {
     let run_thread = std::thread::Builder::new()
         .stack_size(engine::STACK_SIZE)
         .name("run".into())
-        .spawn(|| {
-            if let Err(err) = run() {
-                show_error(&err);
-                return false;
-            }
-            true
-        });
+        .spawn(|| run().inspect_err(show_error).is_err());
 
-    let finished = match run_thread {
+    let failed = match run_thread {
         Err(err) => {
-            show_error(&SgleamError::Other(
-                format!("Could not start the run thread: {err}").into(),
-            ));
-            false
+            eprintln!("Could not start the run thread: {err}");
+            true
         }
         Ok(thread) => thread
             .join()
             // an Err is a panic, which the hook already reported; a release
             // build aborts instead of unwinding, so only a debug build has one
-            .unwrap_or(false),
+            .unwrap_or(true),
     };
 
-    if !finished {
-        std::process::exit(1);
+    if failed {
+        std::process::exit(1)
     }
 }
 
