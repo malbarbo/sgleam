@@ -5,7 +5,7 @@
 use engine::{
     gleam::{Project, get_module},
     quickjs::QuickJsEngine,
-    repl::{Repl, ReplOutput},
+    repl::Repl,
 };
 
 fn new_repl() -> Repl<QuickJsEngine> {
@@ -23,10 +23,7 @@ fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
 /// An input of a setup has to work, or what it was setting up is not what the
 /// test goes on to read.
 fn run(repl: &mut Repl<QuickJsEngine>, input: &str) {
-    assert!(
-        matches!(repl.run(input), ReplOutput::StdOut),
-        "{input:?} did not run"
-    );
+    assert!(repl.run(input).is_ok(), "{input:?} did not run");
 }
 
 fn completions_matching(repl: &Repl<QuickJsEngine>, prefix: &str) -> Vec<String> {

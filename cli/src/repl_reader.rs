@@ -1,8 +1,6 @@
 use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
-use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
 
 use rustyline::{
     Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
@@ -17,15 +15,13 @@ use rustyline::{
 const HISTORY_DIR: &str = "sgleam";
 const HISTORY_FILE: &str = "history";
 
-pub type Completions = Rc<RefCell<Vec<String>>>;
-
 pub struct ReplReader {
     // We use Option to implement Iterator which ends after the first None.
     editor: Option<Editor<InputHelper, FileHistory>>,
 }
 
 impl ReplReader {
-    pub fn new(completions: Completions) -> Result<ReplReader> {
+    pub fn new(completions: Vec<String>, theme: Theme) -> Result<ReplReader> {
         let config = rustyline::Config::builder()
             .completion_type(rustyline::CompletionType::List)
             .build();
@@ -37,6 +33,7 @@ impl ReplReader {
             validator: CompleteInputValidator::default(),
             completions,
             color,
+            theme,
         }));
 
         editor.bind_sequence(
@@ -66,10 +63,24 @@ impl ReplReader {
             editor: Some(editor),
         })
     }
+
+    /// The names Tab offers, which grow with every input the repl takes.
+    pub fn set_completions(&mut self, completions: Vec<String>) {
+        if let Some(helper) = self.editor.as_mut().and_then(Editor::helper_mut) {
+            helper.completions = completions;
+        }
+    }
+
+    pub fn set_theme(&mut self, theme: Theme) {
+        if let Some(helper) = self.editor.as_mut().and_then(Editor::helper_mut) {
+            helper.theme = theme;
+        }
+    }
 }
 
 struct ReplPrompt {
-    color: bool,
+    /// The prompt in the colors of the theme, when there are colors.
+    styled: Option<String>,
 }
 
 impl Prompt for ReplPrompt {
@@ -78,14 +89,7 @@ impl Prompt for ReplPrompt {
     }
 
     fn styled(&self) -> &str {
-        if self.color {
-            // Leak a formatted string so we can return &str.
-            // This is called once per prompt display, and theme changes are rare.
-            let s = format!("{}>{RESET} ", theme().prompt);
-            Box::leak(s.into_boxed_str())
-        } else {
-            "> "
-        }
+        self.styled.as_deref().unwrap_or(self.raw())
     }
 
     fn continuation_raw(&self) -> &str {
@@ -98,8 +102,11 @@ impl Iterator for ReplReader {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut editor = self.editor.take()?;
-        let color = editor.helper().is_some_and(|h| h.color);
-        let prompt = ReplPrompt { color };
+        let styled = editor
+            .helper()
+            .filter(|h| h.color)
+            .map(|h| format!("{}>{RESET} ", h.theme.palette().prompt));
+        let prompt = ReplPrompt { styled };
 
         match editor.readline(&prompt) {
             Ok(input) => {
@@ -150,8 +157,9 @@ fn history_path() -> Option<PathBuf> {
 struct InputHelper {
     #[rustyline(Validator)]
     validator: CompleteInputValidator,
-    completions: Completions,
+    completions: Vec<String>,
     color: bool,
+    theme: Theme,
 }
 
 fn is_break_char(c: char) -> bool {
@@ -168,7 +176,6 @@ impl Completer for InputHelper {
         }
         let candidates = self
             .completions
-            .borrow()
             .iter()
             .filter(|name| name.starts_with(prefix))
             .cloned()
@@ -179,7 +186,37 @@ impl Completer for InputHelper {
 
 const RESET: &str = "\x1b[0m";
 
-struct Theme {
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Theme {
+    Dark,
+    Light,
+}
+
+impl Theme {
+    pub fn parse(name: &str) -> Option<Theme> {
+        match name {
+            "dark" => Some(Theme::Dark),
+            "light" => Some(Theme::Light),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Theme::Dark => "dark",
+            Theme::Light => "light",
+        }
+    }
+
+    fn palette(self) -> &'static Palette {
+        match self {
+            Theme::Dark => &ONE_DARK,
+            Theme::Light => &ONE_LIGHT,
+        }
+    }
+}
+
+struct Palette {
     comment: &'static str,
     string: &'static str,
     number: &'static str,
@@ -190,7 +227,7 @@ struct Theme {
 }
 
 // Zed One Dark
-const ONE_DARK: Theme = Theme {
+const ONE_DARK: Palette = Palette {
     comment: "\x1b[38;2;93;99;111m",
     string: "\x1b[38;2;161;193;129m",
     number: "\x1b[38;2;191;149;106m",
@@ -201,7 +238,7 @@ const ONE_DARK: Theme = Theme {
 };
 
 // Zed One Light
-const ONE_LIGHT: Theme = Theme {
+const ONE_LIGHT: Palette = Palette {
     comment: "\x1b[38;2;162;163;167m",
     string: "\x1b[38;2;100;159;87m",
     number: "\x1b[38;2;173;110;37m",
@@ -211,24 +248,6 @@ const ONE_LIGHT: Theme = Theme {
     prompt: "\x1b[38;2;91;121;227m",
 };
 
-static USE_LIGHT_THEME: AtomicBool = AtomicBool::new(false);
-
-pub fn set_theme(light: bool) {
-    USE_LIGHT_THEME.store(light, Ordering::Relaxed);
-}
-
-pub fn is_light_theme() -> bool {
-    USE_LIGHT_THEME.load(Ordering::Relaxed)
-}
-
-fn theme() -> &'static Theme {
-    if is_light_theme() {
-        &ONE_LIGHT
-    } else {
-        &ONE_DARK
-    }
-}
-
 const KEYWORDS: &[&str] = &[
     "as", "assert", "case", "const", "else", "external", "fn", "if", "import", "let", "opaque",
     "panic", "pub", "todo", "type", "use",
@@ -237,7 +256,7 @@ const KEYWORDS: &[&str] = &[
 impl Highlighter for InputHelper {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> std::borrow::Cow<'l, str> {
         if self.color {
-            std::borrow::Cow::Owned(highlight_gleam(line))
+            std::borrow::Cow::Owned(highlight_gleam(line, self.theme.palette()))
         } else {
             std::borrow::Cow::Borrowed(line)
         }
@@ -248,8 +267,7 @@ impl Highlighter for InputHelper {
     }
 }
 
-fn highlight_gleam(input: &str) -> String {
-    let t = theme();
+fn highlight_gleam(input: &str, t: &Palette) -> String {
     let mut out = String::with_capacity(input.len() * 2);
     let chars: Vec<char> = input.chars().collect();
     let len = chars.len();
@@ -380,7 +398,7 @@ impl Validator for CompleteInputValidator {
 /// parser can say. The prompt in the browser asks the same function, through
 /// the `repl_ready` export.
 fn validate(input: &str) -> ValidationResult {
-    if engine::repl::ready_state(input) < 0 {
+    if engine::shell::ready_state(input) < 0 {
         ValidationResult::Valid(None)
     } else {
         ValidationResult::Incomplete
@@ -421,7 +439,7 @@ impl ConditionalEventHandler for AutoIndentHandler {
             return Some(Cmd::Insert(1, format!("\n{}", local_indent(input, pos))));
         }
 
-        let ready = engine::repl::ready_state(input);
+        let ready = engine::shell::ready_state(input);
         if ready < 0 {
             return None; // default behavior (accept line)
         }

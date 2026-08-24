@@ -15,13 +15,16 @@ use engine::{
     format,
     gleam::{Project, find_imports},
     quickjs::QuickJsEngine,
-    repl::{DEBUG, QUIT, Repl, ReplOutput, TIME, TYPE, welcome_message},
+    repl::Repl,
     run::{copy_files_and_build, run_check, run_main, run_test},
+    shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{
     error::{FileIoAction, FileKind},
     javascript::set_bigint_enabled,
 };
+use repl_reader::Theme;
+use std::{cell::Cell, rc::Rc};
 
 fn number_arg() -> impl bpaf::Parser<bool> {
     bpaf::short('n')
@@ -92,7 +95,7 @@ fn cli() -> bpaf::OptionParser<Option<Command>> {
     let cmd = bpaf::construct!([command(), file_as_run]).optional();
     bpaf::construct!(cmd)
         .to_options()
-        .version(engine::version_short().leak() as &str)
+        .version(engine::version_short().as_str())
         .descr("The student version of gleam")
 }
 
@@ -229,19 +232,8 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
 }
 
-/// The commands the reader answers itself; the rest go to the repl.
-const HELP: &str = ":help";
-const THEME: &str = ":theme ";
-
-const COMPLETION_EXTRAS: &[&str] = &[
-    QUIT, TYPE, TIME, DEBUG, HELP, THEME, "let", "fn", "type", "import", "case", "pub", "const",
-    "assert", "use", "if", "else", "True", "False", "Nil", "Ok", "Error", "panic", "todo", "as",
-    "echo", "opaque",
-];
-
 fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
-    let cfg = config::load();
-    repl_reader::set_theme(cfg.theme == "light");
+    let theme = Rc::new(Cell::new(config::load().theme));
 
     if !quiet {
         print!("{}", welcome_message());
@@ -251,62 +243,37 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0);
 
-    let mut repl = Repl::<QuickJsEngine>::new(project, module)?;
-    let completions = repl_reader::Completions::default();
-    update_completions(&repl, &completions);
-    let reader = repl_reader::ReplReader::new(completions.clone())
-        .map_err(|e| SgleamError::Other(e.into()))?;
-    for input in reader {
-        let trimmed = input.trim();
-        if trimmed == HELP {
-            let cmd = |cmd: &str, help: &str| println!("  {cmd:<15}{help}");
-            println!("Commands:");
-            cmd(HELP, "Show this help");
-            cmd(QUIT, "Exit the REPL");
-            cmd(&format!("{TYPE}<expr>"), "Show the type of an expression");
-            cmd(
-                &format!("{TIME}<expr>"),
-                "Run an expression and show how long it took",
-            );
-            cmd(THEME.trim_end(), "Show the current theme");
-            cmd(&format!("{THEME}light"), "Switch to One Light theme");
-            cmd(&format!("{THEME}dark"), "Switch to One Dark theme");
-            cmd(DEBUG, "Toggle debug mode");
-            continue;
-        }
-        if trimmed == THEME.trim_end() {
-            let name = if repl_reader::is_light_theme() {
-                "light"
-            } else {
-                "dark"
-            };
-            println!("{name}");
-            continue;
-        }
-        if let Some(name) = trimmed.strip_prefix(THEME) {
-            let name = name.trim();
-            match name {
-                "light" | "dark" => {
-                    repl_reader::set_theme(name == "light");
-                    config::save(name);
+    let mut shell = Shell::new(Repl::<QuickJsEngine>::new(project, module)?);
+    shell.add(
+        ":theme",
+        Some("[light|dark]"),
+        "Show or switch the theme",
+        {
+            let theme = theme.clone();
+            move |name| {
+                if name.is_empty() {
+                    println!("{}", theme.get().name());
+                    return Ok(());
                 }
-                _ => println!("Unknown theme: {name}. Use 'light' or 'dark'."),
+                let Some(chosen) = Theme::parse(name) else {
+                    return Err(format!("Unknown theme: {name}. Use 'light' or 'dark'."));
+                };
+                theme.set(chosen);
+                config::save(chosen);
+                Ok(())
             }
-            continue;
-        }
-        if matches!(repl.run(&input), ReplOutput::Quit) {
+        },
+    );
+
+    let mut reader = repl_reader::ReplReader::new(shell.completions(), theme.get())
+        .map_err(|e| SgleamError::Other(e.into()))?;
+    while let Some(input) = reader.next() {
+        if shell.run(&input) == Status::Quit {
             break;
         }
-        update_completions(&repl, &completions);
+        reader.set_completions(shell.completions());
+        reader.set_theme(theme.get());
     }
 
     Ok(())
-}
-
-fn update_completions(repl: &Repl<QuickJsEngine>, completions: &repl_reader::Completions) {
-    let mut names = repl.completions();
-    names.extend(COMPLETION_EXTRAS.iter().map(|s| s.to_string()));
-    names.sort();
-    names.dedup();
-    *completions.borrow_mut() = names;
 }

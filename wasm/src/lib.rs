@@ -6,6 +6,7 @@ use engine::{
     gleam::{Project, get_module},
     quickjs::QuickJsEngine,
     repl::Repl,
+    shell::Shell,
 };
 use gleam_core::build::Module;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -73,11 +74,11 @@ fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     Repl::new(Project::default(), None)
 }
 
-/// The repl the host holds on to, or the null that says there is none, with
+/// The shell the host holds on to, or the null that says there is none, with
 /// what stopped it shown where the compiler's errors are shown.
-fn leak_repl(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Repl<QuickJsEngine> {
+fn leak_repl(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Shell<QuickJsEngine> {
     match repl {
-        Ok(repl) => Box::leak(Box::new(repl)),
+        Ok(repl) => Box::leak(Box::new(Shell::new(repl))),
         Err(err) => {
             show_error(&err);
             std::ptr::null_mut()
@@ -91,7 +92,7 @@ pub unsafe extern "C" fn repl_new(
     code_len: usize,
     config_ptr: *mut u8,
     config_len: usize,
-) -> *mut Repl<QuickJsEngine> {
+) -> *mut Shell<QuickJsEngine> {
     init();
 
     let source = new_string(code_ptr, code_len);
@@ -134,7 +135,11 @@ fn has_examples(module: &Module) -> bool {
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, len: usize) -> u32 {
+pub unsafe extern "C" fn repl_run(
+    repl: *mut Shell<QuickJsEngine>,
+    ptr: *mut u8,
+    len: usize,
+) -> u32 {
     assert!(!repl.is_null());
 
     let mut repl = unsafe { Box::from_raw(repl) };
@@ -152,15 +157,15 @@ pub unsafe extern "C" fn repl_run(repl: *mut Repl<QuickJsEngine>, ptr: *mut u8, 
 /// the parser reads it without a session.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_ready(
-    _repl: *mut Repl<QuickJsEngine>,
+    _repl: *mut Shell<QuickJsEngine>,
     ptr: *mut u8,
     len: usize,
 ) -> i32 {
-    engine::repl::ready_state(&new_string(ptr, len))
+    engine::shell::ready_state(&new_string(ptr, len))
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_destroy(repl: *mut Repl<QuickJsEngine>) {
+pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
     unsafe {
         let _ = Box::from_raw(repl);
     };
@@ -174,7 +179,7 @@ fn is_break_char(c: char) -> bool {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_complete(
-    repl: *mut Repl<QuickJsEngine>,
+    repl: *mut Shell<QuickJsEngine>,
     text_ptr: *mut u8,
     text_len: usize,
     cursor_pos: usize,

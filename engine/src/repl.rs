@@ -1,4 +1,4 @@
-use std::{fmt::Write, rc::Rc};
+use std::{fmt::Write, rc::Rc, time::Duration};
 
 use ecow::EcoString;
 use gleam_core::{
@@ -29,120 +29,6 @@ use crate::{
     source::Source,
     swriteln,
 };
-
-pub const QUIT: &str = ":quit";
-pub const TYPE: &str = ":type ";
-pub const TIME: &str = ":time ";
-pub const DEBUG: &str = ":debug";
-
-pub fn welcome_message() -> String {
-    format!(
-        "Welcome to {}.\nType ctrl-d or \"{QUIT}\" to exit.\n",
-        crate::version()
-    )
-}
-
-/// What an input asks for. Anything that is none of the repl's own commands is
-/// Gleam source to run.
-enum Command<'a> {
-    Quit,
-    Debug,
-    /// The type of an expression, which is not evaluated.
-    Type(&'a str),
-    /// An expression, and how long evaluating it takes.
-    Time(&'a str),
-    /// An input that starts like a command but is none: `:typ x`, a bare
-    /// `:type`. No Gleam starts with `:`, so the parser's complaint about one
-    /// would only mislead.
-    Unknown(&'a str),
-    Gleam(&'a str),
-}
-
-impl<'a> Command<'a> {
-    fn parse(input: &'a str) -> Command<'a> {
-        let trimmed = input.trim();
-        if trimmed == QUIT {
-            Command::Quit
-        } else if trimmed == DEBUG {
-            Command::Debug
-        } else if let Some(expr) = trimmed.strip_prefix(TYPE) {
-            Command::Type(expr)
-        } else if let Some(expr) = trimmed.strip_prefix(TIME) {
-            Command::Time(expr)
-        } else if trimmed.starts_with(':') {
-            Command::Unknown(trimmed)
-        } else {
-            // Not trimmed: the spans of the parsed input index this string.
-            Command::Gleam(input)
-        }
-    }
-
-    /// The Gleam of the input, which is what says whether it is finished. A
-    /// command of the repl's own always is.
-    fn gleam(&self) -> Option<&'a str> {
-        match self {
-            Command::Quit | Command::Debug | Command::Unknown(_) => None,
-            Command::Type(src) | Command::Time(src) | Command::Gleam(src) => Some(src),
-        }
-    }
-}
-
-/// What is wrong with an input that starts like a command but is none.
-fn unknown_command(input: &str) -> String {
-    let cmd = input.split_whitespace().next().unwrap_or(input);
-    if cmd == QUIT || cmd == DEBUG {
-        format!("The {cmd} command takes nothing after it.")
-    } else if cmd == TYPE.trim_end() || cmd == TIME.trim_end() {
-        format!("The {cmd} command takes an expression: `{cmd} 1 + 1`.")
-    } else {
-        format!(
-            "Unknown command {cmd}.\nThe commands are {QUIT}, {DEBUG}, \
-             {TYPE}<expr> and {TIME}<expr>."
-        )
-    }
-}
-
-/// Whether the reader has to go on reading before this input can run. The
-/// command is stripped first, or `:type case x {` would be read as Gleam.
-pub fn is_incomplete(input: &str) -> bool {
-    Command::parse(input)
-        .gleam()
-        .is_some_and(crate::parser::is_incomplete)
-}
-
-/// What the prompt does with the input as it stands: `-1` runs it, and
-/// anything else is how far in the next line starts, in spaces.
-///
-/// This is the whole of the question a reader asks on Enter, and both readers
-/// ask it here -- the one in the terminal and the one the browser calls
-/// through `repl_ready` (see SimpleCode's ENGINE.md).
-///
-/// An input with nothing open ends at a blank line, finished or not. That is
-/// the only way out of one that will not close: an open bracket can be typed
-/// shut, but `let x =` has none to type, and without this the line can only be
-/// erased -- while the error the engine gives for it is the answer the user is
-/// after. With a bracket open the rule would cost more than it gives, taking
-/// the blank line between two statements of a function for the end of it.
-pub fn ready_state(input: &str) -> i32 {
-    if !is_incomplete(input) {
-        return -1;
-    }
-    // Over the Gleam of the input, the way is_incomplete reads it: the command
-    // in front of it is none of the brackets the next line lines up with.
-    let depth = Command::parse(input)
-        .gleam()
-        .map_or(0, crate::parser::nesting_depth);
-    if depth == 0
-        && let Some((_, last)) = input.rsplit_once('\n')
-        && last.trim().is_empty()
-    {
-        return -1;
-    }
-    (depth * INDENT) as i32
-}
-
-/// What one level of indentation is worth, in spaces.
-const INDENT: usize = 2;
 
 /// What a module is compiled for. Only one compiled to run is queued for the
 /// runtime: one that answers `:type` is never called, and one that only
@@ -181,8 +67,9 @@ impl From<Error> for InputError {
     }
 }
 
-/// The input stopped, and whatever stopped it is already on the screen.
-struct Bail;
+/// The input did not run, and why is already on the screen.
+#[derive(Debug)]
+pub struct Failed;
 
 /// A definition of the input being run that goes to a module of its own,
 /// instead of being re-emitted into every module generated later.
@@ -241,7 +128,7 @@ pub struct Repl<E: Engine> {
     debug: bool,
     had_runtime_error: bool,
     /// What `:time` reports.
-    elapsed: std::time::Duration,
+    elapsed: Duration,
     /// The modules written for the item being run, by the path they were
     /// written to, each keeping which of its bytes are a copy of the input.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
@@ -254,13 +141,6 @@ pub struct Repl<E: Engine> {
     repl_memo: String,
     repl_vals: String,
     repl_value: String,
-}
-
-#[repr(u32)]
-pub enum ReplOutput {
-    StdOut = 0,
-    Error = 1,
-    Quit = 2,
 }
 
 impl<E: Engine> Repl<E> {
@@ -284,7 +164,7 @@ impl<E: Engine> Repl<E> {
             item_number: 0,
             debug: false,
             had_runtime_error: false,
-            elapsed: std::time::Duration::ZERO,
+            elapsed: Duration::ZERO,
             generated: Vec::new(),
             pending_files: Vec::new(),
             repl_main: format!("repl_main_{suffix}"),
@@ -305,8 +185,7 @@ impl<E: Engine> Repl<E> {
     }
 
     /// The completion candidates: every name in scope, and the public members
-    /// of the imported modules, qualified. Keywords and commands are the CLI's
-    /// to add.
+    /// of the imported modules, qualified.
     pub fn completions(&self) -> Vec<String> {
         let mut result: Vec<String> = self.scope.names().map(String::from).collect();
         for (alias, path) in &self.scope.modules {
@@ -326,54 +205,75 @@ impl<E: Engine> Repl<E> {
         result
     }
 
-    pub fn run(&mut self, input: &str) -> ReplOutput {
-        self.had_runtime_error = false;
-
-        match Command::parse(input) {
-            Command::Quit => ReplOutput::Quit,
-            Command::Debug => {
-                self.debug = !self.debug;
-                println!("Debug mode {}.", if self.debug { "on" } else { "off" });
-                ReplOutput::StdOut
-            }
-            Command::Type(expr) => self.run_input(|repl| repl.guarded(|r| r.run_type_cmd(expr))),
-            Command::Time(expr) => self.run_input(|repl| repl.guarded(|r| r.run_time_cmd(expr))),
-            Command::Unknown(input) => {
-                println!("{}", unknown_command(input));
-                ReplOutput::Error
-            }
-            Command::Gleam(src) => self.run_input(|repl| repl.run_source(src)),
-        }
+    pub fn run(&mut self, src: &str) -> Result<(), Failed> {
+        self.input(|repl| repl.run_source(src))
     }
 
-    fn run_input(&mut self, run: impl FnOnce(&mut Self) -> Result<(), Bail>) -> ReplOutput {
+    /// One statement, and how long the engine took on it.
+    pub fn run_timed(&mut self, src: &str) -> Result<Duration, Failed> {
+        self.input(|repl| {
+            repl.guarded(|repl| {
+                repl.item_number += 1;
+                let statement = Self::one_statement(src)?;
+                repl.run_statement(&src.into(), statement)?;
+                Ok(repl.elapsed)
+            })
+        })
+    }
+
+    /// The type of one expression, which is not run.
+    pub fn type_of(&mut self, expr: &str) -> Result<String, Failed> {
+        self.input(|repl| {
+            repl.guarded(|repl| {
+                // A command is an item of the input, not its definitions: item
+                // 0 names the module a `let` of an input with none is read
+                // back from.
+                repl.item_number += 1;
+                Self::one_statement(expr)?;
+                let span = SrcSpan::new(0, expr.len() as u32);
+                let module = repl.compile_expr(&expr.into(), span, Purpose::Type)?;
+                let main = get_function(&module, &repl.repl_main).expect("repl main function");
+                Ok(type_to_string(&repl.type_names(&module), &main.return_type))
+            })
+        })
+    }
+
+    pub fn toggle_debug(&mut self) -> bool {
+        self.debug = !self.debug;
+        self.debug
+    }
+
+    fn input<T>(&mut self, run: impl FnOnce(&mut Self) -> Result<T, Failed>) -> Result<T, Failed> {
+        self.had_runtime_error = false;
         // A failed input still spends its number: a module name is never
         // reused, as the engine holds the module it loaded under it.
         self.input_number += 1;
         self.item_number = 0;
         self.skip_taken_names();
 
-        if run(self).is_err() || self.had_runtime_error {
-            ReplOutput::Error
+        let result = run(self)?;
+        if self.had_runtime_error {
+            Err(Failed)
         } else {
-            ReplOutput::StdOut
+            Ok(result)
         }
     }
 
     /// Runs one unit of the input — its definitions, or one of its items —
     /// undoing it if it does not go in. Only a unit that never ran leaves
     /// nothing behind.
-    fn guarded(
+    fn guarded<T>(
         &mut self,
-        run: impl FnOnce(&mut Self) -> Result<(), InputError>,
-    ) -> Result<(), Bail> {
+        run: impl FnOnce(&mut Self) -> Result<T, InputError>,
+    ) -> Result<T, Failed> {
         // The snapshot is cheap — engine and project use reference counting
         // internally (Rc), so only the maps are copied. The sharing also means
         // they are not rolled back: a module the engine loaded stays loaded,
         // which is fine because nothing of the session names it anymore.
         let snapshot = (*self).clone();
-        let Err(error) = run(self) else {
-            return Ok(());
+        let error = match run(self) {
+            Ok(result) => return Ok(result),
+            Err(error) => error,
         };
         // Shown before the state goes back, as placing a diagnostic on the
         // input reads what the input was compiled from.
@@ -382,13 +282,13 @@ impl<E: Engine> Repl<E> {
             InputError::Repl(message) => println!("{message}"),
         }
         *self = snapshot;
-        Err(Bail)
+        Err(Failed)
     }
 
     /// The definitions and the statements of an input, in the order it writes
     /// them. It stops at the first failure: what is below was written expecting
     /// what is above to have worked.
-    fn run_source(&mut self, src: &str) -> Result<(), Bail> {
+    fn run_source(&mut self, src: &str) -> Result<(), Failed> {
         let input: Rc<str> = src.into();
         let mut items = Vec::new();
         self.guarded(|repl| {
@@ -426,7 +326,7 @@ impl<E: Engine> Repl<E> {
             self.guarded(|repl| repl.run_statement(&input, statement))?;
             // What an item that raised did stays: its output is on the screen.
             if self.had_runtime_error {
-                return Err(Bail);
+                return Err(Failed);
             }
         }
 
@@ -900,45 +800,17 @@ impl<E: Engine> Repl<E> {
         self.compile_main(&body, purpose)
     }
 
-    /// The one statement `:type` and `:time` take.
-    fn command_statement(cmd: &str, input: &str) -> Result<UntypedStatement, InputError> {
-        let refuse =
-            |reason: &str| InputError::Repl(format!("{} command {reason}", cmd.trim_end()));
-        let mut items = parse(input)?;
+    fn one_statement(src: &str) -> Result<UntypedStatement, InputError> {
+        let mut items = parse(src)?;
         if items.len() != 1 {
-            return Err(refuse("expects exactly one expression."));
+            return Err(InputError::Repl("Expected exactly one expression.".into()));
         }
         match items.swap_remove(0) {
             ReplItem::ReplStatement(statement) => Ok(statement),
-            ReplItem::ReplDefinition(..) => Err(refuse("cannot be used with definitions.")),
+            ReplItem::ReplDefinition(..) => Err(InputError::Repl(
+                "Expected an expression, not a definition.".into(),
+            )),
         }
-    }
-
-    fn run_type_cmd(&mut self, expr: &str) -> Result<(), InputError> {
-        // A command is an item of the input, not its definitions: item 0 names
-        // the module a `let` of an input with none is read back from.
-        self.item_number += 1;
-        Self::command_statement(TYPE, expr)?;
-        let input: Rc<str> = expr.into();
-        let module =
-            self.compile_expr(&input, SrcSpan::new(0, expr.len() as u32), Purpose::Type)?;
-        let main = get_function(&module, &self.repl_main).expect("repl main function");
-        println!(
-            "{}",
-            type_to_string(&self.type_names(&module), &main.return_type)
-        );
-        Ok(())
-    }
-
-    /// Takes a statement, not an expression, so a `let` under it binds.
-    fn run_time_cmd(&mut self, expr: &str) -> Result<(), InputError> {
-        self.item_number += 1;
-        let statement = Self::command_statement(TIME, expr)?;
-        self.run_statement(&expr.into(), statement)?;
-        if !self.had_runtime_error {
-            println!("Time: {}", format_duration(self.elapsed));
-        }
-        Ok(())
     }
 
     fn run_import(
@@ -1043,18 +915,6 @@ fn parse(input: &str) -> Result<Vec<ReplItem>, Error> {
         src: input.into(),
         error: error.into(),
     })
-}
-
-fn format_duration(elapsed: std::time::Duration) -> String {
-    if elapsed.as_secs() > 0 {
-        format!("{:.2} s", elapsed.as_secs_f64())
-    } else if elapsed.as_millis() > 0 {
-        format!("{} ms", elapsed.as_millis())
-    } else if elapsed.as_micros() > 0 {
-        format!("{} µs", elapsed.as_micros())
-    } else {
-        format!("{} ns", elapsed.as_nanos())
-    }
 }
 
 /// The imports of the input, in the order it writes them, with what each
@@ -1264,98 +1124,5 @@ fn bit_array_size_find_names(bit_array_size: &BitArraySize<()>, names: &mut Vec<
             bit_array_size_find_names(left, names);
             bit_array_size_find_names(right, names);
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn a_command_is_told_apart_from_gleam() {
-        assert!(matches!(Command::parse(" :quit "), Command::Quit));
-        assert!(matches!(Command::parse(":debug"), Command::Debug));
-        assert!(matches!(Command::parse(":type 1"), Command::Type("1")));
-        assert!(matches!(Command::parse(":time f()"), Command::Time("f()")));
-        assert!(matches!(
-            Command::parse(" 1 + 1 "),
-            Command::Gleam(" 1 + 1 ")
-        ));
-    }
-
-    #[test]
-    fn a_near_miss_of_a_command_is_no_gleam() {
-        for input in [":typ x", ":type", ":quit now", ":debug off"] {
-            assert!(
-                matches!(Command::parse(input), Command::Unknown(_)),
-                "{input:?}"
-            );
-            assert!(!is_incomplete(input), "{input:?}");
-        }
-    }
-
-    #[test]
-    fn a_finished_input_is_run() {
-        for input in ["1 + 1", "", "let x = 1", "pub fn f() {\n  1\n}", ":quit"] {
-            assert_eq!(ready_state(input), -1, "{input:?}");
-        }
-    }
-
-    #[test]
-    fn an_unfinished_input_says_how_far_in_the_next_line_starts() {
-        // Nothing is open: the input is waiting on a value, not on a bracket.
-        assert_eq!(ready_state("let x ="), 0);
-        assert_eq!(ready_state("1 +"), 0);
-        // Every kind of bracket is worth a level.
-        assert_eq!(ready_state("case x {"), 2);
-        assert_eq!(ready_state("io.println("), 2);
-        assert_eq!(ready_state("let x = [1,"), 2);
-        assert_eq!(ready_state("let x = #(1,"), 2);
-        assert_eq!(ready_state("pub fn f() {\n  case x {"), 4);
-        // And one that is closed is worth none.
-        assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
-        // A command is asked about what it carries.
-        assert_eq!(ready_state(":type case x {"), 2);
-    }
-
-    #[test]
-    fn a_blank_last_line_ends_an_input_with_nothing_open() {
-        // The way out of an input that has no bracket left to type.
-        assert_eq!(ready_state("let x =\n"), -1);
-        assert_eq!(ready_state("let x = \"abc\n"), -1);
-        assert_eq!(ready_state(":type 1 +\n"), -1);
-        // A line with something on it is not one of these.
-        assert_eq!(ready_state("1 +\n  2 +"), 0);
-    }
-
-    #[test]
-    fn a_blank_line_inside_brackets_is_part_of_the_input() {
-        // A function is written with blank lines between its statements, and
-        // reading one as the end of the input cuts it in half.
-        assert_eq!(ready_state("pub fn f() {\n  let x = 1\n"), 2);
-        assert_eq!(ready_state("case x {\n  "), 2);
-        assert_eq!(ready_state("let x = [\n  1,\n\n"), 2);
-    }
-
-    #[test]
-    fn a_bad_command_is_answered_in_words() {
-        assert_eq!(
-            unknown_command(":quit now"),
-            "The :quit command takes nothing after it."
-        );
-        assert_eq!(
-            unknown_command(":type"),
-            "The :type command takes an expression: `:type 1 + 1`."
-        );
-        assert!(unknown_command(":typ x").starts_with("Unknown command :typ."));
-    }
-
-    #[test]
-    fn a_duration_is_said_in_its_own_unit() {
-        use std::time::Duration;
-        assert_eq!(format_duration(Duration::from_secs(2)), "2.00 s");
-        assert_eq!(format_duration(Duration::from_millis(5)), "5 ms");
-        assert_eq!(format_duration(Duration::from_micros(7)), "7 \u{b5}s");
-        assert_eq!(format_duration(Duration::from_nanos(9)), "9 ns");
     }
 }

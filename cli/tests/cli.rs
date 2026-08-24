@@ -1,4 +1,4 @@
-use engine::repl::{QUIT, TIME, TYPE, welcome_message};
+use engine::shell::welcome_message;
 use indoc::{formatdoc, indoc};
 use insta::assert_snapshot;
 
@@ -310,7 +310,7 @@ fn repl_import_discard_alias() {
             import gleam/io
             import sgleam/io.{{input}} as _
             io.println("kept")
-            {TYPE}input
+            :type input
             io.input("")"#
         }),
     );
@@ -635,7 +635,7 @@ fn repl_type_redefine() {
             let x = A(42)
             type Val {{ B(String) }}
             x
-            {TYPE}x"
+            :type x"
         }),
         "A(42)\nA(42)\nrepl1.Val"
     );
@@ -677,7 +677,7 @@ fn repl_type_redefine_keeps_the_old() {
             type A(x) {{ MkA(x) }}
             type A {{ MkA2 }}
             let v = MkA(1)
-            {TYPE}v"
+            :type v"
         }),
         "MkA(1)\nrepl1.A(Int)"
     );
@@ -803,7 +803,7 @@ fn doc_a_value_outlives_the_type_it_holds() {
             type T {{ A B }}
             let x = A
             type T {{ C }}
-            {TYPE}x"
+            :type x"
         }),
         "A\nrepl1.T"
     );
@@ -1350,7 +1350,7 @@ fn repl_use() {
 
 #[test]
 fn repl_quit() {
-    assert_eq!(repl_exec(&format!("{QUIT}\n10")), "");
+    assert_eq!(repl_exec(":quit\n10"), "");
 }
 
 #[test]
@@ -1426,6 +1426,14 @@ fn repl_error_multiline_fn() {
 fn repl_error_syntax() {
     let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = )"));
     assert_snapshot!(strip_repl_suffix(&err));
+}
+
+/// The repl reads the input as typed: a diagnostic points where the user
+/// wrote, spaces in front included.
+#[test]
+fn repl_error_points_into_the_input_as_typed() {
+    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("   let x = )"));
+    assert!(err.contains("<repl>:1:10"), "{err}");
 }
 
 #[test]
@@ -1612,26 +1620,24 @@ fn repl_debug() {
 
 #[test]
 fn repl_type_cmd() {
-    assert_eq!(repl_exec(&format!("{TYPE} 10")), "Int");
-    assert_eq!(repl_exec(&format!("{TYPE} let a = True")), "Bool");
-    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TYPE} let x = 10\nx")));
+    assert_eq!(repl_exec(":type 10"), "Int");
+    assert_eq!(repl_exec(":type let a = True"), "Bool");
+    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(":type let x = 10\nx"));
     assert_eq!(out.trim(), "Int");
     assert!(
         err.contains("is not in scope"),
         "expected error for undefined x, got: {err}"
     );
     assert_eq!(
-        repl_exec(&format!("import gleam/int\n{TYPE} int.add")),
+        repl_exec("import gleam/int\n:type int.add"),
         "fn(Int, Int) -> Int"
     );
     assert_eq!(
-        repl_exec(&format!("import gleam/list\n{TYPE} list.filter_map")),
+        repl_exec("import gleam/list\n:type list.filter_map"),
         "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
     assert_eq!(
-        repl_exec(&format!(
-            "import gleam/io\n{TYPE} {{ io.println(\"\") Ok(1) }}"
-        )),
+        repl_exec("import gleam/io\n:type { io.println(\"\") Ok(1) }"),
         "Result(Int, b)", // without the io.println side effect
     );
 }
@@ -1639,22 +1645,22 @@ fn repl_type_cmd() {
 #[test]
 fn repl_type_cmd_multi() {
     assert_eq!(
-        repl_exec(&format!("{TYPE} 1 False")),
-        format!("{TYPE}command expects exactly one expression.")
+        repl_exec(":type 1 False"),
+        "Expected exactly one expression."
     );
 }
 
 #[test]
 fn repl_type_cmd_def() {
     assert_eq!(
-        repl_exec(&format!("{TYPE} const a = 1")),
-        format!("{TYPE}command cannot be used with definitions.")
+        repl_exec(":type const a = 1"),
+        "Expected an expression, not a definition."
     );
 }
 
 #[test]
 fn repl_time_cmd() {
-    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} let x = 10\nx")));
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time let x = 10\nx"));
     let lines: Vec<_> = out.lines().collect();
     assert_eq!(lines[0], "10");
     assert!(lines[1].starts_with("Time: "), "got: {out}");
@@ -1663,24 +1669,22 @@ fn repl_time_cmd() {
 
 #[test]
 fn repl_time_cmd_error() {
-    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(&format!("{TIME} panic as \"boom\"")));
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time panic as \"boom\""));
     assert_eq!(out, "Error at <repl>:1\n  boom\n");
 }
 
 #[test]
 fn repl_time_cmd_def() {
     assert_eq!(
-        repl_exec(&format!("{TIME} const a = 1")),
-        format!("{TIME}command cannot be used with definitions.")
+        repl_exec(":time const a = 1"),
+        "Expected an expression, not a definition."
     );
 }
 
 #[test]
 fn repl_type_module() {
     assert_eq!(
-        repl_exec(&format!(
-            "import gleam/list\ntype List {{}}\n{TYPE} list.map"
-        )),
+        repl_exec("import gleam/list\ntype List {}\n:type list.map"),
         "fn(gleam.List(b), fn(b) -> c) -> gleam.List(c)"
     );
 }

@@ -1,15 +1,9 @@
 use std::path::PathBuf;
 
-pub struct Config {
-    pub theme: String,
-}
+use crate::repl_reader::Theme;
 
-impl Default for Config {
-    fn default() -> Self {
-        Config {
-            theme: "dark".into(),
-        }
-    }
+pub struct Config {
+    pub theme: Theme,
 }
 
 fn config_path() -> Option<PathBuf> {
@@ -21,29 +15,30 @@ fn config_path() -> Option<PathBuf> {
 }
 
 pub fn load() -> Config {
+    let mut config = Config { theme: Theme::Dark };
     let Some(path) = config_path() else {
-        return Config::default();
+        return config;
     };
     let Ok(content) = std::fs::read_to_string(&path) else {
-        return Config::default();
+        return config;
     };
-    let mut config = Config::default();
     for line in content.lines() {
         if let Some((key, value)) = line.split_once('=')
             && key.trim() == "theme"
+            && let Some(theme) = Theme::parse(value.trim())
         {
-            config.theme = value.trim().to_string();
+            config.theme = theme;
         }
     }
     config
 }
 
-pub fn save(theme: &str) {
+pub fn save(theme: Theme) {
     let Some(path) = config_path() else {
         return;
     };
     if let Some(parent) = path.parent() {
         let _ = std::fs::create_dir_all(parent);
     }
-    let _ = std::fs::write(&path, format!("theme={theme}\n"));
+    let _ = std::fs::write(&path, format!("theme={}\n", theme.name()));
 }

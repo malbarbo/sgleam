@@ -10,7 +10,7 @@ use engine::{
     engine::{Engine, MainFunction, ReplFile},
     error::SgleamError,
     gleam::Project,
-    repl::{Repl, ReplOutput},
+    repl::Repl,
 };
 use gleam_core::io::memory::InMemoryFileSystem;
 
@@ -54,10 +54,7 @@ impl Engine for Recorder {
 }
 
 fn run(repl: &mut Repl<Recorder>, input: &str) {
-    assert!(
-        matches!(repl.run(input), ReplOutput::StdOut),
-        "{input:?} did not run"
-    );
+    assert!(repl.run(input).is_ok(), "{input:?} did not run");
 }
 
 fn handed_over_paths() -> Vec<String> {

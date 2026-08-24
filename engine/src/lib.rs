@@ -18,6 +18,7 @@ pub mod quickjs;
 pub mod repl;
 pub mod run;
 pub mod scope;
+pub mod shell;
 pub mod source;
 #[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]
 pub mod text_metrics;
