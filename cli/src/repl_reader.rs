@@ -16,7 +16,8 @@ const HISTORY_DIR: &str = "sgleam";
 const HISTORY_FILE: &str = "history";
 
 pub struct ReplReader {
-    // We use Option to implement Iterator which ends after the first None.
+    // `next` takes the editor to read and gives it back, except on the read
+    // that ends the session, which is how the iteration stops.
     editor: Option<Editor<InputHelper, FileHistory>>,
 }
 
@@ -79,7 +80,7 @@ impl ReplReader {
 }
 
 struct ReplPrompt {
-    /// The prompt in the colors of the theme, when there are colors.
+    /// The prompt in the theme's colors, or none when the output takes no color.
     styled: Option<String>,
 }
 
@@ -117,7 +118,7 @@ impl Iterator for ReplReader {
                 Some(input)
             }
             Err(ReadlineError::Interrupted) => {
-                // What it was reading for is abandoned, not pending.
+                // Ctrl-C throws the input away, so nothing is left pending.
                 take_pending(&editor);
                 self.editor = Some(editor);
                 Some("".into())
@@ -129,8 +130,8 @@ impl Iterator for ReplReader {
                 if let Some(history) = &history_path() {
                     let _ = editor.save_history(history);
                 }
-                // An input the file ended in the middle of is still an input,
-                // and what is wrong with it is the user's to read.
+                // An input the file ended in the middle of still runs: the
+                // user wants to read what is wrong with it.
                 let pending = take_pending(&editor);
                 (!pending.trim().is_empty()).then_some(pending)
             }
@@ -249,8 +250,8 @@ const ONE_LIGHT: Palette = Palette {
 };
 
 const KEYWORDS: &[&str] = &[
-    "as", "assert", "case", "const", "else", "external", "fn", "if", "import", "let", "opaque",
-    "panic", "pub", "todo", "type", "use",
+    "as", "assert", "case", "const", "echo", "else", "external", "fn", "if", "import", "let",
+    "opaque", "panic", "pub", "todo", "type", "use",
 ];
 
 impl Highlighter for InputHelper {
@@ -276,7 +277,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
     while i < len {
         let c = chars[i];
 
-        // Comments
         if c == '/' && i + 1 < len && chars[i + 1] == '/' {
             out.push_str(t.comment);
             while i < len && chars[i] != '\n' {
@@ -287,7 +287,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             continue;
         }
 
-        // Strings
         if c == '"' {
             out.push_str(t.string);
             out.push(c);
@@ -307,7 +306,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             continue;
         }
 
-        // Numbers
         if c.is_ascii_digit() {
             out.push_str(t.number);
             while i < len
@@ -320,7 +318,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             continue;
         }
 
-        // Identifiers and keywords
         if c.is_ascii_alphabetic() || c == '_' {
             let start = i;
             while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
@@ -337,12 +334,10 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
                 out.push_str(&word);
                 out.push_str(RESET);
             } else if c.is_ascii_uppercase() {
-                // Type name
                 out.push_str(t.type_);
                 out.push_str(&word);
                 out.push_str(RESET);
             } else if i < len && chars[i] == '(' {
-                // Function call
                 out.push_str(t.function);
                 out.push_str(&word);
                 out.push_str(RESET);
@@ -352,7 +347,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             continue;
         }
 
-        // Operators
         if matches!(
             c,
             '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '!' | '|' | '&' | '.'
@@ -360,7 +354,6 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             out.push_str(t.function);
             out.push(c);
             i += 1;
-            // Consume multi-char operators
             while i < len && matches!(chars[i], '>' | '=' | '.' | '|' | '&') {
                 out.push(chars[i]);
                 i += 1;
@@ -378,8 +371,9 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
 
 #[derive(Default)]
 struct CompleteInputValidator {
-    /// What the editor went on reading for, kept in case the input runs out
-    /// before it arrives — the editor drops it and the error says nothing.
+    /// The unfinished input. The editor throws it away when the file ends
+    /// before the rest of it, and says nothing about it, so the reader keeps a
+    /// copy here.
     pending: RefCell<String>,
 }
 
@@ -395,8 +389,8 @@ impl Validator for CompleteInputValidator {
 }
 
 /// Whether the line the user just ended is the whole input, which only the
-/// parser can say. The prompt in the browser asks the same function, through
-/// the `repl_ready` export.
+/// parser can say. The prompt in the browser asks the same function through the
+/// `repl_ready` export.
 fn validate(input: &str) -> ValidationResult {
     if engine::shell::ready_state(input) < 0 {
         ValidationResult::Valid(None)
@@ -405,9 +399,9 @@ fn validate(input: &str) -> ValidationResult {
     }
 }
 
-/// The indentation of the caret's own line, a level deeper after a bracket the
-/// text in front of it leaves open — what the new line starts with when the
-/// engine's answer is not the one for where the caret is.
+/// The indentation of the caret's own line, one level deeper when the text in
+/// front of the caret leaves a bracket open. The new line starts with this
+/// whenever the engine answered about a place the caret is not in.
 fn local_indent(input: &str, pos: usize) -> String {
     let before = &input[..pos];
     let line = before.rsplit_once('\n').map_or(before, |(_, line)| line);
@@ -441,7 +435,7 @@ impl ConditionalEventHandler for AutoIndentHandler {
 
         let ready = engine::shell::ready_state(input);
         if ready < 0 {
-            return None; // default behavior (accept line)
+            return None; // rustyline's own Enter, which accepts the line
         }
 
         let indent = if at_end {
@@ -453,7 +447,8 @@ impl ConditionalEventHandler for AutoIndentHandler {
     }
 }
 
-/// Tab handler: insert 2 spaces for indentation, or trigger completion.
+/// Tab indents when only whitespace comes before the caret, and completes
+/// otherwise.
 struct TabHandler;
 
 impl ConditionalEventHandler for TabHandler {
@@ -466,20 +461,18 @@ impl ConditionalEventHandler for TabHandler {
     ) -> Option<Cmd> {
         let line = ctx.line();
         let pos = ctx.pos();
-        // If at start of line or only whitespace before cursor, insert indentation
         let before = &line[..pos];
         let line_start = before.rfind('\n').map_or(0, |i| i + 1);
         if before[line_start..].chars().all(|c| c.is_whitespace()) {
             Some(Cmd::Insert(1, "  ".into()))
         } else {
-            // Trigger completion
             Some(Cmd::Complete)
         }
     }
 }
 
-/// Smart backspace: on continuation lines with only spaces, snap to 2-space
-/// indent boundaries.
+/// Backspace takes back a whole level of indentation on a continuation line
+/// with only spaces before the caret.
 struct SmartBackspace;
 
 impl ConditionalEventHandler for SmartBackspace {
@@ -494,7 +487,6 @@ impl ConditionalEventHandler for SmartBackspace {
         let pos = ctx.pos();
         let line_start = line[..pos].rfind('\n').map_or(0, |i| i + 1);
         let current_line = &line[line_start..pos];
-        // Only on continuation lines where cursor is in leading whitespace
         if line_start > 0 && current_line.len() > 1 && current_line.bytes().all(|b| b == b' ') {
             let spaces = current_line.len();
             let remove = if spaces.is_multiple_of(2) { 2 } else { 1 };
@@ -505,9 +497,9 @@ impl ConditionalEventHandler for SmartBackspace {
     }
 }
 
-/// When a closing bracket is typed on a continuation line with only
-/// whitespace, removes one indent level (2 spaces) before inserting it. Every
-/// kind of bracket costs a level going in, so every kind gives one back.
+/// A closing bracket typed on a continuation line with only spaces before it
+/// takes a level of indentation back first. Every kind of bracket costs a level
+/// going in, so every kind gives one back.
 struct AutoDedent(char);
 
 impl ConditionalEventHandler for AutoDedent {
