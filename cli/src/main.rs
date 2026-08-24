@@ -235,7 +235,8 @@ const THEME: &str = ":theme ";
 
 const COMPLETION_EXTRAS: &[&str] = &[
     QUIT, TYPE, TIME, DEBUG, HELP, THEME, "let", "fn", "type", "import", "case", "pub", "const",
-    "assert", "use", "if", "else", "True", "False", "Nil", "Ok", "Error", "panic", "todo",
+    "assert", "use", "if", "else", "True", "False", "Nil", "Ok", "Error", "panic", "todo", "as",
+    "echo", "opaque",
 ];
 
 fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
