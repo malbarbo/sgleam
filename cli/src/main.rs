@@ -248,21 +248,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
         ":theme",
         Some("[light|dark]"),
         "Show or switch the theme",
-        {
-            let theme = theme.clone();
-            move |name| {
-                if name.is_empty() {
-                    println!("{}", theme.get().name());
-                    return Ok(());
-                }
-                let Some(chosen) = Theme::parse(name) else {
-                    return Err(format!("Unknown theme: {name}. Use 'light' or 'dark'."));
-                };
-                theme.set(chosen);
-                config::save(chosen);
-                Ok(())
-            }
-        },
+        theme_action(theme.clone()),
     );
 
     let mut reader = repl_reader::ReplReader::new(shell.completions(), theme.get())
@@ -276,4 +262,19 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     }
 
     Ok(())
+}
+
+fn theme_action(theme: Rc<Cell<Theme>>) -> impl FnMut(&str) -> Result<(), String> {
+    move |name| {
+        if name.is_empty() {
+            println!("{}", theme.get().name());
+            return Ok(());
+        }
+        let Some(chosen) = Theme::parse(name) else {
+            return Err(format!("Unknown theme: {name}. Use 'light' or 'dark'."));
+        };
+        theme.set(chosen);
+        config::save(chosen);
+        Ok(())
+    }
 }
