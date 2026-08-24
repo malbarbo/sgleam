@@ -23,7 +23,6 @@ use gleam_core::{
     javascript::set_bigint_enabled,
 };
 
-/// Use Number instead of BigInt for integers
 fn number_arg() -> impl bpaf::Parser<bool> {
     bpaf::short('n')
         .help("Use Number instead of BigInt for integers")
@@ -97,15 +96,10 @@ fn cli() -> bpaf::OptionParser<Option<Command>> {
         .descr("The student version of gleam")
 }
 
-/// A program run under `| head` keeps printing after the reader has gone. Rust
-/// starts with `SIGPIPE` ignored, which turns that write into an error, and a
-/// failed `println!` into a panic — so the student is handed a compiler bug to
-/// report for having piped. At the default the process dies there instead, as
-/// every other program in the pipe does.
+/// std ignores SIGPIPE before main, which turns a closed pipe into a panic.
 #[cfg(unix)]
 fn die_on_a_closed_pipe() {
-    // SAFETY: puts a signal back to the disposition the process started with,
-    // before anything of ours runs or writes.
+    // SAFETY: SIG_DFL is no handler, so nothing of ours runs at signal time.
     unsafe {
         libc::signal(libc::SIGPIPE, libc::SIG_DFL);
     }
@@ -118,9 +112,8 @@ fn main() {
     die_on_a_closed_pipe();
     engine::panic::add_handler();
     engine::logger::initialise_logger();
-    // Everything runs in here and not in main, for a stack deep enough to
-    // recurse on, which is more than a process is given by default.
-    let spawned = std::thread::Builder::new()
+
+    let run_thread = std::thread::Builder::new()
         .stack_size(engine::STACK_SIZE)
         .name("run".into())
         .spawn(|| {
@@ -131,18 +124,18 @@ fn main() {
             true
         });
 
-    let finished = match spawned {
-        // A machine with no room left for the thread is not a compiler bug,
-        // and there is no smaller one to fall back to: the stack is the whole
-        // reason it is here.
+    let finished = match run_thread {
         Err(err) => {
             show_error(&SgleamError::Other(
-                format!("Could not start the thread the program runs in: {err}").into(),
+                format!("Could not start the run thread: {err}").into(),
             ));
             false
         }
-        // A panic inside it was already reported by the hook.
-        Ok(thread) => matches!(thread.join(), Ok(true)),
+        Ok(thread) => thread
+            .join()
+            // an Err is a panic, which the hook already reported; a release
+            // build aborts instead of unwinding, so only a debug build has one
+            .unwrap_or(false),
     };
 
     if !finished {
@@ -164,6 +157,7 @@ fn run() -> Result<(), SgleamError> {
             | Command::Test { number: true, .. }
             | Command::Check { number: true, .. }
     );
+
     set_bigint_enabled(!number);
 
     match command {
@@ -240,10 +234,8 @@ const HELP: &str = ":help";
 const THEME: &str = ":theme ";
 
 const COMPLETION_EXTRAS: &[&str] = &[
-    // REPL commands
-    QUIT, TYPE, TIME, DEBUG, HELP, THEME, // Keywords and builtins
-    "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
-    "False", "Nil", "Ok", "Error", "panic", "todo",
+    QUIT, TYPE, TIME, DEBUG, HELP, THEME, "let", "fn", "type", "import", "case", "pub", "const",
+    "assert", "use", "if", "else", "True", "False", "Nil", "Ok", "Error", "panic", "todo",
 ];
 
 fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
