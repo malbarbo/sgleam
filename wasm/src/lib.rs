@@ -151,6 +151,11 @@ pub unsafe extern "C" fn repl_ready(
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
+    // What `repl_new` answers with when it has no shell to give is the null
+    // the host hands back here, having taken it for one.
+    if repl.is_null() {
+        return;
+    }
     unsafe {
         let _ = Box::from_raw(repl);
     };
