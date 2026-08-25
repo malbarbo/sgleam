@@ -51,8 +51,8 @@ impl Default for Project {
         // Every one of these is part of the build, and a module the input is
         // free to import: one that did not make it in is a library with a hole
         // in it.
-        for path in crate::Sgleam::iter() {
-            let file = crate::Sgleam::get(&path).expect("Read an embedded sgleam file");
+        for path in crate::SgleamLib::iter() {
+            let file = crate::SgleamLib::get(&path).expect("Read an embedded sgleam file");
             let content = std::str::from_utf8(&file.data).expect("An embedded sgleam file is utf8");
             project.write_source(&path, content);
         }

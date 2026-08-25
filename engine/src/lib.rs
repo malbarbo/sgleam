@@ -33,7 +33,7 @@ pub const GLEAM_STDLIB_VERSION: &str = "1.0.5";
 #[derive(Embed)]
 #[folder = "../lib/sgleam/"]
 #[prefix = "sgleam/"]
-pub struct Sgleam;
+pub struct SgleamLib;
 
 pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 
