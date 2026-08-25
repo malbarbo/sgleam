@@ -1972,6 +1972,58 @@ fn format_stdin() {
     )
 }
 
+/// The indentation `format` has to fix, and what it turns into.
+const UNFORMATTED: &str = "fn main() {\n   1\n}\n";
+const FORMATTED: &str = "fn main() {\n  1\n}\n";
+
+fn file_in(dir: &tempfile::TempDir, name: &str) -> String {
+    std::fs::read_to_string(dir.path().join(name)).expect("read the formatted file")
+}
+
+#[test]
+fn format_writes_the_file() {
+    let (dir, out) = run_in_new_dir(&[("a.gleam", UNFORMATTED)], &["format", "a.gleam"], None);
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(file_in(&dir, "a.gleam"), FORMATTED);
+}
+
+#[test]
+fn format_check_names_the_file_and_leaves_it_alone() {
+    let (dir, out) = run_in_new_dir(
+        &[("a.gleam", UNFORMATTED)],
+        &["format", "--check", "a.gleam"],
+        None,
+    );
+
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("a.gleam"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(file_in(&dir, "a.gleam"), UNFORMATTED);
+}
+
+#[test]
+fn format_check_passes_on_a_formatted_file() {
+    let (_dir, out) = run_in_new_dir(
+        &[("a.gleam", FORMATTED)],
+        &["format", "--check", "a.gleam"],
+        None,
+    );
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+}
+
 #[test]
 fn repl_welcome_message() {
     assert_eq!(run_sgleam_cmd_stdout(&[], None), welcome_message())
@@ -2271,6 +2323,16 @@ fn world_run_in_repl_number() {
 /// binary run there. A test that needs a module of the user's needs somewhere
 /// to put it, which is most of what writing one takes.
 fn run_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> std::process::Output {
+    run_in_new_dir(files, args, input).1
+}
+
+/// `run_in_dir`, with the directory handed back: what the run left in it is
+/// the subject of a test that formats a file rather than printing one.
+fn run_in_new_dir(
+    files: &[(&str, &str)],
+    args: &[&str],
+    input: Option<&str>,
+) -> (tempfile::TempDir, std::process::Output) {
     let dir = tempfile::tempdir().expect("a temporary directory");
     for (name, source) in files {
         let path = dir.path().join(name);
@@ -2284,7 +2346,8 @@ fn run_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> std
     if let Some(input) = input {
         cmd.write_stdin(input.to_string());
     }
-    cmd.output().expect("run sgleam")
+    let output = cmd.output().expect("run sgleam");
+    (dir, output)
 }
 
 /// What `run_in_dir` printed.
