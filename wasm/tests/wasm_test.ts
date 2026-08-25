@@ -543,6 +543,21 @@ Deno.test("repl_complete counts in bytes, not chars", async () => {
   destroy(ctx);
 });
 
+Deno.test("repl_complete sends no candidate with a space in it", async () => {
+  const ctx = await newRepl();
+  // `:type` is offered with the space that goes after it, and a space is what
+  // tells one candidate from the next: what goes on the wire is trimmed.
+  const input = ":ty";
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
+  ctx.exports.string_deallocate(ptr, len);
+  assertEquals(resultPtr !== 0, true, "repl_complete should return non-null");
+  const result = readCstr(ctx.exports, resultPtr);
+  ctx.exports.cstr_deallocate(resultPtr);
+  assertEquals(result, "c 0 :type", `got: ${result}`);
+  destroy(ctx);
+});
+
 Deno.test("repl_complete survives a cursor inside a char", async () => {
   const ctx = await newRepl();
   // Byte 12 is the middle of the `\u00e1`, which is where a host counting in

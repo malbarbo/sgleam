@@ -191,10 +191,12 @@ pub unsafe extern "C" fn repl_complete(
         return std::ptr::null_mut();
     }
 
+    // A space apart, and so without the one a candidate that opens something
+    // carries at its end: two spaces in a row would read as an empty candidate.
     let mut result = format!("c {start}");
     for c in &candidates {
         result.push(' ');
-        result.push_str(c);
+        result.push_str(c.trim_end());
     }
 
     to_cstr(result)
