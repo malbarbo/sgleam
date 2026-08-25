@@ -90,9 +90,7 @@ pub unsafe extern "C" fn repl_new(
     let source = new_string(code_ptr, code_len);
     let config = new_string(config_ptr, config_len);
 
-    if parse_config_bigint(&config) {
-        gleam_core::javascript::set_bigint_enabled(true);
-    }
+    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
 
     if source.trim().is_empty() {
         return leak_shell(default_repl());
