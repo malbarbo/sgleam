@@ -156,12 +156,7 @@ pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {
-    // Don't add color codes to the output if standard error isn't connected to a terminal
     BufferWriter::stderr(color_choice())
-}
-
-fn colour_forced() -> bool {
-    std::env::var("FORCE_COLOR").is_ok_and(|v| !v.is_empty())
 }
 
 fn color_choice() -> ColorChoice {
@@ -170,4 +165,8 @@ fn color_choice() -> ColorChoice {
     } else {
         ColorChoice::Never
     }
+}
+
+fn colour_forced() -> bool {
+    std::env::var("FORCE_COLOR").is_ok_and(|v| !v.is_empty())
 }
