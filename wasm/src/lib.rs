@@ -19,8 +19,6 @@ fn init() {
     }
 }
 
-// --- Memory ---
-
 #[unsafe(no_mangle)]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
     let mut buffer = Vec::with_capacity(size);
@@ -58,8 +56,6 @@ fn to_cstr(s: String) -> *mut std::ffi::c_char {
     }
 }
 
-// --- Config ---
-
 fn parse_config_bigint(config: &str) -> bool {
     config.split_whitespace().any(|entry| {
         entry
@@ -68,15 +64,11 @@ fn parse_config_bigint(config: &str) -> bool {
     })
 }
 
-// --- REPL ---
-
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     Repl::new(Project::default(), None)
 }
 
-/// The shell the host holds on to, or the null that says there is none, with
-/// what stopped it shown where the compiler's errors are shown.
-fn leak_repl(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Shell<QuickJsEngine> {
+fn leak_shell(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Shell<QuickJsEngine> {
     match repl {
         Ok(repl) => Box::leak(Box::new(Shell::new(repl))),
         Err(err) => {
@@ -103,7 +95,7 @@ pub unsafe extern "C" fn repl_new(
     }
 
     if source.trim().is_empty() {
-        return leak_repl(default_repl());
+        return leak_shell(default_repl());
     }
 
     let mut project = Project::default();
@@ -121,7 +113,7 @@ pub unsafe extern "C" fn repl_new(
     {
         let _ = engine.run_tests(&["user"]);
     }
-    leak_repl(Repl::new(project, module))
+    leak_shell(Repl::new(project, module))
 }
 
 fn has_examples(module: &Module) -> bool {
