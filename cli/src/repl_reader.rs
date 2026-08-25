@@ -315,9 +315,12 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             continue;
         }
 
-        if c.is_ascii_alphabetic() || c == '_' {
+        // A letter outside ASCII is in no name the language allows, but it is
+        // in the word the user typed: were it not a word char, what follows it
+        // would start a word of its own and be read as a keyword.
+        if c.is_alphabetic() || c == '_' {
             let start = i;
-            while i < len && (chars[i].is_ascii_alphanumeric() || chars[i] == '_') {
+            while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
                 i += 1;
             }
             let word: String = chars[start..i].iter().collect();
@@ -330,7 +333,7 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
                 out.push_str(t.number);
                 out.push_str(&word);
                 out.push_str(RESET);
-            } else if c.is_ascii_uppercase() {
+            } else if c.is_uppercase() {
                 out.push_str(t.type_);
                 out.push_str(&word);
                 out.push_str(RESET);
@@ -601,5 +604,14 @@ mod tests {
         assert!(!incomplete("\"ca\\\"sa\""));
         assert!(!incomplete(""));
         assert!(!incomplete("pub fn f() {\n  1\n}"));
+    }
+
+    #[test]
+    fn a_word_a_letter_outside_ascii_is_in_is_still_one_word() {
+        use crate::repl_reader::{ONE_DARK, highlight_gleam};
+        assert!(highlight_gleam("as", &ONE_DARK).contains(ONE_DARK.keyword));
+        assert_eq!(highlight_gleam("\u{e7}as", &ONE_DARK), "\u{e7}as");
+        assert_eq!(highlight_gleam("\u{e7}Int", &ONE_DARK), "\u{e7}Int");
+        assert_eq!(highlight_gleam("as\u{e7}", &ONE_DARK), "as\u{e7}");
     }
 }

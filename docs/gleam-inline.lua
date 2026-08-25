@@ -40,10 +40,11 @@ local function tokenize(text)
       end
       table.insert(result, '<span class="st">' .. escape(text:sub(i, j)) .. '</span>')
       i = j + 1
-    -- Word (keyword, type, function, or identifier)
-    elseif text:sub(i, i):match("[%a_]") then
+    -- Word (keyword, type, function, or identifier). The bytes above ASCII
+    -- are word bytes too: without them `ças` would end in the keyword `as`.
+    elseif text:sub(i, i):match("[%a_\128-\255]") then
       local j = i
-      while j <= len and text:sub(j, j):match("[%w_]") do j = j + 1 end
+      while j <= len and text:sub(j, j):match("[%w_\128-\255]") do j = j + 1 end
       local word = text:sub(i, j - 1)
       if keywords[word] then
         table.insert(result, '<span class="kw">' .. escape(word) .. '</span>')
