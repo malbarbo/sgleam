@@ -22,9 +22,14 @@ fn init() {
 #[unsafe(no_mangle)]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
     init();
-    let mut buffer = Vec::with_capacity(size);
-    let ptr = buffer.as_mut_ptr();
-    std::mem::forget(buffer);
+    if size == 0 {
+        return std::ptr::NonNull::dangling().as_ptr();
+    }
+    let layout = string_layout(size);
+    let ptr = unsafe { std::alloc::alloc(layout) };
+    if ptr.is_null() {
+        std::alloc::handle_alloc_error(layout);
+    }
     ptr
 }
 
@@ -32,9 +37,15 @@ pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
 pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
     init();
     assert!(!ptr.is_null());
-    unsafe {
-        let _ = Vec::from_raw_parts(ptr, 0, size);
+    if size == 0 {
+        return;
     }
+    assert!(ptr != std::ptr::NonNull::dangling().as_ptr());
+    unsafe { std::alloc::dealloc(ptr, string_layout(size)) };
+}
+
+fn string_layout(size: usize) -> std::alloc::Layout {
+    std::alloc::Layout::from_size_align(size, 1).expect("more bytes than a layout holds")
 }
 
 #[unsafe(no_mangle)]
