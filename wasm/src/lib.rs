@@ -3,19 +3,26 @@
 use engine::{
     engine::Engine as _,
     error::{self, show_error},
+    format,
     gleam::{Project, get_module},
+    panic,
     quickjs::QuickJsEngine,
     repl::Repl,
-    shell::Shell,
+    shell::{self, Shell},
 };
 use gleam_core::build::Module;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::{
+    alloc,
+    ffi::CString,
+    ptr,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 static INIT: AtomicBool = AtomicBool::new(false);
 
 fn init() {
     if !INIT.swap(true, Ordering::Relaxed) {
-        engine::panic::add_handler();
+        panic::add_handler();
     }
 }
 
@@ -23,12 +30,12 @@ fn init() {
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
     init();
     if size == 0 {
-        return std::ptr::NonNull::dangling().as_ptr();
+        return ptr::NonNull::dangling().as_ptr();
     }
     let layout = string_layout(size);
-    let ptr = unsafe { std::alloc::alloc(layout) };
+    let ptr = unsafe { alloc::alloc(layout) };
     if ptr.is_null() {
-        std::alloc::handle_alloc_error(layout);
+        alloc::handle_alloc_error(layout);
     }
     ptr
 }
@@ -40,12 +47,12 @@ pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
     if size == 0 {
         return;
     }
-    assert!(ptr != std::ptr::NonNull::dangling().as_ptr());
-    unsafe { std::alloc::dealloc(ptr, string_layout(size)) };
+    assert_ne!(ptr, ptr::NonNull::dangling().as_ptr());
+    unsafe { alloc::dealloc(ptr, string_layout(size)) };
 }
 
 fn string_layout(size: usize) -> std::alloc::Layout {
-    std::alloc::Layout::from_size_align(size, 1).expect("more bytes than a layout holds")
+    alloc::Layout::from_size_align(size, 1).expect("more bytes than a layout holds")
 }
 
 #[unsafe(no_mangle)]
@@ -53,7 +60,7 @@ pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
     init();
     assert!(!ptr.is_null());
     unsafe {
-        let _ = std::ffi::CString::from_raw(ptr);
+        let _ = CString::from_raw(ptr);
     }
 }
 
@@ -64,7 +71,7 @@ fn new_string(ptr: *mut u8, len: usize) -> String {
 }
 
 fn to_cstr(s: String) -> *mut std::ffi::c_char {
-    match std::ffi::CString::new(s) {
+    match CString::new(s) {
         Ok(cstr) => cstr.into_raw(),
         Err(_) => std::ptr::null_mut(),
     }
@@ -115,7 +122,7 @@ pub unsafe extern "C" fn repl_new(
     let modules = match project.compile(true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
-            return std::ptr::null_mut();
+            return ptr::null_mut();
         }
         Ok(modules) => modules,
     };
@@ -150,11 +157,6 @@ pub unsafe extern "C" fn repl_run(
     repl.run(&new_string(ptr, len)) as u32
 }
 
-/// Whether the line at the prompt is finished: -1 to run it, otherwise the
-/// indentation the next line starts with. See SimpleCode's ENGINE.md.
-///
-/// The repl is not asked: what a Gleam input is waiting on is in its text, and
-/// the parser reads it without a session.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_ready(
     _repl: *mut Shell<QuickJsEngine>,
@@ -162,7 +164,7 @@ pub unsafe extern "C" fn repl_ready(
     len: usize,
 ) -> i32 {
     init();
-    engine::shell::ready_state(&new_string(ptr, len))
+    shell::ready_state(&new_string(ptr, len))
 }
 
 #[unsafe(no_mangle)]
@@ -178,8 +180,6 @@ pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
     };
 }
 
-// --- Completion ---
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_complete(
     repl: *mut Shell<QuickJsEngine>,
@@ -191,11 +191,10 @@ pub unsafe extern "C" fn repl_complete(
     assert!(!repl.is_null());
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
-
-    let (start, prefix) = engine::shell::word_at(&text, cursor_pos);
+    let (start, prefix) = shell::word_at(&text, cursor_pos);
 
     if prefix.is_empty() {
-        return std::ptr::null_mut();
+        return ptr::null_mut();
     }
 
     let all = state.completions();
@@ -206,11 +205,9 @@ pub unsafe extern "C" fn repl_complete(
         .collect();
 
     if candidates.is_empty() {
-        return std::ptr::null_mut();
+        return ptr::null_mut();
     }
 
-    // A space apart, and so without the one a candidate that opens something
-    // carries at its end: two spaces in a row would read as an empty candidate.
     let mut result = format!("c {start}");
     for c in &candidates {
         result.push(' ');
@@ -220,22 +217,18 @@ pub unsafe extern "C" fn repl_complete(
     to_cstr(result)
 }
 
-// --- Format ---
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn format(ptr: *mut u8, len: usize) -> *mut std::ffi::c_char {
     init();
 
-    match engine::format::format_source(&new_string(ptr, len)) {
+    match format::format_source(&new_string(ptr, len)) {
         Ok(out) => to_cstr(out),
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
-            std::ptr::null_mut()
+            ptr::null_mut()
         }
     }
 }
-
-// --- Version ---
 
 #[unsafe(no_mangle)]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
