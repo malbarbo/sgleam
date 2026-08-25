@@ -79,9 +79,14 @@ const BUILTINS: &[(&str, Arg, &str, Builtin)] = &[
     (":debug", Arg::None, "Toggle debug mode", Builtin::Debug),
 ];
 
-const KEYWORDS: &[&str] = &[
-    "let", "fn", "type", "import", "case", "pub", "const", "assert", "use", "if", "else", "True",
-    "False", "Nil", "Ok", "Error", "panic", "todo", "as", "echo", "opaque",
+/// The keywords that are the whole of what they say: `todo` on its own, `Ok`
+/// with what it wraps stuck to it.
+const KEYWORDS: &[&str] = &["Error", "False", "Nil", "Ok", "True", "fn", "panic", "todo"];
+
+/// The keywords something else always follows, and so the ones the completion
+/// hands back with the space already typed, as it does for `:type`.
+const KEYWORDS_OPEN: &[&str] = &[
+    "as", "assert", "case", "const", "echo", "import", "let", "opaque", "pub", "type", "use",
 ];
 
 impl<E: Engine> Shell<E> {
@@ -190,11 +195,13 @@ impl<E: Engine> Shell<E> {
         }
     }
 
-    /// The names of the repl, the keywords and the commands, a command that
-    /// takes something with the space after it.
+    /// The names of the repl, the keywords and the commands. What cannot stand
+    /// alone -- a keyword that opens something, a command that takes an
+    /// argument -- comes with the space that goes after it.
     pub fn completions(&self) -> Vec<String> {
         let mut names = self.repl.completions();
         names.extend(KEYWORDS.iter().map(|s| s.to_string()));
+        names.extend(KEYWORDS_OPEN.iter().map(|s| format!("{s} ")));
         names.extend(self.commands.iter().map(|c| match c.arg {
             Arg::None => c.name.to_string(),
             Arg::Expr | Arg::Word(_) => format!("{} ", c.name),

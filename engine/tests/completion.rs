@@ -6,6 +6,7 @@ use engine::{
     gleam::{Project, get_module},
     quickjs::QuickJsEngine,
     repl::Repl,
+    shell::Shell,
 };
 
 fn new_repl() -> Repl<QuickJsEngine> {
@@ -121,4 +122,20 @@ fn completion_user_module_names() {
     assert!(c.contains(&"Three".to_string()));
     assert!(c.contains(&"Num3".to_string()));
     assert!(c.contains(&"user.one".to_string()));
+}
+
+#[test]
+fn completion_of_what_cannot_stand_alone_carries_a_space() {
+    let shell = Shell::new(new_repl());
+    let c = shell.completions();
+    // A keyword that opens something is handed over ready for what follows,
+    // which is what a command that takes an argument has always done.
+    for name in ["import ", "let ", "case ", "pub ", ":type "] {
+        assert!(c.contains(&name.to_string()), "expected {name:?}");
+    }
+    // What is whole on its own is handed over as it is: after `Ok` comes a
+    // `(`, and after `todo` comes nothing.
+    for name in ["Ok", "todo", "fn", ":quit"] {
+        assert!(c.contains(&name.to_string()), "expected {name:?}");
+    }
 }
