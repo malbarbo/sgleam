@@ -280,6 +280,33 @@ pub fn ready_state(input: &str) -> i32 {
 /// What one level of indentation is worth, in spaces.
 const INDENT: usize = 2;
 
+/// The word the cursor is in and where it starts, both in bytes: what comes
+/// before `cursor`, back to the last char an identifier cannot hold.
+///
+/// A cursor that is not on a char boundary -- which is what a host counting
+/// in another unit sends -- is taken back to the boundary before it. Slicing
+/// there instead panics, and a panic is the end of the session.
+pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
+    let mut end = cursor.min(text.len());
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    let before = &text[..end];
+    let start = before
+        .char_indices()
+        .rev()
+        .find(|(_, c)| is_break_char(*c))
+        .map_or(0, |(i, c)| i + c.len_utf8());
+    (start, &before[start..])
+}
+
+/// A char no name of the language has in it, and so one the word being
+/// completed ends at. `:` and `.` are in a name here: the commands start with
+/// one and the qualified names carry the other.
+fn is_break_char(c: char) -> bool {
+    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
+}
+
 fn format_duration(elapsed: Duration) -> String {
     if elapsed.as_secs() > 0 {
         format!("{:.2} s", elapsed.as_secs_f64())
@@ -295,6 +322,27 @@ fn format_duration(elapsed: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_word_at_the_cursor_is_what_comes_before_it() {
+        assert_eq!(word_at("let x = lis", 11), (8, "lis"));
+        assert_eq!(word_at("lis", 11), (0, "lis"));
+        assert_eq!(word_at("1 + f(x", 7), (6, "x"));
+        assert_eq!(word_at(":ty", 3), (0, ":ty"));
+        assert_eq!(word_at("list.ma", 7), (0, "list.ma"));
+        assert_eq!(word_at("let x = lis", 8), (8, ""));
+        assert_eq!(word_at("", 0), (0, ""));
+    }
+
+    #[test]
+    fn the_word_survives_the_chars_that_take_more_than_a_byte() {
+        // The break char before it is one of them.
+        assert_eq!(word_at("x = \"ol\u{e1}\u{2026}foo", 15), (12, "foo"));
+        // The cursor is in the middle of one.
+        assert_eq!(word_at("ol\u{e1}_bar", 3), (0, "ol"));
+        // The word itself is made of them.
+        assert_eq!(word_at("ol\u{e1}_bar", 8), (0, "ol\u{e1}_bar"));
+    }
 
     #[test]
     fn a_command_is_told_apart_from_gleam() {

@@ -163,10 +163,6 @@ pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
 
 // --- Completion ---
 
-fn is_break_char(c: char) -> bool {
-    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
-}
-
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_complete(
     repl: *mut Shell<QuickJsEngine>,
@@ -178,13 +174,7 @@ pub unsafe extern "C" fn repl_complete(
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
 
-    // Extract the word being completed at cursor_pos
-    let before = &text[..cursor_pos.min(text.len())];
-    let start = before
-        .rfind(|c: char| is_break_char(c))
-        .map(|i| i + 1)
-        .unwrap_or(0);
-    let prefix = &before[start..];
+    let (start, prefix) = engine::shell::word_at(&text, cursor_pos);
 
     if prefix.is_empty() {
         return std::ptr::null_mut();

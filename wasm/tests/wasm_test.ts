@@ -518,6 +518,49 @@ Deno.test("repl_complete returns candidates", async () => {
   destroy(ctx);
 });
 
+Deno.test("repl_complete counts in bytes, not chars", async () => {
+  const ctx = await newRepl();
+  run(ctx, "fn my_func() { 1 }");
+  // The break char before the word takes three bytes, and the one before
+  // that takes two: a `start` counted in chars would land inside them.
+  const input = 'let x = "ol\u00e1\u2026my_f';
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
+  ctx.exports.string_deallocate(ptr, len);
+  assertEquals(resultPtr !== 0, true, "repl_complete should return non-null");
+  const result = readCstr(ctx.exports, resultPtr);
+  ctx.exports.cstr_deallocate(resultPtr);
+  assertEquals(
+    result.startsWith("c 16 "),
+    true,
+    `word should start at byte 16, got: ${result}`,
+  );
+  assertEquals(
+    result.includes("my_func"),
+    true,
+    `should include my_func, got: ${result}`,
+  );
+  destroy(ctx);
+});
+
+Deno.test("repl_complete survives a cursor inside a char", async () => {
+  const ctx = await newRepl();
+  // Byte 12 is the middle of the `\u00e1`, which is where a host counting in
+  // UTF-16 puts the cursor at the end of this line.
+  const input = 'let x = "ol\u00e1';
+  const [ptr, len] = encodeString(ctx.exports, input);
+  const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, 12);
+  ctx.exports.string_deallocate(ptr, len);
+  if (resultPtr !== 0) ctx.exports.cstr_deallocate(resultPtr);
+  // The module is still there to answer, which is what is being asked.
+  assertEquals(
+    run(ctx, "1 + 1").result,
+    0,
+    "repl should still run after completing",
+  );
+  destroy(ctx);
+});
+
 Deno.test("repl_complete returns null for no match", async () => {
   const ctx = await newRepl();
   const input = "zzz_no_match";

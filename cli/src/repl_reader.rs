@@ -2,10 +2,11 @@ use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
+use engine::shell::word_at;
 use rustyline::{
     Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
     Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
-    completion::{self, Completer},
+    completion::Completer,
     error::ReadlineError,
     highlight::{CmdKind, Highlighter},
     history::FileHistory,
@@ -163,15 +164,11 @@ struct InputHelper {
     theme: Theme,
 }
 
-fn is_break_char(c: char) -> bool {
-    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
-}
-
 impl Completer for InputHelper {
     type Candidate = String;
 
     fn complete(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> Result<(usize, Vec<String>)> {
-        let (start, prefix) = completion::extract_word(line, pos, None, is_break_char);
+        let (start, prefix) = word_at(line, pos);
         if prefix.is_empty() {
             return Ok((start, vec![]));
         }
