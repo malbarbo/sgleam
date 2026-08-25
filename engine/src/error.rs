@@ -26,6 +26,10 @@ pub enum SgleamError {
         path: Utf8PathBuf,
     },
 
+    /// A directory where a module was asked for.
+    #[error("path is a directory")]
+    PathIsADirectory { path: Utf8PathBuf },
+
     /// The first path given did not become a module, either because the build
     /// turned it down — saying why as it did — or because nothing compiled it.
     #[error("no module to run")]
@@ -115,6 +119,15 @@ pub fn show_error(err: &SgleamError) {
             title: "path is not within the current directory".into(),
             text: format!("`{path}` is outside of the current directory `{current_dir}`"),
             hint: Some("Change the current directory or specify another path.".into()),
+            level: Level::Error,
+            location: None,
+        }
+        .write(&mut buffer),
+
+        SgleamError::PathIsADirectory { path } => Diagnostic {
+            title: "path is a directory".into(),
+            text: format!("`{path}` is a directory, and a module is a file."),
+            hint: Some("Give the path of a `.gleam` file.".into()),
             level: Level::Error,
             location: None,
         }

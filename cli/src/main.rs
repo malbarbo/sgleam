@@ -164,18 +164,18 @@ fn run() -> Result<(), SgleamError> {
         }
         Command::Repl { file, quiet, .. } => {
             let paths = match file {
-                Some(file) => find_imports(vec![make_relative_to_current_dir(file.into())?])?,
+                Some(file) => find_imports(vec![user_module(file)?])?,
                 None => vec![],
             };
             run_interactive(&paths, quiet)
         }
         Command::Run { file, .. } => {
-            let file = make_relative_to_current_dir(file.into())?;
+            let file = user_module(file)?;
             let files = find_imports(vec![file])?;
             run_main(&files)
         }
         Command::Test { file, .. } => {
-            let file = make_relative_to_current_dir(file.into())?;
+            let file = user_module(file)?;
             let user_files = vec![file];
             let files = find_imports(user_files.clone())?;
             run_test(&user_files, &files)
@@ -185,11 +185,20 @@ fn run() -> Result<(), SgleamError> {
             Ok(format::run(check, paths)?)
         }
         Command::Check { file, .. } => {
-            let file = make_relative_to_current_dir(file.into())?;
+            let file = user_module(file)?;
             let files = find_imports(vec![file])?;
             run_check(&files)
         }
     }
+}
+
+/// The file of the module a command was given, said as the module names it.
+fn user_module(file: String) -> Result<Utf8PathBuf, SgleamError> {
+    let path = make_relative_to_current_dir(file.into())?;
+    if path.is_dir() {
+        return Err(SgleamError::PathIsADirectory { path });
+    }
+    Ok(path)
 }
 
 fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, SgleamError> {

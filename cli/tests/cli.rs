@@ -1972,6 +1972,18 @@ fn format_stdin() {
     )
 }
 
+/// Every command that takes a module turns down a directory, `.` included.
+#[test]
+fn a_directory_where_a_module_is_asked_for() {
+    for command in ["run", "check", "test", "repl"] {
+        let out = run_in_dir(&[("a.gleam", FORMATTED)], &[command, "."], None);
+        let err = String::from_utf8_lossy(&out.stderr);
+
+        assert!(!out.status.success(), "{command}: {err}");
+        assert!(err.contains("`.` is a directory"), "{command}: {err}");
+    }
+}
+
 /// The indentation `format` fixes, and what it turns into.
 const UNFORMATTED: &str = "fn main() {\n   1\n}\n";
 const FORMATTED: &str = "fn main() {\n  1\n}\n";
