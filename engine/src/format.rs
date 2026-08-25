@@ -1,14 +1,8 @@
 // This file is from gleam project
 // compiler-cli/src/format.rs
 
-use gleam_core::{
-    error::{Error, FileIoAction, FileKind, Result, StandardIoAction, Unformatted},
-    io::{Content, OutputFile},
-};
-use std::{
-    fs::File,
-    io::{Read, Write},
-};
+use gleam_core::error::{Error, FileIoAction, FileKind, Result, StandardIoAction, Unformatted};
+use std::io::Read;
 
 use camino::{Utf8Path, Utf8PathBuf};
 
@@ -70,10 +64,7 @@ fn check_files(files: Vec<Utf8PathBuf>) -> Result<()> {
 
 fn format_files(files: Vec<Utf8PathBuf>) -> Result<()> {
     for file in unformatted_files(files)? {
-        write_output(&OutputFile {
-            path: file.destination,
-            content: Content::Text(file.output),
-        })?;
+        write(&file.destination, &file.output)?;
     }
     Ok(())
 }
@@ -126,45 +117,11 @@ fn read(path: impl AsRef<Utf8Path> + std::fmt::Debug) -> Result<String, Error> {
     })
 }
 
-fn write_output(file: &OutputFile) -> Result<(), Error> {
-    let OutputFile { path, content } = file;
-    match content {
-        Content::Binary(buffer) => write_bytes(path, buffer),
-        Content::Text(buffer) => write(path, buffer),
-    }
-}
-
 fn write(path: &Utf8Path, text: &str) -> Result<(), Error> {
-    write_bytes(path, text.as_bytes())
-}
-
-fn write_bytes(path: &Utf8Path, bytes: &[u8]) -> Result<(), Error> {
-    let dir_path = path.parent().ok_or_else(|| Error::FileIo {
-        action: FileIoAction::FindParent,
-        kind: FileKind::Directory,
-        path: path.to_path_buf(),
-        err: None,
-    })?;
-
-    std::fs::create_dir_all(dir_path).map_err(|e| Error::FileIo {
-        action: FileIoAction::Create,
-        kind: FileKind::Directory,
-        path: dir_path.to_path_buf(),
-        err: Some(e.to_string()),
-    })?;
-
-    let mut f = File::create(path).map_err(|e| Error::FileIo {
-        action: FileIoAction::Create,
-        kind: FileKind::File,
-        path: path.to_path_buf(),
-        err: Some(e.to_string()),
-    })?;
-
-    f.write_all(bytes).map_err(|e| Error::FileIo {
+    std::fs::write(path, text).map_err(|err| Error::FileIo {
         action: FileIoAction::WriteTo,
         kind: FileKind::File,
         path: path.to_path_buf(),
-        err: Some(e.to_string()),
-    })?;
-    Ok(())
+        err: Some(err.to_string()),
+    })
 }
