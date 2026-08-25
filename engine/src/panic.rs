@@ -1,3 +1,7 @@
+// This file is from gleam project
+// compiler-cli/src/panic.rs, except the failed print, which gleam has no case
+// for, and the errors, which gleam unwraps.
+
 use std::io::Write as _;
 use std::panic::PanicHookInfo;
 
@@ -8,7 +12,8 @@ use crate::error::stderr_buffer_writer;
 pub fn add_handler() {
     std::panic::set_hook(Box::new(move |info: &PanicHookInfo<'_>| {
         if is_a_failed_print(&panic_message(info)) {
-            // failed to print is not a compiler bug
+            // The report would go to the stream that just failed, and a pipe
+            // the reader closed is not a bug of ours.
             std::process::exit(1);
         }
         if print_compiler_bug_message(info).is_err() {
@@ -32,7 +37,6 @@ fn panic_message(info: &PanicHookInfo<'_>) -> String {
     }
 }
 
-// from gleam project
 fn print_compiler_bug_message(info: &PanicHookInfo<'_>) -> std::io::Result<()> {
     let message = panic_message(info);
     let location = match info.location() {
