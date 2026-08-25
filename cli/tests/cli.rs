@@ -2024,6 +2024,42 @@ fn format_check_passes_on_a_formatted_file() {
     );
 }
 
+/// A directory stands for the files under it. A check that skipped them would
+/// pass over a directory of unformatted files and say nothing.
+#[test]
+fn format_reaches_the_files_under_a_directory() {
+    let (dir, out) = run_in_new_dir(
+        &[("a.gleam", UNFORMATTED), ("sub/b.gleam", UNFORMATTED)],
+        &["format", "."],
+        None,
+    );
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(file_in(&dir, "a.gleam"), FORMATTED);
+    assert_eq!(file_in(&dir, "sub/b.gleam"), FORMATTED);
+}
+
+#[test]
+fn format_check_fails_over_a_directory() {
+    let (dir, out) = run_in_new_dir(
+        &[("sub/b.gleam", UNFORMATTED)],
+        &["format", "--check", "sub"],
+        None,
+    );
+
+    assert!(!out.status.success());
+    assert!(
+        String::from_utf8_lossy(&out.stderr).contains("b.gleam"),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(file_in(&dir, "sub/b.gleam"), UNFORMATTED);
+}
+
 #[test]
 fn repl_welcome_message() {
     assert_eq!(run_sgleam_cmd_stdout(&[], None), welcome_message())

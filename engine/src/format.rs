@@ -73,12 +73,58 @@ fn unformatted_files(files: Vec<Utf8PathBuf>) -> Result<Vec<Unformatted>> {
     let mut problem_files = Vec::with_capacity(files.len());
 
     for path in files {
-        if !path.is_dir() {
+        if path.is_dir() {
+            for path in gleam_files(&path)? {
+                format_file(&mut problem_files, path)?;
+            }
+        } else {
             format_file(&mut problem_files, path)?;
         }
     }
 
     Ok(problem_files)
+}
+
+/// Every `.gleam` file under `dir`, in an order that does not depend on the
+/// file system. A directory named on the command line stands for the files in
+/// it, so that a check over one is a check over all of them.
+fn gleam_files(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
+    let mut files = Vec::new();
+    let mut dirs = vec![dir.to_path_buf()];
+    while let Some(dir) = dirs.pop() {
+        for path in read_dir(&dir)? {
+            if path.is_dir() {
+                dirs.push(path);
+            } else if path.extension() == Some("gleam") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+/// What `dir` holds, without the hidden entries: a directory like `.git` holds
+/// nothing anyone asked to format, and a name that is not utf-8 is not one a
+/// gleam module can have.
+fn read_dir(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
+    let read_error = |err: std::io::Error| Error::FileIo {
+        action: FileIoAction::Read,
+        kind: FileKind::Directory,
+        path: dir.to_path_buf(),
+        err: Some(err.to_string()),
+    };
+
+    let mut paths = Vec::new();
+    for entry in std::fs::read_dir(dir).map_err(read_error)? {
+        let path = entry.map_err(read_error)?.path();
+        if let Ok(path) = Utf8PathBuf::from_path_buf(path)
+            && !path.file_name().is_some_and(|name| name.starts_with('.'))
+        {
+            paths.push(path);
+        }
+    }
+    Ok(paths)
 }
 
 fn format_file(problem_files: &mut Vec<Unformatted>, path: Utf8PathBuf) -> Result<()> {
