@@ -181,10 +181,9 @@ fn run() -> Result<(), SgleamError> {
             run_test(&user_files, &files)
         }
         Command::Format { check, files } => {
-            let paths = files
-                .into_iter()
-                .map(|f| make_relative_to_current_dir(f.into()))
-                .collect::<Result<Vec<_>, _>>()?;
+            // Read and written where it is: formatting a file never names a
+            // module, so it has no reason to ask where the file sits.
+            let paths = files.into_iter().map(Utf8PathBuf::from).collect();
             Ok(format::run(check, paths)?)
         }
         Command::Check { file, .. } => {

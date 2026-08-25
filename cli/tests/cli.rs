@@ -2060,6 +2060,25 @@ fn format_check_fails_over_a_directory() {
     assert_eq!(file_in(&dir, "sub/b.gleam"), UNFORMATTED);
 }
 
+/// Formatting names no module, so a path that leaves the current directory —
+/// which `run` turns down for that very reason — is one to format.
+#[test]
+fn format_a_file_outside_the_current_directory() {
+    let (dir, _) = run_in_new_dir(&[("a.gleam", UNFORMATTED), ("sub/b.gleam", "")], &[], None);
+    let out = assert_cmd::cargo::cargo_bin_cmd!()
+        .current_dir(dir.path().join("sub"))
+        .args(["format", "../a.gleam"])
+        .output()
+        .expect("run sgleam");
+
+    assert!(
+        out.status.success(),
+        "{}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(file_in(&dir, "a.gleam"), FORMATTED);
+}
+
 #[test]
 fn repl_welcome_message() {
     assert_eq!(run_sgleam_cmd_stdout(&[], None), welcome_message())
