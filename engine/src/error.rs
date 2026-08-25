@@ -132,8 +132,6 @@ pub fn show_error(err: &SgleamError) {
             location: None,
         }
         .write(&mut buffer),
-        // Already displayed by the JS runtime.
-        SgleamError::UserProgramFailed | SgleamError::TestsFailed => return,
         SgleamError::Interrupted => {
             writeln!(buffer, "Interrupted.").expect("write to buffer");
         }
@@ -146,6 +144,8 @@ pub fn show_error(err: &SgleamError) {
         SgleamError::Other(err) => {
             writeln!(buffer, "{err}").expect("write to buffer");
         }
+        // Already displayed by the JS runtime.
+        SgleamError::UserProgramFailed | SgleamError::TestsFailed => (),
     };
 
     flush_buffer(&buffer_writer, &buffer);
