@@ -43,7 +43,9 @@ impl MainFunction {
         match self {
             MainFunction::Main => "main",
             MainFunction::ReplMain { name, .. } => name,
-            _ => "smain",
+            MainFunction::Smain | MainFunction::SmainStdin | MainFunction::SmainStdinLines => {
+                "smain"
+            }
         }
     }
 }
