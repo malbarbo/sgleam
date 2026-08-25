@@ -221,6 +221,7 @@ struct Palette {
     keyword: &'static str,
     function: &'static str,
     type_: &'static str,
+    command: &'static str,
     prompt: &'static str,
 }
 
@@ -232,6 +233,7 @@ const ONE_DARK: Palette = Palette {
     keyword: "\x1b[38;2;180;119;207m",
     function: "\x1b[38;2;115;173;233m",
     type_: "\x1b[38;2;223;193;132m",
+    command: "\x1b[38;2;130;137;151m",
     prompt: "\x1b[38;2;115;173;233m",
 };
 
@@ -243,6 +245,7 @@ const ONE_LIGHT: Palette = Palette {
     keyword: "\x1b[38;2;164;73;171m",
     function: "\x1b[38;2;91;121;227m",
     type_: "\x1b[38;2;193;132;1m",
+    command: "\x1b[38;2;105;108;119m",
     prompt: "\x1b[38;2;91;121;227m",
 };
 
@@ -270,6 +273,25 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
     let chars: Vec<char> = input.chars().collect();
     let len = chars.len();
     let mut i = 0;
+
+    // A command is the first word of the input and nowhere else, which is what
+    // the shell itself reads. Anywhere else the `:` is the one of a type
+    // annotation, and the word after it is Gleam.
+    let mut start = 0;
+    while start < len && chars[start].is_whitespace() {
+        start += 1;
+    }
+    if chars.get(start) == Some(&':') && chars.get(start + 1).is_some_and(|c| c.is_alphabetic()) {
+        out.extend(&chars[..start]);
+        out.push_str(t.command);
+        out.push(':');
+        i = start + 1;
+        while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
+            out.push(chars[i]);
+            i += 1;
+        }
+        out.push_str(RESET);
+    }
 
     while i < len {
         let c = chars[i];
@@ -613,5 +635,18 @@ mod tests {
         assert_eq!(highlight_gleam("\u{e7}as", &ONE_DARK), "\u{e7}as");
         assert_eq!(highlight_gleam("\u{e7}Int", &ONE_DARK), "\u{e7}Int");
         assert_eq!(highlight_gleam("as\u{e7}", &ONE_DARK), "as\u{e7}");
+    }
+
+    #[test]
+    fn a_command_is_not_gleam_and_is_not_colored_as_gleam() {
+        use crate::repl_reader::{ONE_DARK, RESET, highlight_gleam};
+        // The `type` of `:type` is not the keyword that declares a type.
+        assert_eq!(
+            highlight_gleam(":type foo", &ONE_DARK),
+            format!("{}:type{RESET} foo", ONE_DARK.command)
+        );
+        // Only the word the input starts with: the other `:` is Gleam's own.
+        assert!(!highlight_gleam("let x: Int = 1", &ONE_DARK).contains(ONE_DARK.command));
+        assert!(!highlight_gleam("f(a: 1)", &ONE_DARK).contains(ONE_DARK.command));
     }
 }
