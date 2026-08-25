@@ -1972,7 +1972,7 @@ fn format_stdin() {
     )
 }
 
-/// The indentation `format` has to fix, and what it turns into.
+/// The indentation `format` fixes, and what it turns into.
 const UNFORMATTED: &str = "fn main() {\n   1\n}\n";
 const FORMATTED: &str = "fn main() {\n  1\n}\n";
 
@@ -2024,8 +2024,7 @@ fn format_check_passes_on_a_formatted_file() {
     );
 }
 
-/// A directory stands for the files under it. A check that skipped them would
-/// pass over a directory of unformatted files and say nothing.
+/// A directory stands for every `.gleam` file under it.
 #[test]
 fn format_reaches_the_files_under_a_directory() {
     let (dir, out) = run_in_new_dir(
@@ -2060,8 +2059,8 @@ fn format_check_fails_over_a_directory() {
     assert_eq!(file_in(&dir, "sub/b.gleam"), UNFORMATTED);
 }
 
-/// Formatting names no module, so a path that leaves the current directory —
-/// which `run` turns down for that very reason — is one to format.
+/// A path that leaves the current directory, which `run` turns down and
+/// `format` takes.
 #[test]
 fn format_a_file_outside_the_current_directory() {
     let (dir, _) = run_in_new_dir(&[("a.gleam", UNFORMATTED), ("sub/b.gleam", "")], &[], None);
@@ -2381,8 +2380,8 @@ fn run_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> std
     run_in_new_dir(files, args, input).1
 }
 
-/// `run_in_dir`, with the directory handed back: what the run left in it is
-/// the subject of a test that formats a file rather than printing one.
+/// `run_in_dir`, with the directory handed back, for a test that reads what
+/// the run wrote in it.
 fn run_in_new_dir(
     files: &[(&str, &str)],
     args: &[&str],

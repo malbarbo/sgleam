@@ -1,8 +1,6 @@
-// This file is from the gleam project: `run` and what it reaches are from
-// compiler-cli/src/format.rs, and `read` from compiler-cli/src/fs.rs. Where
-// gleam walks a directory with the `ignore` crate, honouring the gitignore
-// files it finds, `gleam_files` here is a plain walk: sgleam formats loose
-// files and has no project whose build directory it would have to leave out.
+// This file is from gleam project
+// compiler-cli/src/format.rs and compiler-cli/src/fs.rs, except `gleam_files`,
+// which gleam does with the `ignore` crate.
 
 use gleam_core::error::{Error, FileIoAction, FileKind, Result, StandardIoAction, Unformatted};
 use std::io::Read;
@@ -88,9 +86,8 @@ fn unformatted_files(files: Vec<Utf8PathBuf>) -> Result<Vec<Unformatted>> {
     Ok(problem_files)
 }
 
-/// Every `.gleam` file under `dir`, in an order that does not depend on the
-/// file system. A directory named on the command line stands for the files in
-/// it, so that a check over one is a check over all of them.
+/// Every `.gleam` file under `dir`, sorted: the order a directory is read in
+/// is its own.
 fn gleam_files(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     let mut files = Vec::new();
     let mut dirs = vec![dir.to_path_buf()];
@@ -107,9 +104,7 @@ fn gleam_files(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     Ok(files)
 }
 
-/// What `dir` holds, without the hidden entries: a directory like `.git` holds
-/// nothing anyone asked to format, and a name that is not utf-8 is not one a
-/// gleam module can have.
+/// What `dir` holds, minus `.git` and its like, and the names no module has.
 fn read_dir(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     let read_error = |err: std::io::Error| Error::FileIo {
         action: FileIoAction::Read,

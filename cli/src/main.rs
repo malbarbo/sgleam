@@ -181,8 +181,6 @@ fn run() -> Result<(), SgleamError> {
             run_test(&user_files, &files)
         }
         Command::Format { check, files } => {
-            // Read and written where it is: formatting a file never names a
-            // module, so it has no reason to ask where the file sits.
             let paths = files.into_iter().map(Utf8PathBuf::from).collect();
             Ok(format::run(check, paths)?)
         }
@@ -198,8 +196,8 @@ fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, Sgleam
     let current_dir = canonicalise(get_current_dir()?)?;
     canonicalise(path.clone())?
         .strip_prefix(&current_dir)
-        // Stripping the current directory from itself leaves nothing, which is
-        // not a path anything downstream can read or name.
+        // Stripping the current directory from itself leaves nothing, which
+        // names no file.
         .map(|p| match p.as_str().replace('\\', "/") {
             relative if relative.is_empty() => Utf8PathBuf::from("."),
             relative => Utf8PathBuf::from(relative),
