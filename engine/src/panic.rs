@@ -1,6 +1,6 @@
 // This file is from gleam project
-// compiler-cli/src/panic.rs, except the failed print, which gleam has no case
-// for, and the errors, which gleam unwraps.
+// compiler-cli/src/panic.rs, except the message, which names sgleam, the failed
+// print, which gleam has no case for, and the errors, which gleam unwraps.
 
 use std::io::Write as _;
 use std::panic::PanicHookInfo;
@@ -49,17 +49,17 @@ fn print_compiler_bug_message(info: &PanicHookInfo<'_>) -> std::io::Result<()> {
     buffer.set_color(ColorSpec::new().set_bold(true).set_fg(Some(Color::Red)))?;
     write!(buffer, "error")?;
     buffer.set_color(ColorSpec::new().set_bold(true))?;
-    write!(buffer, ": Fatal compiler bug!\n\n")?;
+    write!(buffer, ": Fatal bug!\n\n")?;
     buffer.set_color(&ColorSpec::new())?;
     writeln!(
         buffer,
-        "This is a bug in the Gleam compiler, sorry!
+        "This is a bug in sgleam, sorry!
 
-Please report this crash to https://github.com/gleam-lang/gleam/issues/new
+Please report this crash to https://github.com/malbarbo/sgleam/issues/new
 and include this error message with your report.
 
 Panic: {location}{message}
-Gleam version: {version}
+Version: {version}
 Operating system: {os}
 
 If you can also share your code and say what file you were editing or any
@@ -70,7 +70,7 @@ variable set.
 ",
         location = location,
         message = message,
-        version = env!("CARGO_PKG_VERSION"),
+        version = crate::version(),
         os = std::env::consts::OS,
     )?;
     buffer_writer.print(&buffer)?;
