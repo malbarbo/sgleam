@@ -593,7 +593,7 @@ fn script_error(err: CaughtError<'_>) -> SgleamError {
     match &err {
         CaughtError::Exception(exception) if is_interrupt(exception) => SgleamError::Interrupted,
         // Its `Display` ends in a newline, which the one printing it adds.
-        _ => SgleamError::Script(err.to_string().trim_end().to_string()),
+        _ => SgleamError::LauncherScript(err.to_string().trim_end().to_string()),
     }
 }
 

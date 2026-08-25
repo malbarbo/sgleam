@@ -32,12 +32,11 @@ pub enum SgleamError {
     #[error("quickjs error")]
     QuickJs(rquickjs::Error),
 
-    /// An exception raised while the script itself was being evaluated, which
-    /// is before the program it starts exists to report anything. Kept as
-    /// text: what an exception says lives in the JS context, which is gone by
-    /// the time this is shown.
-    #[error("script error")]
-    Script(String),
+    /// An exception from the script that launches the program, raised before
+    /// the program is there to report it. Kept as text: the JS context the
+    /// message comes from is gone by the time it is shown.
+    #[error("launcher script error")]
+    LauncherScript(String),
 
     /// A JS runtime error that was already displayed by the JS side.
     #[error("runtime error")]
@@ -125,7 +124,7 @@ pub fn show_error(err: &SgleamError) {
         SgleamError::QuickJs(err) => {
             writeln!(buffer, "{err}").expect("write to buffer");
         }
-        SgleamError::Script(message) => {
+        SgleamError::LauncherScript(message) => {
             writeln!(buffer, "{message}").expect("write to buffer");
         }
         SgleamError::Other(err) => {
