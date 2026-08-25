@@ -199,7 +199,12 @@ fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, Sgleam
     let current_dir = canonicalise(get_current_dir()?)?;
     canonicalise(path.clone())?
         .strip_prefix(&current_dir)
-        .map(|p| Utf8PathBuf::from(p.as_str().replace('\\', "/")))
+        // Stripping the current directory from itself leaves nothing, which is
+        // not a path anything downstream can read or name.
+        .map(|p| match p.as_str().replace('\\', "/") {
+            relative if relative.is_empty() => Utf8PathBuf::from("."),
+            relative => Utf8PathBuf::from(relative),
+        })
         .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
 }
 
