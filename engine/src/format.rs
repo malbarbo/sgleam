@@ -1,5 +1,8 @@
-// This file is from gleam project
-// compiler-cli/src/format.rs
+// This file is from the gleam project: `run` and what it reaches are from
+// compiler-cli/src/format.rs, and `read` from compiler-cli/src/fs.rs. Where
+// gleam walks a directory with the `ignore` crate, honouring the gitignore
+// files it finds, `gleam_files` here is a plain walk: sgleam formats loose
+// files and has no project whose build directory it would have to leave out.
 
 use gleam_core::error::{Error, FileIoAction, FileKind, Result, StandardIoAction, Unformatted};
 use std::io::Read;
