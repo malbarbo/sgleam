@@ -21,6 +21,7 @@ fn init() {
 
 #[unsafe(no_mangle)]
 pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
+    init();
     let mut buffer = Vec::with_capacity(size);
     let ptr = buffer.as_mut_ptr();
     std::mem::forget(buffer);
@@ -29,6 +30,7 @@ pub extern "C" fn string_allocate(size: usize) -> *mut u8 {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
+    init();
     assert!(!ptr.is_null());
     unsafe {
         let _ = Vec::from_raw_parts(ptr, 0, size);
@@ -37,6 +39,7 @@ pub unsafe extern "C" fn string_deallocate(ptr: *mut u8, size: usize) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn cstr_deallocate(ptr: *mut std::ffi::c_char) {
+    init();
     assert!(!ptr.is_null());
     unsafe {
         let _ = std::ffi::CString::from_raw(ptr);
@@ -130,6 +133,7 @@ pub unsafe extern "C" fn repl_run(
     ptr: *mut u8,
     len: usize,
 ) -> u32 {
+    init();
     assert!(!repl.is_null());
     let repl = unsafe { &mut *repl };
     repl.run(&new_string(ptr, len)) as u32
@@ -146,11 +150,13 @@ pub unsafe extern "C" fn repl_ready(
     ptr: *mut u8,
     len: usize,
 ) -> i32 {
+    init();
     engine::shell::ready_state(&new_string(ptr, len))
 }
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
+    init();
     // What `repl_new` answers with when it has no shell to give is the null
     // the host hands back here, having taken it for one.
     if repl.is_null() {
@@ -170,6 +176,7 @@ pub unsafe extern "C" fn repl_complete(
     text_len: usize,
     cursor_pos: usize,
 ) -> *mut std::ffi::c_char {
+    init();
     assert!(!repl.is_null());
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
@@ -221,5 +228,6 @@ pub unsafe extern "C" fn format(ptr: *mut u8, len: usize) -> *mut std::ffi::c_ch
 
 #[unsafe(no_mangle)]
 pub extern "C" fn version() -> *mut std::ffi::c_char {
+    init();
     to_cstr(engine::version())
 }
