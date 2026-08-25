@@ -48,9 +48,6 @@ impl Default for Project {
 
         extract_tar(&mut project.fs, GLEAM_STDLIB, Project::source()).expect("Extract stdlib");
 
-        // Every one of these is part of the build, and a module the input is
-        // free to import: one that did not make it in is a library with a hole
-        // in it.
         for path in crate::SgleamLib::iter() {
             let file = crate::SgleamLib::get(&path).expect("Read an embedded sgleam file");
             let content = std::str::from_utf8(&file.data).expect("An embedded sgleam file is utf8");
@@ -62,8 +59,6 @@ impl Default for Project {
     }
 }
 
-/// Where the project puts what it holds. Only the two directories another
-/// module names a path under are public.
 impl Project {
     fn root() -> &'static Utf8Path {
         "/".into()
@@ -77,9 +72,8 @@ impl Project {
         "/build".into()
     }
 
-    /// The path of a source file as the compiled JavaScript names it: relative
-    /// to the project root, so `repl1.gleam` is `src/repl1.gleam`. It is what
-    /// a runtime with only a path to go on finds the file by.
+    /// The path the compiled JavaScript uses for a source file: relative to the
+    /// project root, so `repl1.gleam` is `src/repl1.gleam`.
     pub fn source_path(name: &str) -> Utf8PathBuf {
         Project::source()
             .strip_prefix(Project::root())
@@ -91,10 +85,9 @@ impl Project {
         "/build/prelude.mjs".into()
     }
 
-    /// `name` is the module the content will be compiled as, hence a path under
-    /// the source root. A name that is not one joins to somewhere else — an
-    /// absolute one replaces the root outright — and lands where nothing
-    /// compiles it.
+    /// `name` is the path the module takes its name from, so it has to stay
+    /// under the source root: an absolute name replaces the root outright, and
+    /// a name with `..` lands outside, where nothing compiles it.
     pub fn write_source(&mut self, name: &str, content: &str) {
         assert!(
             is_module_path(name),
@@ -109,8 +102,8 @@ impl Project {
             .expect("Set modification time of a file in memory")
     }
 
-    /// The module the file was written as. A module is named after the path it
-    /// sits at under the source root, so only the write knows the name.
+    /// Returns the name of the module the file becomes: its path, minus the
+    /// `.gleam`.
     pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<EcoString, Error> {
         let content = std::fs::read_to_string(input).map_err(|err| Error::FileIo {
             kind: FileKind::File,
@@ -184,7 +177,8 @@ impl Project {
     }
 }
 
-/// The path the user gave, from the one its copy sits at.
+/// A path as the user gave it: the source root is where sgleam put the file,
+/// not where the user wrote it.
 fn user_path(path: &Utf8Path) -> Utf8PathBuf {
     path.strip_prefix(Project::source())
         .unwrap_or(path)
@@ -203,8 +197,8 @@ pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
     }
 }
 
-/// Whether the path names the module it would be written as: relative, and
-/// made of names alone.
+/// Whether the path can name a module: a module takes its name from its path,
+/// so the path has to be relative and made of plain names.
 pub fn is_module_path(path: &str) -> bool {
     !path.is_empty()
         && Utf8Path::new(path)
@@ -230,8 +224,6 @@ pub fn fn_type_to_string(module: &Module, args: &[Arc<Type>], return_: Arc<Type>
     )
 }
 
-/// Whether the input kept the definition private, the one case that has no
-/// `pub` written at its keyword — `@internal` requires one.
 pub fn is_private(def: &UntypedDefinition) -> bool {
     match def {
         Definition::Function(f) => f.publicity.is_private(),
@@ -242,8 +234,8 @@ pub fn is_private(def: &UntypedDefinition) -> bool {
     }
 }
 
-/// What the definition takes of the input, from `start`, where the item that
-/// produced it began: `location` stops at the head of the ones with a body.
+/// How much of the input the definition covers, from `start`, where the item
+/// began: `location` stops at the head of a definition that has a body.
 pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     let end = match def {
         Definition::TypeAlias(_) | Definition::Import(_) => def.location().end,
@@ -262,14 +254,15 @@ pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     SrcSpan::new(start, end)
 }
 
-/// Whether the module is one sgleam brings itself — the prelude, the standard
-/// library, the sgleam library — and so is not a file to be looked for.
+/// Whether sgleam brings the module itself — the prelude, the standard library,
+/// the sgleam library. There is no file to look for.
 fn is_builtin_module(module: &str) -> bool {
     matches!(module, "gleam" | "sgleam")
         || module.starts_with("gleam/")
         || module.starts_with("sgleam/")
 }
 
+/// The files of `paths` and of every module they import, directly or not.
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
     let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
@@ -368,13 +361,13 @@ impl ConsoleWarningEmitter {
     }
 }
 
-/// Warnings about the scaffolding and not about what the user wrote. Every name
-/// in scope reaches a generated module by import, so one the input does not use
-/// is the rule there, and a module under two names is what a session does over
-/// time.
+/// Whether the warning is about the scaffolding the repl writes and not about
+/// what the user wrote. The repl imports every name in scope into each module it
+/// generates, so an unused import is the rule there, and a module already in
+/// scope comes in twice when the input imports it under a new name.
 ///
-/// Nothing else is filtered: a `todo`, an unreachable line, a variable a
-/// function never reads — that is the compiler teaching.
+/// Everything else stays: a `todo`, an unreachable line, a variable a function
+/// never reads — the compiler teaches with those.
 pub fn is_repl_noise(warning: &Warning) -> bool {
     match warning {
         Warning::Type { warning, .. } => matches!(
