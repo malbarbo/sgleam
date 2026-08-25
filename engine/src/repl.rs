@@ -492,7 +492,7 @@ impl<E: Engine> Repl<E> {
             .map(|(_, src)| src.input_lines())
             .unwrap_or_default();
         ReplFile {
-            path: file.into(),
+            path: Project::source_path(file).into_string(),
             lines,
         }
     }

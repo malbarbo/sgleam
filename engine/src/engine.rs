@@ -5,6 +5,8 @@ use crate::error::SgleamError;
 /// A module written by the repl.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReplFile {
+    /// The path of the module as the compiled JavaScript names it, such as
+    /// `src/repl1.gleam`. It is the path the runtime looks `lines` up by.
     pub path: String,
     /// Where each line of the module came from: `lines[n]` is the input line
     /// that line `n` of the module was copied from, or 0 for a line the repl

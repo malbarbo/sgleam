@@ -79,10 +79,10 @@ fn the_runtime_is_told_of_the_modules_it_can_reach() {
     assert_eq!(
         handed_over_paths(&repl),
         [
-            "repl1.gleam",
-            "repl4.gleam",
-            "repl4_1.gleam",
-            "repl5_1.gleam"
+            "src/repl1.gleam",
+            "src/repl4.gleam",
+            "src/repl4_1.gleam",
+            "src/repl5_1.gleam"
         ]
     );
 }

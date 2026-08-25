@@ -77,6 +77,16 @@ impl Project {
         "/build".into()
     }
 
+    /// The path of a source file as the compiled JavaScript names it: relative
+    /// to the project root, so `repl1.gleam` is `src/repl1.gleam`. It is what
+    /// a runtime with only a path to go on finds the file by.
+    pub fn source_path(name: &str) -> Utf8PathBuf {
+        Project::source()
+            .strip_prefix(Project::root())
+            .expect("The source root is under the project root")
+            .join(name)
+    }
+
     fn prelude() -> &'static Utf8Path {
         "/build/prelude.mjs".into()
     }

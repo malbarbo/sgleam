@@ -517,7 +517,7 @@ pub fn run_main(
                     .map(u32::to_string)
                     .collect::<Vec<_>>()
                     .join(",");
-                format!(r#"["src/{}", [{lines}]]"#, file.path)
+                format!(r#"["{}", [{lines}]]"#, file.path)
             })
             .collect::<Vec<_>>()
             .join(", "),
