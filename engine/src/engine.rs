@@ -2,21 +2,33 @@ use gleam_core::io::memory::InMemoryFileSystem;
 
 use crate::error::SgleamError;
 
-/// A module the repl wrote, named for the runtime that runs it.
+/// A module written by the repl.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ReplFile {
     pub path: String,
-    /// The line of the input each line of the module was copied from, indexed
-    /// by line, and 0 for a line the repl wrote. It is what says where in the
-    /// input a place in this file is.
+    /// Where each line of the module came from: `lines[n]` is the input line
+    /// that line `n` of the module was copied from, or 0 for a line the repl
+    /// wrote itself. Lines are counted from 1, so `lines[0]` is unused.
+    ///
+    /// It is how the runtime turns a line of this module back into a line of
+    /// the input. For the input `fn f(x) {\n  echo x\n}` written as
+    ///
+    /// ```text
+    /// 1  import gleam/io    the repl
+    /// 2  pub fn f(x) {      input line 1
+    /// 3  let a = a()        the repl
+    /// 4    echo x           input line 2
+    /// 5  }                  input line 3
+    /// ```
+    ///
+    /// `lines` is `[0, 0, 1, 0, 2, 3]`.
     pub lines: Vec<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
-    /// The repl's entry point, and the files it wrote that the runtime has not
-    /// been told about yet.
+    /// The repl's entry point, and the new files it wrote.
     ReplMain {
         name: String,
         files: Vec<ReplFile>,
@@ -37,8 +49,6 @@ impl MainFunction {
 }
 
 pub trait Engine: Clone {
-    /// Nothing can be run without a runtime to run it in, so what stopped one
-    /// from being made is for the caller to report and not to panic on.
     fn new(fs: InMemoryFileSystem) -> Result<Self, SgleamError>;
 
     fn run_main(
@@ -48,7 +58,6 @@ pub trait Engine: Clone {
         show_output: bool,
     ) -> Result<(), SgleamError>;
 
-    /// Whether the run remembered a value under `key`.
     fn has_var(&self, key: &str) -> bool;
 
     fn run_tests(&self, modules: &[&str]) -> Result<(), SgleamError>;
