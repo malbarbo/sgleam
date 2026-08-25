@@ -17,18 +17,28 @@ pub enum SgleamError {
         signature: EcoString,
     },
 
+    /// A path the user gave from outside the directory the program runs in.
+    /// The path is what names the module, so one from outside has no name to
+    /// be compiled under.
     #[error("path is not within the current directory")]
     PathNotInCurrentDir {
         current_dir: Utf8PathBuf,
         path: Utf8PathBuf,
     },
 
+    /// The first path given did not become a module, either because the build
+    /// turned it down — saying why as it did — or because nothing compiled it.
     #[error("no module to run")]
     NoModuleToRun { path: Utf8PathBuf },
 
+    /// A failure of the Gleam compiler, shown as the diagnostics it carries,
+    /// over the paths the user gave and not the ones the project holds.
     #[error("gleam error")]
     Gleam(gleam_core::Error),
 
+    /// A failure of the QuickJS API itself, such as creating the context or
+    /// reading a global. An exception from the code it ran is not one of
+    /// these: it arrives as `LauncherScript` or `UserProgramFailed`.
     #[error("quickjs error")]
     QuickJs(rquickjs::Error),
 
@@ -46,9 +56,15 @@ pub enum SgleamError {
     #[error("tests failed")]
     TestsFailed,
 
+    /// A run stopped by Ctrl-C. The handler installed with the engine only
+    /// raises a flag, which QuickJS turns into an exception at the next
+    /// statement of whatever was running.
     #[error("interrupted")]
     Interrupted,
 
+    /// A failure from outside the language: installing the Ctrl-C handler,
+    /// starting the repl reader. Shown as it came, as each already names its
+    /// own subject.
     #[error(transparent)]
     Other(Box<dyn std::error::Error>),
 }
