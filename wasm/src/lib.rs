@@ -131,13 +131,8 @@ pub unsafe extern "C" fn repl_run(
     len: usize,
 ) -> u32 {
     assert!(!repl.is_null());
-
-    let mut repl = unsafe { Box::from_raw(repl) };
-    let ret = repl.run(&new_string(ptr, len)) as u32;
-
-    Box::leak(repl);
-
-    ret
+    let repl = unsafe { &mut *repl };
+    repl.run(&new_string(ptr, len)) as u32
 }
 
 /// Whether the line at the prompt is finished: -1 to run it, otherwise the
