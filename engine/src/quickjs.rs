@@ -581,7 +581,7 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
                 Err(SgleamError::Interrupted)
             }
             Err(CaughtError::Error(err)) => Err(err.into()),
-            Err(_) => Err(SgleamError::UserProgramRuntimeError),
+            Err(_) => Err(SgleamError::UserProgramFailed),
             Ok(_) => Ok(()),
         }
     })

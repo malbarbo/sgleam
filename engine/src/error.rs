@@ -40,7 +40,7 @@ pub enum SgleamError {
 
     /// A JS runtime error that was already displayed by the JS side.
     #[error("runtime error")]
-    UserProgramRuntimeError,
+    UserProgramFailed,
 
     /// A check that failed, which said so as it ran.
     #[error("tests failed")]
@@ -117,7 +117,7 @@ pub fn show_error(err: &SgleamError) {
         }
         .write(&mut buffer),
         // Already displayed by the JS runtime.
-        SgleamError::UserProgramRuntimeError | SgleamError::TestsFailed => return,
+        SgleamError::UserProgramFailed | SgleamError::TestsFailed => return,
         SgleamError::Interrupted => {
             writeln!(buffer, "Interrupted.").expect("write to buffer");
         }
