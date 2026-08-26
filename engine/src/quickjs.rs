@@ -597,8 +597,9 @@ fn script_error(err: CaughtError<'_>) -> SgleamError {
     }
 }
 
-/// What an interruption throws is QuickJS's own InternalError, which is not
-/// what a panic saying "interrupted" is.
+/// Returns `true` if the exception is the one an interruption throws, `false`
+/// otherwise. That one is QuickJS's own InternalError, and a panic saying
+/// "interrupted" is not.
 fn is_interrupt(exception: &Exception) -> bool {
     exception.message() == Some("interrupted".into())
         && exception

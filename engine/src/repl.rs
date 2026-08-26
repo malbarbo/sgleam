@@ -530,7 +530,8 @@ impl<E: Engine> Repl<E> {
         names
     }
 
-    /// A warning the scaffolding causes rather than the input.
+    /// Returns `true` if the scaffolding caused the warning, `false` if the
+    /// input did.
     fn is_noise(&self, warning: &Warning, purpose: &Purpose) -> bool {
         *purpose == Purpose::DeclareScope && is_repl_noise(warning)
     }
@@ -571,8 +572,8 @@ impl<E: Engine> Repl<E> {
         crate::error::flush_buffer(&buffer_writer, &buffer);
     }
 
-    /// Move `diag` onto what the input it points into wrote, producing whether
-    /// it pointed into one. Anything else stays where it is.
+    /// Moves `diag` onto what the input it points into wrote, and returns
+    /// `true` if it pointed into one. Anything else stays where it is.
     fn move_onto_input(&self, diag: &mut Diagnostic) -> bool {
         let Some(loc) = &mut diag.location else {
             return false;

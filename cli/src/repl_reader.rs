@@ -410,9 +410,9 @@ impl Validator for CompleteInputValidator {
     }
 }
 
-/// Whether the line the user just ended is the whole input, which only the
-/// parser can say. The prompt in the browser asks the same function through the
-/// `repl_ready` export.
+/// Returns `Valid` if the line the user just ended is the whole input,
+/// `Invalid` otherwise, which only the parser can say. The prompt in the
+/// browser asks the same function through the `repl_ready` export.
 fn validate(input: &str) -> ValidationResult {
     if engine::shell::ready_state(input) < 0 {
         ValidationResult::Valid(None)

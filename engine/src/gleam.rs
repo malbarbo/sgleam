@@ -197,8 +197,9 @@ pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
     }
 }
 
-/// Whether the path can name a module: a module takes its name from its path,
-/// so the path has to be relative and made of plain names.
+/// Returns `true` if the path can name a module, `false` otherwise. A module
+/// takes its name from its path, so the path has to be relative and made of
+/// plain names.
 pub fn is_module_path(path: &str) -> bool {
     !path.is_empty()
         && Utf8Path::new(path)
@@ -254,8 +255,9 @@ pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     SrcSpan::new(start, end)
 }
 
-/// Whether sgleam brings the module itself — the prelude, the standard library,
-/// the sgleam library. There is no file to look for.
+/// Returns `true` if sgleam brings the module itself — the prelude, the
+/// standard library, the sgleam library — and `false` if a file has to supply
+/// it.
 fn is_builtin_module(module: &str) -> bool {
     matches!(module, "gleam" | "sgleam")
         || module.starts_with("gleam/")
@@ -361,10 +363,11 @@ impl ConsoleWarningEmitter {
     }
 }
 
-/// Whether the warning is about the scaffolding the repl writes and not about
-/// what the user wrote. The repl imports every name in scope into each module it
-/// generates, so an unused import is the rule there, and a module already in
-/// scope comes in twice when the input imports it under a new name.
+/// Returns `true` if the warning is about the scaffolding the repl writes,
+/// `false` if it is about what the user wrote. The repl imports every name in
+/// scope into each module it generates, so an unused import is the rule there,
+/// and a module already in scope comes in twice when the input imports it
+/// under a new name.
 ///
 /// Everything else stays: a `todo`, an unreachable line, a variable a function
 /// never reads — the compiler teaches with those.

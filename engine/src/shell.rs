@@ -307,9 +307,9 @@ pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
     (start, &before[start..])
 }
 
-/// A char no name of the language has in it, and so one the word being
-/// completed ends at. `:` and `.` are in a name here: the commands start with
-/// one and the qualified names carry the other.
+/// Returns `true` if no name of the language has the char in it, so the word
+/// being completed ends at it. `:` and `.` are in a name here: the commands
+/// start with one and the qualified names carry the other.
 fn is_break_char(c: char) -> bool {
     !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
 }
