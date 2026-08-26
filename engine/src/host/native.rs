@@ -1,41 +1,20 @@
-//! `system.load_bitmap` reads an image file and gives a program the width and
-//! the height of the image, and its bytes as a data URI, which a drawing puts
-//! in an `<image>` element. Zeros and an empty string say that the file is
-//! missing, or that nothing here reads a file of that kind.
+//! The operating system answers. The file system holds an image and resvg
+//! measures a piece of text.
 
-#[cfg(target_arch = "wasm32")]
-mod ffi {
-    #[link(wasm_import_module = "env")]
-    unsafe extern "C" {
-        /// Fetch bitmap, cache it, return data URI length (0 on error).
-        pub fn load_bitmap_fetch(path: *const u8, path_len: usize) -> usize;
-        /// Read cached width/height.
-        pub fn load_bitmap_width() -> f64;
-        pub fn load_bitmap_height() -> f64;
-        /// Copy cached data URI into buf. Returns bytes written.
-        pub fn load_bitmap_data(buf: *mut u8, buf_len: usize) -> usize;
-    }
+use base64::Engine as _;
+use std::sync::atomic::Ordering;
+
+use super::STOP;
+
+pub fn check_interrupt() -> bool {
+    STOP.swap(false, Ordering::Relaxed)
 }
 
-#[cfg(target_arch = "wasm32")]
-pub fn load_bitmap(path: String) -> (f64, f64, String) {
-    let data_uri_len = unsafe { ffi::load_bitmap_fetch(path.as_ptr(), path.len()) };
-    if data_uri_len == 0 {
-        return (0.0, 0.0, String::new());
-    }
-    let w = unsafe { ffi::load_bitmap_width() };
-    let h = unsafe { ffi::load_bitmap_height() };
-    let mut buf = vec![0u8; data_uri_len];
-    let filled = unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
-    buf.truncate(filled);
-    let data_uri = String::from_utf8_lossy(&buf).into_owned();
-    (w, h, data_uri)
+pub fn sleep(ms: u64) {
+    std::thread::sleep(std::time::Duration::from_millis(ms));
 }
 
-#[cfg(not(target_arch = "wasm32"))]
 pub fn load_bitmap(path: String) -> (f64, f64, String) {
-    use base64::Engine as _;
-
     let data = match std::fs::read(&path) {
         Ok(data) => data,
         Err(err) => {
@@ -62,7 +41,6 @@ pub fn load_bitmap(path: String) -> (f64, f64, String) {
 /// The kind of the image and the size in its header, or `None` for anything
 /// else. The header says the kind, and not the name of the file, so the data
 /// URI always says what the bytes are.
-#[cfg(not(target_arch = "wasm32"))]
 fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
     // PNG: bytes 16-23 contain width and height as u32 big-endian
     if data.len() >= 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
@@ -117,8 +95,8 @@ fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
     None
 }
 
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod tests {
+#[cfg(test)]
+mod bitmap_tests {
     use super::image_header;
 
     #[test]
@@ -202,5 +180,75 @@ mod tests {
         let data = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
         // Only header magic, no IHDR
         assert_eq!(image_header(&data), None);
+    }
+}
+
+pub fn text_width(text: String, font_css: String) -> f64 {
+    measure(&text, &font_css).0
+}
+
+pub fn text_height(text: String, font_css: String) -> f64 {
+    measure(&text, &font_css).1
+}
+
+pub fn text_x_offset(text: String, font_css: String) -> f64 {
+    measure(&text, &font_css).2
+}
+
+pub fn text_y_offset(text: String, font_css: String) -> f64 {
+    measure(&text, &font_css).3
+}
+
+/// The size in pixels and which part of the css says it. The part that ends in
+/// `px` gives the size, the parts before it say the style and the weight, and
+/// the parts after it name the family. Without such a part the size is 14.
+fn font_size(parts: &[&str]) -> (f64, Option<usize>) {
+    for (i, part) in parts.iter().enumerate() {
+        if let Some(s) = part.strip_suffix("px")
+            && let Ok(size) = s.parse::<f64>()
+        {
+            return (size, Some(i));
+        }
+    }
+    (14.0, None)
+}
+
+/// A guess from the size of the font alone. The width of a character is a fixed
+/// part of the size, the height of a line is the size, and a drawing laid out
+/// this way is close enough.
+fn heuristic(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
+    let (size, _) = font_size(&font_css.split_whitespace().collect::<Vec<_>>());
+    let width = text.chars().count() as f64 * size * 0.6;
+    (width, size, 0.0, 0.0)
+}
+
+/// resvg measures the text, and the guess stands in without it.
+#[cfg(feature = "resvg")]
+#[path = "native/layout.rs"]
+mod layout;
+#[cfg(feature = "resvg")]
+use layout::measure;
+
+#[cfg(not(feature = "resvg"))]
+fn measure(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
+    heuristic(text, font_css)
+}
+
+#[cfg(test)]
+mod text_tests {
+    use super::*;
+
+    #[test]
+    fn a_css_with_no_size_in_pixels_has_the_default() {
+        assert_eq!(font_size(&["bold", "16px", "monospace"]), (16.0, Some(1)));
+        assert_eq!(font_size(&["bold", "large"]), (14.0, None));
+    }
+
+    #[test]
+    fn the_guess_grows_with_the_text_and_the_size() {
+        let (w, h, x, y) = heuristic("abc", "10px sans-serif");
+        assert_eq!((h, x, y), (10.0, 0.0, 0.0));
+        assert!(w > heuristic("ab", "10px sans-serif").0);
+        assert!(heuristic("abc", "20px sans-serif").0 > w);
     }
 }

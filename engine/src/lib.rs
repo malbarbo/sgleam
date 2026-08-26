@@ -4,11 +4,8 @@
     clippy::result_large_err
 )]
 
-pub mod bitmap;
 pub mod engine;
 pub mod error;
-#[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]
-pub mod fonts;
 pub mod format;
 pub mod gleam;
 pub mod host;
@@ -22,7 +19,6 @@ pub mod run;
 pub mod scope;
 pub mod shell;
 pub mod source;
-pub mod text_metrics;
 
 use rust_embed::Embed;
 

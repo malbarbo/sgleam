@@ -1,8 +1,30 @@
-//! What a program asks of the world around it. The operating system answers
-//! natively, and in the browser the page answers, through the imports of the
-//! `env` module.
+//! What a program asks of the world around it. The page answers in `wasm` and
+//! the operating system in `native`, and what is here holds for both.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+
+pub use target::{check_interrupt, sleep};
+#[cfg(target_arch = "wasm32")]
+pub use target::{draw_svg, get_key_event};
+
+/// `system.load_bitmap` reads an image file and gives a program the width and
+/// the height of the image, and its bytes as a data URI, which a drawing puts
+/// in an `<image>` element. Zeros and an empty string say that the file is
+/// missing, or that nothing here reads a file of that kind.
+pub use target::load_bitmap;
+
+/// What `system.text_width` and its neighbours give a program. The width and
+/// the height are those of the box around the text. The offsets go from the
+/// middle of that box to the origin of an svg `<text>` element, which sits at
+/// the start of the baseline.
+pub use target::{text_height, text_width, text_x_offset, text_y_offset};
+
+#[cfg(target_arch = "wasm32")]
+#[path = "host/wasm.rs"]
+mod target;
+#[cfg(not(target_arch = "wasm32"))]
+#[path = "host/native.rs"]
+mod target;
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
@@ -24,68 +46,4 @@ pub fn now_ms() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn check_interrupt() -> bool {
-    STOP.swap(false, Ordering::Relaxed)
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-pub fn sleep(ms: u64) {
-    std::thread::sleep(std::time::Duration::from_millis(ms));
-}
-
-#[cfg(target_arch = "wasm32")]
-mod ffi {
-    #[link(wasm_import_module = "env")]
-    unsafe extern "C" {
-        pub fn check_interrupt() -> bool;
-        pub fn sleep(ms: u64);
-        pub fn draw_svg(str: *const u8, len: usize);
-        pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn check_interrupt() -> bool {
-    unsafe { ffi::check_interrupt() }
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn sleep(ms: u64) {
-    unsafe { ffi::sleep(ms) };
-}
-
-#[cfg(target_arch = "wasm32")]
-pub fn draw_svg(str: String) {
-    unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
-}
-
-/// The kind of the key event waiting in the page and the name of the key, or
-/// nothing at all when the page has no event.
-#[cfg(target_arch = "wasm32")]
-pub fn get_key_event() -> Vec<String> {
-    let mut key = [0u8; 32];
-    let mut modifiers = [false; 5];
-    let result = unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
-    if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
-        let mut ret = vec![
-            (*type_).into(),
-            String::from_utf8_lossy(&key)
-                .trim_matches(char::from(0))
-                .to_string(),
-        ];
-        for (on, key) in modifiers
-            .iter()
-            .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
-        {
-            if *on {
-                ret.push((*key).into())
-            }
-        }
-        ret
-    } else {
-        vec![]
-    }
 }

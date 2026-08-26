@@ -17,13 +17,14 @@ use rquickjs::{
 
 use crate::{
     STACK_SIZE,
-    bitmap::load_bitmap,
     engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::Project,
-    host::{check_interrupt, interrupt, now_ms, sleep},
+    host::{
+        check_interrupt, interrupt, load_bitmap, now_ms, sleep, text_height, text_width,
+        text_x_offset, text_y_offset,
+    },
     swriteln,
-    text_metrics::{text_height, text_width, text_x_offset, text_y_offset},
 };
 
 /// A JavaScript context together with its runtime. A clone shares both,
@@ -245,9 +246,10 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     // Only the browser draws and reads keys. The library asks whether the
     // property is there, so a native run simply has neither.
     #[cfg(target_arch = "wasm32")]
-    set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
-    #[cfg(target_arch = "wasm32")]
-    set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
+    {
+        set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
+        set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
+    }
     set_fn(&sgleam, "text_width", text_width)?;
     set_fn(&sgleam, "text_height", text_height)?;
     set_fn(&sgleam, "text_x_offset", text_x_offset)?;

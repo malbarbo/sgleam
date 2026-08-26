@@ -1,6 +1,6 @@
 use std::sync::{Arc, LazyLock};
 
-static FONT_INTER: &[u8] = include_bytes!("../fonts/InterVariable.ttf");
+static FONT_INTER: &[u8] = include_bytes!("../../../fonts/InterVariable.ttf");
 
 pub static FONTDB: LazyLock<Arc<resvg::usvg::fontdb::Database>> = LazyLock::new(|| {
     let mut db = resvg::usvg::fontdb::Database::new();
