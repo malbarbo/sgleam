@@ -95,8 +95,8 @@ pub fn nesting_depth(src: &str) -> usize {
     let mut depth: i32 = 0;
     for token in lexer::make_tokenizer(src).flatten() {
         match token.1 {
-            Token::LeftBrace | Token::LeftParen | Token::LeftSquare => depth += 1,
-            Token::RightBrace | Token::RightParen | Token::RightSquare => depth -= 1,
+            Token::LeftBrace | Token::LeftParen | Token::LeftSquare | Token::LtLt => depth += 1,
+            Token::RightBrace | Token::RightParen | Token::RightSquare | Token::GtGt => depth -= 1,
             _ => {}
         }
     }
@@ -195,6 +195,20 @@ mod tests {
         ] {
             assert!(!is_incomplete(src), "{src:?}");
         }
+    }
+
+    #[test]
+    fn how_deep_in_brackets_the_input_ends() {
+        assert_eq!(nesting_depth("let x = 1"), 0);
+        assert_eq!(nesting_depth("case x {"), 1);
+        assert_eq!(nesting_depth("list.map(l, fn(x) {"), 2);
+        assert_eq!(nesting_depth("let x = <<1,"), 1);
+        assert_eq!(nesting_depth("let x = <<1, 2>>"), 0);
+        // A bracket the parser never reads is text.
+        assert_eq!(nesting_depth("let x = [1, // ]\n"), 1);
+        assert_eq!(nesting_depth("let x = \"(\""), 0);
+        // More closers than openers is still the outermost level.
+        assert_eq!(nesting_depth("}"), 0);
     }
 
     /// Every prefix of a valid input is unfinished, by construction. Not all of

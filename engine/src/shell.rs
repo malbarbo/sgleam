@@ -384,6 +384,7 @@ mod tests {
         assert_eq!(ready_state("io.println("), 2);
         assert_eq!(ready_state("let x = [1,"), 2);
         assert_eq!(ready_state("let x = #(1,"), 2);
+        assert_eq!(ready_state("let x = <<1,"), 2);
         assert_eq!(ready_state("pub fn f() {\n  case x {"), 4);
         // And one that is closed is worth none.
         assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
