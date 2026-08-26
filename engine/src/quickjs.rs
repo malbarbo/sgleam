@@ -25,8 +25,8 @@ use crate::{
     text_metrics::{text_height, text_width, text_x_offset, text_y_offset},
 };
 
-/// A JavaScript context, and the runtime it runs in. A clone shares both:
-/// rquickjs counts the references.
+/// A JavaScript context together with its runtime. A clone shares both,
+/// because rquickjs counts the references.
 #[derive(Clone)]
 pub struct QuickJsEngine {
     context: Context,
@@ -37,13 +37,14 @@ impl Engine for QuickJsEngine {
         #[cfg(not(target_arch = "wasm32"))]
         {
             use std::sync::OnceLock;
-            // Installed once for the process, and what came of it kept, so
-            // that a second engine is told the same thing as the first and
-            // not silently left without a way to be stopped.
+            // The handler goes in once for the process, and the result
+            // stays, so a second engine hears what the first one heard and
+            // never runs quietly with no way to stop it.
             static CTRLC: OnceLock<std::result::Result<(), String>> = OnceLock::new();
             let installed =
                 CTRLC.get_or_init(|| ctrlc::set_handler(interrupt).map_err(|err| err.to_string()));
-            // Shown as it came: what ctrlc says already names its subject.
+            // What ctrlc says already names its subject, so this hands the
+            // message on as it came.
             if let Err(err) = installed {
                 return Err(SgleamError::Other(err.clone().into()));
             }
@@ -85,8 +86,9 @@ pub fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
     let runtime = Runtime::new()?;
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
-    // Not `Runtime::set_max_stack_size`: since rquickjs 0.12 it disables the
-    // check above 16 MiB, and student recursion needs the whole thread.
+    // `Runtime::set_max_stack_size` would not do. Since rquickjs 0.12 it
+    // disables the check above 16 MiB, and student recursion needs the whole
+    // thread.
     context.with(|ctx| unsafe {
         JS_SetMaxStackSize(
             JS_GetRuntime(ctx.as_raw().as_ptr()),
@@ -122,10 +124,10 @@ pub fn run_main(
         MainFunction::SmainStdin => "SmainStdin",
         MainFunction::SmainStdinLines => "SmainStdinLines",
     };
-    // A place in a generated module is read against the input it was copied
-    // from, which is what the lines of each file say. They are declared here
-    // and not as each is compiled, so a module that ran nothing is still known
-    // by the time an input reaches into it.
+    // The runtime turns a place in a generated module back into a place in
+    // the input, and the lines of each file tell it how. Every file goes in on
+    // every run, and not one file as the compiler makes it, so an input that
+    // reaches into a module that ran nothing still finds the lines.
     let repl_files = match &main {
         MainFunction::ReplMain { files, .. } => files
             .iter()
@@ -183,13 +185,13 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
-        // The script imports its neighbors, so it is named as one of them —
-        // without the extension only a loadable module has, which is what
-        // keeps an import from ever finding it.
+        // The script imports its neighbors, so it takes the name of one of
+        // them, minus the extension. Only a loadable module carries that
+        // extension, and without it no import can ever find the script.
         options.filename = Some(Project::out().join("eval_script").into_string());
-        // Caught here, and not handed on as it comes: the error left from an
-        // exception only says that there was one. The top level of every module
-        // the script imports runs inside this call, and none of it reaches
+        // The error rquickjs leaves from an exception only says that there
+        // was one, so this catches the exception here. The top level of every
+        // module the script imports runs inside this call and never reaches
         // `try_main`, so nothing else is going to say what failed.
         let promise = ctx
             .eval_with_options::<Promise, _>(source, options)
@@ -206,7 +208,7 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
     })
 }
 
-/// Says what the error is here and not later: the message of a caught
+/// Says what the error is here and not later. The message of a caught
 /// exception comes from the context that caught it, and nothing outside this
 /// call can read it.
 fn script_error(err: CaughtError<'_>) -> SgleamError {
@@ -217,9 +219,9 @@ fn script_error(err: CaughtError<'_>) -> SgleamError {
     }
 }
 
-/// Returns `true` if the exception is the one an interruption throws, `false`
-/// otherwise. That one is QuickJS's own InternalError, and a panic saying
-/// "interrupted" is not.
+/// Returns `true` if the exception is the one QuickJS throws for an
+/// interruption, `false` otherwise. That one is its own InternalError, and a
+/// panic saying "interrupted" is not.
 fn is_interrupt(exception: &Exception) -> bool {
     exception.message() == Some("interrupted".into())
         && exception
@@ -256,9 +258,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     ctx.globals().set("sgleam", sgleam)
 }
 
-/// Sets `name` on `object` to `f`, and names the function `name` as well: a
-/// stack trace says the name a function carries, not the property that holds
-/// it.
+/// Sets `name` on `object` to `f`, and names the function `name` as well. A
+/// stack trace shows the name of a function, not the name of the property.
 fn set_fn<'js, F, P>(object: &Object<'js>, name: &str, f: F) -> Result<()>
 where
     F: IntoJsFunc<'js, P> + 'js,
@@ -314,9 +315,9 @@ impl Resolver for FileResolver {
         let dir = Path::new(base).parent().ok_or_else(|| {
             Error::new_resolving_message(base, name, format!("no parent for {base}"))
         })?;
-        // The generated modules import each other through `..`, which the file
-        // system does not resolve: it looks a path up as the components it is
-        // written with.
+        // The generated modules import each other through `..`, and the file
+        // system does not resolve that. It looks a path up component by
+        // component, exactly as the import writes the path.
         Ok(clean(dir.join(name)).to_string_lossy().into())
     }
 }

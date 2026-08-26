@@ -1,10 +1,10 @@
-//! How much room a piece of text takes, which is what `system.text_width` and
-//! its neighbours give a program: the width and height of the box around the
-//! text, and the offsets from the middle of that box to the origin an svg
-//! `<text>` element takes, which is the start of the baseline.
+//! What `system.text_width` and its neighbours give a program. The width and
+//! the height are those of the box around the text. The offsets go from the
+//! middle of that box to the origin of an svg `<text>` element, which sits at
+//! the start of the baseline.
 //!
-//! The page measures the text on wasm32. Natively resvg does, or, without the
-//! `resvg` feature, the size of the font gives a rough guess.
+//! The page measures the text on wasm32. Natively resvg measures it, or, when
+//! the `resvg` feature is off, the size of the font gives a rough guess.
 
 #[cfg(target_arch = "wasm32")]
 mod ffi {
@@ -77,9 +77,9 @@ pub fn text_y_offset(text: String, font_css: String) -> f64 {
     measure(&text, &font_css).3
 }
 
-/// The size in pixels, and which part of the css says it: the part that ends
-/// in `px`. The parts before it say the style and the weight, and the parts
-/// after it name the family. Without such a part the size is 14.
+/// The size in pixels and which part of the css says it. The part that ends
+/// in `px` gives the size, the parts before it say the style and the weight,
+/// and the parts after it name the family. Without such a part the size is 14.
 #[cfg(not(target_arch = "wasm32"))]
 fn font_size(parts: &[&str]) -> (f64, Option<usize>) {
     for (i, part) in parts.iter().enumerate() {
@@ -92,8 +92,9 @@ fn font_size(parts: &[&str]) -> (f64, Option<usize>) {
     (14.0, None)
 }
 
-/// A character as wide as a fixed part of the size of the font, and a line as
-/// tall as the size, which is close enough to lay a drawing out with.
+/// A guess from the size of the font alone. The width of a character is a
+/// fixed part of the size, the height of a line is the size, and a drawing
+/// laid out this way is close enough.
 #[cfg(not(target_arch = "wasm32"))]
 fn heuristic(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
     let (size, _) = font_size(&font_css.split_whitespace().collect::<Vec<_>>());
@@ -139,8 +140,9 @@ fn measure(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
     heuristic(text, font_css)
 }
 
-/// The box resvg lays the text out in, or the guess when it lays out nothing:
-/// a family the font database does not have leaves an empty box.
+/// Asks resvg for the box around the text, and falls back to the guess when
+/// resvg lays out nothing, which happens when the font database has no such
+/// family.
 #[cfg(all(not(target_arch = "wasm32"), feature = "resvg"))]
 fn measure(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
     let fp = parse_font_css(font_css);

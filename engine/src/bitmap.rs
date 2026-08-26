@@ -1,7 +1,7 @@
-//! The image `system.load_bitmap` reads: how wide and tall it is, and its
-//! bytes as a data URI, which is what the `<image>` element of a drawing
-//! carries. A path that names no image, or an image of a kind nothing here
-//! reads, gives zeros and an empty string.
+//! `system.load_bitmap` reads an image file and gives a program the width and
+//! the height of the image, and its bytes as a data URI, which a drawing puts
+//! in an `<image>` element. Zeros and an empty string say that the file is
+//! missing, or that nothing here reads a file of that kind.
 
 #[cfg(target_arch = "wasm32")]
 mod ffi {
@@ -66,7 +66,7 @@ pub fn load_bitmap(path: String) -> (f64, f64, String) {
     (w as f64, h as f64, data_uri)
 }
 
-/// The size the header of the image gives, or `(0, 0)` for anything else.
+/// The size in the header of the image, or `(0, 0)` for anything else.
 #[cfg(not(target_arch = "wasm32"))]
 fn image_dimensions(data: &[u8]) -> (u32, u32) {
     // PNG: bytes 16-23 contain width and height as u32 big-endian

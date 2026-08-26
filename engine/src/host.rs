@@ -1,20 +1,21 @@
-//! What a program asks of the world around it. Each target answers on its own:
-//! natively the operating system does, and on wasm32 the page that loaded the
-//! module, through the imports of the `env` module.
+//! What a program asks of the world around it. The operating system answers
+//! natively, and in the browser the page answers, through the imports of the
+//! `env` module.
 
 use std::sync::atomic::{AtomicBool, Ordering};
 
 static STOP: AtomicBool = AtomicBool::new(false);
 
-/// One flag for the whole process: whatever runs stops at the next check the
-/// engine makes. Natively that check reads the flag; in the browser the page
-/// answers instead, and nothing reads it.
+/// Stops the running program at its next check for an interruption. One flag
+/// serves the whole process, so an interruption reaches every engine at once.
+/// Natively the engine reads the flag. In the browser the page answers the
+/// check itself and nothing reads the flag.
 pub fn interrupt() {
     STOP.store(true, Ordering::Relaxed);
 }
 
 /// Milliseconds since the epoch, which is what `system.now_ms` gives a program
-/// and how `world` times its ticks. One implementation serves both targets:
+/// and how `world` times its ticks. One implementation serves both targets.
 /// `SystemTime` reads the WASI clock on wasm32-wasip1 and the system clock
 /// natively.
 pub fn now_ms() -> u64 {
@@ -61,8 +62,8 @@ pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }
 
-/// The kind of the key event the page has for us and the key it names, or
-/// nothing at all when no key was pressed.
+/// The kind of the key event waiting in the page and the name of the key, or
+/// nothing at all when the page has no event.
 #[cfg(target_arch = "wasm32")]
 pub fn get_key_event() -> Vec<String> {
     let mut key = [0u8; 32];
