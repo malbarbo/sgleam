@@ -119,7 +119,7 @@ impl Iterator for ReplReader {
                 Some(input)
             }
             Err(ReadlineError::Interrupted) => {
-                // Ctrl-C throws the input away, so nothing is left pending.
+                // Ctrl-C throws the input away, so nothing stays pending.
                 take_pending(&editor);
                 self.editor = Some(editor);
                 Some("".into())
@@ -131,8 +131,8 @@ impl Iterator for ReplReader {
                 if let Some(history) = &history_path() {
                     let _ = editor.save_history(history);
                 }
-                // An input the file ended in the middle of still runs: the
-                // user wants to read what is wrong with it.
+                // An input that the file cut off still runs, as the user
+                // wants to read what is wrong with it.
                 let pending = take_pending(&editor);
                 (!pending.trim().is_empty()).then_some(pending)
             }
@@ -338,8 +338,9 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
         }
 
         // A letter outside ASCII is in no name the language allows, but it is
-        // in the word the user typed: were it not a word char, what follows it
-        // would start a word of its own and be read as a keyword.
+        // in the word the user typed. If it were not a word char, what follows
+        // it would start a word of its own, and the completion would read that
+        // as a keyword.
         if c.is_alphabetic() || c == '_' {
             let start = i;
             while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
@@ -599,11 +600,12 @@ mod tests {
 
     #[test]
     fn a_blank_line_ends_an_input_with_nothing_open() {
-        // The reader has nothing else to offer: `let x =` has no bracket to
-        // type, and what the compiler says about it is what the user is after.
+        // The reader has nothing else to offer. `let x =` has no bracket to
+        // type, and what the compiler says about it is the answer the user
+        // wants.
         assert!(!incomplete("let x =\n"));
         // With a bracket open it is a blank line inside the input, which is
-        // how a function with two statements in it is written.
+        // how the user writes a function with two statements.
         assert!(incomplete("case 1 {\n  "));
         assert!(incomplete("pub fn f() {\n  let x = 1\n"));
     }
@@ -645,7 +647,8 @@ mod tests {
             highlight_gleam(":type foo", &ONE_DARK),
             format!("{}:type{RESET} foo", ONE_DARK.command)
         );
-        // Only the word the input starts with: the other `:` is Gleam's own.
+        // Only the word at the head of the input, as the other `:` is Gleam's
+        // own.
         assert!(!highlight_gleam("let x: Int = 1", &ONE_DARK).contains(ONE_DARK.command));
         assert!(!highlight_gleam("f(a: 1)", &ONE_DARK).contains(ONE_DARK.command));
     }

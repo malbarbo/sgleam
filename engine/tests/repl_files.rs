@@ -1,8 +1,8 @@
 //! What the repl hands the runtime to place a line of a module it wrote. A map
-//! is as long as its module and is kept for the rest of the session, so only a
-//! module a place can be reached in goes over. These drive the repl in the
-//! test's own process, over an engine that runs nothing and keeps what it was
-//! told.
+//! is as long as its module and stays for the rest of the session, so only a
+//! module with places to reach goes over. These drive the repl in the test's
+//! own process, over an engine that runs nothing and remembers what the repl
+//! told it.
 
 use std::{cell::RefCell, rc::Rc};
 
@@ -15,8 +15,8 @@ use engine::{
 use gleam_core::io::memory::InMemoryFileSystem;
 
 /// `run_main` takes `&self`, and the repl clones the engine to snapshot itself,
-/// so what it was told is kept behind an `Rc` — which is also what keeps a
-/// rollback from taking it back, as it does not take back a real run either.
+/// so an `Rc` holds what the repl told it — which is also what keeps a rollback
+/// from taking it back, as a rollback does not take back a real run either.
 #[derive(Clone)]
 struct Recorder {
     handed: Rc<RefCell<Vec<ReplFile>>>,
@@ -41,7 +41,7 @@ impl Engine for Recorder {
         Ok(())
     }
 
-    // Nothing ran, so nothing raised before the value was remembered.
+    // Nothing ran, so nothing raised before the run could remember the value.
     fn has_var(&self, _key: &str) -> bool {
         true
     }

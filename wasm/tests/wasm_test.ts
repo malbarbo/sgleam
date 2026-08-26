@@ -485,15 +485,14 @@ Deno.test("move_square loads without crash", async () => {
 });
 
 // Regression: the WASM import for sleep must not collide with the POSIX
-// sleep symbol.  The wasm32-wasip1 linker replaces unresolved "sleep" with
-// a signature_mismatch stub that traps.  We renamed the import to
-// "sgleam_sleep" to avoid this.
+// sleep symbol. The wasm32-wasip1 linker replaces an unresolved "sleep"
+// with a signature_mismatch stub that traps.
 Deno.test("world.run does not crash (sleep regression)", async () => {
   const ctx = await newRepl(MOVE_SQUARE, { interruptAfter: 50 });
   assertEquals(ctx.repl !== 0, true);
   const r = run(ctx, "main()");
   assertEquals(r.svgs.length > 0, true, "expected SVG frames from world.run");
-  // "Interrupted." in stderr is expected when check_interrupt triggers
+  // check_interrupt fires here, so stderr says "Interrupted."
   destroy(ctx);
 });
 
@@ -522,7 +521,7 @@ Deno.test("repl_complete counts in bytes, not chars", async () => {
   const ctx = await newRepl();
   run(ctx, "fn my_func() { 1 }");
   // The break char before the word takes three bytes, and the one before
-  // that takes two: a `start` counted in chars would land inside them.
+  // that takes two, so a `start` counted in chars would land inside them.
   const input = 'let x = "ol\u00e1\u2026my_f';
   const [ptr, len] = encodeString(ctx.exports, input);
   const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
@@ -545,8 +544,9 @@ Deno.test("repl_complete counts in bytes, not chars", async () => {
 
 Deno.test("repl_complete sends no candidate with a space in it", async () => {
   const ctx = await newRepl();
-  // `:type` is offered with the space that goes after it, and a space is what
-  // tells one candidate from the next: what goes on the wire is trimmed.
+  // The completion offers `:type` with the space that goes after it, and a
+  // space is what tells one candidate from the next, so the wire carries the
+  // candidate trimmed.
   const input = ":ty";
   const [ptr, len] = encodeString(ctx.exports, input);
   const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
@@ -567,7 +567,7 @@ Deno.test("repl_complete survives a cursor inside a char", async () => {
   const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, 12);
   ctx.exports.string_deallocate(ptr, len);
   if (resultPtr !== 0) ctx.exports.cstr_deallocate(resultPtr);
-  // The module is still there to answer, which is what is being asked.
+  // The module is still there to answer, which is the whole of the question.
   assertEquals(
     run(ctx, "1 + 1").result,
     0,
@@ -617,11 +617,11 @@ Deno.test("repl_ready says what the input still needs", async () => {
     ["pub fn f() {\n  case x {", 4],
     // A bracket the input only mentions opens nothing.
     ["1 + 1 // {", -1],
-    // The way out of an input that will not close: with nothing open, a
+    // The way out of an input that will not close. With nothing open, a
     // blank line runs it and the error it earns is the engine's to give.
     ["let x =\n", -1],
-    // With a bracket open it is a blank line inside the input -- how a
-    // function with two statements in it is written.
+    // With a bracket open it is a blank line inside the input -- how the
+    // user writes a function with two statements.
     ["pub fn f() {\n  let x = 1\n", 2],
   ];
   for (const [input, expected] of cases) {

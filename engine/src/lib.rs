@@ -54,9 +54,9 @@ macro_rules! swriteln {
     };
 }
 
-/// Asked of the engine that is linked in, and not written down beside it: a
-/// number kept by hand goes on being reported long after the build it named
-/// was replaced.
+/// The engine answers this itself, instead of a number written down beside it.
+/// A number kept by hand goes on standing long after the build it named is
+/// gone.
 pub fn quickjs_version() -> &'static str {
     // SAFETY: quickjs hands back a pointer to a string constant of its own,
     // which is there before any runtime is and outlives everything reading it.

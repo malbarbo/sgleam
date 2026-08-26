@@ -1,7 +1,7 @@
-//! A path given to `run_main` is the name of the module it will be compiled as,
-//! so it is relative to the directory the program runs from. A path that names
-//! no module is an error and not silence: a silent `Ok` here once left a whole
-//! suite of file tests passing on empty output.
+//! A path given to `run_main` names the module the compiler makes of it, so it
+//! is relative to the current directory. A path that names no module is an
+//! error and not silence. A silent `Ok` here once left a whole suite of file
+//! tests passing on empty output.
 
 use camino::Utf8PathBuf;
 

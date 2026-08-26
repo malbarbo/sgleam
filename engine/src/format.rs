@@ -86,8 +86,8 @@ fn unformatted_files(files: Vec<Utf8PathBuf>) -> Result<Vec<Unformatted>> {
     Ok(problem_files)
 }
 
-/// Every `.gleam` file under `dir`, sorted: the order a directory is read in
-/// is its own.
+/// Every `.gleam` file under `dir`, sorted, as a directory hands its entries
+/// back in an order of its own.
 fn gleam_files(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     let mut files = Vec::new();
     let mut dirs = vec![dir.to_path_buf()];
@@ -104,7 +104,8 @@ fn gleam_files(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     Ok(files)
 }
 
-/// What `dir` holds, minus `.git` and its like, and the names no module has.
+/// What `dir` holds, without `.git` and its like, and without the names that
+/// cannot name a module.
 fn read_dir(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
     let read_error = |err: std::io::Error| Error::FileIo {
         action: FileIoAction::Read,

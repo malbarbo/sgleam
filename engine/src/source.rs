@@ -20,7 +20,7 @@ pub struct Source {
 struct Copied {
     /// Where the copy starts in the generated text.
     at: u32,
-    /// The input the copy was taken from, and where in it.
+    /// The input behind the copy, and where in that input.
     input: Rc<str>,
     from: u32,
     len: u32,
@@ -72,9 +72,9 @@ impl Source {
         &self.text
     }
 
-    /// What `span` points at in the input: the smallest range holding every
-    /// byte of it the span takes in. `None` when it takes in none, as the repl
-    /// wrote that text.
+    /// What `span` points at in the input: the smallest range that holds every
+    /// byte of the input the span covers. `None` when it covers none, as the
+    /// repl wrote that text.
     ///
     /// A span that reaches over what the repl put in — the `pub` before a
     /// definition, the bindings at the top of a body — is about the user's
@@ -113,12 +113,12 @@ impl Source {
         located
     }
 
-    /// The line of the input each line of the generated text was copied from,
-    /// indexed by line — so the first element stands for no line at all, and 0
-    /// for a line the repl wrote itself.
+    /// The input line behind each line of the generated text, indexed by line
+    /// — so the first element stands for no line at all, and 0 for a line the
+    /// repl wrote itself.
     ///
-    /// It is what a runtime with only a line to go on names a place by: `echo`
-    /// is compiled to the file and line it was written at.
+    /// A runtime with only a line to go on names a place this way. The
+    /// compiler gives `echo` the file and the line of its own text.
     pub fn input_lines(&self) -> Vec<u32> {
         let mut lines = vec![0];
         let mut at = 0;

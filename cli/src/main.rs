@@ -192,7 +192,7 @@ fn run() -> Result<(), SgleamError> {
     }
 }
 
-/// The file of the module a command was given, said as the module names it.
+/// The file a command names, as a path the module name can come from.
 fn user_module(file: String) -> Result<Utf8PathBuf, SgleamError> {
     let path = make_relative_to_current_dir(file.into())?;
     if path.is_dir() {

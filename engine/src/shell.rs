@@ -15,7 +15,7 @@ pub fn welcome_message() -> String {
     )
 }
 
-/// What became of an input. The numbers are what `repl_run` answers with.
+/// What became of an input. `repl_run` answers with these numbers.
 #[repr(u32)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Status {
@@ -41,7 +41,7 @@ enum Arg {
     None,
     /// Gleam, which is what says whether the input is finished.
     Expr,
-    /// An optional word, shown in the help as given.
+    /// An optional word, which the help shows exactly as it stands here.
     Word(&'static str),
 }
 
@@ -83,8 +83,8 @@ const BUILTINS: &[(&str, Arg, &str, Builtin)] = &[
 /// with what it wraps stuck to it.
 const KEYWORDS: &[&str] = &["Error", "False", "Nil", "Ok", "True", "fn", "panic", "todo"];
 
-/// The keywords something else always follows, and so the ones the completion
-/// hands back with the space already typed, as it does for `:type`.
+/// The keywords that never end an input, and so the ones the completion hands
+/// back with the space already typed, as it does for `:type`.
 const KEYWORDS_OPEN: &[&str] = &[
     "as", "assert", "case", "const", "echo", "import", "let", "opaque", "pub", "type", "use",
 ];
@@ -229,8 +229,8 @@ fn status(result: Result<(), Failed>) -> Status {
     }
 }
 
-/// The name of the command the input starts with and what follows it, or none
-/// for Gleam, which never starts with `:`.
+/// The name of the command at the head of the input and what follows it, or
+/// none for Gleam, which never starts with `:`.
 fn split(input: &str) -> Option<(&str, &str)> {
     let trimmed = input.trim();
     if !trimmed.starts_with(':') {
@@ -262,11 +262,12 @@ fn gleam(input: &str) -> Option<&str> {
 /// through `repl_ready` (see SimpleCode's ENGINE.md).
 ///
 /// An input with nothing open ends at a blank line, finished or not. That is
-/// the only way out of one that will not close: an open bracket can be typed
-/// shut, but `let x =` has none to type, and without this the line can only be
-/// erased -- while the error the engine gives for it is the answer the user is
-/// after. With a bracket open the rule would cost more than it gives, taking
-/// the blank line between two statements of a function for the end of it.
+/// the only way out of an input that will not close. The user can type an open
+/// bracket shut, but `let x =` has no bracket to type, and without this rule
+/// the user could only erase the line -- while the error the engine gives for
+/// it is the answer they want. With a bracket open the rule would cost more
+/// than it gives, taking the blank line between two statements of a function
+/// for the end of it.
 pub fn ready_state(input: &str) -> i32 {
     let Some(gleam) = gleam(input) else {
         return -1;
@@ -287,12 +288,12 @@ pub fn ready_state(input: &str) -> i32 {
 /// What one level of indentation is worth, in spaces.
 const INDENT: usize = 2;
 
-/// The word the cursor is in and where it starts, both in bytes: what comes
+/// The word around the cursor and where it starts, both in bytes: everything
 /// before `cursor`, back to the last char an identifier cannot hold.
 ///
 /// A cursor that is not on a char boundary -- which is what a host counting
-/// in another unit sends -- is taken back to the boundary before it. Slicing
-/// there instead panics, and a panic is the end of the session.
+/// in another unit sends -- moves back to the boundary before it. Slicing at
+/// the cursor instead panics, and a panic is the end of the session.
 pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
     let mut end = cursor.min(text.len());
     while !text.is_char_boundary(end) {
@@ -308,7 +309,7 @@ pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
 }
 
 /// Returns `true` if no name of the language has the char in it, so the word
-/// being completed ends at it. `:` and `.` are in a name here: the commands
+/// being completed ends at it. `:` and `.` are in a name here, as the commands
 /// start with one and the qualified names carry the other.
 fn is_break_char(c: char) -> bool {
     !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
@@ -376,7 +377,8 @@ mod tests {
 
     #[test]
     fn an_unfinished_input_says_how_far_in_the_next_line_starts() {
-        // Nothing is open: the input is waiting on a value, not on a bracket.
+        // Nothing is open, so the input is waiting on a value, not on a
+        // bracket.
         assert_eq!(ready_state("let x ="), 0);
         assert_eq!(ready_state("1 +"), 0);
         // Every kind of bracket is worth a level.

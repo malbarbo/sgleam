@@ -10,8 +10,8 @@ use gleam_core::{
 
 #[derive(Debug)]
 pub enum ReplItem {
-    /// A definition and where it begins in the input: the location the parser
-    /// records starts at the keyword, not at the attributes above it.
+    /// A definition and where it begins in the input. The location from the
+    /// parser starts at the keyword, not at the attributes above it.
     ReplDefinition(TargetedDefinition, u32),
     ReplStatement(UntypedStatement),
 }
@@ -26,8 +26,8 @@ pub fn parse_repl(src: &str) -> Result<Vec<ReplItem>, ParseError> {
 /// Returns `true` if the input is unfinished and the repl has to read another
 /// line, `false` otherwise.
 ///
-/// The input is unfinished when the parser wants more and nothing is left
-/// after the point where it asked.
+/// The input is unfinished when the parser wants more and nothing of the input
+/// comes after the point where it asked.
 ///
 /// Unfinished:
 /// - `let x =`
@@ -76,7 +76,7 @@ pub fn is_incomplete(src: &str) -> bool {
 }
 
 /// Returns `true` if nothing of the input comes after `at`, `false`
-/// otherwise. A comment and a blank line do not count: the user types them
+/// otherwise. A comment and a blank line do not count, as the user types them
 /// before going on.
 fn ends_there(src: &str, at: u32) -> bool {
     lexer::make_tokenizer(src)
@@ -98,7 +98,7 @@ fn ends_there(src: &str, at: u32) -> bool {
 /// a bracket inside a comment is text and `list.map(l, fn(x) {` is two levels
 /// where the formatter writes one.
 ///
-/// One counter serves every kind of bracket: the repl asks after
+/// One counter serves every kind of bracket. The repl asks after
 /// [`is_incomplete`], and the parser read every token of that input, so each
 /// closer there matches its opener. The clamp answers zero for anything else.
 pub fn nesting_depth(src: &str) -> usize {
@@ -123,7 +123,8 @@ where
 {
     fn parse_definition_or_statement(parser: &mut Self) -> Result<Option<ReplItem>, ParseError> {
         let (tok0, tok1) = parser.tok01();
-        // `fn(` opens a value: the definition parser wants a name after `fn`.
+        // `fn(` opens a value, as the definition parser wants a name after
+        // `fn`.
         if let (Some((_, Token::Fn, _)), Some((_, Token::LeftParen, _))) = (&tok0, &tok1) {
             return Ok(parser.parse_statement()?.map(ReplItem::ReplStatement));
         }

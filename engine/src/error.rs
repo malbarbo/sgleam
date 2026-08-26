@@ -17,16 +17,16 @@ pub enum SgleamError {
         signature: EcoString,
     },
 
-    /// A path the user gave from outside the directory the program runs in.
-    /// The path is what names the module, so one from outside has no name to
-    /// be compiled under.
+    /// A path the user gave from outside the current directory. The path is
+    /// what names the module, so a path from outside gives the module no
+    /// name.
     #[error("path is not within the current directory")]
     PathNotInCurrentDir {
         current_dir: Utf8PathBuf,
         path: Utf8PathBuf,
     },
 
-    /// A directory where a module was asked for.
+    /// A directory in the place of a module.
     #[error("path is a directory")]
     PathIsADirectory { path: Utf8PathBuf },
 
@@ -42,17 +42,18 @@ pub enum SgleamError {
 
     /// A failure of the QuickJS API itself, such as creating the context or
     /// reading a global. An exception from the code it ran is not one of
-    /// these: it arrives as `LauncherScript` or `UserProgramFailed`.
+    /// these. It arrives as `LauncherScript` or `UserProgramFailed`.
     #[error("quickjs error")]
     QuickJs(rquickjs::Error),
 
     /// An exception from the script that launches the program, raised before
-    /// the program is there to report it. Kept as text: the JS context the
-    /// message comes from is gone by the time it is shown.
+    /// the program is there to report it. Text, and not the exception itself,
+    /// as the JS context behind the message is gone by the time anything
+    /// prints it.
     #[error("launcher script error")]
     LauncherScript(String),
 
-    /// A JS runtime error that was already displayed by the JS side.
+    /// A JS runtime error, which the JS side already printed.
     #[error("runtime error")]
     UserProgramFailed,
 
@@ -157,7 +158,7 @@ pub fn show_error(err: &SgleamError) {
         SgleamError::Other(err) => {
             writeln!(buffer, "{err}").expect("write to buffer");
         }
-        // Already displayed by the JS runtime.
+        // The JS runtime already printed it.
         SgleamError::UserProgramFailed | SgleamError::TestsFailed => (),
     };
 

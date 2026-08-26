@@ -85,8 +85,8 @@ impl Project {
         "/build/prelude.mjs".into()
     }
 
-    /// `name` is the path the module takes its name from, so it has to stay
-    /// under the source root: an absolute name replaces the root outright, and
+    /// `name` is the path that gives the module its name, so it has to stay
+    /// under the source root. An absolute name replaces the root outright, and
     /// a name with `..` lands outside, where nothing compiles it.
     pub fn write_source(&mut self, name: &str, content: &str) {
         assert!(
@@ -111,8 +111,8 @@ impl Project {
             path: input.into(),
             err: Some(err.to_string()),
         })?;
-        // A module name always separates with `/`, which on Windows the path
-        // does not.
+        // A module name always separates with `/`, and on Windows a path does
+        // not.
         let path = input.as_str().replace('\\', "/");
         self.write_source(&path, &content);
         Ok(path.strip_suffix(".gleam").unwrap_or(&path).into())
@@ -177,7 +177,7 @@ impl Project {
     }
 }
 
-/// A path as the user gave it: the source root is where sgleam put the file,
+/// A path as the user gave it. The source root is where sgleam put the file,
 /// not where the user wrote it.
 fn user_path(path: &Utf8Path) -> Utf8PathBuf {
     path.strip_prefix(Project::source())
@@ -236,14 +236,14 @@ pub fn is_private(def: &UntypedDefinition) -> bool {
 }
 
 /// How much of the input the definition covers, from `start`, where the item
-/// began: `location` stops at the head of a definition that has a body.
+/// began. `location` stops at the head of a definition that has a body.
 pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     let end = match def {
         Definition::TypeAlias(_) | Definition::Import(_) => def.location().end,
         Definition::CustomType(type_) => type_.end_position,
         Definition::ModuleConstant(const_) => const_.value.location().end,
-        // `end_position` is the closing brace, which a function with no body
-        // has none of: there it stops at the parameters, before the return
+        // `end_position` is the closing brace, and a function with no body has
+        // no brace. There it stops at the parameters, before the return
         // annotation an external function must write.
         Definition::Function(f) => f.end_position.max(
             f.return_annotation
@@ -268,8 +268,8 @@ fn is_builtin_module(module: &str) -> bool {
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
     let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
-    // A path an import led to is only a guess at where the module is written,
-    // so it is allowed not to be there; one the caller gave is not.
+    // A path an import led to is only a guess at where the module sits, so it
+    // may be missing. The path the caller gave may not be missing.
     let mut pending: VecDeque<_> = paths.into_iter().map(|path| (path, true)).collect();
     while let Some((path, given)) = pending.pop_front() {
         if files.contains(&path) {
@@ -278,8 +278,8 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
 
         let src = match std::fs::read_to_string(&path) {
             Ok(src) => src,
-            // Nothing was found to compile the import against, which the
-            // compiler says at the line that wrote it.
+            // Nothing here can compile the import, and the compiler says so
+            // at the line that wrote it.
             Err(err) if !given && err.kind() == std::io::ErrorKind::NotFound => continue,
             Err(err) => {
                 return Err(gleam_core::Error::FileIo {

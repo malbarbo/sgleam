@@ -493,8 +493,8 @@ fn repl_input_stops_at_a_runtime_error() {
     assert!(err.contains("`b` is not in scope"), "got: {err}");
 }
 
-/// Told apart by the message quickjs-ng throws. With Bellard's quickjs the
-/// message was another one, and this printed a raw RangeError.
+/// The message quickjs-ng throws is what tells this apart. With Bellard's
+/// quickjs the message is another one, and this printed a raw RangeError.
 ///
 /// Native only: `update_stack_limit` in quickjs.c leaves the limit at zero
 /// under `__wasi__`, so the wasm build never raises this itself. The recursion
@@ -510,8 +510,7 @@ fn repl_stack_overflow_shows_the_frames() {
     assert_eq!(err, "");
 }
 
-/// Ctrl-C was once told apart by message alone, so this panic also said
-/// `Interrupted.`.
+/// Ctrl-C once went by message alone, so this panic also said `Interrupted.`.
 #[test]
 fn repl_panic_saying_interrupted_is_still_a_panic() {
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"panic as "interrupted""#));
@@ -1452,22 +1451,22 @@ fn repl_input_the_file_ends_in_the_middle_of() {
 // the same way the native one does, or these three come out as different
 // inputs there.
 
-/// An input the reader goes on reading for with nothing open in it: the
-/// brackets are balanced and `1 +` is unfinished all the same.
+/// An input with nothing open that the reader goes on reading all the same:
+/// the brackets are balanced and `1 +` is unfinished.
 #[test]
 fn repl_input_that_ends_with_no_bracket_open() {
     assert_eq!(repl_exec("1 +\n2"), "3");
 }
 
-/// The way out of one that will not close. Without it the `1 + 1` below is
-/// swallowed by the input above it and never runs.
+/// The way out of an input that will not close. Without it the input above
+/// swallows the `1 + 1` below, which never runs.
 #[test]
 fn repl_blank_line_ends_an_input_with_nothing_open() {
     assert_eq!(repl_exec("let x =\n\n1 + 1"), "2");
 }
 
 /// And with a bracket open it is a blank line inside the input, which is how
-/// a function with two statements in it is written.
+/// the user writes a function with two statements.
 #[test]
 fn repl_blank_line_inside_a_block_is_part_of_the_input() {
     assert_eq!(repl_exec("pub fn f() {\n  let x = 1\n\n  x\n}\nf()"), "1");
@@ -1832,8 +1831,8 @@ fn a_reader_that_went_away_is_not_a_crash() {
         .stderr(std::process::Stdio::piped())
         .spawn()
         .expect("run sgleam");
-    // Closed while the file is still being compiled, so every print of the
-    // program lands on it.
+    // The read end goes while the compiler is still working, so every print
+    // of the program lands on a closed pipe.
     drop(child.stdout.take());
     let out = child.wait_with_output().expect("wait for sgleam");
 
@@ -1859,8 +1858,8 @@ fn repl_runtime_error_is_located_in_the_input() {
 
 #[test]
 fn repl_user_module_error_keeps_the_location() {
-    // Native only: the wasm backend loads a file by its base name, so the very
-    // path this test is about is what the backends disagree on.
+    // Native only: the wasm backend loads a file by its base name, so the
+    // backends disagree on the very path this test is about.
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     let (out, _) = run_native(
         &["repl", "-q", input],
@@ -2360,9 +2359,7 @@ fn runtime_error_exits_with_nonzero() {
     );
 }
 
-// world.run() calls sleep via sgleam_ffi.mjs → sgleam.sleep (rquickjs).
-// Regression test: the WASM import was renamed from "sleep" to "sgleam_sleep"
-// to avoid collision with the POSIX sleep symbol in wasm32-wasip1.
+// world.run() calls sleep through sgleam_ffi.mjs → sgleam.sleep (rquickjs).
 #[test]
 fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));

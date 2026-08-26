@@ -108,17 +108,17 @@ pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
-/// What a build knows that no one can work out from the paths it was given: the
-/// module each path was written as, in the order given, and `None` for a path
-/// that was never copied.
+/// What a build knows and no one can work out from the paths alone: the module
+/// each path became, in the order the caller gave, and `None` for a path the
+/// build never copied.
 pub struct Built {
     pub modules: Vec<Module>,
     pub names: Vec<Option<EcoString>>,
 }
 
 impl Built {
-    /// The module a given path was compiled into, by the name the copy wrote it
-    /// under — not by one derived from the path a second time.
+    /// The module a given path became, under the name the copy gave it — and
+    /// not a name derived from the path a second time.
     pub fn module(&self, index: usize) -> Option<&Module> {
         let name = self.names.get(index)?.as_ref()?;
         get_module(&self.modules, name)
@@ -144,8 +144,7 @@ pub fn copy_files_and_build(
 }
 
 fn validate_path(path: &Utf8Path) -> bool {
-    // The path is the module name, so it cannot leave the directory the program
-    // runs in.
+    // The path is the module name, so it cannot leave the current directory.
     if !is_module_path(path.as_str()) {
         eprintln!("Ignoring `{path}`: is not a path within the current directory.");
         return false;

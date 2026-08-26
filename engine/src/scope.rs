@@ -18,7 +18,8 @@ use gleam_core::{
 use crate::{source::Source, swriteln};
 
 /// Where a name in scope comes from: the module that defines it and the name
-/// it has there. Every name is reached this way, a saved value included.
+/// it has there. The repl reaches every name this way, a saved value
+/// included.
 #[derive(Clone)]
 pub struct NameEntry {
     module: String,
@@ -30,14 +31,14 @@ pub struct NameEntry {
 /// imports it and what a const may do with it.
 #[derive(Clone)]
 pub enum Origin {
-    /// Brought by an import, or seeded from the user's module.
+    /// An import brought it, or the user's module seeded it.
     Import,
-    /// Defined by an input. `reads` holds, for a const, the names its value
-    /// reads, a module of a qualified name included: Gleam inlines a const at
-    /// a `case` guard, and the inlined code still names them.
+    /// An input defined it. For a const, `reads` holds the names its value
+    /// reads, the module of a qualified name included, as Gleam inlines a
+    /// const at a `case` guard and the inlined code still names them.
     Def { reads: Vec<String> },
-    /// Bound by a `let`, read back by a binding written at the top of every
-    /// body that names it. The one kind of value a const may not read.
+    /// A `let` bound it, and a binding at the top of every body that names it
+    /// reads it back. A const cannot read this kind of value.
     Binding,
 }
 
@@ -63,8 +64,8 @@ impl NameEntry {
     }
 }
 
-/// What the import the input just wrote brings, so the repl writes the input's
-/// own line instead of one of its own.
+/// The import the input just wrote and everything it brings, so the repl can
+/// write the input's own line instead of one of its own.
 #[derive(Clone)]
 pub struct OwnImport {
     input: Rc<str>,
@@ -76,7 +77,8 @@ pub struct OwnImport {
 }
 
 /// What an input defines itself, which its own module imports from nowhere.
-/// One list per namespace: a type and a value of the same name are two names.
+/// One list per namespace, as a type and a value of the same name are two
+/// names.
 #[derive(Default)]
 pub struct Defined {
     pub types: Vec<String>,
@@ -93,12 +95,12 @@ pub struct Scope {
     pub modules: BTreeMap<String, String>,
     pub types: BTreeMap<String, NameEntry>,
     pub values: BTreeMap<String, NameEntry>,
-    /// The modules this session wrote that hold names: one per input that
-    /// defines, one per item that binds.
+    /// The modules this session wrote that hold names: one for each input
+    /// that defines a name, one for each item that binds one.
     pub own_modules: Vec<String>,
-    /// The import the input just wrote, kept while the module that checks it
-    /// is built: it goes in as a copy, so the repl does not write the line
-    /// again.
+    /// The import the input just wrote, kept while the repl builds the module
+    /// that checks it. The line goes in as a copy, so the repl does not write
+    /// it again.
     pub own_import: Option<OwnImport>,
 }
 
@@ -128,7 +130,7 @@ impl Scope {
     }
 
     /// Registers everything `import` brings, and keeps the input's own line
-    /// to write into the modules built while the import is checked.
+    /// for the modules the repl builds while it checks the import.
     pub fn register_import(&mut self, import: &Import<()>, input: &Rc<str>, span: SrcSpan) {
         let module = import.module.to_string();
         let mut own = OwnImport {
@@ -179,9 +181,9 @@ impl Scope {
     }
 
     /// Writes what the input has in scope: the modules and the names taken
-    /// from them, `skip` aside — the names the module defines itself. No
-    /// annotation is written here, so nothing a later input redefines can
-    /// change what the module reads.
+    /// from them, `skip` aside — the names the module defines itself. Nothing
+    /// here carries an annotation, so a later redefinition cannot change what
+    /// the module reads.
     ///
     /// Only the names `code` mentions come in, so an input does not pay for
     /// the whole scope. `None` writes them all, which is what checks an import.
@@ -233,9 +235,9 @@ impl Scope {
                 let NameEntry {
                     module, original, ..
                 } = entry;
-                // A value an import brought comes in even unmentioned: a guard
-                // inlines a const, and the repl never read what an imported one
-                // names. Nothing inlines a type.
+                // A value an import brought comes in even unmentioned, as a
+                // guard inlines a const and the repl never read the names
+                // inside an imported const. Nothing inlines a type.
                 let needed = (values && matches!(entry.origin, Origin::Import)) || wanted(name);
                 let own = self.own_import.as_ref().is_some_and(|own| {
                     &own.path == module
@@ -253,7 +255,8 @@ impl Scope {
         }
     }
 
-    /// Closes `names` over what its consts read, which the inlined text names.
+    /// Closes `names` over what its consts read, as the inlined text names
+    /// those too.
     fn with_inlined(&self, mut names: HashSet<EcoString>) -> HashSet<EcoString> {
         let mut queue: Vec<EcoString> = names.iter().cloned().collect();
         while let Some(name) = queue.pop() {
@@ -270,11 +273,11 @@ impl Scope {
         names
     }
 
-    /// The bindings a body reads, ahead of what the user wrote: a `let` is a
-    /// function of its companion module, and reading it back is what makes the
-    /// name mean the value. At the first statement the scope holds the module
-    /// level names and the parameters, so leaving those out — and what this
-    /// input defines — is all that keeps a binding from shadowing.
+    /// The bindings a body reads, written ahead of the user's text. A `let` is
+    /// a function of its companion module, and reading it back is what makes
+    /// the name mean the value. At the first statement the scope holds the
+    /// module level names and the parameters, so leaving those out — and what
+    /// this input defines — is all that keeps a binding from shadowing.
     pub fn injections(&self, code: &str, defined: &[String], params: &[String]) -> String {
         let mentioned = mentioned(code);
         let mut src = String::new();
@@ -290,9 +293,9 @@ impl Scope {
         src
     }
 
-    /// Registers the session's types into `names`, for printing. The plain
-    /// name is taken from whatever had it, so it goes to the newest
-    /// definition, as it does for the user.
+    /// Registers the session's types into `names`, for printing. Registering
+    /// takes the plain name away from whatever held it, so the plain name lands
+    /// on the newest definition, which is where the user expects it.
     pub fn register_types(&self, names: &mut Names) {
         for (name, entry) in &self.types {
             names.named_type_in_scope(
@@ -304,8 +307,8 @@ impl Scope {
     }
 }
 
-/// The names the source mentions, as the lexer reads them: a label and a local
-/// count too. Over-approximate on purpose, as a missing import is an error.
+/// The names the source mentions, as the lexer reads them, a label and a local
+/// included. Over-approximate on purpose, as a missing import is an error.
 fn mentioned(code: &str) -> HashSet<EcoString> {
     parse::lexer::make_tokenizer(code)
         .filter_map(|token| match token {

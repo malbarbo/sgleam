@@ -170,8 +170,8 @@ pub unsafe extern "C" fn repl_ready(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
     init();
-    // What `repl_new` answers with when it has no shell to give is the null
-    // the host hands back here, having taken it for one.
+    // `repl_new` answers with null when it has no shell to give, and the host
+    // hands that null back here, taking it for a shell.
     if repl.is_null() {
         return;
     }

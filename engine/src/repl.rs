@@ -30,11 +30,11 @@ use crate::{
     swriteln,
 };
 
-/// What a module is compiled for. Only one compiled to run is queued for the
-/// runtime: one that answers `:type` is never called, and one that only
-/// declares the scope, to check an import, is not even referenced. The latter
-/// also uses nothing of the scope, so an unused-import warning there is
-/// vacuous and dropped.
+/// Why the repl compiled a module. Only a module compiled to run reaches the
+/// runtime. A module that answers `:type` never runs, and nothing even names
+/// the module that only declares the scope to check an import. That last one
+/// uses nothing of the scope either, so an unused-import warning there says
+/// nothing and the repl drops it.
 #[derive(PartialEq, Eq)]
 enum Purpose {
     Run,
@@ -42,22 +42,22 @@ enum Purpose {
     DeclareScope,
 }
 
-/// Which diagnostics reach the screen, after each is moved onto the copy of
-/// the input it points into.
+/// Which diagnostics reach the screen, after the repl has moved each one back
+/// onto the input.
 #[derive(PartialEq, Eq)]
 enum Show {
-    /// Only the ones that landed on the input: one that did not is about text
-    /// the repl wrote, which the user cannot act on.
+    /// Only the ones that landed on the input. One that landed elsewhere is
+    /// about text the repl wrote, and the user can do nothing about it.
     OnInputOnly,
-    /// The rest only when none landed on the input: an error with no place
-    /// still says something.
+    /// The rest as well, but only when none landed on the input. An error
+    /// with no place still says something.
     PreferOnInput,
 }
 
 /// Why an input did not run.
 enum InputError {
     Compile(Error),
-    /// A rule of the repl it broke, in the words the student reads.
+    /// The input broke a rule of the repl, in words for a student.
     Repl(String),
 }
 
@@ -72,32 +72,36 @@ impl From<Error> for InputError {
 pub struct Failed;
 
 /// A definition of the input being run that goes to a module of its own,
-/// instead of being re-emitted into every module generated later.
+/// instead of into every module the repl generates later.
 struct Def {
     type_name: Option<String>,
     /// A function, a const, or the constructors of a type.
     value_names: Vec<String>,
-    /// What it reads, when it is a const, a module of a qualified name included.
+    /// What a const reads from the scope, the module of a qualified name
+    /// included.
     reads: Vec<String>,
     /// What it takes of the input, the attributes above it included.
     span: SrcSpan,
-    /// Where `pub` goes: after the attributes, and nothing may come between.
+    /// Where `pub` goes. It comes after the attributes, and nothing may come
+    /// between the two.
     keyword: u32,
     /// Whether the input left it private, which is what asks for the `pub`.
-    /// Read off the definition: the text before the keyword is `pub` under any
-    /// spacing the lexer accepts, or none.
+    /// The definition says so. The text before the keyword is either `pub`,
+    /// spaced however the lexer allows, or nothing at all.
     private: bool,
-    /// The body of a function, which the repl writes into.
+    /// The body of a function, which is where the repl writes its bindings.
     body: Option<Body>,
 }
 
-/// Where the bindings a function body reads go, and the names it already has.
+/// Where the repl writes the bindings that a function body reads, and the
+/// names already in the body.
 struct Body {
     start: u32,
     params: Vec<String>,
 }
 
-/// What the definitions bring, which their own module must not import.
+/// The names the definitions bring in. Their own module must not import
+/// them.
 fn defined_by(defs: &[Def]) -> Defined {
     Defined {
         types: defs
@@ -115,27 +119,30 @@ fn defined_by(defs: &[Def]) -> Defined {
 pub struct Repl<E: Engine> {
     /// The names the session has in scope, and the modules that hold them.
     scope: Scope,
-    /// The module the values of the item being run are read back from,
-    /// compiled in the same pass as the module that computes them.
+    /// The module that reads back the values of the item being run, compiled
+    /// in the same pass as the module that computes them.
     pending_vals: Option<(String, Source)>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
-    // The input and the item being run, which name the module they compile into.
+    // The input and the item being run. Their numbers name the module that
+    // holds the compiled code.
     input_number: usize,
     item_number: usize,
     debug: bool,
     had_runtime_error: bool,
     /// What `:time` reports.
     elapsed: Duration,
-    /// The modules written for the item being run, by the path they were
-    /// written to, each keeping which of its bytes are a copy of the input.
+    /// The modules the repl wrote for the item being run, by path, each one
+    /// keeping which of its bytes are a copy of the input.
     generated: Vec<(camino::Utf8PathBuf, Source)>,
-    /// Every module the repl wrote to run that the runtime has not been told
-    /// of. One that ran nothing still raises later, from a function it defined.
+    /// Every module the repl wrote to run and has not yet handed to the
+    /// runtime. A module that ran nothing can still raise later, from one of
+    /// its functions.
     pending_files: Vec<ReplFile>,
-    // Internal function names with random suffix to avoid collisions with user code.
+    // A random suffix on each name, so no name of the user's can collide with
+    // them.
     repl_main: String,
     repl_print: String,
     repl_memo: String,
@@ -176,7 +183,8 @@ impl<E: Engine> Repl<E> {
         if let Some(module) = user_module {
             repl.scope.seed_module(module);
         }
-        // Compiled once here, so completion has the module interfaces to read.
+        // One compilation here, so completion has the module interfaces to
+        // read.
         repl.skip_taken_names();
         if let Err(error) = repl.run_check() {
             repl.show_gleam_error(&error);
@@ -184,7 +192,7 @@ impl<E: Engine> Repl<E> {
         Ok(repl)
     }
 
-    /// The runtime the repl runs what it writes in.
+    /// The runtime that runs what the repl writes.
     pub fn engine(&self) -> &E {
         &self.engine
     }
@@ -226,13 +234,13 @@ impl<E: Engine> Repl<E> {
         })
     }
 
-    /// The type of one expression, which is not run.
+    /// The type of one expression, without running it.
     pub fn type_of(&mut self, expr: &str) -> Result<String, Failed> {
         self.input(|repl| {
             repl.guarded(|repl| {
-                // A command is an item of the input, not its definitions: item
-                // 0 names the module a `let` of an input with none is read
-                // back from.
+                // A command is an item of the input, not one of its
+                // definitions. Item 0 names the module that reads back a
+                // `let` of an input with no definitions.
                 repl.item_number += 1;
                 Self::one_statement(expr)?;
                 let span = SrcSpan::new(0, expr.len() as u32);
@@ -250,8 +258,9 @@ impl<E: Engine> Repl<E> {
 
     fn input<T>(&mut self, run: impl FnOnce(&mut Self) -> Result<T, Failed>) -> Result<T, Failed> {
         self.had_runtime_error = false;
-        // A failed input still spends its number: a module name is never
-        // reused, as the engine holds the module it loaded under it.
+        // A failed input still spends its number. The repl never reuses a
+        // module name, as the engine still holds the module it loaded under
+        // that name.
         self.input_number += 1;
         self.item_number = 0;
         self.skip_taken_names();
@@ -271,17 +280,18 @@ impl<E: Engine> Repl<E> {
         &mut self,
         run: impl FnOnce(&mut Self) -> Result<T, InputError>,
     ) -> Result<T, Failed> {
-        // The snapshot is cheap — engine and project use reference counting
-        // internally (Rc), so only the maps are copied. The sharing also means
-        // they are not rolled back: a module the engine loaded stays loaded,
-        // which is fine because nothing of the session names it anymore.
+        // The snapshot is cheap. Engine and project count references
+        // internally (Rc), so the clone copies only the maps. The sharing also
+        // means the clone does not roll them back. A module the engine loaded
+        // stays loaded, which is fine, as nothing of the session names it
+        // anymore.
         let snapshot = (*self).clone();
         let error = match run(self) {
             Ok(result) => return Ok(result),
             Err(error) => error,
         };
-        // Shown before the state goes back, as placing a diagnostic on the
-        // input reads what the input was compiled from.
+        // This prints before the state goes back, as placing a diagnostic on
+        // the input needs the modules the repl generated for it.
         match &error {
             InputError::Compile(error) => self.show_gleam_error(error),
             InputError::Repl(message) => println!("{message}"),
@@ -291,8 +301,8 @@ impl<E: Engine> Repl<E> {
     }
 
     /// The definitions and the statements of an input, in the order it writes
-    /// them. It stops at the first failure: what is below was written expecting
-    /// what is above to have worked.
+    /// them. It stops at the first failure, as the user wrote what comes below
+    /// expecting what comes above to have worked.
     fn run_source(&mut self, src: &str) -> Result<(), Failed> {
         let input: Rc<str> = src.into();
         let mut items = Vec::new();
@@ -304,8 +314,9 @@ impl<E: Engine> Repl<E> {
             Ok(())
         })?;
 
-        // The imports go in ahead of everything else: a definition is compiled
-        // against the scope, and what its own input imported is part of it.
+        // The imports go in ahead of everything else, as the compiler checks
+        // a definition against the scope, and what its own input imported is
+        // part of that scope.
         for (import, span) in imports(&items) {
             self.item_number += 1;
             self.guarded(|repl| {
@@ -315,8 +326,8 @@ impl<E: Engine> Repl<E> {
         }
 
         // The definitions go in next, in a module of their own, so they can
-        // reference each other. All or nothing, which costs nothing: no item
-        // has run yet.
+        // reference each other. All or nothing, which costs nothing, as no
+        // item has run yet.
         let defs = defs(&items);
         if !defs.is_empty() {
             self.guarded(|repl| repl.run_defs(&input, &defs).map_err(InputError::from))?;
@@ -329,7 +340,8 @@ impl<E: Engine> Repl<E> {
             };
             self.item_number += 1;
             self.guarded(|repl| repl.run_statement(&input, statement))?;
-            // What an item that raised did stays: its output is on the screen.
+            // Whatever the item did before it raised stays, and its output
+            // is already on the screen.
             if self.had_runtime_error {
                 return Err(Failed);
             }
@@ -341,7 +353,7 @@ impl<E: Engine> Repl<E> {
     // --- Source generation ---
 
     /// What the input has in scope, as source: the externals, and the
-    /// imports the scope writes for what `code` mentions.
+    /// imports the scope writes for the names `code` mentions.
     fn build_source(&self, code: Option<&str>, skip: &Defined) -> Source {
         let mut src = Source::new();
         src.write(&self.build_externals());
@@ -349,7 +361,7 @@ impl<E: Engine> Repl<E> {
         src
     }
 
-    /// The FFI the generated modules reach the engine through.
+    /// The FFI that lets the generated modules reach the engine.
     fn build_externals(&self) -> String {
         let (memo, print) = (&self.repl_memo, &self.repl_print);
         formatdoc! {r#"
@@ -370,9 +382,9 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// The definitions of an input take the plain name, as it is what the user
-    /// reads back in the type of a value a later redefinition left behind. Not
-    /// `module_name`: the imports are items, and they went first.
+    /// The definitions of an input take the plain name, as the user reads that
+    /// name back in the type of a value a later redefinition left behind. Not
+    /// `module_name`, as the imports are items and they went first.
     fn defs_module_name(&self) -> String {
         format!("repl{}", self.input_number)
     }
@@ -393,8 +405,9 @@ impl<E: Engine> Repl<E> {
         file
     }
 
-    /// Skips the numbers a module of the user's already goes by: `repl1.gleam`
-    /// is a plausible file name, and the module written over it would be lost.
+    /// Skips a number that a module of the user's already carries.
+    /// `repl1.gleam` is a plausible file name, and the repl would write its own
+    /// module over it.
     fn skip_taken_names(&mut self) {
         while self.name_taken() {
             self.input_number += 1;
@@ -420,7 +433,7 @@ impl<E: Engine> Repl<E> {
     ) -> Result<Module, Error> {
         self.generated.clear();
         let mut files = vec![];
-        // The module the values of this item are read back from goes in here,
+        // The module that reads back the values of this item goes in here,
         // and not in a pass of its own, so a `let` costs one compilation.
         if let Some((vals_module, vals)) = self.pending_vals.take() {
             let file = self.write_source(&vals_module, vals.as_str());
@@ -430,15 +443,17 @@ impl<E: Engine> Repl<E> {
         let file = self.write_source(module_name, src.as_str());
         self.generated.push((Project::source().join(&file), src));
         files.push(file);
-        // Only a module compiled to run: nothing ever reaches a place in the
-        // others, and loading them would cost the next run a module apiece.
+        // Only a module compiled to run, as nothing ever reaches a place in
+        // the others, and loading them would cost the next run a module
+        // apiece.
         if purpose == Purpose::Run {
             let repl_files: Vec<_> = files.iter().map(|file| self.repl_file(file)).collect();
             self.pending_files.extend(repl_files);
         }
 
         self.defined_modules.clear();
-        // Collected, not printed as emitted, so they are relocated like errors.
+        // The repl collects the warnings instead of printing each one as it
+        // comes, so it can move them onto the input like errors.
         let warnings = VectorWarningEmitterIO::new();
         let result = self.project.compile_with_modules(
             Rc::new(warnings.clone()),
@@ -446,8 +461,8 @@ impl<E: Engine> Repl<E> {
             &mut self.defined_modules,
         );
 
-        // Dropped as soon as they are compiled: what the next input needs of
-        // them is the interface and the JavaScript, not the source.
+        // The files go as soon as the compiler has them. The next input needs
+        // the interface and the JavaScript, not the source.
         for file in files {
             self.project
                 .fs
@@ -482,7 +497,8 @@ impl<E: Engine> Repl<E> {
         Ok(modules.swap_remove(pos))
     }
 
-    /// A module the repl wrote, for the runtime: the input lines it came from.
+    /// A module the repl wrote, as the runtime hears about it, with the input
+    /// line behind each line of the module.
     fn repl_file(&self, file: &str) -> ReplFile {
         let path = Project::source().join(file);
         let lines = self
@@ -511,8 +527,9 @@ impl<E: Engine> Repl<E> {
 
     fn show_gleam_error(&self, err: &Error) {
         let mut err = err.clone();
-        // A type in the message is printed in the names of the module that
-        // failed, which need the scope over them just as `type_names` does.
+        // The message prints a type in the names of the module that failed,
+        // and those names need the scope over them, just as `type_names` adds
+        // it.
         if let Error::Type { failed_modules, .. } = &mut err {
             for module in failed_modules.values_mut() {
                 self.scope.register_types(&mut module.names);
@@ -521,9 +538,10 @@ impl<E: Engine> Repl<E> {
         self.show_diagnostics(err.to_diagnostics(), Show::PreferOnInput);
     }
 
-    /// The names a type is printed in: those of the module it was compiled in,
-    /// plus the scope over them. Registering takes the plain name from whatever
-    /// had it, so it goes to the newest definition, as it does for the user.
+    /// The names for printing a type: the names of the module that compiled
+    /// it, plus the scope over them. Registering takes the plain name away from
+    /// whatever held it, so the plain name lands on the newest definition,
+    /// which is where the user expects it.
     fn type_names(&self, module: &Module) -> Names {
         let mut names = module.ast.names.clone();
         self.scope.register_types(&mut names);
@@ -550,9 +568,10 @@ impl<E: Engine> Repl<E> {
             })
             .collect();
 
-        // One that stayed put is about what the repl wrote: dropped outright
-        // for a warning, and for an error only when another one lands on the
-        // input, as an error with no place still says something.
+        // A diagnostic that stayed put is about text the repl wrote. A
+        // warning there goes outright, and an error there goes only when
+        // another error lands on the input, as an error with no place still
+        // says something.
         if show == Show::OnInputOnly || diags.iter().any(|(_, moved)| *moved) {
             diags.retain(|(_, moved)| *moved);
         }
@@ -563,8 +582,8 @@ impl<E: Engine> Repl<E> {
         let buffer_writer = crate::error::stderr_buffer_writer();
         let mut buffer = buffer_writer.buffer();
         for (diag, _) in &mut diags {
-            // One that stayed put is about a module the user loaded, which
-            // they know by the path they gave.
+            // One that stayed put is about a module the user loaded, and the
+            // user knows that module by the path they gave for it.
             relocate_to_user_paths(diag);
             diag.write(&mut buffer);
             writeln!(buffer).expect("write newline");
@@ -572,8 +591,9 @@ impl<E: Engine> Repl<E> {
         crate::error::flush_buffer(&buffer_writer, &buffer);
     }
 
-    /// Moves `diag` onto what the input it points into wrote, and returns
-    /// `true` if it pointed into one. Anything else stays where it is.
+    /// Moves `diag` onto the input behind the generated module it points into,
+    /// and returns `true` if it pointed into one. Anything else stays where it
+    /// is.
     fn move_onto_input(&self, diag: &mut Diagnostic) -> bool {
         let Some(loc) = &mut diag.location else {
             return false;
@@ -588,8 +608,9 @@ impl<E: Engine> Repl<E> {
         loc.src = located.input.as_ref().into();
         loc.path = "<repl>".into();
         loc.label.span = located.span;
-        // An extra label points at another file, and is left alone, or at this
-        // one, and is kept for as long as it says something about the input.
+        // An extra label that points at another file stays as it is. One that
+        // points at this file stays only while it still says something about
+        // the input.
         loc.extra_labels.retain_mut(|extra| {
             if extra.src_info.is_some() {
                 return true;
@@ -597,8 +618,8 @@ impl<E: Engine> Repl<E> {
             let Some(extra_located) = src.locate(extra.label.span) else {
                 return false;
             };
-            // Every copy in a generated module is of the one input `loc.src`
-            // now holds.
+            // A generated module copies from one input only, and `loc.src`
+            // now holds it.
             debug_assert!(Rc::ptr_eq(extra_located.input, located.input));
             extra.label.span = extra_located.span;
             true
@@ -629,8 +650,8 @@ impl<E: Engine> Repl<E> {
         }
     }
 
-    /// Compile without a `repl_main`, over the whole scope: what checks an
-    /// import, the names it brought included.
+    /// Compiles without a `repl_main`, over the whole scope, which is how the
+    /// repl checks an import together with the names it brought.
     fn run_check(&mut self) -> Result<(), Error> {
         let (module, src) = (
             self.module_name(),
@@ -640,12 +661,13 @@ impl<E: Engine> Repl<E> {
             .map(|_| ())
     }
 
-    /// Builds the module the values an item binds are read back from: one
+    /// Builds the module that reads back the values an item binds: one
     /// function per name, over the tuple the run memoized, and nothing else of
-    /// the session — so no name of it can clash with one the input took.
+    /// the session, so no name in it can clash with a name the input took.
     fn queue_vals_module(&mut self, from: &str, names: &[String]) -> String {
-        // The plain name when the input has no definitions to hold it, so a
-        // value is reached the way a type and a function are: `repl1.x()`.
+        // The plain name when the input has no definitions to hold it, so the
+        // user reaches a value the way they reach a type or a function:
+        // `repl1.x()`.
         let plain = format!("repl{}", self.input_number);
         let module = if self.existing_modules.contains_key(plain.as_str()) {
             format!("repl{}_{}_vals", self.input_number, self.item_number)
@@ -685,7 +707,8 @@ impl<E: Engine> Repl<E> {
                 } else {
                     let pattern = SrcSpan::new(location.start, a.pattern.location().end);
                     let annotation = a.annotation.as_ref().map(|t| t.location());
-                    // What a `let assert` writes after the value: `as "message"`.
+                    // What a `let assert` writes after the value:
+                    // `as "message"`.
                     let message =
                         (value.end < location.end).then(|| SrcSpan::new(value.end, location.end));
                     self.run_assignment(input, pattern, annotation, value, message, &names)
@@ -756,8 +779,8 @@ impl<E: Engine> Repl<E> {
         }
         bind.write(")");
 
-        // The value is remembered under the module's own name — never reused,
-        // so no other input can fill it or read it.
+        // The run remembers the value under the module's own name. Nothing
+        // reuses that name, so no other input can fill it or read it.
         let module = self.module_name();
         let mut code = Source::new();
         code.write(&format!(
@@ -777,7 +800,8 @@ impl<E: Engine> Repl<E> {
         self.run_repl_main(&module);
 
         if !self.engine.has_var(&module.name) {
-            // The value raised before it was remembered, so nothing binds.
+            // The value raised before the run could remember it, so nothing
+            // binds.
             return Ok(());
         }
 
@@ -792,7 +816,7 @@ impl<E: Engine> Repl<E> {
         Ok(())
     }
 
-    /// Compiles one expression, printed when it runs.
+    /// Compiles one expression, which prints its value when it runs.
     fn compile_expr(
         &mut self,
         input: &Rc<str>,
@@ -831,12 +855,13 @@ impl<E: Engine> Repl<E> {
         result
     }
 
-    /// The reason a const of the input cannot be accepted, when there is one.
-    /// The parser accepts only a constant expression; the one thing it cannot
-    /// know is that a name it reads is a `let`, out of reach from module level.
+    /// Why the repl cannot take a const of the input, when it cannot. The
+    /// parser accepts only a constant expression, and the one thing it cannot
+    /// know is that a name it reads is a `let`, out of reach from module
+    /// level.
     fn const_refusal(&self, items: &[ReplItem]) -> Option<String> {
-        // The qualified names go to `qualified` and stay there: only a plain
-        // name can be a `let`.
+        // The qualified names go to `qualified` and stay there, as only a
+        // plain name can be a `let`.
         let (mut read, mut qualified) = (vec![], vec![]);
         for item in items {
             if let ReplItem::ReplDefinition(targeted, _) = item
@@ -867,7 +892,8 @@ impl<E: Engine> Repl<E> {
         for def in defs {
             let text = &input[def.keyword as usize..def.span.end as usize];
             code.copy(input, SrcSpan::new(def.span.start, def.keyword));
-            // Auto-pub, as the module it lands in is not the one that reads it.
+            // Auto-pub, as the module that reads the definition is not the
+            // module that holds it.
             if def.private {
                 code.write("pub ");
             }
@@ -914,7 +940,8 @@ impl<E: Engine> Repl<E> {
     }
 }
 
-/// The items of an input. Parsed on its own, so the error already points at it.
+/// The items of an input. The parser reads the input on its own, so an error
+/// already points at it.
 fn parse(input: &str) -> Result<Vec<ReplItem>, Error> {
     parser::parse_repl(input).map_err(|error| Error::Parse {
         path: "<repl>".into(),
@@ -951,7 +978,7 @@ fn defs(items: &[ReplItem]) -> Vec<Def> {
         let mut body = None;
         let (type_name, value_names) = match &targeted.definition {
             // The constructors of an opaque type stay in the module that
-            // defines it, which is no longer the one the next input reads.
+            // defines it, and the next input no longer reads that module.
             Definition::CustomType(t) if t.opaque => (Some(t.name.to_string()), vec![]),
             Definition::CustomType(t) => (
                 Some(t.name.to_string()),
@@ -960,7 +987,8 @@ fn defs(items: &[ReplItem]) -> Vec<Def> {
             Definition::TypeAlias(t) => (Some(t.alias.to_string()), vec![]),
             Definition::Function(f) => {
                 let name = f.name.clone().expect("A function must have a name").1;
-                // An external function has no body to read the session from.
+                // An external function has no body, so nothing there reads
+                // the session.
                 body = f.body_start.map(|brace| Body {
                     start: brace + 1,
                     params: f
@@ -1085,7 +1113,8 @@ fn constant_find_names(
                 constant_find_names(&argument.value, names, modules);
             }
         }
-        // Expanded into a `Record`, so the generated code names the constructor.
+        // The compiler expands this into a `Record`, so the generated code
+        // names the constructor.
         Constant::RecordUpdate {
             module,
             name,

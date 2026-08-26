@@ -128,13 +128,13 @@ fn completion_user_module_names() {
 fn completion_of_what_cannot_stand_alone_carries_a_space() {
     let shell = Shell::new(new_repl());
     let c = shell.completions();
-    // A keyword that opens something is handed over ready for what follows,
-    // which is what a command that takes an argument has always done.
+    // The completion hands over a keyword that opens something ready for what
+    // follows, exactly as it hands over a command that takes an argument.
     for name in ["import ", "let ", "case ", "pub ", ":type "] {
         assert!(c.contains(&name.to_string()), "expected {name:?}");
     }
-    // What is whole on its own is handed over as it is: after `Ok` comes a
-    // `(`, and after `todo` comes nothing.
+    // The completion hands over a keyword that stands on its own as it is:
+    // after `Ok` comes a `(`, and after `todo` comes nothing.
     for name in ["Ok", "todo", "fn", ":quit"] {
         assert!(c.contains(&name.to_string()), "expected {name:?}");
     }
