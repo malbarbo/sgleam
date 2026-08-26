@@ -170,7 +170,7 @@ pub fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(),
         "globalThis.tests_passed = run_tests([{modules}]);"
     );
     run_script(context, src)?;
-    // Set by the script above, which ran without raising.
+    // The script ran without raising, so it set this.
     let passed = context.with(|ctx| ctx.globals().get("tests_passed").unwrap_or(false));
     if passed {
         Ok(())
@@ -206,8 +206,9 @@ pub fn run_script(context: &Context, source: String) -> std::result::Result<(), 
     })
 }
 
-/// Read while it can still be read: the message of a caught exception comes
-/// from the context it was caught in, so it is turned into text here.
+/// Says what the error is here and not later: the message of a caught
+/// exception comes from the context that caught it, and nothing outside this
+/// call can read it.
 fn script_error(err: CaughtError<'_>) -> SgleamError {
     match &err {
         CaughtError::Exception(exception) if is_interrupt(exception) => SgleamError::Interrupted,
@@ -238,6 +239,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "print", print_no_newline)?;
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
+    // Only the browser draws and reads keys. The library asks whether the
+    // property is there, so a native run simply has neither.
     #[cfg(target_arch = "wasm32")]
     set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
     #[cfg(target_arch = "wasm32")]
@@ -253,7 +256,9 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     ctx.globals().set("sgleam", sgleam)
 }
 
-/// The property, and also what a stack trace calls the function.
+/// Sets `name` on `object` to `f`, and names the function `name` as well: a
+/// stack trace says the name a function carries, not the property that holds
+/// it.
 fn set_fn<'js, F, P>(object: &Object<'js>, name: &str, f: F) -> Result<()>
 where
     F: IntoJsFunc<'js, P> + 'js,
@@ -279,7 +284,7 @@ fn getline() -> Option<String> {
             Some(buffer)
         }
         Err(err) => {
-            eprintln!("{}", err);
+            eprintln!("{err}");
             None
         }
     }
