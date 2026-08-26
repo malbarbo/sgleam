@@ -10,8 +10,8 @@ use gleam_core::{
 
 #[derive(Debug)]
 pub enum ReplItem {
-    /// A definition and where the input starts it: the location the parser
-    /// records begins at the keyword, leaving the attributes above it out.
+    /// A definition and where it begins in the input: the location the parser
+    /// records starts at the keyword, not at the attributes above it.
     ReplDefinition(TargetedDefinition, u32),
     ReplStatement(UntypedStatement),
 }
@@ -23,23 +23,32 @@ pub fn parse_repl(src: &str) -> Result<Vec<ReplItem>, ParseError> {
     parser.ensure_no_errors_or_remaining_input(definitions)
 }
 
-/// Whether the input ends before what it started does, which the reader cannot
-/// see in the text: a bracket inside a comment closes nothing, a string runs to
-/// the next line, and `use a <-` is unfinished with nothing open at all.
+/// Returns `true` if the input is unfinished and the repl has to read another
+/// line, `false` otherwise.
 ///
-/// The kind of error does not say it. `let x =` and `let x = )` are the same
-/// `ExpectedValue` over the same `=`, as the parser reports where it asked for
-/// a value and not what it found instead. What tells them apart is whether any
-/// of the input is left after that: if none is, there was nothing to reject.
+/// The input is unfinished when the parser wants more and nothing is left
+/// after the point where it asked.
 ///
-/// A wrong `true` hangs the prompt on a stray `}`, so an error that says
-/// neither is taken as finished.
+/// Unfinished:
+/// - `let x =`
+/// - `case x {`
+/// - `use a <-`
+///
+/// Finished:
+/// - `let x = 1`
+/// - `let x = )`
+/// - `}`
+///
+/// `let x =` and `let x = )` fail alike, the same `ExpectedValue` over the
+/// same `=`, and what tells them apart is the `)` left after it. `use a <-`
+/// has nothing open, so counting brackets is a different question. A stray `}`
+/// on a wrong `true` hangs the prompt, so anything else counts as finished.
 pub fn is_incomplete(src: &str) -> bool {
     let Err(ParseError { error, location }) = parse_repl(src) else {
         return false;
     };
     match error {
-        // No token was left to reject.
+        // The input ran out with no token to reject.
         ParseErrorType::UnexpectedEof
         | ParseErrorType::LexError {
             error:
@@ -55,7 +64,7 @@ pub fn is_incomplete(src: &str) -> bool {
         | ParseErrorType::ExpectedValue
         | ParseErrorType::NoValueAfterEqual
         | ParseErrorType::OpNakedRight
-        // Reported at the attributes, above what they attach to.
+        // The parser reports these at the attributes above the definition.
         | ParseErrorType::ExpectedDefinition
         | ParseErrorType::ExpectedFunctionDefinition => ends_there(src, location.end),
         // The one token that opens a definition and says nothing else.
@@ -66,8 +75,9 @@ pub fn is_incomplete(src: &str) -> bool {
     }
 }
 
-/// Whether nothing of the input comes after `at`. A comment and a blank line
-/// are not something: they are what the user typed before going on.
+/// Returns `true` if nothing of the input comes after `at`, `false`
+/// otherwise. A comment and a blank line do not count: the user types them
+/// before going on.
 fn ends_there(src: &str, at: u32) -> bool {
     lexer::make_tokenizer(src)
         .flatten()
@@ -83,14 +93,14 @@ fn ends_there(src: &str, at: u32) -> bool {
         .all(|(start, _, _)| start < at)
 }
 
-/// How deep in brackets the input ends, which is what the next line is
-/// indented by. Counted in tokens, so a bracket inside a comment or a string
-/// is text.
+/// How deep in brackets the input ends, which is how far the next line
+/// indents. Every kind of bracket is worth a level, and this counts tokens, so
+/// a bracket inside a comment is text and `list.map(l, fn(x) {` is two levels
+/// where the formatter writes one.
 ///
-/// Every kind of bracket is worth a level: a call or a list left open asks for
-/// the next line to be indented as much as a block does. This counts what is
-/// still open and nothing else, so a block hugging the call that opens it --
-/// `list.map(l, fn(x) {` -- is two levels here where the formatter writes one.
+/// One counter serves every kind of bracket: the repl asks after
+/// [`is_incomplete`], and the parser read every token of that input, so each
+/// closer there matches its opener. The clamp answers zero for anything else.
 pub fn nesting_depth(src: &str) -> usize {
     let mut depth: i32 = 0;
     for token in lexer::make_tokenizer(src).flatten() {
@@ -113,7 +123,7 @@ where
 {
     fn parse_definition_or_statement(parser: &mut Self) -> Result<Option<ReplItem>, ParseError> {
         let (tok0, tok1) = parser.tok01();
-        // special case for anonymous function
+        // `fn(` opens a value: the definition parser wants a name after `fn`.
         if let (Some((_, Token::Fn, _)), Some((_, Token::LeftParen, _))) = (&tok0, &tok1) {
             return Ok(parser.parse_statement()?.map(ReplItem::ReplStatement));
         }
@@ -211,9 +221,9 @@ mod tests {
         assert_eq!(nesting_depth("}"), 0);
     }
 
-    /// Every prefix of a valid input is unfinished, by construction. Not all of
-    /// them are read as such — an error the parser reports away from where the
-    /// input stopped says nothing — so this holds the count it reaches.
+    /// Every prefix of a valid input is unfinished, by construction, and
+    /// `is_incomplete` misses the ones whose error lands away from where the
+    /// input stopped, so this holds the count it reaches.
     #[test]
     fn most_of_a_valid_input_read_as_unfinished() {
         let src = r#"import gleam/int
