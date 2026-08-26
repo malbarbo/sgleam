@@ -34,49 +34,44 @@ pub fn load_bitmap(path: String) -> (f64, f64, String) {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn load_bitmap(path: String) -> (f64, f64, String) {
-    use std::path::Path;
+    use base64::Engine as _;
+
     let data = match std::fs::read(&path) {
-        Ok(d) => d,
-        Err(e) => {
-            eprintln!("Error reading {path}: {e}");
+        Ok(data) => data,
+        Err(err) => {
+            eprintln!("Error reading {path}: {err}");
             return (0.0, 0.0, String::new());
         }
     };
-    let (w, h) = image_dimensions(&data);
-    if w == 0 || h == 0 {
-        eprintln!("Error: could not detect image dimensions for {path}");
-        return (0.0, 0.0, String::new());
+    match image_header(&data) {
+        Some((mime, width, height)) if width > 0 && height > 0 => {
+            let base64 = base64::engine::general_purpose::STANDARD.encode(&data);
+            (
+                width as f64,
+                height as f64,
+                format!("data:{mime};base64,{base64}"),
+            )
+        }
+        _ => {
+            eprintln!("Error: {path} is not a png, a jpeg, a gif or a bmp");
+            (0.0, 0.0, String::new())
+        }
     }
-    let extension = Path::new(&path)
-        .extension()
-        .and_then(|extension| extension.to_str())
-        .map(str::to_ascii_lowercase);
-    let mime = match extension.as_deref() {
-        Some("png") => "image/png",
-        Some("jpg" | "jpeg") => "image/jpeg",
-        Some("gif") => "image/gif",
-        Some("bmp") => "image/bmp",
-        Some("webp") => "image/webp",
-        Some("svg") => "image/svg+xml",
-        _ => "application/octet-stream",
-    };
-    use base64::Engine as _;
-    let b64 = base64::engine::general_purpose::STANDARD.encode(&data);
-    let data_uri = format!("data:{mime};base64,{b64}");
-    (w as f64, h as f64, data_uri)
 }
 
-/// The size in the header of the image, or `(0, 0)` for anything else.
+/// The kind of the image and the size in its header, or `None` for anything
+/// else. The header says the kind, and not the name of the file, so the data
+/// URI always says what the bytes are.
 #[cfg(not(target_arch = "wasm32"))]
-fn image_dimensions(data: &[u8]) -> (u32, u32) {
+fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
     // PNG: bytes 16-23 contain width and height as u32 big-endian
     if data.len() >= 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
         let w = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
         let h = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
-        return (w, h);
+        return Some(("image/png", w, h));
     }
-    // JPEG: walk the marker segments up to a start of frame, which is where
-    // the dimensions are
+    // JPEG: walk the marker segments up to a start of frame, which is where the
+    // dimensions are
     if data.len() >= 2 && data[0..2] == [0xFF, 0xD8] {
         let mut i = 2;
         while i + 1 < data.len() && data[i] == 0xFF {
@@ -93,7 +88,7 @@ fn image_dimensions(data: &[u8]) -> (u32, u32) {
                     }
                     let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
                     let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
-                    return (w, h);
+                    return Some(("image/jpeg", w, h));
                 }
                 // The frame comes before the scan, so there is nothing ahead
                 // but entropy-coded data.
@@ -111,20 +106,20 @@ fn image_dimensions(data: &[u8]) -> (u32, u32) {
     if data.len() >= 10 && &data[0..4] == b"GIF8" {
         let w = u16::from_le_bytes([data[6], data[7]]) as u32;
         let h = u16::from_le_bytes([data[8], data[9]]) as u32;
-        return (w, h);
+        return Some(("image/gif", w, h));
     }
     // BMP: bytes 18-25 contain width and height as i32 little-endian
     if data.len() >= 26 && &data[0..2] == b"BM" {
         let w = i32::from_le_bytes([data[18], data[19], data[20], data[21]]).unsigned_abs();
         let h = i32::from_le_bytes([data[22], data[23], data[24], data[25]]).unsigned_abs();
-        return (w, h);
+        return Some(("image/bmp", w, h));
     }
-    (0, 0)
+    None
 }
 
 #[cfg(all(test, not(target_arch = "wasm32")))]
 mod tests {
-    use super::image_dimensions;
+    use super::image_header;
 
     #[test]
     fn png_dimensions() {
@@ -133,7 +128,7 @@ mod tests {
         data.extend_from_slice(&[0; 8]); // chunk length + type (IHDR)
         data.extend_from_slice(&10u32.to_be_bytes()); // width
         data.extend_from_slice(&20u32.to_be_bytes()); // height
-        assert_eq!(image_dimensions(&data), (10, 20));
+        assert_eq!(image_header(&data), Some(("image/png", 10, 20)));
     }
 
     #[test]
@@ -144,7 +139,7 @@ mod tests {
         data.extend_from_slice(&[0xFF, 0xC1, 0x00, 0x0B, 8]); // SOF1
         data.extend_from_slice(&70u16.to_be_bytes()); // height
         data.extend_from_slice(&80u16.to_be_bytes()); // width
-        assert_eq!(image_dimensions(&data), (80, 70));
+        assert_eq!(image_header(&data), Some(("image/jpeg", 80, 70)));
     }
 
     #[test]
@@ -155,13 +150,13 @@ mod tests {
         data.extend_from_slice(&[0xFF, 0xC0, 0x00, 0x0B, 8]); // SOF0
         data.extend_from_slice(&10u16.to_be_bytes()); // height
         data.extend_from_slice(&20u16.to_be_bytes()); // width
-        assert_eq!(image_dimensions(&data), (20, 10));
+        assert_eq!(image_header(&data), Some(("image/jpeg", 20, 10)));
     }
 
     #[test]
     fn truncated_jpeg() {
         let data = [0xFF, 0xD8, 0xFF, 0xC0, 0x00, 0x0B];
-        assert_eq!(image_dimensions(&data), (0, 0));
+        assert_eq!(image_header(&data), None);
     }
 
     #[test]
@@ -169,7 +164,7 @@ mod tests {
         let mut data = b"GIF89a".to_vec();
         data.extend_from_slice(&30u16.to_le_bytes()); // width
         data.extend_from_slice(&40u16.to_le_bytes()); // height
-        assert_eq!(image_dimensions(&data), (30, 40));
+        assert_eq!(image_header(&data), Some(("image/gif", 30, 40)));
     }
 
     #[test]
@@ -179,7 +174,7 @@ mod tests {
         data[1] = b'M';
         data[18..22].copy_from_slice(&50u32.to_le_bytes()); // width
         data[22..26].copy_from_slice(&60u32.to_le_bytes()); // height
-        assert_eq!(image_dimensions(&data), (50, 60));
+        assert_eq!(image_header(&data), Some(("image/bmp", 50, 60)));
     }
 
     #[test]
@@ -189,23 +184,23 @@ mod tests {
         data[1] = b'M';
         data[18..22].copy_from_slice(&50i32.to_le_bytes());
         data[22..26].copy_from_slice(&(-60i32).to_le_bytes()); // top-down
-        assert_eq!(image_dimensions(&data), (50, 60));
+        assert_eq!(image_header(&data), Some(("image/bmp", 50, 60)));
     }
 
     #[test]
     fn empty_data() {
-        assert_eq!(image_dimensions(&[]), (0, 0));
+        assert_eq!(image_header(&[]), None);
     }
 
     #[test]
     fn invalid_data() {
-        assert_eq!(image_dimensions(b"not an image"), (0, 0));
+        assert_eq!(image_header(b"not an image"), None);
     }
 
     #[test]
     fn truncated_png() {
         let data = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
         // Only header magic, no IHDR
-        assert_eq!(image_dimensions(&data), (0, 0));
+        assert_eq!(image_header(&data), None);
     }
 }
