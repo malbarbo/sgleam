@@ -8,6 +8,7 @@ use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
     Promise, Result, Runtime, Value,
     context::EvalOptions,
+    convert::List,
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
@@ -251,9 +252,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "text_height", text_height)?;
     set_fn(&sgleam, "text_x_offset", text_x_offset)?;
     set_fn(&sgleam, "text_y_offset", text_y_offset)?;
-    set_fn(&sgleam, "load_bitmap", |path: String| -> Vec<String> {
-        let (w, h, data_uri) = load_bitmap(path);
-        vec![w.to_string(), h.to_string(), data_uri]
+    set_fn(&sgleam, "load_bitmap", |path: String| {
+        List(load_bitmap(path))
     })?;
     ctx.globals().set("sgleam", sgleam)
 }
