@@ -6,6 +6,9 @@ use std::sync::atomic::Ordering;
 
 use super::STOP;
 
+/// Returns `true` if an interruption is waiting, `false` otherwise. Reading the
+/// flag clears it, so the run after an interrupted one does not stop at its
+/// first check.
 pub fn check_interrupt() -> bool {
     STOP.swap(false, Ordering::Relaxed)
 }
@@ -183,20 +186,8 @@ mod bitmap_tests {
     }
 }
 
-pub fn text_width(text: String, font_css: String) -> f64 {
-    measure(&text, &font_css).0
-}
-
-pub fn text_height(text: String, font_css: String) -> f64 {
-    measure(&text, &font_css).1
-}
-
-pub fn text_x_offset(text: String, font_css: String) -> f64 {
-    measure(&text, &font_css).2
-}
-
-pub fn text_y_offset(text: String, font_css: String) -> f64 {
-    measure(&text, &font_css).3
+pub fn text_metrics(text: String, font_css: String) -> (f64, f64, f64, f64) {
+    measure(&text, &font_css)
 }
 
 /// The size in pixels and which part of the css says it. The part that ends in
@@ -214,15 +205,17 @@ fn font_size(parts: &[&str]) -> (f64, Option<usize>) {
 }
 
 /// A guess from the size of the font alone. The width of a character is a fixed
-/// part of the size, the height of a line is the size, and a drawing laid out
-/// this way is close enough.
+/// part of the size and the height of a line is the size. The offsets place the
+/// text where the measured ones place it, half the box to the left and the
+/// baseline four fifths of the size below the top.
 fn heuristic(text: &str, font_css: &str) -> (f64, f64, f64, f64) {
     let (size, _) = font_size(&font_css.split_whitespace().collect::<Vec<_>>());
     let width = text.chars().count() as f64 * size * 0.6;
-    (width, size, 0.0, 0.0)
+    let ascent = size * 0.8;
+    (width, size, -width / 2.0, ascent - size / 2.0)
 }
 
-/// resvg measures the text, and the guess stands in without it.
+// resvg measures the text, and the guess stands in without it.
 #[cfg(feature = "resvg")]
 #[path = "native/layout.rs"]
 mod layout;
@@ -247,7 +240,7 @@ mod text_tests {
     #[test]
     fn the_guess_grows_with_the_text_and_the_size() {
         let (w, h, x, y) = heuristic("abc", "10px sans-serif");
-        assert_eq!((h, x, y), (10.0, 0.0, 0.0));
+        assert_eq!((h, x, y), (10.0, -w / 2.0, 3.0));
         assert!(w > heuristic("ab", "10px sans-serif").0);
         assert!(heuristic("abc", "20px sans-serif").0 > w);
     }

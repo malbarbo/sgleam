@@ -1382,8 +1382,7 @@ fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
 
 pub fn text_fontf(text: String, font: Font, style: Style) -> Image {
   let css = font.to_css(font)
-  let width = system.text_width(text, css)
-  let height = system.text_height(text, css)
+  let #(width, height, _, _) = system.text_metrics(text, css)
   Text(
     style,
     Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
@@ -2277,10 +2276,8 @@ fn to_svg_(img: Image, level: Int) -> String {
       font:,
     ) -> {
       let css = font.to_css(font)
-      let original_width = system.text_width(text, css)
-      let original_height = system.text_height(text, css)
-      let x_offset = system.text_x_offset(text, css)
-      let y_offset = system.text_y_offset(text, css)
+      let #(original_width, original_height, x_offset, y_offset) =
+        system.text_metrics(text, css)
       let scale_x =
         width
         /. original_width

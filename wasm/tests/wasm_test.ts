@@ -122,10 +122,18 @@ function makeEnv(
       }
       return event.type;
     },
-    text_width: (): number => 10,
-    text_height: (): number => 16,
-    text_x_offset: (): number => -5,
-    text_y_offset: (): number => 12,
+    text_metrics: (
+      _text: number,
+      _textLen: number,
+      _font: number,
+      _fontLen: number,
+      out: number,
+    ): void => {
+      const view = new DataView(getBuffer() as ArrayBuffer);
+      for (const [i, v] of [10, 16, -5, 12].entries()) {
+        view.setFloat64(out + i * 8, v, true);
+      }
+    },
     load_bitmap_fetch: (): number => 0,
     load_bitmap_width: (): number => 0,
     load_bitmap_height: (): number => 0,

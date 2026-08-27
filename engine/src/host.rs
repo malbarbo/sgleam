@@ -13,11 +13,11 @@ pub use target::{draw_svg, get_key_event};
 /// missing, or that nothing here reads a file of that kind.
 pub use target::load_bitmap;
 
-/// What `system.text_width` and its neighbours give a program. The width and
-/// the height are those of the box around the text. The offsets go from the
-/// middle of that box to the origin of an svg `<text>` element, which sits at
-/// the start of the baseline.
-pub use target::{text_height, text_width, text_x_offset, text_y_offset};
+/// What `system.text_metrics` gives a program, in order. The width and the
+/// height are those of the box around the text. The offsets go from the middle
+/// of that box to the origin of an svg `<text>` element, which sits at the
+/// start of the baseline.
+pub use target::text_metrics;
 
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]

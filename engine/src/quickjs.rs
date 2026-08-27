@@ -20,10 +20,7 @@ use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::Project,
-    host::{
-        check_interrupt, interrupt, load_bitmap, now_ms, sleep, text_height, text_width,
-        text_x_offset, text_y_offset,
-    },
+    host::{check_interrupt, interrupt, load_bitmap, now_ms, sleep, text_metrics},
     swriteln,
 };
 
@@ -250,10 +247,9 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
         set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
     }
-    set_fn(&sgleam, "text_width", text_width)?;
-    set_fn(&sgleam, "text_height", text_height)?;
-    set_fn(&sgleam, "text_x_offset", text_x_offset)?;
-    set_fn(&sgleam, "text_y_offset", text_y_offset)?;
+    set_fn(&sgleam, "text_metrics", |text: String, font_css: String| {
+        List(text_metrics(text, font_css))
+    })?;
     set_fn(&sgleam, "load_bitmap", |path: String| {
         List(load_bitmap(path))
     })?;
