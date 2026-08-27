@@ -208,10 +208,12 @@ pub unsafe extern "C" fn repl_complete(
         return ptr::null_mut();
     }
 
+    // The offset, then one candidate per line, so that a candidate can carry
+    // the space that follows it -- `import ` leaves the caret past it.
     let mut result = format!("c {start}");
     for c in &candidates {
-        result.push(' ');
-        result.push_str(c.trim_end());
+        result.push('\n');
+        result.push_str(c);
     }
 
     to_cstr(result)

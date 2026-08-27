@@ -538,7 +538,7 @@ Deno.test("repl_complete counts in bytes, not chars", async () => {
   const result = readCstr(ctx.exports, resultPtr);
   ctx.exports.cstr_deallocate(resultPtr);
   assertEquals(
-    result.startsWith("c 16 "),
+    result.startsWith("c 16\n"),
     true,
     `word should start at byte 16, got: ${result}`,
   );
@@ -550,11 +550,10 @@ Deno.test("repl_complete counts in bytes, not chars", async () => {
   destroy(ctx);
 });
 
-Deno.test("repl_complete sends no candidate with a space in it", async () => {
+Deno.test("repl_complete keeps the space a candidate ends with", async () => {
   const ctx = await newRepl();
   // The completion offers `:type` with the space that goes after it, and a
-  // space is what tells one candidate from the next, so the wire carries the
-  // candidate trimmed.
+  // line is what tells one candidate from the next, so the space arrives.
   const input = ":ty";
   const [ptr, len] = encodeString(ctx.exports, input);
   const resultPtr = ctx.exports.repl_complete!(ctx.repl, ptr, len, len);
@@ -562,7 +561,7 @@ Deno.test("repl_complete sends no candidate with a space in it", async () => {
   assertEquals(resultPtr !== 0, true, "repl_complete should return non-null");
   const result = readCstr(ctx.exports, resultPtr);
   ctx.exports.cstr_deallocate(resultPtr);
-  assertEquals(result, "c 0 :type", `got: ${result}`);
+  assertEquals(result, "c 0\n:type ", `got: ${result}`);
   destroy(ctx);
 });
 
