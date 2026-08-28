@@ -19,7 +19,12 @@ interface WasmExports {
     len: number,
     cursor_pos: number,
   ): number;
-  repl_ready?(repl: number, ptr: number, len: number): number;
+  repl_ready?(
+    repl: number,
+    ptr: number,
+    len: number,
+    cursor: number,
+  ): number;
   repl_stop(): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
@@ -633,7 +638,7 @@ Deno.test("repl_ready says what the input still needs", async () => {
   ];
   for (const [input, expected] of cases) {
     const [ptr, len] = encodeString(ctx.exports, input);
-    const result = ctx.exports.repl_ready!(ctx.repl, ptr, len);
+    const result = ctx.exports.repl_ready!(ctx.repl, ptr, len, len);
     ctx.exports.string_deallocate(ptr, len);
     assertEquals(result, expected, JSON.stringify(input));
   }

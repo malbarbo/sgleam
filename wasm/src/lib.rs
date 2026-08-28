@@ -157,14 +157,17 @@ pub unsafe extern "C" fn repl_run(
     repl.run(&new_string(ptr, len)) as u32
 }
 
+/// `repl_ready` (see SimpleCode's ENGINE.md). `cursor` is a byte offset into
+/// the text, as `repl_complete` takes one.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_ready(
     _repl: *mut Shell<QuickJsEngine>,
     ptr: *mut u8,
     len: usize,
+    cursor: usize,
 ) -> i32 {
     init();
-    shell::ready_state(&new_string(ptr, len))
+    shell::ready_state(&new_string(ptr, len), cursor)
 }
 
 #[unsafe(no_mangle)]

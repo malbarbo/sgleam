@@ -241,25 +241,38 @@ fn split(input: &str) -> Option<(&str, &str)> {
     Some((name, arg.trim_start()))
 }
 
-/// The Gleam of an input: all of it, or what a `:type` or `:time` carries.
-/// Every other command is the whole of its input, the host's included.
-fn gleam(input: &str) -> Option<&str> {
+/// Where the Gleam of an input begins: at its start, or past the `:type` or
+/// `:time` that carries it. Every other command is the whole of its input,
+/// the host's included, and has nothing to go on reading for.
+///
+/// An offset and not the text itself, so that a cursor given in the input's
+/// own coordinates can be moved into the Gleam's.
+fn gleam_start(input: &str) -> Option<usize> {
     let Some((name, arg)) = split(input) else {
-        return Some(input);
+        return Some(0);
     };
     BUILTINS
         .iter()
         .find(|(n, ..)| *n == name)
         .filter(|(_, arg, ..)| matches!(arg, Arg::Expr))
-        .map(|_| arg)
+        // `arg` is the tail of the trimmed input, so what is missing from it
+        // is everything before where it starts.
+        .map(|_| input.len() - input.trim_start().len() + input.trim().len() - arg.len())
 }
 
-/// What the prompt does with the input as it stands: `-1` runs it, and
-/// anything else is how far in the next line starts, in spaces.
+/// What the prompt does with the input as it stands and where the cursor is in
+/// it: `-1` runs the input, and anything else is how far in the line the
+/// cursor opens starts, in spaces.
 ///
 /// This is the whole of the question a reader asks on Enter, and both readers
 /// ask it here -- the one in the terminal and the one the browser calls
 /// through `repl_ready` (see SimpleCode's ENGINE.md).
+///
+/// An input of one line runs from anywhere in it, the way a prompt always has.
+/// One of several runs from the end only: with the cursor back in the text,
+/// Enter is opening a line inside a block still being written, and running the
+/// block because it happens to be finished is not what the key was pressed
+/// for.
 ///
 /// An input with nothing open ends at a blank line, finished or not. That is
 /// the only way out of an input that will not close. The user can type an open
@@ -268,38 +281,81 @@ fn gleam(input: &str) -> Option<&str> {
 /// it is the answer they want. With a bracket open the rule would cost more
 /// than it gives, taking the blank line between two statements of a function
 /// for the end of it.
-pub fn ready_state(input: &str) -> i32 {
-    let Some(gleam) = gleam(input) else {
+///
+/// `cursor` is a byte offset into `input`, as `repl_complete` already takes
+/// one, and one that falls inside a character moves back to the boundary
+/// before it -- see [`char_boundary`].
+pub fn ready_state(input: &str, cursor: usize) -> i32 {
+    let Some(start) = gleam_start(input) else {
         return -1;
     };
-    if !parser::is_incomplete(gleam) {
-        return -1;
+    let src = &input[start..];
+    // A cursor before the Gleam is not in it at all -- Enter pressed inside
+    // `:type` opens the line the expression asks for, the way it would from
+    // the end. Clamping to 0 instead answers for a cursor at its start.
+    let cursor = char_boundary(src, cursor.checked_sub(start).unwrap_or(src.len()));
+    // Nothing but whitespace is left after the cursor: the line it opens is
+    // the line after the input, which the input alone already answers.
+    let at_end = src[cursor..].trim().is_empty();
+    let above = if at_end { src } else { &src[..cursor] };
+    let depth = parser::nesting_depth(above);
+    if at_end || !src.contains('\n') {
+        if !parser::is_incomplete(src) {
+            return -1;
+        }
+        if depth == 0
+            && let Some((_, last)) = input.rsplit_once('\n')
+            && last.trim().is_empty()
+        {
+            return -1;
+        }
     }
-    let depth = parser::nesting_depth(gleam);
-    if depth == 0
-        && let Some((_, last)) = input.rsplit_once('\n')
-        && last.trim().is_empty()
-    {
-        return -1;
-    }
-    (depth * INDENT) as i32
+    // The brackets open above the cursor say how far in the line goes, and the
+    // code written under it says how far in it has to go: a line shallower
+    // than that closes a block the code below still needs open. The deeper of
+    // the two, so that neither is crossed.
+    (depth * INDENT).max(indent_below(src, cursor)) as i32
+}
+
+/// How far in the code under the cursor is written, in spaces: the first line
+/// below the cursor's own that says something and can be measured. A blank
+/// line and a comment say nothing about where the block is written, and a line
+/// indented with anything but spaces cannot be measured in them: all three are
+/// passed over.
+fn indent_below(src: &str, cursor: usize) -> usize {
+    let Some((_, below)) = src[cursor..].split_once('\n') else {
+        return 0;
+    };
+    below
+        .lines()
+        .find_map(|line| {
+            let text = line.trim_start_matches(' ');
+            (!text.is_empty() && !text.starts_with("//") && !text.starts_with(char::is_whitespace))
+                .then(|| line.len() - text.len())
+        })
+        .unwrap_or(0)
 }
 
 /// What one level of indentation is worth, in spaces.
 const INDENT: usize = 2;
 
+/// `cursor` brought inside `text` and onto a char boundary.
+///
+/// A cursor that is not on one -- which is what a host counting in another
+/// unit sends -- moves back to the boundary before it. Slicing at the cursor
+/// instead panics, and a panic is the end of the session.
+fn char_boundary(text: &str, cursor: usize) -> usize {
+    let mut cursor = cursor.min(text.len());
+    while !text.is_char_boundary(cursor) {
+        cursor -= 1;
+    }
+    cursor
+}
+
 /// The word around the cursor and where it starts, both in bytes: everything
 /// before `cursor`, back to the last char an identifier cannot hold.
-///
-/// A cursor that is not on a char boundary -- which is what a host counting
-/// in another unit sends -- moves back to the boundary before it. Slicing at
-/// the cursor instead panics, and a panic is the end of the session.
 pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
-    let mut end = cursor.min(text.len());
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
-    let before = &text[..end];
+    let before = &text[..char_boundary(text, cursor)];
     let start = before
         .char_indices()
         .rev()
@@ -330,6 +386,18 @@ fn format_duration(elapsed: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The cursor at the end of the input, which is where the tests written
+    /// before there was a cursor put it.
+    fn ready_state(src: &str) -> i32 {
+        super::ready_state(src, src.len())
+    }
+
+    /// The `|` in `marked` is where the cursor is.
+    fn at_cursor(marked: &str) -> i32 {
+        let (above, below) = marked.split_once('|').expect("the cursor is a `|`");
+        super::ready_state(&format!("{above}{below}"), above.len())
+    }
 
     #[test]
     fn the_word_at_the_cursor_is_what_comes_before_it() {
@@ -392,6 +460,49 @@ mod tests {
         assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
         // A command is asked about what it carries.
         assert_eq!(ready_state(":type case x {"), 2);
+    }
+
+    #[test]
+    fn one_line_runs_from_anywhere_in_it_and_several_from_the_end() {
+        assert_eq!(at_cursor("let x = |1"), -1);
+        // Several lines with the cursor back in them: the key opens a line,
+        // finished or not.
+        assert_eq!(at_cursor("let x = 1\nlet y = |2"), 0);
+    }
+
+    #[test]
+    fn the_line_goes_as_deep_as_the_brackets_above_and_the_code_below() {
+        // Nothing under the cursor but the closing brace: the depth at the
+        // cursor is the whole answer, and it is the canonical one.
+        assert_eq!(at_cursor("pub fn f() {\n  let x = 1|\n}"), 2);
+        // Code written further in than that is not brought back out by the
+        // line the cursor opens: it would leave the line under nothing.
+        assert_eq!(
+            at_cursor("pub fn f() {\n    let x = 1|\n    let y = 2\n}"),
+            4
+        );
+        // A blank line and a comment say nothing about where the block is.
+        assert_eq!(
+            at_cursor("pub fn f() {\n    let x = 1|\n\n    // nota\n    let y = 2\n}"),
+            4
+        );
+        // And a cursor past the end is the end.
+        assert_eq!(super::ready_state("case x {", 999), 2);
+        // A line indented with a tab cannot be measured in spaces, so it is
+        // passed over instead of counted as a line written at the margin.
+        assert_eq!(
+            at_cursor("pub fn f() {\n    let x = 1|\n\tlet y = 2\n    let z = 3\n}"),
+            4
+        );
+    }
+
+    #[test]
+    fn a_cursor_inside_a_command_is_a_cursor_at_the_end_of_what_it_carries() {
+        // The cursor is in `:type`, not in the Gleam, so there is no line
+        // being opened inside the expression: it answers the way it does from
+        // the end.
+        assert_eq!(at_cursor(":ty|pe case x {"), 2);
+        assert_eq!(at_cursor("|:type 1 + 1"), -1);
     }
 
     #[test]

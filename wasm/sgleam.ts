@@ -13,7 +13,7 @@ interface WasmExports {
     config_len: number,
   ): number;
   repl_run(repl: number, ptr: number, len: number): number;
-  repl_ready(repl: number, ptr: number, len: number): number;
+  repl_ready(repl: number, ptr: number, len: number, cursor: number): number;
   repl_destroy(repl: number): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
@@ -134,10 +134,13 @@ interface Statement {
 }
 
 // Whether the input at the prompt is finished: -1 to run it, otherwise the
-// indentation the next line starts with. Only the sign is read here.
+// indentation the line the cursor opens starts with. Only the sign is read
+// here, and there is no cursor to speak of -- stdin is not being typed -- so
+// the question is asked from the end of the text, which is where a reader
+// that has just read the last line of it would be.
 function replReady(ctx: WasmCtx, repl: number, text: string): number {
   const [ptr, len] = encodeString(ctx.exports, text);
-  const result = ctx.exports.repl_ready(repl, ptr, len);
+  const result = ctx.exports.repl_ready(repl, ptr, len, len);
   ctx.exports.string_deallocate(ptr, len);
   return result;
 }
