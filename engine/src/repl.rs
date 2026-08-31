@@ -491,16 +491,28 @@ impl<E: Engine> Repl<E> {
         file
     }
 
+    /// Compiles `code` as a module of its own, with what it reads of the
+    /// session written in front of it.
+    fn compile_code(
+        &mut self,
+        module_name: &str,
+        code: &Source,
+        skip: &Defined,
+        purpose: Purpose,
+    ) -> Result<Module, Error> {
+        let mut src = self.build_source(Some(code.as_str()), skip);
+        src.append(code);
+        self.compile(module_name, src, purpose)
+    }
+
     fn compile_main(&mut self, body: &Source, purpose: Purpose) -> Result<Module, Error> {
         let mut code = Source::new();
         code.write(&format!("pub fn {}() {{\n", self.repl_main));
         code.write(&self.scope.injections(body.as_str(), &[], &[]));
         code.append(body);
         code.write("\n}\n");
-        let mut src = self.build_source(Some(code.as_str()), &Defined::default());
-        src.append(&code);
         let module = self.module_name();
-        self.compile(&module, src, purpose)
+        self.compile_code(&module, &code, &Defined::default(), purpose)
     }
 
     fn show_gleam_error(&self, err: &Error) {
@@ -759,10 +771,7 @@ impl<E: Engine> Repl<E> {
         ));
 
         let vals_module = self.queue_vals_module(&module, names);
-        let mut src = self.build_source(Some(code.as_str()), &Defined::default());
-        src.append(&code);
-
-        let module = self.compile(&module, src, Purpose::Run)?;
+        let module = self.compile_code(&module, &code, &Defined::default(), Purpose::Run)?;
         self.run_repl_main(&module);
 
         if !self.engine.has_var(&module.name) {
@@ -875,12 +884,9 @@ impl<E: Engine> Repl<E> {
             }
             code.write("\n");
         }
-        let mut src = self.build_source(Some(code.as_str()), &defined);
-        src.append(&code);
-
         // Not `module_name`, as the imports are items and they went first.
         let module = self.input_module();
-        self.compile(&module, src, Purpose::Run)?;
+        self.compile_code(&module, &code, &defined, Purpose::Run)?;
 
         for def in defs {
             if let Some(name) = &def.type_name {
