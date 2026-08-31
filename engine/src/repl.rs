@@ -424,20 +424,9 @@ impl<E: Engine> Repl<E> {
         // The module that reads back the values of this item goes in here,
         // and not in a pass of its own, so a `let` costs one compilation.
         if let Some((vals_module, vals)) = self.pending_vals.take() {
-            let file = self.write_source(&vals_module, vals.as_str());
-            self.generated.push((Project::source().join(&file), vals));
-            files.push(file);
+            files.push(self.emit(&vals_module, vals, purpose));
         }
-        let file = self.write_source(module_name, src.as_str());
-        self.generated.push((Project::source().join(&file), src));
-        files.push(file);
-        // Only a module compiled to run, as nothing ever reaches a place in
-        // the others, and loading them would cost the next run a module
-        // apiece.
-        if purpose == Purpose::Run {
-            let repl_files: Vec<_> = files.iter().map(|file| self.repl_file(file)).collect();
-            self.pending_files.extend(repl_files);
-        }
+        files.push(self.emit(module_name, src, purpose));
 
         // The repl collects the warnings instead of printing each one as it
         // comes, so it can move them onto the input like errors.
@@ -484,20 +473,22 @@ impl<E: Engine> Repl<E> {
         Ok(modules.swap_remove(pos))
     }
 
-    /// A module the repl wrote, as the runtime hears about it, with the input
-    /// line behind each line of the module.
-    fn repl_file(&self, file: &str) -> ReplFile {
-        let path = Project::source().join(file);
-        let lines = self
-            .generated
-            .iter()
-            .find(|(generated, _)| *generated == path)
-            .map(|(_, src)| src.input_lines())
-            .unwrap_or_default();
-        ReplFile {
-            path: Project::source_path(file).into_string(),
-            lines,
+    /// Writes one generated module out and keeps what the repl needs of it:
+    /// which of its bytes are a copy of the input, so a diagnostic can go back
+    /// onto it, and — for a module that will run — the input line behind each
+    /// of its lines, which is all the runtime has to name a place with. Only a
+    /// module compiled to run, as nothing ever reaches a place in the others,
+    /// and loading them would cost the next run a module apiece.
+    fn emit(&mut self, module_name: &str, src: Source, purpose: Purpose) -> String {
+        let file = self.write_source(module_name, src.as_str());
+        if purpose == Purpose::Run {
+            self.pending_files.push(ReplFile {
+                path: Project::source_path(&file).into_string(),
+                lines: src.input_lines(),
+            });
         }
+        self.generated.push((Project::source().join(&file), src));
+        file
     }
 
     fn compile_main(&mut self, body: &Source, purpose: Purpose) -> Result<Module, Error> {
