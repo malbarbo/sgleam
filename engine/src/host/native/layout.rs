@@ -15,16 +15,26 @@ struct FontProps {
 fn parse_font_css(font_css: &str) -> FontProps {
     let parts: Vec<&str> = font_css.split_whitespace().collect();
     let (size, size_at) = font_size(&parts);
+    // The style and the weight come before the size and the family after it.
+    // With no size at all, every part is read for a style and a weight, and
+    // none is left to name a family.
+    let size_at = size_at.unwrap_or(parts.len());
     let mut style = "normal".to_string();
     let mut weight = "normal".to_string();
-    for part in &parts[..size_at.unwrap_or(parts.len())] {
+    for part in parts.iter().take(size_at) {
         if *part == "italic" || *part == "oblique" {
             style = part.to_string();
         } else if *part == "bold" || *part == "lighter" {
             weight = part.to_string();
         }
     }
-    let family = match parts[size_at.map_or(parts.len(), |at| at + 1)..].join(" ") {
+    let family = match parts
+        .iter()
+        .skip(size_at + 1)
+        .copied()
+        .collect::<Vec<_>>()
+        .join(" ")
+    {
         family if family.is_empty() => "sans-serif".to_string(),
         family => family,
     };
@@ -134,6 +144,15 @@ mod tests {
         assert_eq!(fp.family, "sans-serif");
         assert_eq!(fp.style, "normal");
         assert_eq!(fp.weight, "normal");
+    }
+
+    #[test]
+    fn parse_font_css_no_family() {
+        // The size is the last part, or there is no size to leave one after.
+        assert_eq!(parse_font_css("16px").family, "sans-serif");
+        assert_eq!(parse_font_css("bold").family, "sans-serif");
+        // And a family of several words is named by all of them.
+        assert_eq!(parse_font_css("16px Fira Sans").family, "Fira Sans");
     }
 
     #[test]
