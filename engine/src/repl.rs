@@ -195,8 +195,9 @@ impl<E: Engine> Repl<E> {
         &self.engine
     }
 
-    /// The completion candidates: every name in scope, and the public members
-    /// of the imported modules, qualified.
+    /// The completion candidates, in no order: every name in scope, and the
+    /// public members of the imported modules, qualified. The shell adds its
+    /// own and sorts what comes out.
     pub fn completions(&self) -> Vec<String> {
         let mut result: Vec<String> = self.scope.names().map(String::from).collect();
         for (alias, path) in &self.scope.modules {
@@ -211,8 +212,6 @@ impl<E: Engine> Repl<E> {
                 }
             }
         }
-        result.sort();
-        result.dedup();
         result
     }
 
