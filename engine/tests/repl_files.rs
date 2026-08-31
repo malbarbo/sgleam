@@ -49,8 +49,6 @@ impl Engine for Recorder {
     fn run_tests(&self, _modules: &[&str]) -> Result<(), SgleamError> {
         Ok(())
     }
-
-    fn interrupt(&self) {}
 }
 
 fn run(repl: &mut Repl<Recorder>, input: &str) {

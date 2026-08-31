@@ -20,7 +20,7 @@ use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
     gleam::Project,
-    host::{check_interrupt, interrupt, load_bitmap, now_ms, sleep, text_metrics},
+    host::{check_interrupt, init, load_bitmap, now_ms, sleep, text_metrics},
     swriteln,
 };
 
@@ -33,22 +33,7 @@ pub struct QuickJsEngine {
 
 impl Engine for QuickJsEngine {
     fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
-        #[cfg(not(target_arch = "wasm32"))]
-        {
-            use std::sync::OnceLock;
-            // The handler goes in once for the process, and the result
-            // stays, so a second engine hears what the first one heard and
-            // never runs quietly with no way to stop it.
-            static CTRLC: OnceLock<std::result::Result<(), String>> = OnceLock::new();
-            let installed =
-                CTRLC.get_or_init(|| ctrlc::set_handler(interrupt).map_err(|err| err.to_string()));
-            // What ctrlc says already names its subject, so this hands the
-            // message on as it came.
-            if let Err(err) = installed {
-                return Err(SgleamError::Other(err.clone().into()));
-            }
-        }
-
+        init()?;
         Ok(QuickJsEngine {
             context: create_context(fs)?,
         })
@@ -74,10 +59,6 @@ impl Engine for QuickJsEngine {
 
     fn run_tests(&self, modules: &[&str]) -> std::result::Result<(), SgleamError> {
         run_tests(&self.context, modules)
-    }
-
-    fn interrupt(&self) {
-        interrupt();
     }
 }
 

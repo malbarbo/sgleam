@@ -1,6 +1,8 @@
 //! The page answers, through the imports of the `env` module. What the page has
 //! to implement is the whole of `ffi`.
 
+use crate::error::SgleamError;
+
 mod ffi {
     #[link(wasm_import_module = "env")]
     unsafe extern "C" {
@@ -37,6 +39,12 @@ mod ffi {
     }
 }
 
+/// The page is there before the first program runs, so there is nothing to
+/// make ready.
+pub fn init() -> Result<(), SgleamError> {
+    Ok(())
+}
+
 pub fn check_interrupt() -> bool {
     unsafe { ffi::check_interrupt() }
 }
@@ -49,8 +57,8 @@ pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }
 
-/// The kind of the key event waiting in the page and the name of the key, or
-/// nothing at all when the page has no event.
+/// The kind first, then the name of the key, then one name per modifier that
+/// is on.
 pub fn get_key_event() -> Vec<String> {
     let mut key = [0u8; 32];
     let mut modifiers = [false; 5];

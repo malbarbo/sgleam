@@ -1,16 +1,26 @@
 //! What a program asks of the world around it. The page answers in `wasm` and
-//! the operating system in `native`, and what is here holds for both.
+//! the operating system in `native`.
+//!
+//! Each target provides every function re-exported below, under the name and
+//! with the meaning written here. A `cfg` on a re-export says that only one
+//! target has the function, and whatever asks for it says the same `cfg`.
 
-use std::sync::atomic::{AtomicBool, Ordering};
+/// Makes the world ready to answer. An engine calls it as it is built. The
+/// first call does the work and a later one gives back its result.
+pub use target::init;
 
-pub use target::{check_interrupt, sleep};
-#[cfg(target_arch = "wasm32")]
-pub use target::{draw_svg, get_key_event};
+/// Returns `true` if an interruption is waiting, `false` otherwise. Reading the
+/// request clears it, so the run after an interrupted one does not stop at its
+/// first check.
+pub use target::check_interrupt;
 
-/// `system.load_bitmap` reads an image file and gives a program the width and
-/// the height of the image, and its bytes as a data URI, which a drawing puts
-/// in an `<image>` element. Zeros and an empty string say that the file is
-/// missing, or that nothing here reads a file of that kind.
+/// `system.sleep` holds the program for `ms` milliseconds.
+pub use target::sleep;
+
+/// `system.load_bitmap` reads an image file and gives the width and the height
+/// of the image, and its bytes as a data URI, which a drawing puts in an
+/// `<image>` element. Zeros and an empty string say that the file is missing,
+/// or that nothing here reads a file of that kind.
 pub use target::load_bitmap;
 
 /// What `system.text_metrics` gives a program, in order. The width and the
@@ -19,6 +29,17 @@ pub use target::load_bitmap;
 /// start of the baseline.
 pub use target::text_metrics;
 
+/// `system.draw_svg` puts a drawing on the page. Only the browser draws, so a
+/// native run has no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::draw_svg;
+
+/// `system.get_key_event` gives the kind of the event waiting in the page, the
+/// name of the key and the modifiers that are on, or nothing when no event
+/// waits. Only the browser reads keys, so a native run has no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::get_key_event;
+
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]
 mod target;
@@ -26,20 +47,8 @@ mod target;
 #[path = "host/native.rs"]
 mod target;
 
-static STOP: AtomicBool = AtomicBool::new(false);
-
-/// Stops the running program at its next check for an interruption. One flag
-/// serves the whole process, so an interruption reaches every engine at once.
-/// Natively the engine reads the flag. In the browser the page answers the
-/// check itself and nothing reads the flag.
-pub fn interrupt() {
-    STOP.store(true, Ordering::Relaxed);
-}
-
-/// Milliseconds since the epoch, which is what `system.now_ms` gives a program
-/// and how `world` times its ticks. One implementation serves both targets.
-/// `SystemTime` reads the WASI clock on wasm32-wasip1 and the system clock
-/// natively.
+/// `system.now_ms` gives milliseconds since the epoch, and `world` times its
+/// ticks by it.
 pub fn now_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()

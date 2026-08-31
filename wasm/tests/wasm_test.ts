@@ -25,7 +25,6 @@ interface WasmExports {
     len: number,
     cursor: number,
   ): number;
-  repl_stop(): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
   format(ptr: number, len: number): number;
@@ -663,9 +662,9 @@ Deno.test("repl_new config bigint=false disables BigInt", async () => {
   destroy(ctx);
 });
 
-// --- Stop ---
+// --- Interrupt ---
 
-Deno.test("repl_stop interrupts infinite recursion", async () => {
+Deno.test("check_interrupt stops infinite recursion", async () => {
   const ctx = await newRepl("", { interruptAfter: 100 });
   const r = run(ctx, "fn f() { f() } f()");
   assertEquals(r.result, REPL_ERROR);

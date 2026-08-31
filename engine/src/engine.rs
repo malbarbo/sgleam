@@ -65,6 +65,4 @@ pub trait Engine: Clone {
     fn has_var(&self, key: &str) -> bool;
 
     fn run_tests(&self, modules: &[&str]) -> Result<(), SgleamError>;
-
-    fn interrupt(&self);
 }
