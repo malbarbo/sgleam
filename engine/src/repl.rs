@@ -319,10 +319,7 @@ impl<E: Engine> Repl<E> {
         // part of that scope.
         for (import, span) in imports(&items) {
             self.item_number += 1;
-            self.guarded(|repl| {
-                repl.run_import(import, &input, span)
-                    .map_err(InputError::from)
-            })?;
+            self.guarded(|repl| repl.run_import(import, &input, span))?;
         }
 
         // The definitions go in next, in a module of their own, so they can
@@ -330,7 +327,7 @@ impl<E: Engine> Repl<E> {
         // item has run yet.
         let defs = defs(&items);
         if !defs.is_empty() {
-            self.guarded(|repl| repl.run_defs(&input, &defs).map_err(InputError::from))?;
+            self.guarded(|repl| repl.run_defs(&input, &defs))?;
         }
 
         for item in items {
@@ -825,11 +822,11 @@ impl<E: Engine> Repl<E> {
         import: &gleam_core::ast::Import<()>,
         input: &Rc<str>,
         span: SrcSpan,
-    ) -> Result<(), Error> {
+    ) -> Result<(), InputError> {
         self.scope.register_import(import, input, span);
         let result = self.run_check();
         self.scope.own_import = None;
-        result
+        Ok(result?)
     }
 
     /// Why the repl cannot take a const of the input, when it cannot. The
@@ -862,7 +859,7 @@ impl<E: Engine> Repl<E> {
     /// Compiles the definitions of the input into a module of its own, kept for
     /// the rest of the session, and binds each name to it. A later input
     /// imports the name instead, so a redefinition leaves the old one working.
-    fn run_defs(&mut self, input: &Rc<str>, defs: &[Def]) -> Result<(), Error> {
+    fn run_defs(&mut self, input: &Rc<str>, defs: &[Def]) -> Result<(), InputError> {
         let defined = defined_by(defs);
 
         let mut code = Source::new();
