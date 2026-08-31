@@ -116,9 +116,6 @@ fn defined_by(defs: &[Def]) -> Defined {
 pub struct Repl<E: Engine> {
     /// The names the session has in scope, and the modules that hold them.
     scope: Scope,
-    /// The module that reads back the values of the item being run, compiled
-    /// in the same pass as the module that computes them.
-    pending_vals: Option<(String, Source)>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
     engine: E,
@@ -158,7 +155,6 @@ impl<E: Engine> Repl<E> {
         );
         let mut repl = Repl {
             scope: Scope::default(),
-            pending_vals: None,
             project,
             existing_modules: im::HashMap::new(),
             engine: E::new(fs)?,
@@ -440,11 +436,22 @@ impl<E: Engine> Repl<E> {
         src: Source,
         purpose: Purpose,
     ) -> Result<Module, Error> {
+        self.compile_with(vec![], module_name, src, purpose)
+    }
+
+    /// Compiles the item's module and the ones in `with`, written ahead of it.
+    /// One pass, as a module of `with` names the item's: a `let` and the module
+    /// that reads its values.
+    fn compile_with(
+        &mut self,
+        with: Vec<(String, Source)>,
+        module_name: &str,
+        src: Source,
+        purpose: Purpose,
+    ) -> Result<Module, Error> {
         self.generated.clear();
-        // The module that reads back the values of this item goes in here,
-        // and not in a pass of its own, so a `let` costs one compilation.
-        if let Some((vals_module, vals)) = self.pending_vals.take() {
-            self.emit(&vals_module, vals, purpose);
+        for (name, src) in with {
+            self.emit(&name, src, purpose);
         }
         self.emit(module_name, src, purpose);
 
@@ -510,8 +517,13 @@ impl<E: Engine> Repl<E> {
         self.generated.push((Project::source().join(&file), src));
     }
 
-    /// Compiles `code` as a module of its own, with what it reads of the
-    /// session written in front of it.
+    /// `code` with what it reads of the session written in front of it.
+    fn module_source(&self, code: &Source, skip: &Defined) -> Source {
+        let mut src = self.build_source(Some(code.as_str()), skip, None);
+        src.append(code);
+        src
+    }
+
     fn compile_code(
         &mut self,
         module_name: &str,
@@ -519,8 +531,7 @@ impl<E: Engine> Repl<E> {
         skip: &Defined,
         purpose: Purpose,
     ) -> Result<Module, Error> {
-        let mut src = self.build_source(Some(code.as_str()), skip, None);
-        src.append(code);
+        let src = self.module_source(code, skip);
         self.compile(module_name, src, purpose)
     }
 
@@ -667,10 +678,10 @@ impl<E: Engine> Repl<E> {
             .map(|_| ())
     }
 
-    /// Builds the module that reads back the values an item binds: one
-    /// function per name, over the tuple the run memoized, and nothing else of
-    /// the session, so no name in it can clash with a name the input took.
-    fn queue_vals_module(&mut self, from: &str, names: &[String]) -> String {
+    /// The module that reads back the values an item binds: one function per
+    /// name, over the tuple the run memoized, and nothing else of the session,
+    /// so no name in it can clash with a name the input took.
+    fn vals_module(&self, from: &str, names: &[String]) -> (String, Source) {
         // The plain name when the input has no definitions to hold it, so the
         // user reaches a value the way they reach a type or a function:
         // `repl1.x()`.
@@ -686,8 +697,7 @@ impl<E: Engine> Repl<E> {
         for (index, name) in names.iter().enumerate() {
             swriteln!(src, "pub fn {name}() {{ {vals}().{} }}", index + 1);
         }
-        self.pending_vals = Some((module.clone(), src));
-        module
+        (module, src)
     }
 
     // --- Item handlers ---
@@ -795,8 +805,14 @@ impl<E: Engine> Repl<E> {
             main = self.repl_main
         );
 
-        let vals_module = self.queue_vals_module(&module, names);
-        let module = self.compile_code(&module, &code, &Defined::default(), Purpose::Run)?;
+        let (vals_module, vals) = self.vals_module(&module, names);
+        let src = self.module_source(&code, &Defined::default());
+        let module = self.compile_with(
+            vec![(vals_module.clone(), vals)],
+            &module,
+            src,
+            Purpose::Run,
+        )?;
         self.run_repl_main(&module);
 
         if !self.engine.has_var(&module.name) {
