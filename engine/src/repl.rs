@@ -368,18 +368,17 @@ impl<E: Engine> Repl<E> {
 
     // --- Compilation helpers ---
 
-    fn module_name(&self) -> String {
-        match self.item_number {
-            0 => format!("repl{}", self.input_number),
-            item => format!("repl{}_{item}", self.input_number),
-        }
+    /// The module of the input itself. The user reads this name back in the
+    /// type of a value a later redefinition left behind, so it stays plain.
+    fn input_module(&self) -> String {
+        format!("repl{}", self.input_number)
     }
 
-    /// The definitions of an input take the plain name, as the user reads that
-    /// name back in the type of a value a later redefinition left behind. Not
-    /// `module_name`, as the imports are items and they went first.
-    fn defs_module_name(&self) -> String {
-        format!("repl{}", self.input_number)
+    fn module_name(&self) -> String {
+        match self.item_number {
+            0 => self.input_module(),
+            item => format!("{}_{item}", self.input_module()),
+        }
     }
 
     fn write_source(&mut self, module_name: &str, code: &str) -> String {
@@ -404,7 +403,7 @@ impl<E: Engine> Repl<E> {
     }
 
     fn name_taken(&self) -> bool {
-        let name = format!("repl{}", self.input_number);
+        let name = self.input_module();
         let prefix = format!("{name}_");
         self.project.fs.files().iter().any(|path| {
             path.parent() == Some(Project::source())
@@ -644,9 +643,9 @@ impl<E: Engine> Repl<E> {
         // The plain name when the input has no definitions to hold it, so the
         // user reaches a value the way they reach a type or a function:
         // `repl1.x()`.
-        let plain = format!("repl{}", self.input_number);
+        let plain = self.input_module();
         let module = if self.existing_modules.contains_key(plain.as_str()) {
-            format!("repl{}_{}_vals", self.input_number, self.item_number)
+            format!("{}_vals", self.module_name())
         } else {
             plain
         };
@@ -888,7 +887,8 @@ impl<E: Engine> Repl<E> {
         let mut src = self.build_source(Some(code.as_str()), &defined);
         src.append(&code);
 
-        let module = self.defs_module_name();
+        // Not `module_name`, as the imports are items and they went first.
+        let module = self.input_module();
         self.compile(&module, src, Purpose::Run)?;
 
         for def in defs {
