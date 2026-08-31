@@ -16,10 +16,12 @@ use crate::{
 use crate::quickjs::QuickJsEngine as JsEngine;
 
 pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+    // The first path is the program, and the rest are what it imports.
+    let program = paths.first().expect("a path to run");
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
-        path: paths[0].clone(),
+        path: program.clone(),
     })?;
 
     let main = get_main(module)?;

@@ -126,11 +126,10 @@ impl<E: Engine> Shell<E> {
         let Some((name, arg)) = split(input) else {
             return status(self.repl.run(input));
         };
-        let Some(index) = self.commands.iter().position(|c| c.name == name) else {
+        let Some(command) = self.commands.iter_mut().find(|c| c.name == name) else {
             println!("Unknown command {name}. Type :help to see the commands.");
             return Status::Error;
         };
-        let command = &mut self.commands[index];
         match (command.arg, arg.is_empty()) {
             (Arg::None, false) => {
                 println!("The {name} command takes nothing after it.");

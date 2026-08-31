@@ -7,6 +7,9 @@ resolver = "2"
 # it panicked on has to be written where it happened.
 [workspace.lints.clippy]
 unwrap_used = "deny"
+# An index is an assertion the compiler cannot check. Where the bound is
+# already at hand, `get` says so in the same expression.
+indexing_slicing = "deny"
 
 [profile.release]
 opt-level = 2

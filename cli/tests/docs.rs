@@ -104,7 +104,8 @@ fn docs_repl_transcripts() {
             }
             let (input, expected) = split(&block.body);
             let dir = tempfile::tempdir().expect("temp dir");
-            let file = fixture(&blocks[..i]).map(|(name, source)| {
+            let before = blocks.get(..i).expect("the blocks before this one");
+            let file = fixture(before).map(|(name, source)| {
                 std::fs::write(dir.path().join(name), source).expect("write the fixture");
                 name
             });

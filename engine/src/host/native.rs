@@ -114,7 +114,10 @@ fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
     None
 }
 
+// A test writes the header it means to read back, and the buffer is right
+// there, the size it wrote.
 #[cfg(test)]
+#[allow(clippy::indexing_slicing)]
 mod bitmap_tests {
     use super::image_header;
 

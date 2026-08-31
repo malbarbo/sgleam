@@ -1661,9 +1661,12 @@ fn repl_type_cmd_def() {
 fn repl_time_cmd() {
     let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time let x = 10\nx"));
     let lines: Vec<_> = out.lines().collect();
-    assert_eq!(lines[0], "10");
-    assert!(lines[1].starts_with("Time: "), "got: {out}");
-    assert_eq!(lines[2], "10");
+    let [bound, time, read, ..] = lines.as_slice() else {
+        panic!("got: {out}");
+    };
+    assert_eq!(*bound, "10");
+    assert!(time.starts_with("Time: "), "got: {out}");
+    assert_eq!(*read, "10");
 }
 
 #[test]
