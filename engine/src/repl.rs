@@ -2,7 +2,7 @@ use std::{fmt::Write, rc::Rc, time::Duration};
 
 use ecow::EcoString;
 use gleam_core::{
-    Error, Warning,
+    Error,
     ast::{
         AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, SrcSpan,
         Statement, UntypedConstant, UntypedPattern, UntypedStatement,
@@ -32,7 +32,7 @@ use crate::{
 /// the module that only declares the scope to check an import. That last one
 /// uses nothing of the scope either, so an unused-import warning there says
 /// nothing and the repl drops it.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 enum Purpose {
     Run,
     Type,
@@ -462,7 +462,7 @@ impl<E: Engine> Repl<E> {
             warnings
                 .take()
                 .iter()
-                .filter(|warning| !self.is_noise(warning, &purpose))
+                .filter(|warning| !(purpose == Purpose::DeclareScope && is_repl_noise(warning)))
                 .map(|warning| warning.to_diagnostic())
                 .collect(),
             Show::OnInputOnly,
@@ -534,12 +534,6 @@ impl<E: Engine> Repl<E> {
         let mut names = module.ast.names.clone();
         self.scope.register_types(&mut names);
         names
-    }
-
-    /// Returns `true` if the scaffolding caused the warning, `false` if the
-    /// input did.
-    fn is_noise(&self, warning: &Warning, purpose: &Purpose) -> bool {
-        *purpose == Purpose::DeclareScope && is_repl_noise(warning)
     }
 
     fn show_diagnostics(&self, diags: Vec<Diagnostic>, show: Show) {
