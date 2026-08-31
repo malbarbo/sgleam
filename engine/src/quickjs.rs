@@ -17,12 +17,22 @@ use rquickjs::{
 
 use crate::{
     STACK_SIZE,
-    engine::{Engine, MainFunction},
+    engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
     host::{check_interrupt, init, load_bitmap, now_ms, sleep, text_metrics},
     swriteln,
 };
+
+/// The engine answers this itself, instead of a number written down beside it.
+/// A number kept by hand goes on standing long after the build it named is
+/// gone.
+pub fn version() -> &'static str {
+    // SAFETY: quickjs hands back a pointer to a string constant of its own,
+    // which is there before any runtime is and outlives everything reading it.
+    let version = unsafe { std::ffi::CStr::from_ptr(rquickjs::qjs::JS_GetVersion()) };
+    version.to_str().unwrap_or("unknown")
+}
 
 /// A JavaScript context together with its runtime. A clone shares both,
 /// because rquickjs counts the references.
@@ -39,13 +49,8 @@ impl Engine for QuickJsEngine {
         })
     }
 
-    fn run_main(
-        &self,
-        module: &str,
-        main: MainFunction,
-        show_output: bool,
-    ) -> std::result::Result<(), SgleamError> {
-        run_main(&self.context, module, main, show_output)
+    fn run_main(&self, module: &str, main: MainFunction) -> std::result::Result<(), SgleamError> {
+        run_main(&self.context, module, main)
     }
 
     fn has_var(&self, key: &str) -> bool {
@@ -62,7 +67,7 @@ impl Engine for QuickJsEngine {
     }
 }
 
-pub fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
+fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
     let runtime = Runtime::new()?;
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
@@ -90,20 +95,14 @@ fn seed_bigint_flag(ctx: &Ctx) -> Result<()> {
     ctx.globals().set("__sgleam_bigint", flag)
 }
 
-pub fn run_main(
+fn run_main(
     context: &Context,
     module: &str,
     main: MainFunction,
-    show_output: bool,
 ) -> std::result::Result<(), SgleamError> {
     let name = main.name();
-    let kind = match &main {
-        MainFunction::Main => "Main",
-        MainFunction::ReplMain { .. } => "ReplMain",
-        MainFunction::Smain => "Smain",
-        MainFunction::SmainStdin => "SmainStdin",
-        MainFunction::SmainStdinLines => "SmainStdinLines",
-    };
+    let kind = main.kind();
+    let show_output = main.show_output();
     // The runtime turns a place in a generated module back into a place in
     // the input, and the lines of each file tell it how. Every file goes in on
     // every run, and not one file as the compiler makes it, so an input that
@@ -125,7 +124,7 @@ pub fn run_main(
         _ => String::new(),
     };
     let code = formatdoc! {r#"
-        import {{ try_main }} from "./sgleam/sgleam_ffi.mjs";
+        import {{ try_main }} from "{SGLEAM_FFI}";
         import {{ {name} }} from "./{module}.mjs";
         try_main({name}, "{kind}", {show_output}, [{repl_files}]);
         "#
@@ -133,18 +132,15 @@ pub fn run_main(
     run_script(context, code)
 }
 
-pub fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), SgleamError> {
+fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), SgleamError> {
     let mut src = String::new();
-    swriteln!(
-        &mut src,
-        r#"import {{ run_tests }} from "./sgleam/sgleam_ffi.mjs";"#
-    );
+    swriteln!(&mut src, r#"import {{ run_tests }} from "{SGLEAM_FFI}";"#);
     let mut entries = vec![];
-    for module in modules {
-        let import = module.replace("/", "_");
-        swriteln!(&mut src, r#"import * as {import} from "./{module}.mjs";"#);
+    // Numbered, as a module name holds what a JavaScript name cannot.
+    for (n, module) in modules.iter().enumerate() {
+        swriteln!(&mut src, r#"import * as m{n} from "./{module}.mjs";"#);
         // The runtime cannot ask for the file name; the module name is it.
-        entries.push(format!(r#"["{module}.gleam", {import}]"#));
+        entries.push(format!(r#"["{module}.gleam", m{n}]"#));
     }
     let modules = entries.join(", ");
     swriteln!(
@@ -161,7 +157,7 @@ pub fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(),
     }
 }
 
-pub fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
+fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;

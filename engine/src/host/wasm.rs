@@ -63,25 +63,24 @@ pub fn get_key_event() -> Vec<String> {
     let mut key = [0u8; 32];
     let mut modifiers = [false; 5];
     let result = unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
-    if let Some(type_) = ["keypress", "keydown", "keyup"].get(result) {
-        let mut ret = vec![
-            (*type_).into(),
-            String::from_utf8_lossy(&key)
-                .trim_matches(char::from(0))
-                .to_string(),
-        ];
-        for (on, key) in modifiers
-            .iter()
-            .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
-        {
-            if *on {
-                ret.push((*key).into())
-            }
+    let Some(type_) = ["keypress", "keydown", "keyup"].get(result) else {
+        return vec![];
+    };
+    let mut ret = vec![
+        (*type_).into(),
+        String::from_utf8_lossy(&key)
+            .trim_matches(char::from(0))
+            .to_string(),
+    ];
+    for (on, key) in modifiers
+        .iter()
+        .zip(&["alt", "ctrl", "shift", "meta", "repeat"])
+    {
+        if *on {
+            ret.push((*key).into())
         }
-        ret
-    } else {
-        vec![]
     }
+    ret
 }
 
 pub fn load_bitmap(path: String) -> (f64, f64, String) {

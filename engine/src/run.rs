@@ -25,8 +25,7 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     })?;
 
     let main = get_main(module)?;
-    let show_output = main != MainFunction::Main;
-    JsEngine::new(project.fs.clone())?.run_main(&module.name, main, show_output)?;
+    JsEngine::new(project.fs.clone())?.run_main(&module.name, main)?;
 
     Ok(())
 }

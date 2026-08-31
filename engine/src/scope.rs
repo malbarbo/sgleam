@@ -226,11 +226,10 @@ impl Scope {
                 swriteln!(src, "import {module}");
             }
         }
-        for (kind, entries, skip) in [
-            ("", &self.values, &skip.values),
-            ("type ", &self.types, &skip.types),
+        for (kind, values, entries, skip) in [
+            ("", true, &self.values, &skip.values),
+            ("type ", false, &self.types, &skip.types),
         ] {
-            let values = kind.is_empty();
             for (name, entry) in entries {
                 let NameEntry {
                     module, original, ..
@@ -287,7 +286,7 @@ impl Scope {
                 && !defined.contains(name)
                 && !params.contains(name)
             {
-                let _ = writeln!(src, "let {name} = {name}()");
+                swriteln!(src, "let {name} = {name}()");
             }
         }
         src
@@ -331,7 +330,7 @@ fn register_unqualified(
     own: &mut Vec<String>,
 ) {
     for import in imported {
-        let name = import.as_name.as_ref().unwrap_or(&import.name).to_string();
+        let name = import.used_name().to_string();
         own.push(name.clone());
         entries.insert(name, NameEntry::new(module, &import.name, Origin::Import));
     }

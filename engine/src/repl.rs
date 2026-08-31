@@ -16,7 +16,7 @@ use gleam_core::{
 use indoc::formatdoc;
 
 use crate::{
-    engine::{Engine, MainFunction, ReplFile},
+    engine::{Engine, MainFunction, ReplFile, SGLEAM_FFI},
     error::SgleamError,
     gleam::{
         Project, get_definition_span, get_function, is_private, is_repl_noise, type_to_string,
@@ -24,7 +24,7 @@ use crate::{
     parser::{self, ReplItem},
     scope::{Defined, NameEntry, Origin, Scope},
     source::Source,
-    swriteln,
+    swrite, swriteln,
 };
 
 /// Why the repl compiled a module. Only a module compiled to run reaches the
@@ -379,10 +379,10 @@ impl<E: Engine> Repl<E> {
     fn build_externals(&self) -> String {
         let (memo, print) = (&self.repl_memo, &self.repl_print);
         formatdoc! {r#"
-            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_memo")
+            @external(javascript, "{SGLEAM_FFI}", "repl_memo")
             pub fn {memo}(key: String, value: fn() -> a) -> a
 
-            @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
+            @external(javascript, "{SGLEAM_FFI}", "repl_print")
             pub fn {print}(value: a) -> a
         "#}
     }
@@ -441,13 +441,12 @@ impl<E: Engine> Repl<E> {
         purpose: Purpose,
     ) -> Result<Module, Error> {
         self.generated.clear();
-        let mut files = vec![];
         // The module that reads back the values of this item goes in here,
         // and not in a pass of its own, so a `let` costs one compilation.
         if let Some((vals_module, vals)) = self.pending_vals.take() {
-            files.push(self.emit(&vals_module, vals, purpose));
+            self.emit(&vals_module, vals, purpose);
         }
-        files.push(self.emit(module_name, src, purpose));
+        self.emit(module_name, src, purpose);
 
         // The repl collects the warnings instead of printing each one as it
         // comes, so it can move them onto the input like errors.
@@ -460,10 +459,10 @@ impl<E: Engine> Repl<E> {
 
         // The files go as soon as the compiler has them. The next input needs
         // the interface and the JavaScript, not the source.
-        for file in files {
+        for (path, _) in &self.generated {
             self.project
                 .fs
-                .delete_file(&Project::source().join(file))
+                .delete_file(path)
                 .expect("To delete repl file");
         }
 
@@ -480,8 +479,8 @@ impl<E: Engine> Repl<E> {
         let mut modules = result?;
 
         if self.debug {
-            let js_path = format!("/build/{module_name}.mjs");
-            if let Ok(js) = self.project.fs.read(camino::Utf8Path::new(&js_path)) {
+            let js_path = Project::out().join(format!("{module_name}.mjs"));
+            if let Ok(js) = self.project.fs.read(&js_path) {
                 println!("--- {module_name}.mjs ---\n{js}---");
             }
         }
@@ -500,7 +499,7 @@ impl<E: Engine> Repl<E> {
     /// of its lines, which is all the runtime has to name a place with. Only a
     /// module compiled to run, as nothing ever reaches a place in the others,
     /// and loading them would cost the next run a module apiece.
-    fn emit(&mut self, module_name: &str, src: Source, purpose: Purpose) -> String {
+    fn emit(&mut self, module_name: &str, src: Source, purpose: Purpose) {
         let file = self.write_source(module_name, src.as_str());
         if purpose == Purpose::Run {
             self.pending_files.push(ReplFile {
@@ -509,7 +508,6 @@ impl<E: Engine> Repl<E> {
             });
         }
         self.generated.push((Project::source().join(&file), src));
-        file
     }
 
     /// Compiles `code` as a module of its own, with what it reads of the
@@ -528,7 +526,7 @@ impl<E: Engine> Repl<E> {
 
     fn compile_main(&mut self, body: &Source, purpose: Purpose) -> Result<Module, Error> {
         let mut code = Source::new();
-        code.write(&format!("pub fn {}() {{\n", self.repl_main));
+        swrite!(code, "pub fn {}() {{\n", self.repl_main);
         code.write(&self.scope.injections(body.as_str(), &[], &[]));
         code.append(body);
         code.write("\n}\n");
@@ -629,7 +627,7 @@ impl<E: Engine> Repl<E> {
     /// One expression, wrapped so that running it prints its value.
     fn expr_body(&self, input: &Rc<str>, expr: SrcSpan) -> Source {
         let mut body = Source::new();
-        body.write(&format!("{}({{\n", self.repl_print));
+        swrite!(body, "{}({{\n", self.repl_print);
         body.copy(input, expr);
         body.write("\n})");
         body
@@ -650,7 +648,6 @@ impl<E: Engine> Repl<E> {
                 name: self.repl_main.clone(),
                 files: std::mem::take(&mut self.pending_files),
             },
-            false,
         );
         self.elapsed = start.elapsed();
         if let Err(err) = result {
@@ -758,7 +755,7 @@ impl<E: Engine> Repl<E> {
         // Only the value and the message of a `let assert` read what the
         // session bound; a pattern names types and binds, and reads nothing.
         let mut compute = Source::new();
-        compute.write(&format!("let {val}"));
+        swrite!(compute, "let {val}");
         if let Some(annotation) = annotation {
             compute.write(": ");
             compute.copy(input, annotation);
@@ -776,13 +773,13 @@ impl<E: Engine> Repl<E> {
         bind.append(&compute);
         bind.write("\n");
         bind.copy(input, pattern);
-        bind.write(&format!(" = {val}"));
+        swrite!(bind, " = {val}");
         if let Some(span) = message {
             bind.copy(input, span);
         }
-        bind.write(&format!("\n#({val}"));
+        swrite!(bind, "\n#({val}");
         for name in names {
-            bind.write(&format!(", {name}"));
+            swrite!(bind, ", {name}");
         }
         bind.write(")");
 
@@ -790,14 +787,13 @@ impl<E: Engine> Repl<E> {
         // reuses that name, so no other input can fill it or read it.
         let module = self.module_name();
         let mut code = Source::new();
-        code.write(&format!(
-            "pub fn {vals}() {{\n{memo}(\"{module}\", fn() {{\n"
-        ));
+        swrite!(code, "pub fn {vals}() {{\n{memo}(\"{module}\", fn() {{\n");
         code.append(&bind);
-        code.write(&format!(
+        swrite!(
+            code,
             "\n}})\n}}\n\npub fn {main}() {{\n{print}({vals}().0)\n}}\n",
             main = self.repl_main
-        ));
+        );
 
         let vals_module = self.queue_vals_module(&module, names);
         let module = self.compile_code(&module, &code, &Defined::default(), Purpose::Run)?;

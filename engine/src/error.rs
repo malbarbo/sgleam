@@ -92,53 +92,41 @@ pub fn show_error(err: &SgleamError) {
 
     match err {
         SgleamError::Gleam(err) => write_diagnostics(&mut buffer, &mut err.to_diagnostics()),
-        SgleamError::InvalidSMain { module, signature } => Diagnostic {
-            title: "smain function has an invalid signature".into(),
-            text: format!(
-                "`{module}.smain` has the invalid signature `{signature}` and can not be run."
-            ),
+        SgleamError::InvalidSMain { module, signature } => error_diagnostic(
+            "smain function has an invalid signature",
+            format!("`{module}.smain` has the invalid signature `{signature}` and can not be run."),
             // TODO: add an url for more information
-            hint: Some(formatdoc! {"
+            formatdoc! {"
                 Use one of the valid signatures for `smain` function:
                   fn() -> a
                   fn(String) -> a
                   fn(List(String)) -> a
                 "
-            }),
-            level: Level::Error,
-            location: None,
-        }
+            },
+        )
         .write(&mut buffer),
 
-        SgleamError::PathNotInCurrentDir { current_dir, path } => Diagnostic {
-            title: "path is not within the current directory".into(),
-            text: format!("`{path}` is outside of the current directory `{current_dir}`"),
-            hint: Some("Change the current directory or specify another path.".into()),
-            level: Level::Error,
-            location: None,
-        }
+        SgleamError::PathNotInCurrentDir { current_dir, path } => error_diagnostic(
+            "path is not within the current directory",
+            format!("`{path}` is outside of the current directory `{current_dir}`"),
+            "Change the current directory or specify another path.".into(),
+        )
         .write(&mut buffer),
 
-        SgleamError::PathIsADirectory { path } => Diagnostic {
-            title: "path is a directory".into(),
-            text: format!("`{path}` is a directory, and a module is a file."),
-            hint: Some("Give the path of a `.gleam` file.".into()),
-            level: Level::Error,
-            location: None,
-        }
+        SgleamError::PathIsADirectory { path } => error_diagnostic(
+            "path is a directory",
+            format!("`{path}` is a directory, and a module is a file."),
+            "Give the path of a `.gleam` file.".into(),
+        )
         .write(&mut buffer),
 
-        SgleamError::NoModuleToRun { path } => Diagnostic {
-            title: "no module to run".into(),
-            text: format!("`{path}` was not compiled into a module."),
-            hint: Some(
-                "A module is named after the path of its file, which has to be a \
-                 `.gleam` file under the current directory."
-                    .into(),
-            ),
-            level: Level::Error,
-            location: None,
-        }
+        SgleamError::NoModuleToRun { path } => error_diagnostic(
+            "no module to run",
+            format!("`{path}` was not compiled into a module."),
+            "A module is named after the path of its file, which has to be a `.gleam` file \
+             under the current directory."
+                .into(),
+        )
         .write(&mut buffer),
         SgleamError::Interrupted => {
             writeln!(buffer, "Interrupted.").expect("write to buffer");
@@ -159,6 +147,18 @@ pub fn show_error(err: &SgleamError) {
     flush_buffer(&buffer_writer, &buffer);
 }
 
+/// An error of sgleam itself, in the shape the compiler reports its own.
+/// Nothing here happened at a place in a file, so there is no location.
+fn error_diagnostic(title: &str, text: String, hint: String) -> Diagnostic {
+    Diagnostic {
+        title: title.into(),
+        text,
+        hint: Some(hint),
+        level: Level::Error,
+        location: None,
+    }
+}
+
 /// Writes the diagnostics to stderr, a blank line apart, each one back on the
 /// path the user gave for it.
 pub fn show_diagnostics(diags: &mut [Diagnostic]) {
@@ -176,7 +176,7 @@ fn write_diagnostics(buffer: &mut termcolor::Buffer, diags: &mut [Diagnostic]) {
     }
 }
 
-pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
+fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
     buffer_writer.print(buffer).expect("Write to stderr");
 }
 

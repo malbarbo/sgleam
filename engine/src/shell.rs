@@ -159,15 +159,11 @@ impl<E: Engine> Shell<E> {
     fn builtin(&mut self, builtin: Builtin, arg: &str) -> Status {
         match builtin {
             Builtin::Help => {
-                let width = self.commands.iter().map(|c| c.usage().len()).max();
+                let usages: Vec<String> = self.commands.iter().map(Command::usage).collect();
+                let width = usages.iter().map(String::len).max().unwrap_or(0);
                 println!("Commands:");
-                for c in &self.commands {
-                    println!(
-                        "  {:<width$}  {}",
-                        c.usage(),
-                        c.help,
-                        width = width.unwrap_or(0)
-                    );
+                for (usage, c) in usages.iter().zip(&self.commands) {
+                    println!("  {usage:<width$}  {}", c.help);
                 }
                 Status::Ok
             }
@@ -255,8 +251,8 @@ fn gleam_start(input: &str) -> Option<usize> {
         .find(|(n, ..)| *n == name)
         .filter(|(_, arg, ..)| matches!(arg, Arg::Expr))
         // `arg` is the tail of the trimmed input, so what is missing from it
-        // is everything before where it starts.
-        .map(|_| input.len() - input.trim_start().len() + input.trim().len() - arg.len())
+        // is everything before it.
+        .map(|_| input.trim_end().len() - arg.len())
 }
 
 /// What the prompt does with the input as it stands and where the cursor is in
@@ -282,8 +278,8 @@ fn gleam_start(input: &str) -> Option<usize> {
 /// for the end of it.
 ///
 /// `cursor` is a byte offset into `input`, as `repl_complete` already takes
-/// one, and one that falls inside a character moves back to the boundary
-/// before it -- see [`char_boundary`].
+/// one. One that falls inside a character moves back to the boundary before
+/// it.
 pub fn ready_state(input: &str, cursor: usize) -> i32 {
     let Some(start) = gleam_start(input) else {
         return -1;
@@ -292,7 +288,7 @@ pub fn ready_state(input: &str, cursor: usize) -> i32 {
     // A cursor before the Gleam is not in it at all -- Enter pressed inside
     // `:type` opens the line the expression asks for, the way it would from
     // the end. Clamping to 0 instead answers for a cursor at its start.
-    let cursor = char_boundary(src, cursor.checked_sub(start).unwrap_or(src.len()));
+    let cursor = src.floor_char_boundary(cursor.checked_sub(start).unwrap_or(src.len()));
     // Nothing but whitespace is left after the cursor: the line it opens is
     // the line after the input, which the input alone already answers.
     let at_end = src[cursor..].trim().is_empty();
@@ -338,23 +334,10 @@ fn indent_below(src: &str, cursor: usize) -> usize {
 /// What one level of indentation is worth, in spaces.
 const INDENT: usize = 2;
 
-/// `cursor` brought inside `text` and onto a char boundary.
-///
-/// A cursor that is not on one -- which is what a host counting in another
-/// unit sends -- moves back to the boundary before it. Slicing at the cursor
-/// instead panics, and a panic is the end of the session.
-fn char_boundary(text: &str, cursor: usize) -> usize {
-    let mut cursor = cursor.min(text.len());
-    while !text.is_char_boundary(cursor) {
-        cursor -= 1;
-    }
-    cursor
-}
-
 /// The word around the cursor and where it starts, both in bytes: everything
 /// before `cursor`, back to the last char an identifier cannot hold.
 pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
-    let before = &text[..char_boundary(text, cursor)];
+    let before = &text[..text.floor_char_boundary(cursor)];
     let start = before
         .char_indices()
         .rev()

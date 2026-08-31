@@ -102,12 +102,8 @@ impl Project {
     /// Returns the name of the module the file becomes: its path, minus the
     /// `.gleam`.
     pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<EcoString, Error> {
-        let content = std::fs::read_to_string(input).map_err(|err| Error::FileIo {
-            kind: FileKind::File,
-            action: FileIoAction::Read,
-            path: input.into(),
-            err: Some(err.to_string()),
-        })?;
+        let content =
+            std::fs::read_to_string(input).map_err(|err| read_error(input.into(), &err))?;
         // A module name always separates with `/`, and on Windows a path does
         // not.
         let path = input.as_str().replace('\\', "/");
@@ -194,6 +190,16 @@ pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
     }
 }
 
+/// Why a file could not be read, in the shape the compiler reports its own.
+fn read_error(path: Utf8PathBuf, err: &std::io::Error) -> Error {
+    Error::FileIo {
+        kind: FileKind::File,
+        action: FileIoAction::Read,
+        path,
+        err: Some(err.to_string()),
+    }
+}
+
 /// Returns `true` if the path can name a module, `false` otherwise. A module
 /// takes its name from its path, so the path has to be relative and made of
 /// plain names.
@@ -261,13 +267,16 @@ pub fn get_definition_span(def: &UntypedDefinition, start: u32) -> SrcSpan {
     SrcSpan::new(start, end)
 }
 
+/// The namespaces sgleam brings itself. A user file cannot name a module
+/// under one of them.
+const RESERVED: [&str; 2] = ["gleam", "sgleam"];
+
 /// Returns `true` if sgleam brings the module itself — the prelude, the
 /// standard library, the sgleam library — and `false` if a file has to supply
 /// it.
 fn is_builtin_module(module: &str) -> bool {
-    matches!(module, "gleam" | "sgleam")
-        || module.starts_with("gleam/")
-        || module.starts_with("sgleam/")
+    let (head, _) = module.split_once('/').unwrap_or((module, ""));
+    RESERVED.contains(&head)
 }
 
 /// The files of `paths` and of every module they import, directly or not.
@@ -287,14 +296,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
             // Nothing here can compile the import, and the compiler says so
             // at the line that wrote it.
             Err(err) if !given && err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => {
-                return Err(gleam_core::Error::FileIo {
-                    kind: FileKind::File,
-                    action: FileIoAction::Read,
-                    path,
-                    err: Some(err.to_string()),
-                });
-            }
+            Err(err) => return Err(read_error(path, &err)),
         };
 
         files.push(path.clone());
@@ -308,19 +310,16 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
         })?;
 
         for definition in &parsed.module.definitions {
-            match &definition.definition {
-                gleam_core::ast::Definition::Import(import)
-                    if !is_builtin_module(import.module.as_str()) =>
-                {
-                    let mut path = Utf8PathBuf::new();
-                    for p in import.module.split("/") {
-                        path.push(p);
-                    }
-                    path.set_extension("gleam");
-                    pending.push_back((path, false));
-                }
-                _ => continue,
+            let gleam_core::ast::Definition::Import(import) = &definition.definition else {
+                continue;
+            };
+            if is_builtin_module(import.module.as_str()) {
+                continue;
             }
+            // A module name separates with `/`, and so does a path here.
+            let mut path = Utf8PathBuf::from(import.module.as_str());
+            path.set_extension("gleam");
+            pending.push_back((path, false));
         }
     }
     Ok(files)
@@ -373,12 +372,12 @@ fn validate_path(path: &Utf8Path) -> bool {
         return false;
     }
 
-    if stem == "gleam" || stem == "sgleam" {
+    if RESERVED.contains(&stem) {
         eprintln!("Ignoring `{path}`: `{stem}` is a reserved module name.");
         return false;
     }
 
-    if let Some(dir @ ("gleam" | "sgleam")) = path.iter().next() {
+    if let Some(dir) = path.iter().next().filter(|dir| RESERVED.contains(dir)) {
         eprintln!("Ignoring `{path}`: `{dir}` is a reserved directory.");
         return false;
     }

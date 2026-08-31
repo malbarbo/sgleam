@@ -29,12 +29,7 @@ impl Engine for Recorder {
         })
     }
 
-    fn run_main(
-        &self,
-        _module: &str,
-        main: MainFunction,
-        _show_output: bool,
-    ) -> Result<(), SgleamError> {
+    fn run_main(&self, _module: &str, main: MainFunction) -> Result<(), SgleamError> {
         if let MainFunction::ReplMain { files, .. } = main {
             self.handed.borrow_mut().extend(files);
         }

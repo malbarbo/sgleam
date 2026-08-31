@@ -31,6 +31,10 @@ pub struct ReplFile {
 /// name and the launcher imports it by this name.
 pub const SMAIN: &str = "smain";
 
+/// The JavaScript the generated code calls into: the `@external` of a
+/// generated module names it, and the launcher imports from it.
+pub const SGLEAM_FFI: &str = "./sgleam/sgleam_ffi.mjs";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
@@ -52,17 +56,30 @@ impl MainFunction {
             MainFunction::Smain | MainFunction::SmainStdin | MainFunction::SmainStdinLines => SMAIN,
         }
     }
+
+    /// The name the launcher knows this entry point by. It says what the
+    /// program is handed, and the launcher hands it.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            MainFunction::Main => "Main",
+            MainFunction::ReplMain { .. } => "ReplMain",
+            MainFunction::Smain => "Smain",
+            MainFunction::SmainStdin => "SmainStdin",
+            MainFunction::SmainStdinLines => "SmainStdinLines",
+        }
+    }
+
+    /// Returns `true` if the run prints what the entry point gives back. Only
+    /// an `smain` is written to be read that way; the repl prints its own.
+    pub fn show_output(&self) -> bool {
+        !matches!(self, MainFunction::Main | MainFunction::ReplMain { .. })
+    }
 }
 
 pub trait Engine: Clone {
     fn new(fs: InMemoryFileSystem) -> Result<Self, SgleamError>;
 
-    fn run_main(
-        &self,
-        module: &str,
-        main: MainFunction,
-        show_output: bool,
-    ) -> Result<(), SgleamError>;
+    fn run_main(&self, module: &str, main: MainFunction) -> Result<(), SgleamError>;
 
     fn has_var(&self, key: &str) -> bool;
 
