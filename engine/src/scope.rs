@@ -98,10 +98,6 @@ pub struct Scope {
     /// The modules this session wrote that hold names: one for each input
     /// that defines a name, one for each item that binds one.
     pub own_modules: Vec<String>,
-    /// The import the input just wrote, kept while the repl builds the module
-    /// that checks it. The line goes in as a copy, so the repl does not write
-    /// it again.
-    pub own_import: Option<OwnImport>,
 }
 
 impl Scope {
@@ -129,9 +125,15 @@ impl Scope {
         }
     }
 
-    /// Registers everything `import` brings, and keeps the input's own line
-    /// for the modules the repl builds while it checks the import.
-    pub fn register_import(&mut self, import: &Import<()>, input: &Rc<str>, span: SrcSpan) {
+    /// Registers everything `import` brings, and hands back the input's own
+    /// line, which goes into the modules the repl builds while it checks the
+    /// import.
+    pub fn register_import(
+        &mut self,
+        import: &Import<()>,
+        input: &Rc<str>,
+        span: SrcSpan,
+    ) -> OwnImport {
         let module = import.module.to_string();
         let mut own = OwnImport {
             input: input.clone(),
@@ -169,7 +171,7 @@ impl Scope {
             &mut own.types,
         );
 
-        self.own_import = Some(own);
+        own
     }
 
     pub fn names(&self) -> impl Iterator<Item = &str> {
@@ -187,22 +189,26 @@ impl Scope {
     ///
     /// Only the names `code` mentions come in, so an input does not pay for
     /// the whole scope. `None` writes them all, which is what checks an import.
-    pub fn write_imports(&self, src: &mut Source, code: Option<&str>, skip: &Defined) {
+    ///
+    /// `own` is the import the input just wrote, if it wrote one.
+    pub fn write_imports(
+        &self,
+        src: &mut Source,
+        code: Option<&str>,
+        skip: &Defined,
+        own: Option<&OwnImport>,
+    ) {
         let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
         let mentions = |name: &str| mentioned.as_ref().is_some_and(|names| names.contains(name));
         let wanted = |name: &str| mentioned.is_none() || mentions(name);
         // The input's own import goes in as the input wrote it, so a diagnostic
         // about it is about a copy and not about a line the repl rebuilt.
-        if let Some(own) = &self.own_import {
+        if let Some(own) = own {
             src.copy(&own.input, own.span);
             src.write("\n");
         }
         for (name, path) in &self.modules {
-            if self
-                .own_import
-                .as_ref()
-                .is_some_and(|own| own.alias.as_deref() == Some(name) && &own.path == path)
-            {
+            if own.is_some_and(|own| own.alias.as_deref() == Some(name) && &own.path == path) {
                 continue;
             }
             if !wanted(name) {
@@ -238,11 +244,11 @@ impl Scope {
                 // guard inlines a const and the repl never read the names
                 // inside an imported const. Nothing inlines a type.
                 let needed = (values && matches!(entry.origin, Origin::Import)) || wanted(name);
-                let own = self.own_import.as_ref().is_some_and(|own| {
+                let written = own.is_some_and(|own| {
                     &own.path == module
                         && if values { &own.values } else { &own.types }.contains(name)
                 });
-                if skip.contains(name) || !needed || own {
+                if skip.contains(name) || !needed || written {
                     continue;
                 }
                 if name == original {
@@ -351,8 +357,17 @@ mod tests {
     }
 
     fn imports_skipping(scope: &Scope, code: Option<&str>, skip: &Defined) -> String {
+        imports_owning(scope, code, skip, None)
+    }
+
+    fn imports_owning(
+        scope: &Scope,
+        code: Option<&str>,
+        skip: &Defined,
+        own: Option<&OwnImport>,
+    ) -> String {
         let mut src = Source::new();
-        scope.write_imports(&mut src, code, skip);
+        scope.write_imports(&mut src, code, skip, own);
         src.as_str().into()
     }
 
@@ -461,9 +476,13 @@ mod tests {
             panic!("an import");
         };
         let mut scope = Scope::default();
-        scope.register_import(import, &input, SrcSpan::new(0, input.len() as u32));
-        assert_eq!(imports(&scope, None), "import gleam/int.{max} as i\n");
-        scope.own_import = None;
+        let own = scope.register_import(import, &input, SrcSpan::new(0, input.len() as u32));
+        assert_eq!(
+            imports_owning(&scope, None, &Defined::default(), Some(&own)),
+            "import gleam/int.{max} as i\n"
+        );
+        // The input that wrote the import is over; a later one writes the
+        // names it brought.
         assert_eq!(
             imports(&scope, None),
             "import gleam/int as i\nimport gleam/int.{max} as _\n"

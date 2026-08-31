@@ -22,7 +22,7 @@ use crate::{
         Project, get_definition_span, get_function, is_private, is_repl_noise, type_to_string,
     },
     parser::{self, ReplItem},
-    scope::{Defined, NameEntry, Origin, Scope},
+    scope::{Defined, NameEntry, Origin, OwnImport, Scope},
     source::Source,
     swrite, swriteln,
 };
@@ -181,7 +181,7 @@ impl<E: Engine> Repl<E> {
         // One compilation here, so completion has the module interfaces to
         // read.
         repl.skip_taken_names();
-        if let Err(error) = repl.run_check() {
+        if let Err(error) = repl.run_check(None) {
             repl.show_gleam_error(&error);
         }
         Ok(repl)
@@ -368,10 +368,10 @@ impl<E: Engine> Repl<E> {
 
     /// What the input has in scope, as source: the externals, and the
     /// imports the scope writes for the names `code` mentions.
-    fn build_source(&self, code: Option<&str>, skip: &Defined) -> Source {
+    fn build_source(&self, code: Option<&str>, skip: &Defined, own: Option<&OwnImport>) -> Source {
         let mut src = Source::new();
         src.write(&self.build_externals());
-        self.scope.write_imports(&mut src, code, skip);
+        self.scope.write_imports(&mut src, code, skip, own);
         src
     }
 
@@ -519,7 +519,7 @@ impl<E: Engine> Repl<E> {
         skip: &Defined,
         purpose: Purpose,
     ) -> Result<Module, Error> {
-        let mut src = self.build_source(Some(code.as_str()), skip);
+        let mut src = self.build_source(Some(code.as_str()), skip, None);
         src.append(code);
         self.compile(module_name, src, purpose)
     }
@@ -658,10 +658,10 @@ impl<E: Engine> Repl<E> {
 
     /// Compiles without a `repl_main`, over the whole scope, which is how the
     /// repl checks an import together with the names it brought.
-    fn run_check(&mut self) -> Result<(), Error> {
+    fn run_check(&mut self, own: Option<&OwnImport>) -> Result<(), Error> {
         let (module, src) = (
             self.module_name(),
-            self.build_source(None, &Defined::default()),
+            self.build_source(None, &Defined::default(), own),
         );
         self.compile(&module, src, Purpose::DeclareScope)
             .map(|_| ())
@@ -830,10 +830,8 @@ impl<E: Engine> Repl<E> {
         input: &Rc<str>,
         span: SrcSpan,
     ) -> Result<(), InputError> {
-        self.scope.register_import(import, input, span);
-        let result = self.run_check();
-        self.scope.own_import = None;
-        Ok(result?)
+        let own = self.scope.register_import(import, input, span);
+        Ok(self.run_check(Some(&own))?)
     }
 
     /// Why the repl cannot take a const of the input, when it cannot. The
