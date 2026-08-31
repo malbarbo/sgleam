@@ -304,13 +304,12 @@ impl<E: Engine> Repl<E> {
     /// expecting what comes above to have worked.
     fn run_source(&mut self, src: &str) -> Result<(), Failed> {
         let input: Rc<str> = src.into();
-        let mut items = Vec::new();
-        self.guarded(|repl| {
-            items = parse(&input)?;
+        let items = self.guarded(|repl| {
+            let items = parse(&input)?;
             if let Some(reason) = repl.const_refusal(&items) {
                 return Err(InputError::Repl(reason));
             }
-            Ok(())
+            Ok(items)
         })?;
 
         // The imports go in ahead of everything else, as the compiler checks
