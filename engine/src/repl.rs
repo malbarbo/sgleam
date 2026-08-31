@@ -9,7 +9,6 @@ use gleam_core::{
     },
     build::Module,
     diagnostic::Diagnostic,
-    error::DefinedModuleOrigin,
     io::{FileSystemReader, FileSystemWriter},
     type_::{ModuleInterface, printer::Names},
     warning::VectorWarningEmitterIO,
@@ -122,7 +121,6 @@ pub struct Repl<E: Engine> {
     pending_vals: Option<(String, Source)>,
     project: Project,
     existing_modules: im::HashMap<EcoString, ModuleInterface>,
-    defined_modules: im::HashMap<EcoString, DefinedModuleOrigin>,
     engine: E,
     // The input and the item being run. Their numbers name the module that
     // holds the compiled code.
@@ -163,7 +161,6 @@ impl<E: Engine> Repl<E> {
             pending_vals: None,
             project,
             existing_modules: im::HashMap::new(),
-            defined_modules: im::HashMap::new(),
             engine: E::new(fs)?,
             input_number: 0,
             item_number: 0,
@@ -443,14 +440,13 @@ impl<E: Engine> Repl<E> {
             self.pending_files.extend(repl_files);
         }
 
-        self.defined_modules.clear();
         // The repl collects the warnings instead of printing each one as it
         // comes, so it can move them onto the input like errors.
         let warnings = VectorWarningEmitterIO::new();
         let result = self.project.compile_with_modules(
             Rc::new(warnings.clone()),
             &mut self.existing_modules,
-            &mut self.defined_modules,
+            &mut im::HashMap::new(),
         );
 
         // The files go as soon as the compiler has them. The next input needs
