@@ -237,8 +237,9 @@ impl<E: Engine> Repl<E> {
                 // `let` of an input with no definitions.
                 repl.item_number += 1;
                 Self::one_statement(expr)?;
-                let span = SrcSpan::new(0, expr.len() as u32);
-                let module = repl.compile_expr(&expr.into(), span, Purpose::Type)?;
+                let input: Rc<str> = expr.into();
+                let body = repl.expr_body(&input, SrcSpan::new(0, expr.len() as u32));
+                let module = repl.compile_main(&body, Purpose::Type)?;
                 let main = get_function(&module, &repl.repl_main).expect("repl main function");
                 Ok(type_to_string(&repl.type_names(&module), &main.return_type))
             })
@@ -605,10 +606,20 @@ impl<E: Engine> Repl<E> {
         true
     }
 
-    fn compile_and_run(&mut self, body: &Source) -> Result<Module, Error> {
+    /// One expression, wrapped so that running it prints its value.
+    fn expr_body(&self, input: &Rc<str>, expr: SrcSpan) -> Source {
+        let mut body = Source::new();
+        body.write(&format!("{}({{\n", self.repl_print));
+        body.copy(input, expr);
+        body.write("\n})");
+        body
+    }
+
+    /// Compiles a `repl_main` around `body` and runs it.
+    fn run_body(&mut self, body: &Source) -> Result<(), InputError> {
         let module = self.compile_main(body, Purpose::Run)?;
         self.run_repl_main(&module);
-        Ok(module)
+        Ok(())
     }
 
     fn run_repl_main(&mut self, module: &Module) {
@@ -697,16 +708,14 @@ impl<E: Engine> Repl<E> {
     }
 
     fn run_expr(&mut self, input: &Rc<str>, expr: SrcSpan) -> Result<(), InputError> {
-        let module = self.compile_expr(input, expr, Purpose::Run)?;
-        self.run_repl_main(&module);
-        Ok(())
+        let body = self.expr_body(input, expr);
+        self.run_body(&body)
     }
 
     fn run_assert(&mut self, input: &Rc<str>, code: SrcSpan) -> Result<(), InputError> {
         let mut body = Source::new();
         body.copy(input, code);
-        self.compile_and_run(&body)?;
-        Ok(())
+        self.run_body(&body)
     }
 
     /// Binds what the input's pattern binds. Gleam has no value at module
@@ -789,20 +798,6 @@ impl<E: Engine> Repl<E> {
         self.scope.own_modules.push(vals_module);
 
         Ok(())
-    }
-
-    /// Compiles one expression, which prints its value when it runs.
-    fn compile_expr(
-        &mut self,
-        input: &Rc<str>,
-        expr: SrcSpan,
-        purpose: Purpose,
-    ) -> Result<Module, Error> {
-        let mut body = Source::new();
-        body.write(&format!("{}({{\n", self.repl_print));
-        body.copy(input, expr);
-        body.write("\n})");
-        self.compile_main(&body, purpose)
     }
 
     fn one_statement(src: &str) -> Result<UntypedStatement, InputError> {
