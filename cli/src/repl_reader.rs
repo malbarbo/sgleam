@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
-use engine::shell::word_at;
+use engine::shell::complete;
 use rustyline::{
     Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
     Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,
@@ -168,17 +168,8 @@ impl Completer for InputHelper {
     type Candidate = String;
 
     fn complete(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> Result<(usize, Vec<String>)> {
-        let (start, prefix) = word_at(line, pos);
-        if prefix.is_empty() {
-            return Ok((start, vec![]));
-        }
-        let candidates = self
-            .completions
-            .iter()
-            .filter(|name| name.starts_with(prefix))
-            .cloned()
-            .collect();
-        Ok((start, candidates))
+        let (start, candidates) = complete(&self.completions, line, pos);
+        Ok((start, candidates.into_iter().map(String::from).collect()))
     }
 }
 

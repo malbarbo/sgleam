@@ -346,6 +346,22 @@ pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
     (start, &before[start..])
 }
 
+/// Of `names`, the ones that carry on the word around the cursor, and where
+/// that word starts. An empty word offers nothing, as every name carries it
+/// on.
+pub fn complete<'a>(names: &'a [String], text: &str, cursor: usize) -> (usize, Vec<&'a str>) {
+    let (start, prefix) = word_at(text, cursor);
+    if prefix.is_empty() {
+        return (start, vec![]);
+    }
+    let candidates = names
+        .iter()
+        .filter(|name| name.starts_with(prefix))
+        .map(String::as_str)
+        .collect();
+    (start, candidates)
+}
+
 /// Returns `true` if no name of the language has the char in it, so the word
 /// being completed ends at it. `:` and `.` are in a name here, as the commands
 /// start with one and the qualified names carry the other.
@@ -390,6 +406,20 @@ mod tests {
         assert_eq!(word_at("list.ma", 7), (0, "list.ma"));
         assert_eq!(word_at("let x = lis", 8), (8, ""));
         assert_eq!(word_at("", 0), (0, ""));
+    }
+
+    #[test]
+    fn only_the_names_that_carry_the_word_on_are_offered() {
+        let names = [
+            "list".to_string(),
+            "list.map".to_string(),
+            "let ".to_string(),
+        ];
+        assert_eq!(complete(&names, "lis", 3), (0, vec!["list", "list.map"]));
+        assert_eq!(complete(&names, "x = list.m", 10), (4, vec!["list.map"]));
+        assert_eq!(complete(&names, "nope", 4), (0, vec![]));
+        // Every name carries an empty word on, so none is worth offering.
+        assert_eq!(complete(&names, "x = ", 4), (4, vec![]));
     }
 
     #[test]

@@ -194,19 +194,10 @@ pub unsafe extern "C" fn repl_complete(
     assert!(!repl.is_null());
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
-    let (start, prefix) = shell::word_at(&text, cursor_pos);
+    let names = state.completions();
+    let (start, candidates) = shell::complete(&names, &text, cursor_pos);
 
-    if prefix.is_empty() {
-        return ptr::null_mut();
-    }
-
-    let all = state.completions();
-    let candidates: Vec<&str> = all
-        .iter()
-        .filter(|name| name.starts_with(prefix))
-        .map(|s| s.as_str())
-        .collect();
-
+    // Nothing to offer, which is also what an empty word gives back.
     if candidates.is_empty() {
         return ptr::null_mut();
     }
