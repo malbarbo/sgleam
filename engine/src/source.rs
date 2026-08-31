@@ -122,10 +122,21 @@ impl Source {
     pub fn input_lines(&self) -> Vec<u32> {
         let mut lines = vec![0];
         let mut at = 0;
+        // The lines of one input come in a run, so the table it needs is built
+        // once and kept until a line of another input asks for its own.
+        let mut numbers: Option<(&Rc<str>, LineNumbers)> = None;
         for line in self.text.split_inclusive('\n') {
             let end = at + line.len() as u32;
             lines.push(match self.locate(SrcSpan::new(at, end)) {
-                Some(located) => LineNumbers::new(located.input).line_number(located.span.start),
+                Some(located) => {
+                    let table = match numbers.take() {
+                        Some(table) if Rc::ptr_eq(table.0, located.input) => table,
+                        _ => (located.input, LineNumbers::new(located.input)),
+                    };
+                    let line = table.1.line_number(located.span.start);
+                    numbers = Some(table);
+                    line
+                }
                 None => 0,
             });
             at = end;
