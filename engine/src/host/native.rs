@@ -61,22 +61,28 @@ pub fn load_bitmap(path: String) -> (f64, f64, String) {
     }
 }
 
+/// The `N` bytes at `at`, or `None` when the data stops before them.
+fn bytes<const N: usize>(data: &[u8], at: usize) -> Option<[u8; N]> {
+    data.get(at..at + N)?.try_into().ok()
+}
+
 /// The kind of the image and the size in its header, or `None` for anything
 /// else. The header says the kind, and not the name of the file, so the data
 /// URI always says what the bytes are.
 fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
-    // PNG: bytes 16-23 contain width and height as u32 big-endian
-    if data.len() >= 24 && &data[0..8] == b"\x89PNG\r\n\x1a\n" {
-        let w = u32::from_be_bytes([data[16], data[17], data[18], data[19]]);
-        let h = u32::from_be_bytes([data[20], data[21], data[22], data[23]]);
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        let w = u32::from_be_bytes(bytes(data, 16)?);
+        let h = u32::from_be_bytes(bytes(data, 20)?);
         return Some(("image/png", w, h));
     }
     // JPEG: walk the marker segments up to a start of frame, which is where the
     // dimensions are
-    if data.len() >= 2 && data[0..2] == [0xFF, 0xD8] {
+    if data.starts_with(&[0xFF, 0xD8]) {
         let mut i = 2;
-        while i + 1 < data.len() && data[i] == 0xFF {
-            match data[i + 1] {
+        while data.get(i) == Some(&0xFF)
+            && let Some(&marker) = data.get(i + 1)
+        {
+            match marker {
                 // A marker may be padded with extra 0xFF bytes.
                 0xFF => i += 1,
                 // TEM, RST0-7, SOI and EOI carry no segment.
@@ -84,35 +90,25 @@ fn image_header(data: &[u8]) -> Option<(&'static str, u32, u32)> {
                 // Every kind of frame says its size the same way: length,
                 // precision, height, width.
                 0xC0..=0xC3 | 0xC5..=0xC7 | 0xC9..=0xCB | 0xCD..=0xCF => {
-                    if i + 9 > data.len() {
-                        break;
-                    }
-                    let h = u16::from_be_bytes([data[i + 5], data[i + 6]]) as u32;
-                    let w = u16::from_be_bytes([data[i + 7], data[i + 8]]) as u32;
+                    let h = u16::from_be_bytes(bytes(data, i + 5)?) as u32;
+                    let w = u16::from_be_bytes(bytes(data, i + 7)?) as u32;
                     return Some(("image/jpeg", w, h));
                 }
                 // The frame comes before the scan, so there is nothing ahead
                 // but entropy-coded data.
                 0xDA => break,
-                _ => {
-                    if i + 4 > data.len() {
-                        break;
-                    }
-                    i += 2 + u16::from_be_bytes([data[i + 2], data[i + 3]]) as usize;
-                }
+                _ => i += 2 + u16::from_be_bytes(bytes(data, i + 2)?) as usize,
             }
         }
     }
-    // GIF: bytes 6-9 contain width and height as u16 little-endian
-    if data.len() >= 10 && &data[0..4] == b"GIF8" {
-        let w = u16::from_le_bytes([data[6], data[7]]) as u32;
-        let h = u16::from_le_bytes([data[8], data[9]]) as u32;
+    if data.starts_with(b"GIF8") {
+        let w = u16::from_le_bytes(bytes(data, 6)?) as u32;
+        let h = u16::from_le_bytes(bytes(data, 8)?) as u32;
         return Some(("image/gif", w, h));
     }
-    // BMP: bytes 18-25 contain width and height as i32 little-endian
-    if data.len() >= 26 && &data[0..2] == b"BM" {
-        let w = i32::from_le_bytes([data[18], data[19], data[20], data[21]]).unsigned_abs();
-        let h = i32::from_le_bytes([data[22], data[23], data[24], data[25]]).unsigned_abs();
+    if data.starts_with(b"BM") {
+        let w = i32::from_le_bytes(bytes(data, 18)?).unsigned_abs();
+        let h = i32::from_le_bytes(bytes(data, 22)?).unsigned_abs();
         return Some(("image/bmp", w, h));
     }
     None
