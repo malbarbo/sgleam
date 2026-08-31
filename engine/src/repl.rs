@@ -20,11 +20,10 @@ use crate::{
     engine::{Engine, MainFunction, ReplFile},
     error::SgleamError,
     gleam::{
-        Project, get_definition_span, is_private, is_repl_noise, relocate_to_user_paths,
-        type_to_string,
+        Project, get_definition_span, get_function, is_private, is_repl_noise,
+        relocate_to_user_paths, type_to_string,
     },
     parser::{self, ReplItem},
-    run::get_function,
     scope::{Defined, NameEntry, Origin, Scope},
     source::Source,
     swriteln,

@@ -2,7 +2,6 @@ use camino::{Utf8Path, Utf8PathBuf};
 use ecow::EcoString;
 
 use gleam_core::{
-    ast::TypedFunction,
     build::{Module, Origin, Target},
     type_,
 };
@@ -10,7 +9,7 @@ use gleam_core::{
 use crate::{
     engine::{Engine, MainFunction},
     error::SgleamError,
-    gleam::{Project, fn_type_to_string, get_module, is_module_path},
+    gleam::{Project, fn_type_to_string, get_function, get_module, is_module_path},
 };
 
 use crate::quickjs::QuickJsEngine as JsEngine;
@@ -50,15 +49,6 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
 
     JsEngine::new(project.fs.clone())?.run_tests(&user_modules)?;
     Ok(())
-}
-
-pub fn get_function<'a>(module: &'a Module, name: &str) -> Option<&'a TypedFunction> {
-    module
-        .ast
-        .definitions
-        .functions
-        .iter()
-        .find(|f| f.name.as_ref().map(|s| s.1.as_str()) == Some(name))
 }
 
 pub fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {

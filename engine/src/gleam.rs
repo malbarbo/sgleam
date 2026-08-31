@@ -3,7 +3,7 @@ use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     Error, Warning,
-    ast::{Definition, SrcSpan, UntypedDefinition},
+    ast::{Definition, SrcSpan, TypedFunction, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
@@ -209,6 +209,15 @@ pub fn is_module_path(path: &str) -> bool {
 
 pub fn get_module<'a>(modules: &'a [Module], name: &str) -> Option<&'a Module> {
     modules.iter().find(|m| m.name == name)
+}
+
+pub fn get_function<'a>(module: &'a Module, name: &str) -> Option<&'a TypedFunction> {
+    module
+        .ast
+        .definitions
+        .functions
+        .iter()
+        .find(|f| f.name.as_ref().map(|s| s.1.as_str()) == Some(name))
 }
 
 pub fn type_to_string(names: &Names, type_: &Type) -> String {
