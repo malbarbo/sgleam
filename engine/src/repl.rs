@@ -216,15 +216,14 @@ impl<E: Engine> Repl<E> {
         self.input(|repl| repl.run_source(src))
     }
 
-    /// One statement, and how long the engine took on it.
+    /// The expressions of an input, and how long the engine took on them
+    /// together. A definition does not run, so there would be nothing to time.
     pub fn run_timed(&mut self, src: &str) -> Result<Duration, Failed> {
         self.input(|repl| {
-            repl.guarded(|repl| {
-                repl.item_number += 1;
-                let statement = Self::one_statement(src)?;
-                repl.run_statement(&src.into(), statement)?;
-                Ok(repl.elapsed)
-            })
+            let input: Rc<str> = src.into();
+            let items = parse(&input).map_err(|error| repl.report(error.into()))?;
+            let statements = only_statements(items).map_err(|error| repl.report(error))?;
+            repl.run_statements(&input, statements)
         })
     }
 
@@ -330,13 +329,31 @@ impl<E: Engine> Repl<E> {
             self.guarded(|repl| repl.run_defs(&input, &defs))?;
         }
 
-        for item in items {
-            // Everything but a statement is already in by now.
-            let ReplItem::ReplStatement(statement) = item else {
-                continue;
-            };
+        // Everything but a statement is already in by now.
+        let statements = items
+            .into_iter()
+            .filter_map(|item| match item {
+                ReplItem::ReplStatement(statement) => Some(statement),
+                ReplItem::ReplDefinition(..) => None,
+            })
+            .collect();
+        self.run_statements(&input, statements)?;
+
+        Ok(())
+    }
+
+    /// Runs the statements of an input, one at a time, and adds up what the
+    /// engine took on them.
+    fn run_statements(
+        &mut self,
+        input: &Rc<str>,
+        statements: Vec<UntypedStatement>,
+    ) -> Result<Duration, Failed> {
+        let mut elapsed = Duration::ZERO;
+        for statement in statements {
             self.item_number += 1;
-            self.guarded(|repl| repl.run_statement(&input, statement))?;
+            self.guarded(|repl| repl.run_statement(input, statement))?;
+            elapsed += self.elapsed;
             // Whatever the item did before it raised stays, and its output
             // is already on the screen. `input` turns the flag into the
             // failure.
@@ -344,8 +361,7 @@ impl<E: Engine> Repl<E> {
                 break;
             }
         }
-
-        Ok(())
+        Ok(elapsed)
     }
 
     // --- Source generation ---
@@ -805,16 +821,11 @@ impl<E: Engine> Repl<E> {
     }
 
     fn one_statement(src: &str) -> Result<UntypedStatement, InputError> {
-        let mut items = parse(src)?;
-        if items.len() != 1 {
+        let mut statements = only_statements(parse(src)?)?;
+        if statements.len() != 1 {
             return Err(InputError::Repl("Expected exactly one expression.".into()));
         }
-        match items.swap_remove(0) {
-            ReplItem::ReplStatement(statement) => Ok(statement),
-            ReplItem::ReplDefinition(..) => Err(InputError::Repl(
-                "Expected an expression, not a definition.".into(),
-            )),
-        }
+        Ok(statements.swap_remove(0))
     }
 
     fn run_import(
@@ -920,6 +931,20 @@ fn parse(input: &str) -> Result<Vec<ReplItem>, Error> {
         src: input.into(),
         error: error.into(),
     })
+}
+
+/// The statements of the input, or why it has none to give: a definition does
+/// not run, so a command that runs the input has nothing to do with one.
+fn only_statements(items: Vec<ReplItem>) -> Result<Vec<UntypedStatement>, InputError> {
+    items
+        .into_iter()
+        .map(|item| match item {
+            ReplItem::ReplStatement(statement) => Ok(statement),
+            ReplItem::ReplDefinition(..) => Err(InputError::Repl(
+                "Expected an expression, not a definition.".into(),
+            )),
+        })
+        .collect()
 }
 
 /// The imports of the input, in the order it writes them, with what each

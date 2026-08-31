@@ -1676,6 +1676,26 @@ fn repl_time_cmd_error() {
 }
 
 #[test]
+fn repl_time_cmd_multi() {
+    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time 1 + 1 2 + 2"));
+    let lines: Vec<_> = out.lines().collect();
+    let [first, second, time, ..] = lines.as_slice() else {
+        panic!("got: {out}");
+    };
+    assert_eq!(*first, "2");
+    assert_eq!(*second, "4");
+    assert!(time.starts_with("Time: "), "got: {out}");
+}
+
+#[test]
+fn repl_time_cmd_import() {
+    assert_eq!(
+        repl_exec(":time import gleam/list"),
+        "Expected an expression, not a definition."
+    );
+}
+
+#[test]
 fn repl_time_cmd_def() {
     assert_eq!(
         repl_exec(":time const a = 1"),

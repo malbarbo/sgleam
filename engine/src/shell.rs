@@ -73,7 +73,7 @@ const BUILTINS: &[(&str, Arg, &str, Builtin)] = &[
     (
         ":time",
         Arg::Expr,
-        "Run an expression and show how long it took",
+        "Run one or more expressions and show how long they took",
         Builtin::Time,
     ),
     (":debug", Arg::None, "Toggle debug mode", Builtin::Debug),
