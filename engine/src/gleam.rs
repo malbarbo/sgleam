@@ -333,8 +333,8 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
 /// each path became, in the order the caller gave, and `None` for a path the
 /// build never copied.
 pub struct Built {
-    pub modules: Vec<Module>,
-    pub names: Vec<Option<EcoString>>,
+    modules: Vec<Module>,
+    names: Vec<Option<EcoString>>,
 }
 
 impl Built {

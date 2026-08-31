@@ -52,7 +52,7 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
     Ok(())
 }
 
-pub fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
+fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
     match get_smain(module) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
         _ => Ok(module
@@ -63,7 +63,7 @@ pub fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
-pub fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
+fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     let smain = get_function(module, SGLEAM_SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
