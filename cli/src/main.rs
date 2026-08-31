@@ -13,10 +13,10 @@ use camino::Utf8PathBuf;
 use engine::{
     error::{SgleamError, show_error},
     format,
-    gleam::{Project, find_imports},
+    gleam::{Project, copy_files_and_build, find_imports},
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::{copy_files_and_build, run_check, run_main, run_test},
+    run::{run_check, run_main, run_test},
     shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{

@@ -329,6 +329,66 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
     Ok(files)
 }
 
+/// What a build knows and no one can work out from the paths alone: the module
+/// each path became, in the order the caller gave, and `None` for a path the
+/// build never copied.
+pub struct Built {
+    pub modules: Vec<Module>,
+    pub names: Vec<Option<EcoString>>,
+}
+
+impl Built {
+    /// The module a given path became, under the name the copy gave it — and
+    /// not a name derived from the path a second time.
+    pub fn module(&self, index: usize) -> Option<&Module> {
+        let name = self.names.get(index)?.as_ref()?;
+        get_module(&self.modules, name)
+    }
+}
+
+pub fn copy_files_and_build(
+    project: &mut Project,
+    paths: &[Utf8PathBuf],
+) -> Result<Built, gleam_core::Error> {
+    let mut names = Vec::with_capacity(paths.len());
+    for path in paths {
+        names.push(if validate_path(path) {
+            Some(project.copy_file_to_source(path)?)
+        } else {
+            None
+        });
+    }
+    let mut modules = project.compile(false)?;
+    modules.retain(|module| !is_builtin_module(&module.name));
+    Ok(Built { modules, names })
+}
+
+fn validate_path(path: &Utf8Path) -> bool {
+    // The path is the module name, so it cannot leave the current directory.
+    if !is_module_path(path.as_str()) {
+        eprintln!("Ignoring `{path}`: is not a path within the current directory.");
+        return false;
+    }
+
+    let stem = path.file_stem().unwrap_or("");
+    if path.extension() != Some("gleam") || stem.is_empty() {
+        eprintln!("Ignoring `{path}`: is not a valid gleam file.");
+        return false;
+    }
+
+    if stem == "gleam" || stem == "sgleam" {
+        eprintln!("Ignoring `{path}`: `{stem}` is a reserved module name.");
+        return false;
+    }
+
+    if let Some(dir @ ("gleam" | "sgleam")) = path.iter().next() {
+        eprintln!("Ignoring `{path}`: `{dir}` is a reserved directory.");
+        return false;
+    }
+
+    true
+}
+
 fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], to: &Utf8Path) -> Result<(), Error> {
     let decoder = GzDecoder::new(data);
     let mut arch = Archive::new(decoder);
