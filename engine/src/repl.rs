@@ -389,13 +389,9 @@ impl<E: Engine> Repl<E> {
     fn write_source(&mut self, module_name: &str, code: &str) -> String {
         let file = format!("{module_name}.gleam");
         if self.debug {
-            let mut formatted = String::new();
-            if gleam_format::pretty(&mut formatted, &code.into(), camino::Utf8Path::new(&file))
-                .is_ok()
-            {
-                println!("--- {file} ---\n{formatted}---");
-            } else {
-                println!("--- {file} ---\n{code}\n---");
+            match crate::format::format_source(code) {
+                Ok(formatted) => println!("--- {file} ---\n{formatted}---"),
+                Err(_) => println!("--- {file} ---\n{code}\n---"),
             }
         }
         self.project.write_source(&file, code);
