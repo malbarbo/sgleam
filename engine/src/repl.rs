@@ -275,11 +275,11 @@ impl<E: Engine> Repl<E> {
         &mut self,
         run: impl FnOnce(&mut Self) -> Result<T, InputError>,
     ) -> Result<T, Failed> {
-        // The snapshot is cheap. Engine and project count references
-        // internally (Rc), so the clone copies only the maps. The sharing also
-        // means the clone does not roll them back. A module the engine loaded
-        // stays loaded, which is fine, as nothing of the session names it
-        // anymore.
+        // The snapshot copies the names of the session and the text of the
+        // modules just written. Engine and project count references internally
+        // (Rc), so the clone leaves those shared, which also means it does not
+        // roll them back. A module the engine loaded stays loaded, which is
+        // fine, as nothing of the session names it anymore.
         let snapshot = (*self).clone();
         let error = match run(self) {
             Ok(result) => return Ok(result),
@@ -287,26 +287,32 @@ impl<E: Engine> Repl<E> {
         };
         // This prints before the state goes back, as placing a diagnostic on
         // the input needs the modules the repl generated for it.
+        let failed = self.report(error);
+        *self = snapshot;
+        Err(failed)
+    }
+
+    /// Says why an input did not run, and hands back the failure that says it
+    /// already has.
+    fn report(&self, error: InputError) -> Failed {
         match &error {
             InputError::Compile(error) => self.show_gleam_error(error),
             InputError::Repl(message) => println!("{message}"),
         }
-        *self = snapshot;
-        Err(Failed)
+        Failed
     }
 
     /// The definitions and the statements of an input, in the order it writes
     /// them. It stops at the first failure, as the user wrote what comes below
     /// expecting what comes above to have worked.
     fn run_source(&mut self, src: &str) -> Result<(), Failed> {
+        // Reading the input changes nothing of the session, so there is
+        // nothing to undo when it does not read.
         let input: Rc<str> = src.into();
-        let items = self.guarded(|repl| {
-            let items = parse(&input)?;
-            if let Some(reason) = repl.const_refusal(&items) {
-                return Err(InputError::Repl(reason));
-            }
-            Ok(items)
-        })?;
+        let items = parse(&input).map_err(|error| self.report(error.into()))?;
+        if let Some(reason) = self.const_refusal(&items) {
+            return Err(self.report(InputError::Repl(reason)));
+        }
 
         // The imports go in ahead of everything else, as the compiler checks
         // a definition against the scope, and what its own input imported is
@@ -335,9 +341,10 @@ impl<E: Engine> Repl<E> {
             self.item_number += 1;
             self.guarded(|repl| repl.run_statement(&input, statement))?;
             // Whatever the item did before it raised stays, and its output
-            // is already on the screen.
+            // is already on the screen. `input` turns the flag into the
+            // failure.
             if self.had_runtime_error {
-                return Err(Failed);
+                break;
             }
         }
 
