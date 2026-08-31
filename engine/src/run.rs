@@ -6,7 +6,7 @@ use gleam_core::{
 };
 
 use crate::{
-    engine::{Engine, MainFunction},
+    engine::{Engine, MainFunction, SMAIN},
     error::SgleamError,
     gleam::{Project, copy_files_and_build, fn_type_to_string, get_function},
 };
@@ -14,8 +14,6 @@ use crate::{
 // Running a program is what picks a runtime. Nothing above this module names
 // one.
 use crate::quickjs::QuickJsEngine as JsEngine;
-
-const SGLEAM_SMAIN: &str = "smain";
 
 pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
@@ -64,7 +62,7 @@ fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
 }
 
 fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
-    let smain = get_function(module, SGLEAM_SMAIN).ok_or_else(|| {
+    let smain = get_function(module, SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
             origin: Origin::Src,

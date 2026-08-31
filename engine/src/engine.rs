@@ -27,6 +27,10 @@ pub struct ReplFile {
     pub lines: Vec<u32>,
 }
 
+/// The entry point sgleam adds to gleam's `main`. `run` looks it up by this
+/// name and the launcher imports it by this name.
+pub const SMAIN: &str = "smain";
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum MainFunction {
     Main,
@@ -45,9 +49,7 @@ impl MainFunction {
         match self {
             MainFunction::Main => "main",
             MainFunction::ReplMain { name, .. } => name,
-            MainFunction::Smain | MainFunction::SmainStdin | MainFunction::SmainStdinLines => {
-                "smain"
-            }
+            MainFunction::Smain | MainFunction::SmainStdin | MainFunction::SmainStdinLines => SMAIN,
         }
     }
 }
