@@ -271,35 +271,36 @@ impl Highlighter for InputHelper {
 fn highlight_gleam(input: &str, t: &Palette) -> String {
     let mut out = String::with_capacity(input.len() * 2);
     let chars: Vec<char> = input.chars().collect();
-    let len = chars.len();
     let mut i = 0;
 
     // A command is the first word of the input and nowhere else, which is what
     // the shell itself reads. Anywhere else the `:` is the one of a type
     // annotation, and the word after it is Gleam.
     let mut start = 0;
-    while start < len && chars[start].is_whitespace() {
+    while chars.get(start).is_some_and(|c| c.is_whitespace()) {
         start += 1;
     }
     if chars.get(start) == Some(&':') && chars.get(start + 1).is_some_and(|c| c.is_alphabetic()) {
-        out.extend(&chars[..start]);
+        out.extend(chars.iter().take_while(|c| c.is_whitespace()));
         out.push_str(t.command);
         out.push(':');
         i = start + 1;
-        while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
-            out.push(chars[i]);
+        while let Some(&c) = chars.get(i)
+            && (c.is_alphanumeric() || c == '_')
+        {
+            out.push(c);
             i += 1;
         }
         out.push_str(RESET);
     }
 
-    while i < len {
-        let c = chars[i];
-
-        if c == '/' && i + 1 < len && chars[i + 1] == '/' {
+    while let Some(&c) = chars.get(i) {
+        if c == '/' && chars.get(i + 1) == Some(&'/') {
             out.push_str(t.comment);
-            while i < len && chars[i] != '\n' {
-                out.push(chars[i]);
+            while let Some(&c) = chars.get(i)
+                && c != '\n'
+            {
+                out.push(c);
                 i += 1;
             }
             out.push_str(RESET);
@@ -310,12 +311,13 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             out.push_str(t.string);
             out.push(c);
             i += 1;
-            while i < len {
-                let sc = chars[i];
+            while let Some(&sc) = chars.get(i) {
                 out.push(sc);
                 i += 1;
-                if sc == '\\' && i < len {
-                    out.push(chars[i]);
+                if sc == '\\'
+                    && let Some(&escaped) = chars.get(i)
+                {
+                    out.push(escaped);
                     i += 1;
                 } else if sc == '"' {
                     break;
@@ -327,10 +329,10 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
 
         if c.is_ascii_digit() {
             out.push_str(t.number);
-            while i < len
-                && (chars[i].is_ascii_alphanumeric() || chars[i] == '_' || chars[i] == '.')
+            while let Some(&c) = chars.get(i)
+                && (c.is_ascii_alphanumeric() || c == '_' || c == '.')
             {
-                out.push(chars[i]);
+                out.push(c);
                 i += 1;
             }
             out.push_str(RESET);
@@ -342,11 +344,13 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
         // it would start a word of its own, and the completion would read that
         // as a keyword.
         if c.is_alphabetic() || c == '_' {
-            let start = i;
-            while i < len && (chars[i].is_alphanumeric() || chars[i] == '_') {
+            let mut word = String::new();
+            while let Some(&c) = chars.get(i)
+                && (c.is_alphanumeric() || c == '_')
+            {
+                word.push(c);
                 i += 1;
             }
-            let word: String = chars[start..i].iter().collect();
 
             if KEYWORDS.contains(&word.as_str()) {
                 out.push_str(t.keyword);
@@ -360,7 +364,7 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
                 out.push_str(t.type_);
                 out.push_str(&word);
                 out.push_str(RESET);
-            } else if i < len && chars[i] == '(' {
+            } else if chars.get(i) == Some(&'(') {
                 out.push_str(t.function);
                 out.push_str(&word);
                 out.push_str(RESET);
@@ -377,8 +381,10 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             out.push_str(t.function);
             out.push(c);
             i += 1;
-            while i < len && matches!(chars[i], '>' | '=' | '.' | '|' | '&') {
-                out.push(chars[i]);
+            while let Some(&c) = chars.get(i)
+                && matches!(c, '>' | '=' | '.' | '|' | '&')
+            {
+                out.push(c);
                 i += 1;
             }
             out.push_str(RESET);
