@@ -5,7 +5,7 @@ use engine::{
     error::{self, show_error},
     format,
     gleam::{Project, get_module},
-    panic,
+    input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
     shell::{self, Shell},
@@ -195,7 +195,7 @@ pub unsafe extern "C" fn repl_complete(
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
     let names = state.completions();
-    let (start, candidates) = shell::complete(&names, &text, cursor_pos);
+    let (start, candidates) = input::complete(&names, &text, cursor_pos);
 
     // Nothing to offer, which is also what an empty word gives back.
     if candidates.is_empty() {

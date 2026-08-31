@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::io::IsTerminal;
 use std::path::PathBuf;
 
-use engine::shell::complete;
+use engine::input::complete;
 use rustyline::{
     Cmd, ConditionalEventHandler, Context, Editor, Event, EventContext, EventHandler, Helper,
     Hinter, KeyCode, KeyEvent, Modifiers, Movement, Prompt, RepeatCount, Result, Validator,

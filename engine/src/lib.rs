@@ -9,6 +9,7 @@ pub mod error;
 pub mod format;
 pub mod gleam;
 pub mod host;
+pub mod input;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod logger;
 pub mod panic;

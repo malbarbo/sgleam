@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use crate::{
     engine::Engine,
-    parser,
     repl::{Failed, Repl},
 };
 
@@ -255,31 +254,15 @@ fn gleam_start(input: &str) -> Option<usize> {
         .map(|_| input.trim_end().len() - arg.len())
 }
 
-/// What the prompt does with the input as it stands and where the cursor is in
-/// it: `-1` runs the input, and anything else is how far in the line the
-/// cursor opens starts, in spaces.
+/// What the prompt does on Enter with the input as it stands and where the
+/// cursor is in it: `-1` runs the input, and anything else is how far in the
+/// line the cursor opens starts, in spaces. A command that carries Gleam is
+/// answered for the Gleam it carries, and any other command is run as it
+/// stands.
 ///
 /// This is the whole of the question a reader asks on Enter, and both readers
 /// ask it here -- the one in the terminal and the one the browser calls
 /// through `repl_ready` (see SimpleCode's ENGINE.md).
-///
-/// An input of one line runs from anywhere in it, the way a prompt always has.
-/// One of several runs from the end only: with the cursor back in the text,
-/// Enter is opening a line inside a block still being written, and running the
-/// block because it happens to be finished is not what the key was pressed
-/// for.
-///
-/// An input with nothing open ends at a blank line, finished or not. That is
-/// the only way out of an input that will not close. The user can type an open
-/// bracket shut, but `let x =` has no bracket to type, and without this rule
-/// the user could only erase the line -- while the error the engine gives for
-/// it is the answer they want. With a bracket open the rule would cost more
-/// than it gives, taking the blank line between two statements of a function
-/// for the end of it.
-///
-/// `cursor` is a byte offset into `input`, as `repl_complete` already takes
-/// one. One that falls inside a character moves back to the boundary before
-/// it.
 pub fn ready_state(input: &str, cursor: usize) -> i32 {
     let Some(start) = gleam_start(input) else {
         return -1;
@@ -288,85 +271,7 @@ pub fn ready_state(input: &str, cursor: usize) -> i32 {
     // A cursor before the Gleam is not in it at all -- Enter pressed inside
     // `:type` opens the line the expression asks for, the way it would from
     // the end. Clamping to 0 instead answers for a cursor at its start.
-    let cursor = src.floor_char_boundary(cursor.checked_sub(start).unwrap_or(src.len()));
-    // Nothing but whitespace is left after the cursor: the line it opens is
-    // the line after the input, which the input alone already answers.
-    let at_end = src[cursor..].trim().is_empty();
-    let above = if at_end { src } else { &src[..cursor] };
-    let depth = parser::nesting_depth(above);
-    if at_end || !src.contains('\n') {
-        if !parser::is_incomplete(src) {
-            return -1;
-        }
-        if depth == 0
-            && let Some((_, last)) = input.rsplit_once('\n')
-            && last.trim().is_empty()
-        {
-            return -1;
-        }
-    }
-    // The brackets open above the cursor say how far in the line goes, and the
-    // code written under it says how far in it has to go: a line shallower
-    // than that closes a block the code below still needs open. The deeper of
-    // the two, so that neither is crossed.
-    (depth * INDENT).max(indent_below(src, cursor)) as i32
-}
-
-/// How far in the code under the cursor is written, in spaces: the first line
-/// below the cursor's own that says something and can be measured. A blank
-/// line and a comment say nothing about where the block is written, and a line
-/// indented with anything but spaces cannot be measured in them: all three are
-/// passed over.
-fn indent_below(src: &str, cursor: usize) -> usize {
-    let Some((_, below)) = src[cursor..].split_once('\n') else {
-        return 0;
-    };
-    below
-        .lines()
-        .find_map(|line| {
-            let text = line.trim_start_matches(' ');
-            (!text.is_empty() && !text.starts_with("//") && !text.starts_with(char::is_whitespace))
-                .then(|| line.len() - text.len())
-        })
-        .unwrap_or(0)
-}
-
-/// What one level of indentation is worth, in spaces.
-const INDENT: usize = 2;
-
-/// The word around the cursor and where it starts, both in bytes: everything
-/// before `cursor`, back to the last char an identifier cannot hold.
-pub fn word_at(text: &str, cursor: usize) -> (usize, &str) {
-    let before = &text[..text.floor_char_boundary(cursor)];
-    let start = before
-        .char_indices()
-        .rev()
-        .find(|(_, c)| is_break_char(*c))
-        .map_or(0, |(i, c)| i + c.len_utf8());
-    (start, &before[start..])
-}
-
-/// Of `names`, the ones that carry on the word around the cursor, and where
-/// that word starts. An empty word offers nothing, as every name carries it
-/// on.
-pub fn complete<'a>(names: &'a [String], text: &str, cursor: usize) -> (usize, Vec<&'a str>) {
-    let (start, prefix) = word_at(text, cursor);
-    if prefix.is_empty() {
-        return (start, vec![]);
-    }
-    let candidates = names
-        .iter()
-        .filter(|name| name.starts_with(prefix))
-        .map(String::as_str)
-        .collect();
-    (start, candidates)
-}
-
-/// Returns `true` if no name of the language has the char in it, so the word
-/// being completed ends at it. `:` and `.` are in a name here, as the commands
-/// start with one and the qualified names carry the other.
-fn is_break_char(c: char) -> bool {
-    !c.is_alphanumeric() && c != '_' && c != ':' && c != '.'
+    crate::input::ready_state(src, cursor.checked_sub(start).unwrap_or(src.len()))
 }
 
 fn format_duration(elapsed: Duration) -> String {
@@ -398,41 +303,6 @@ mod tests {
     }
 
     #[test]
-    fn the_word_at_the_cursor_is_what_comes_before_it() {
-        assert_eq!(word_at("let x = lis", 11), (8, "lis"));
-        assert_eq!(word_at("lis", 11), (0, "lis"));
-        assert_eq!(word_at("1 + f(x", 7), (6, "x"));
-        assert_eq!(word_at(":ty", 3), (0, ":ty"));
-        assert_eq!(word_at("list.ma", 7), (0, "list.ma"));
-        assert_eq!(word_at("let x = lis", 8), (8, ""));
-        assert_eq!(word_at("", 0), (0, ""));
-    }
-
-    #[test]
-    fn only_the_names_that_carry_the_word_on_are_offered() {
-        let names = [
-            "list".to_string(),
-            "list.map".to_string(),
-            "let ".to_string(),
-        ];
-        assert_eq!(complete(&names, "lis", 3), (0, vec!["list", "list.map"]));
-        assert_eq!(complete(&names, "x = list.m", 10), (4, vec!["list.map"]));
-        assert_eq!(complete(&names, "nope", 4), (0, vec![]));
-        // Every name carries an empty word on, so none is worth offering.
-        assert_eq!(complete(&names, "x = ", 4), (4, vec![]));
-    }
-
-    #[test]
-    fn the_word_survives_the_chars_that_take_more_than_a_byte() {
-        // The break char before it is one of them.
-        assert_eq!(word_at("x = \"ol\u{e1}\u{2026}foo", 15), (12, "foo"));
-        // The cursor is in the middle of one.
-        assert_eq!(word_at("ol\u{e1}_bar", 3), (0, "ol"));
-        // The word itself is made of them.
-        assert_eq!(word_at("ol\u{e1}_bar", 8), (0, "ol\u{e1}_bar"));
-    }
-
-    #[test]
     fn a_command_is_told_apart_from_gleam() {
         assert_eq!(split(" :quit "), Some((":quit", "")));
         assert_eq!(split(":type 1"), Some((":type", "1")));
@@ -442,98 +312,28 @@ mod tests {
     }
 
     #[test]
-    fn a_near_miss_of_a_command_is_no_gleam() {
-        for input in [":typ x", ":type", ":quit now", ":debug off", ":theme {"] {
+    fn a_command_that_carries_no_gleam_is_run_as_it_stands() {
+        for input in [
+            ":quit",
+            ":typ x",
+            ":type",
+            ":quit now",
+            ":debug off",
+            ":theme {",
+        ] {
             assert_eq!(ready_state(input), -1, "{input:?}");
         }
     }
 
     #[test]
-    fn a_finished_input_is_run() {
-        for input in ["1 + 1", "", "let x = 1", "pub fn f() {\n  1\n}", ":quit"] {
-            assert_eq!(ready_state(input), -1, "{input:?}");
-        }
-    }
-
-    #[test]
-    fn an_unfinished_input_says_how_far_in_the_next_line_starts() {
-        // Nothing is open, so the input is waiting on a value, not on a
-        // bracket.
-        assert_eq!(ready_state("let x ="), 0);
-        assert_eq!(ready_state("1 +"), 0);
-        // Every kind of bracket is worth a level.
-        assert_eq!(ready_state("case x {"), 2);
-        assert_eq!(ready_state("io.println("), 2);
-        assert_eq!(ready_state("let x = [1,"), 2);
-        assert_eq!(ready_state("let x = #(1,"), 2);
-        assert_eq!(ready_state("let x = <<1,"), 2);
-        assert_eq!(ready_state("pub fn f() {\n  case x {"), 4);
-        // And one that is closed is worth none.
-        assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
-        // A command is asked about what it carries.
+    fn a_command_that_carries_gleam_is_answered_for_what_it_carries() {
         assert_eq!(ready_state(":type case x {"), 2);
-    }
-
-    #[test]
-    fn one_line_runs_from_anywhere_in_it_and_several_from_the_end() {
-        assert_eq!(at_cursor("let x = |1"), -1);
-        // Several lines with the cursor back in them: the key opens a line,
-        // finished or not.
-        assert_eq!(at_cursor("let x = 1\nlet y = |2"), 0);
-    }
-
-    #[test]
-    fn the_line_goes_as_deep_as_the_brackets_above_and_the_code_below() {
-        // Nothing under the cursor but the closing brace: the depth at the
-        // cursor is the whole answer, and it is the canonical one.
-        assert_eq!(at_cursor("pub fn f() {\n  let x = 1|\n}"), 2);
-        // Code written further in than that is not brought back out by the
-        // line the cursor opens: it would leave the line under nothing.
-        assert_eq!(
-            at_cursor("pub fn f() {\n    let x = 1|\n    let y = 2\n}"),
-            4
-        );
-        // A blank line and a comment say nothing about where the block is.
-        assert_eq!(
-            at_cursor("pub fn f() {\n    let x = 1|\n\n    // nota\n    let y = 2\n}"),
-            4
-        );
-        // And a cursor past the end is the end.
-        assert_eq!(super::ready_state("case x {", 999), 2);
-        // A line indented with a tab cannot be measured in spaces, so it is
-        // passed over instead of counted as a line written at the margin.
-        assert_eq!(
-            at_cursor("pub fn f() {\n    let x = 1|\n\tlet y = 2\n    let z = 3\n}"),
-            4
-        );
-    }
-
-    #[test]
-    fn a_cursor_inside_a_command_is_a_cursor_at_the_end_of_what_it_carries() {
+        assert_eq!(ready_state(":type 1 +\n"), -1);
         // The cursor is in `:type`, not in the Gleam, so there is no line
         // being opened inside the expression: it answers the way it does from
         // the end.
         assert_eq!(at_cursor(":ty|pe case x {"), 2);
         assert_eq!(at_cursor("|:type 1 + 1"), -1);
-    }
-
-    #[test]
-    fn a_blank_last_line_ends_an_input_with_nothing_open() {
-        // The way out of an input that has no bracket left to type.
-        assert_eq!(ready_state("let x =\n"), -1);
-        assert_eq!(ready_state("let x = \"abc\n"), -1);
-        assert_eq!(ready_state(":type 1 +\n"), -1);
-        // A line with something on it is not one of these.
-        assert_eq!(ready_state("1 +\n  2 +"), 0);
-    }
-
-    #[test]
-    fn a_blank_line_inside_brackets_is_part_of_the_input() {
-        // A function is written with blank lines between its statements, and
-        // reading one as the end of the input cuts it in half.
-        assert_eq!(ready_state("pub fn f() {\n  let x = 1\n"), 2);
-        assert_eq!(ready_state("case x {\n  "), 2);
-        assert_eq!(ready_state("let x = [\n  1,\n\n"), 2);
     }
 
     #[test]
