@@ -732,8 +732,8 @@ impl<E: Engine> Repl<E> {
         message: Option<SrcSpan>,
         names: &[String],
     ) -> Result<(), InputError> {
-        let (memo, print) = (self.repl_memo.clone(), self.repl_print.clone());
-        let (vals, val) = (self.repl_vals.clone(), self.repl_value.clone());
+        let (memo, print) = (&self.repl_memo, &self.repl_print);
+        let (vals, val) = (&self.repl_vals, &self.repl_value);
 
         // Only the value and the message of a `let assert` read what the
         // session bound; a pattern names types and binds, and reads nothing.
