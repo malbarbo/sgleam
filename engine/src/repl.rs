@@ -20,8 +20,7 @@ use crate::{
     engine::{Engine, MainFunction, ReplFile},
     error::SgleamError,
     gleam::{
-        Project, get_definition_span, get_function, is_private, is_repl_noise,
-        relocate_to_user_paths, type_to_string,
+        Project, get_definition_span, get_function, is_private, is_repl_noise, type_to_string,
     },
     parser::{self, ReplItem},
     scope::{Defined, NameEntry, Origin, Scope},
@@ -553,7 +552,6 @@ impl<E: Engine> Repl<E> {
     }
 
     fn show_diagnostics(&self, diags: Vec<Diagnostic>, show: Show) {
-        use std::io::Write as _;
         if diags.is_empty() {
             return;
         }
@@ -577,16 +575,11 @@ impl<E: Engine> Repl<E> {
             return;
         }
 
-        let buffer_writer = crate::error::stderr_buffer_writer();
-        let mut buffer = buffer_writer.buffer();
-        for (diag, _) in &mut diags {
-            // One that stayed put is about a module the user loaded, and the
-            // user knows that module by the path they gave for it.
-            relocate_to_user_paths(diag);
-            diag.write(&mut buffer);
-            writeln!(buffer).expect("write newline");
-        }
-        crate::error::flush_buffer(&buffer_writer, &buffer);
+        // One that stayed put is about a module the user loaded, and the user
+        // knows that module by the path they gave for it, which is what
+        // printing puts back.
+        let mut diags: Vec<Diagnostic> = diags.into_iter().map(|(diag, _)| diag).collect();
+        crate::error::show_diagnostics(&mut diags);
     }
 
     /// Moves `diag` onto the input behind the generated module it points into,

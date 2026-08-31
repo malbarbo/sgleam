@@ -22,7 +22,7 @@ use gleam_core::{
 };
 use std::{
     collections::{HashSet, VecDeque},
-    io::{Read, Write},
+    io::Read,
     path::PathBuf,
     rc::Rc,
     sync::Arc,
@@ -30,10 +30,7 @@ use std::{
 };
 use tar::Archive;
 
-use crate::{
-    GLEAM_STDLIB,
-    error::{flush_buffer, stderr_buffer_writer},
-};
+use crate::{GLEAM_STDLIB, error::show_diagnostics};
 
 #[derive(Clone)]
 pub struct Project {
@@ -467,13 +464,6 @@ impl WarningEmitterIO for ConsoleWarningEmitter {
             },
             warning => warning,
         };
-        let mut diagnostic = warning.to_diagnostic();
-        relocate_to_user_paths(&mut diagnostic);
-
-        let buffer_writer = stderr_buffer_writer();
-        let mut buffer = buffer_writer.buffer();
-        diagnostic.write(&mut buffer);
-        writeln!(buffer).expect("write newline after a warning");
-        flush_buffer(&buffer_writer, &buffer);
+        show_diagnostics(&mut [warning.to_diagnostic()]);
     }
 }

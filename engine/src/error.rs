@@ -91,13 +91,7 @@ pub fn show_error(err: &SgleamError) {
     let mut buffer = buffer_writer.buffer();
 
     match err {
-        SgleamError::Gleam(err) => {
-            for mut diagnostic in err.to_diagnostics() {
-                relocate_to_user_paths(&mut diagnostic);
-                diagnostic.write(&mut buffer);
-                writeln!(buffer).expect("write newline after a diagnostic");
-            }
-        }
+        SgleamError::Gleam(err) => write_diagnostics(&mut buffer, &mut err.to_diagnostics()),
         SgleamError::InvalidSMain { module, signature } => Diagnostic {
             title: "smain function has an invalid signature".into(),
             text: format!(
@@ -163,6 +157,23 @@ pub fn show_error(err: &SgleamError) {
     };
 
     flush_buffer(&buffer_writer, &buffer);
+}
+
+/// Writes the diagnostics to stderr, a blank line apart, each one back on the
+/// path the user gave for it.
+pub fn show_diagnostics(diags: &mut [Diagnostic]) {
+    let buffer_writer = stderr_buffer_writer();
+    let mut buffer = buffer_writer.buffer();
+    write_diagnostics(&mut buffer, diags);
+    flush_buffer(&buffer_writer, &buffer);
+}
+
+fn write_diagnostics(buffer: &mut termcolor::Buffer, diags: &mut [Diagnostic]) {
+    for diagnostic in diags {
+        relocate_to_user_paths(diagnostic);
+        diagnostic.write(buffer);
+        writeln!(buffer).expect("write newline after a diagnostic");
+    }
 }
 
 pub fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
