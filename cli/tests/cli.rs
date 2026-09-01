@@ -1236,6 +1236,80 @@ fn repl_const_of_a_user_module_in_guard() {
     assert_eq!(out, "P(1)\n\"eq\"\n");
 }
 
+// The inlined value of a const names its record constructors as the module
+// that defines the const does, and the two tests below are the shapes where no
+// import of the generated module can give that name a meaning: the compiler
+// itself has to write the constructor the way the module reading the const
+// spells it.
+
+#[test]
+fn repl_const_naming_a_qualified_value_in_guard() {
+    let out = out_in_dir(
+        &[
+            ("q.gleam", "pub type T {\n  A\n  B\n}\n"),
+            ("wq.gleam", "import q\n\npub const o = q.A\n"),
+        ],
+        &["repl", "-q", "wq.gleam"],
+        Some(&formatdoc! {"
+            let y = o
+            case y {{ z if z == o -> \"eq\" _ -> \"ne\" }}
+        "}),
+    );
+
+    assert_eq!(out, "A\n\"eq\"\n");
+}
+
+#[test]
+fn repl_const_naming_a_value_the_session_cannot_reach_in_guard() {
+    let out = out_in_dir(
+        &[
+            ("w.gleam", "pub type P {\n  P(Int)\n}\n"),
+            ("wu.gleam", "import w.{P}\n\npub const c = P(1)\n"),
+        ],
+        &["repl", "-q", "wu.gleam"],
+        Some(&formatdoc! {"
+            let y = c
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
+        "}),
+    );
+
+    assert_eq!(out, "P(1)\n\"eq\"\n");
+}
+
+#[test]
+fn repl_const_naming_a_constant_of_another_module_in_guard() {
+    let out = out_in_dir(
+        &[
+            ("k.gleam", "pub type T {\n  A\n  B\n}\n\npub const a = A\n"),
+            ("wk.gleam", "import k\n\npub const c = k.a\n"),
+        ],
+        &["repl", "-q", "wk.gleam"],
+        Some(&formatdoc! {"
+            let y = c
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
+        "}),
+    );
+
+    assert_eq!(out, "A\n\"eq\"\n");
+}
+
+#[test]
+fn repl_const_naming_a_private_constant_of_another_module_in_guard() {
+    let out = out_in_dir(
+        &[(
+            "p.gleam",
+            "pub type T {\n  A\n  B\n}\n\nconst a = A\n\npub const c = a\n",
+        )],
+        &["repl", "-q", "p.gleam"],
+        Some(&formatdoc! {"
+            let y = c
+            case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}
+        "}),
+    );
+
+    assert_eq!(out, "A\n\"eq\"\n");
+}
+
 #[test]
 fn repl_loads_the_modules_the_file_imports() {
     let out = out_in_dir(
