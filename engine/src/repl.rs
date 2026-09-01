@@ -5,7 +5,7 @@ use gleam_core::{
     Error,
     ast::{
         AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, SrcSpan,
-        Statement, UntypedConstant, UntypedPattern, UntypedStatement,
+        Statement, UntypedPattern, UntypedStatement,
     },
     build::Module,
     diagnostic::Diagnostic,
@@ -74,9 +74,6 @@ struct Def {
     type_name: Option<String>,
     /// A function, a const, or the constructors of a type.
     value_names: Vec<String>,
-    /// What a const reads from the scope, the module of a qualified name
-    /// included.
-    reads: Vec<String>,
     /// What it takes of the input, the attributes above it included.
     span: SrcSpan,
     /// Where `pub` goes. It comes after the attributes, and nothing may come
@@ -847,7 +844,8 @@ impl<E: Engine> Repl<E> {
         span: SrcSpan,
     ) -> Result<(), InputError> {
         let own = self.scope.register_import(import, input, span);
-        Ok(self.run_check(Some(&own))?)
+        self.run_check(Some(&own))?;
+        Ok(())
     }
 
     /// Why the repl cannot take a const of the input, when it cannot. The
@@ -910,22 +908,14 @@ impl<E: Engine> Repl<E> {
 
         for def in defs {
             if let Some(name) = &def.type_name {
-                self.scope.types.insert(
-                    name.clone(),
-                    NameEntry::new(&module, name, Origin::Def { reads: vec![] }),
-                );
+                self.scope
+                    .types
+                    .insert(name.clone(), NameEntry::new(&module, name, Origin::Def));
             }
             for name in &def.value_names {
-                self.scope.values.insert(
-                    name.clone(),
-                    NameEntry::new(
-                        &module,
-                        name,
-                        Origin::Def {
-                            reads: def.reads.clone(),
-                        },
-                    ),
-                );
+                self.scope
+                    .values
+                    .insert(name.clone(), NameEntry::new(&module, name, Origin::Def));
             }
         }
         self.scope.own_modules.push(module);
@@ -981,7 +971,6 @@ fn defs(items: &[ReplItem]) -> Vec<Def> {
         let ReplItem::ReplDefinition(targeted, start) = item else {
             continue;
         };
-        let mut reads = vec![];
         let mut body = None;
         let (type_name, value_names) = match &targeted.definition {
             // The constructors of an opaque type stay in the module that
@@ -1007,18 +996,12 @@ fn defs(items: &[ReplItem]) -> Vec<Def> {
                 });
                 (None, vec![name.to_string()])
             }
-            Definition::ModuleConstant(c) => {
-                let mut modules = vec![];
-                constant_find_names(&c.value, &mut reads, &mut modules);
-                reads.append(&mut modules);
-                (None, vec![c.name.to_string()])
-            }
+            Definition::ModuleConstant(c) => (None, vec![c.name.to_string()]),
             Definition::Import(_) => continue,
         };
         defs.push(Def {
             type_name,
             value_names,
-            reads,
             span: get_definition_span(&targeted.definition, *start),
             keyword: targeted.definition.location().start,
             private: is_private(&targeted.definition),
@@ -1079,11 +1062,11 @@ fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
     }
 }
 
-/// Collects what a constant reads, as the text inlined at a guard names it: the
-/// module level names, a constructor included, and the aliases of the qualified
-/// ones, which go to `modules` — only a plain name can be a `let`.
-fn constant_find_names(
-    constant: &UntypedConstant,
+/// Collects the module level names a constant reads, a constructor included,
+/// with the aliases of the qualified ones going to `modules`. Only a plain name
+/// can be a `let`, which is the one thing a const may not read.
+fn constant_find_names<T>(
+    constant: &Constant<T>,
     names: &mut Vec<String>,
     modules: &mut Vec<String>,
 ) {

@@ -33,10 +33,8 @@ pub struct NameEntry {
 pub enum Origin {
     /// An import brought it, or the user's module seeded it.
     Import,
-    /// An input defined it. For a const, `reads` holds the names its value
-    /// reads, the module of a qualified name included, as Gleam inlines a
-    /// const at a `case` guard and the inlined code still names them.
-    Def { reads: Vec<String> },
+    /// An input defined it.
+    Def,
     /// A `let` bound it, and a binding at the top of every body that names it
     /// reads it back. A const cannot read this kind of value.
     Binding,
@@ -53,14 +51,6 @@ impl NameEntry {
 
     pub fn is_binding(&self) -> bool {
         matches!(self.origin, Origin::Binding)
-    }
-
-    /// What a const of the session reads, empty for everything else.
-    fn reads(&self) -> &[String] {
-        match &self.origin {
-            Origin::Def { reads } => reads,
-            Origin::Import | Origin::Binding => &[],
-        }
     }
 }
 
@@ -198,7 +188,7 @@ impl Scope {
         skip: &Defined,
         own: Option<&OwnImport>,
     ) {
-        let mentioned = code.map(|code| self.with_inlined(mentioned(code)));
+        let mentioned = code.map(mentioned);
         let mentions = |name: &str| mentioned.as_ref().is_some_and(|names| names.contains(name));
         let wanted = |name: &str| mentioned.is_none() || mentions(name);
         // The input's own import goes in as the input wrote it, so a diagnostic
@@ -240,10 +230,7 @@ impl Scope {
                 let NameEntry {
                     module, original, ..
                 } = entry;
-                // A value an import brought comes in even unmentioned, as a
-                // guard inlines a const and the repl never read the names
-                // inside an imported const. Nothing inlines a type.
-                let needed = (values && matches!(entry.origin, Origin::Import)) || wanted(name);
+                let needed = wanted(name);
                 let written = own.is_some_and(|own| {
                     &own.path == module
                         && if values { &own.values } else { &own.types }.contains(name)
@@ -258,24 +245,6 @@ impl Scope {
                 }
             }
         }
-    }
-
-    /// Closes `names` over what its consts read, as the inlined text names
-    /// those too.
-    fn with_inlined(&self, mut names: HashSet<EcoString>) -> HashSet<EcoString> {
-        let mut queue: Vec<EcoString> = names.iter().cloned().collect();
-        while let Some(name) = queue.pop() {
-            let Some(entry) = self.values.get(name.as_str()) else {
-                continue;
-            };
-            for read in entry.reads() {
-                let read: EcoString = read.into();
-                if names.insert(read.clone()) {
-                    queue.push(read);
-                }
-            }
-        }
-        names
     }
 
     /// The bindings a body reads, written ahead of the user's text. A `let` is
@@ -372,7 +341,7 @@ mod tests {
     }
 
     fn def(module: &str, name: &str) -> NameEntry {
-        NameEntry::new(module, name, Origin::Def { reads: vec![] })
+        NameEntry::new(module, name, Origin::Def)
     }
 
     #[test]
@@ -385,7 +354,7 @@ mod tests {
     }
 
     #[test]
-    fn an_imported_value_comes_in_even_unmentioned() {
+    fn an_imported_name_comes_in_only_when_mentioned() {
         let mut scope = Scope::default();
         scope.values.insert(
             "max".into(),
@@ -395,33 +364,14 @@ mod tests {
             "Order".into(),
             NameEntry::new("gleam/order", "Order", Origin::Import),
         );
+        assert_eq!(imports(&scope, Some("1 + 1")), "");
         assert_eq!(
-            imports(&scope, Some("1 + 1")),
+            imports(&scope, Some("max(1, 2)")),
             "import gleam/int.{max} as _\n"
         );
         assert_eq!(
             imports(&scope, Some("Order")),
-            "import gleam/int.{max} as _\nimport gleam/order.{type Order} as _\n"
-        );
-    }
-
-    #[test]
-    fn what_a_const_reads_comes_in_with_it() {
-        let mut scope = Scope::default();
-        scope.modules.insert("i".into(), "gleam/int".into());
-        scope.values.insert(
-            "c".into(),
-            NameEntry::new(
-                "repl1",
-                "c",
-                Origin::Def {
-                    reads: vec!["i".into()],
-                },
-            ),
-        );
-        assert_eq!(
-            imports(&scope, Some("c + 1")),
-            "import gleam/int as i\nimport repl1.{c} as _\n"
+            "import gleam/order.{type Order} as _\n"
         );
     }
 
