@@ -12,7 +12,7 @@ use rquickjs::{
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
-    qjs::{JS_GetRuntime, JS_SetMaxStackSize},
+    qjs::{JS_GetRuntime, JS_IsUncatchableError, JS_SetMaxStackSize},
 };
 
 use crate::{
@@ -196,13 +196,12 @@ fn script_error(err: CaughtError<'_>) -> SgleamError {
 }
 
 /// Returns `true` if the exception is the one QuickJS throws for an
-/// interruption, `false` otherwise. That one is its own InternalError, and a
-/// panic saying "interrupted" is not.
+/// interruption, `false` otherwise. That one is the only one it marks
+/// uncatchable, which is also what carries it out through the `catch` of a
+/// test that fails.
 fn is_interrupt(exception: &Exception) -> bool {
-    exception.message() == Some("interrupted".into())
-        && exception
-            .get("name")
-            .is_ok_and(|name: String| name == "InternalError")
+    // SAFETY: the exception owns the value for the whole of the call.
+    unsafe { JS_IsUncatchableError(exception.as_value().as_raw()) }
 }
 
 fn add_console(ctx: &Ctx) -> Result<()> {
