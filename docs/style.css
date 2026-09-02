@@ -226,12 +226,13 @@ nav#TOC li::before {
     code span.dt { color: #6eb4bf; } /* DataType */
     code span.fu { color: #73ade9; } /* Function */
     code span.st { color: #a1c181; } /* String */
+    code span.cn { color: #bf956a; } /* Constant */
     code span.dv { color: #bf956a; } /* DecVal */
     code span.bn { color: #bf956a; } /* BaseN */
     code span.fl { color: #bf956a; } /* Float */
     code span.op { color: #6eb4bf; } /* Operator */
     code span.co { color: #5d636f; } /* Comment */
-    code span.ot { color: #dfc184; } /* Other */
+    code span.ot { color: #acb2be; } /* Other */
     code span.at { color: #73ade9; } /* Attribute */
     code span.er { color: #d07277; } /* Error */
     code span.wa { color: #dec184; } /* Warning */

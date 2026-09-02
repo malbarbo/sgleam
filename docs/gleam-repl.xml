@@ -11,6 +11,7 @@
 		<item>as</item>
 		<item>case</item>
 		<item>const</item>
+		<item>echo</item>
 		<item>else</item>
 		<item>fn</item>
 		<item>if</item>
@@ -24,13 +25,15 @@
 		<item>panic</item>
 		<item>todo</item>
 	</list>
+	<list name="booleans">
+		<item>True</item>
+		<item>False</item>
+		<item>Nil</item>
+	</list>
 	<list name="types">
 		<item>Int</item>
 		<item>Float</item>
 		<item>Bool</item>
-		<item>True</item>
-		<item>False</item>
-		<item>Nil</item>
 		<item>String</item>
 		<item>List</item>
 		<item>Result</item>
@@ -49,12 +52,17 @@
 			<DetectChar attribute="String" context="string" char="&quot;" />
 			<Detect2Chars attribute="Comment" context="comment" char="/" char1="/" />
 			<keyword attribute="Keyword" context="#stay" String="keywords" />
+			<keyword attribute="Boolean" context="#stay" String="booleans" />
 			<keyword attribute="Type" context="#stay" String="types" />
 			<RegExpr attribute="Type" context="#stay" String="\b&camel_case;\b" />
 			<RegExpr attribute="Function" context="#stay" String="\b&snake_case;(?=\()" />
 			<RegExpr attribute="Float" context="#stay" String="&decimal_digits;\.(?:&decimal_digits;)?" />
 			<RegExpr attribute="Decimal" context="#stay" String="\b&decimal_digits;" />
-			<AnyChar String="#:!,.+-*/%&lt;=&gt;|&amp;(){}[]" attribute="Symbol" context="#stay" />
+			<!-- The float operators end in a dot, so they come before the dot
+			     of a field access. -->
+			<RegExpr attribute="Symbol" context="#stay" String="(?:[+*/-]|&lt;=|&gt;=|&lt;|&gt;)\." />
+			<AnyChar String="#:,.(){}[]" attribute="Punctuation" context="#stay" />
+			<AnyChar String="!+-*/%&lt;=&gt;|&amp;" attribute="Symbol" context="#stay" />
 		</context>
 		<context attribute="String" lineEndContext="#pop" name="string">
 			<DetectChar attribute="String" context="#pop" char="&quot;" />
@@ -70,7 +78,7 @@
 	<itemDatas>
 		<itemData name="Normal Text" defStyleNum="dsNormal" />
 		<itemData name="Output" defStyleNum="dsComment" />
-		<itemData name="Prompt" defStyleNum="dsOthers" bold="true" />
+		<itemData name="Prompt" defStyleNum="dsFunction" bold="true" />
 		<itemData name="Keyword" defStyleNum="dsKeyword" />
 		<itemData name="Type" defStyleNum="dsDataType" />
 		<itemData name="Function" defStyleNum="dsFunction" />
@@ -78,7 +86,9 @@
 		<itemData name="EscapeSequence" defStyleNum="dsSpecialChar" />
 		<itemData name="Decimal" defStyleNum="dsDecVal" />
 		<itemData name="Float" defStyleNum="dsFloat" />
+		<itemData name="Boolean" defStyleNum="dsConstant" />
 		<itemData name="Symbol" defStyleNum="dsOperator" />
+		<itemData name="Punctuation" defStyleNum="dsNormal" />
 		<itemData name="Comment" defStyleNum="dsComment" />
 	</itemDatas>
 </highlighting>
