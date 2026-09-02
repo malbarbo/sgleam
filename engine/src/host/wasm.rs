@@ -8,6 +8,9 @@ mod ffi {
     unsafe extern "C" {
         pub fn check_interrupt() -> bool;
         pub fn sleep(ms: u64);
+        pub fn draw_view(str: *const u8, len: usize);
+        pub fn next_event(str: *mut u8, len: usize) -> usize;
+        pub fn wait_event(timeout_ms: i32) -> i32;
         pub fn draw_svg(str: *const u8, len: usize);
 
         /// Returns the kind of the event waiting in the page, as an index
@@ -51,6 +54,29 @@ pub fn check_interrupt() -> bool {
 
 pub fn sleep(ms: u64) {
     unsafe { ffi::sleep(ms) };
+}
+
+pub fn draw_view(str: String) {
+    unsafe { ffi::draw_view(str.as_ptr(), str.len()) }
+}
+
+pub fn next_event() -> Option<String> {
+    let mut buf = vec![0u8; 512];
+    loop {
+        let n = unsafe { ffi::next_event(buf.as_mut_ptr(), buf.len()) };
+        if n == 0 {
+            return None;
+        }
+        if n <= buf.len() {
+            buf.truncate(n);
+            return String::from_utf8(buf).ok();
+        }
+        buf.resize(n, 0);
+    }
+}
+
+pub fn wait_event(timeout_ms: i32) -> i32 {
+    unsafe{ffi::wait_event(timeout_ms)}
 }
 
 pub fn draw_svg(str: String) {

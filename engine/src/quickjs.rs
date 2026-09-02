@@ -220,6 +220,9 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     // property is there, so a native run simply has neither.
     #[cfg(target_arch = "wasm32")]
     {
+        set_fn(&sgleam, "draw_view", crate::host::draw_view)?;
+        set_fn(&sgleam, "next_event", crate::host::next_event)?;
+        set_fn(&sgleam, "wait_event", crate::host::wait_event)?;
         set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
         set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
     }
