@@ -212,6 +212,7 @@ struct Palette {
     keyword: &'static str,
     function: &'static str,
     type_: &'static str,
+    operator: &'static str,
     command: &'static str,
     prompt: &'static str,
 }
@@ -223,7 +224,8 @@ const ONE_DARK: Palette = Palette {
     number: "\x1b[38;2;191;149;106m",
     keyword: "\x1b[38;2;180;119;207m",
     function: "\x1b[38;2;115;173;233m",
-    type_: "\x1b[38;2;223;193;132m",
+    type_: "\x1b[38;2;110;180;191m",
+    operator: "\x1b[38;2;110;180;191m",
     command: "\x1b[38;2;130;137;151m",
     prompt: "\x1b[38;2;115;173;233m",
 };
@@ -235,7 +237,8 @@ const ONE_LIGHT: Palette = Palette {
     number: "\x1b[38;2;173;110;37m",
     keyword: "\x1b[38;2;164;73;171m",
     function: "\x1b[38;2;91;121;227m",
-    type_: "\x1b[38;2;193;132;1m",
+    type_: "\x1b[38;2;56;130;183m",
+    operator: "\x1b[38;2;56;130;183m",
     command: "\x1b[38;2;105;108;119m",
     prompt: "\x1b[38;2;91;121;227m",
 };
@@ -369,7 +372,7 @@ fn highlight_gleam(input: &str, t: &Palette) -> String {
             c,
             '+' | '-' | '*' | '/' | '%' | '<' | '>' | '=' | '!' | '|' | '&' | '.'
         ) {
-            out.push_str(t.function);
+            out.push_str(t.operator);
             out.push(c);
             i += 1;
             while let Some(&c) = chars.get(i)
