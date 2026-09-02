@@ -60,23 +60,24 @@ pub fn draw_view(str: String) {
     unsafe { ffi::draw_view(str.as_ptr(), str.len()) }
 }
 
-pub fn next_event() -> Option<String> {
+/// An empty string when the queue is empty: a `None` reaches js as `undefined`.
+pub fn next_event() -> String {
     let mut buf = vec![0u8; 512];
     loop {
         let n = unsafe { ffi::next_event(buf.as_mut_ptr(), buf.len()) };
         if n == 0 {
-            return None;
+            return String::new();
         }
         if n <= buf.len() {
             buf.truncate(n);
-            return String::from_utf8(buf).ok();
+            return String::from_utf8_lossy(&buf).into_owned();
         }
         buf.resize(n, 0);
     }
 }
 
 pub fn wait_event(timeout_ms: i32) -> i32 {
-    unsafe{ffi::wait_event(timeout_ms)}
+    unsafe { ffi::wait_event(timeout_ms) }
 }
 
 pub fn draw_svg(str: String) {

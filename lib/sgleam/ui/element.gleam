@@ -396,7 +396,7 @@ pub fn map(element: Element(a), transform: fn(a) -> b) -> Element(b) {
         TextInputRepr(
           ..repr,
           on_input: map_string_handler(repr.on_input, transform),
-          on_submit: map_string_handler(repr.on_input, transform),
+          on_submit: map_string_handler(repr.on_submit, transform),
         ),
       )
 

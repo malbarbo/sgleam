@@ -29,6 +29,24 @@ pub use target::load_bitmap;
 /// start of the baseline.
 pub use target::text_metrics;
 
+/// `system.show_view` puts a frame of an interface on the page, as html that
+/// replaces the frame before it. Only the browser draws, so a native run has
+/// no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::draw_view;
+
+/// `system.next_event` takes the next event off the page's queue and gives it
+/// as json, or an empty string when the queue is empty. Only the browser has a
+/// queue, so a native run has no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::next_event;
+
+/// `system.wait_event` holds the program until something arrives: `1` when an
+/// event waits, `0` when `timeout_ms` ran out, `-1` when the user asked to
+/// stop. Only the browser has a queue, so a native run has no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::wait_event;
+
 /// `system.draw_svg` puts a drawing on the page. Only the browser draws, so a
 /// native run has no such function.
 #[cfg(target_arch = "wasm32")]

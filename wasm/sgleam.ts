@@ -94,6 +94,9 @@ async function loadWasm(
   const env: WebAssembly.ModuleImports = {
     check_interrupt: (): number => 0,
     sleep: (_ms: bigint): void => {},
+    draw_view: (): void => {},
+    next_event: (): number => 0, // an empty queue
+    wait_event: (): number => -1, // that nothing can ever arrive in
     draw_svg: (): void => {},
     get_key_event: (): number => 3, // EVENT_NONE
     text_metrics: (

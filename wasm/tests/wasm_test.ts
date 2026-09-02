@@ -69,6 +69,7 @@ interface EnvKeyEvent {
 interface EnvOptions {
   interruptAfter?: number;
   keyEvents?: EnvKeyEvent[];
+  uiEvents?: string[];
 }
 
 // Fake clock, advanced by sleep so the world loop's scheduling fires ticks
@@ -82,12 +83,14 @@ interface FakeClock {
 function makeEnv(
   getBuffer: () => ArrayBufferLike,
   svgs: string[],
+  views: string[],
   clock: FakeClock,
   options: EnvOptions = {},
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
   const interruptAfter = options.interruptAfter ?? Infinity;
   const keyEvents = [...(options.keyEvents ?? [])];
+  const uiEvents = [...(options.uiEvents ?? [])];
 
   return {
     check_interrupt: (): number => {
@@ -97,6 +100,23 @@ function makeEnv(
     sleep: (ms: bigint): void => {
       clock.ms += ms;
     },
+    draw_view: (ptr: number, len: number): void => {
+      const b = new Uint8Array(getBuffer() as ArrayBuffer);
+      views.push(decoder.decode(b.slice(ptr, ptr + len)));
+    },
+    // An event that does not fit is answered with its size and left in the
+    // queue, for the engine to come back to with a bigger buffer.
+    next_event: (ptr: number, len: number): number => {
+      const event = uiEvents[0];
+      if (event === undefined) return 0;
+      const bytes = encoder.encode(event);
+      if (bytes.length > len) return bytes.length;
+      new Uint8Array(getBuffer() as ArrayBuffer, ptr, bytes.length).set(bytes);
+      uiEvents.shift();
+      return bytes.length;
+    },
+    // A stop on the empty queue: a gui loop under test has to end on its own.
+    wait_event: (): number => (uiEvents.length > 0 ? 1 : -1),
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
@@ -152,18 +172,21 @@ interface WasmContext {
   stdout: string[];
   stderr: string[];
   svgs: string[];
+  views: string[];
 }
 
 interface LoadOptions {
   bigint?: boolean;
   interruptAfter?: number;
   keyEvents?: EnvKeyEvent[];
+  uiEvents?: string[];
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const svgs: string[] = [];
+  const views: string[] = [];
 
   const wasmPath = new URL(
     "../../target/wasm32-wasip1/release-small/sgleam.wasm",
@@ -189,10 +212,12 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
+    views,
     clock,
     {
       interruptAfter: options.interruptAfter,
       keyEvents: options.keyEvents,
+      uiEvents: options.uiEvents,
     },
   );
 
@@ -203,7 +228,7 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   exports = instance.exports as unknown as WasmExports;
 
-  return { exports, stdout, stderr, svgs };
+  return { exports, stdout, stderr, svgs, views };
 }
 
 // --- Helper ---
@@ -229,10 +254,17 @@ async function newRepl(
 function run(
   ctx: ReplContext,
   input: string,
-): { result: number; stdout: string; stderr: string; svgs: string[] } {
+): {
+  result: number;
+  stdout: string;
+  stderr: string;
+  svgs: string[];
+  views: string[];
+} {
   ctx.stdout.length = 0;
   ctx.stderr.length = 0;
   ctx.svgs.length = 0;
+  ctx.views.length = 0;
   const [ptr, len] = encodeString(ctx.exports, input);
   const result = ctx.exports.repl_run(ctx.repl, ptr, len);
   ctx.exports.string_deallocate(ptr, len);
@@ -241,6 +273,7 @@ function run(
     stdout: ctx.stdout.join(""),
     stderr: ctx.stderr.join(""),
     svgs: [...ctx.svgs],
+    views: [...ctx.views],
   };
 }
 
@@ -736,4 +769,143 @@ Deno.test("pub on a line of its own", async () => {
     assertEquals(r.stdout.length > 0, true, `${input} produced nothing`);
     destroy(ctx);
   }
+});
+
+// --- Graphical interface ---
+
+const COUNTER = `import gleam/int
+import sgleam/ui/app
+import sgleam/ui/button
+import sgleam/ui/element.{type Element}
+import sgleam/ui/layout
+import sgleam/ui/text
+
+pub type Msg {
+  Inc
+}
+
+pub fn view(count: Int) -> Element(Msg) {
+  layout.row([
+    button.new("+") |> button.on_press(Inc) |> button.done,
+    text.new(int.to_string(count)) |> text.done,
+  ])
+  |> layout.done
+}
+
+pub fn update(count: Int, msg: Msg) -> Int {
+  case msg {
+    Inc -> count + 1
+  }
+}
+
+pub fn main() {
+  app.create(fn() { 0 }, view, update)
+  |> app.run
+}`;
+
+// The loop drains until the queue is empty, so the empty queue is on the path
+// of every interaction and not an edge of it.
+Deno.test("a gui loop drains the queue to the end", async () => {
+  const ctx = await newRepl(COUNTER, {
+    uiEvents: ['{"kind":"ui","h":0,"e":"click"}'],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.stderr, "", `unexpected stderr: ${r.stderr}`);
+  assertEquals(r.result, REPL_OK);
+  assertEquals(r.views.length, 2, "expected the frame before and after");
+  assertMatch(r.views[1], /<span>1<\/span>/);
+  destroy(ctx);
+});
+
+Deno.test("a gui event larger than the first buffer arrives whole", async () => {
+  const ctx = await newRepl(COUNTER, {
+    uiEvents: [
+      `{"kind":"ui","h":0,"e":"click","padding":"${"x".repeat(600)}"}`,
+    ],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.stderr, "", `unexpected stderr: ${r.stderr}`);
+  assertMatch(r.views[1], /<span>1<\/span>/);
+  destroy(ctx);
+});
+
+const FORM = `import sgleam/ui/app
+import sgleam/ui/checkbox
+import sgleam/ui/element.{type Element}
+import sgleam/ui/layout
+import sgleam/ui/picker
+import sgleam/ui/text
+import sgleam/ui/text_input
+
+pub type Form {
+  Form(name: String, done: Bool, pick: String)
+}
+
+pub type Msg {
+  SetName(String)
+  Submit(String)
+  SetDone(Bool)
+  Pick(String)
+}
+
+pub fn view(form: Form) -> Element(Msg) {
+  layout.column([
+    text_input.new(form.name)
+      |> text_input.on_input(SetName)
+      |> text_input.on_submit(Submit)
+      |> text_input.done,
+    checkbox.new(form.done) |> checkbox.on_change(SetDone) |> checkbox.done,
+    picker.new([picker.choice("A", "a"), picker.choice("B", "b")])
+      |> picker.selected(form.pick)
+      |> picker.on_select(Pick)
+      |> picker.done,
+    text.new(form.name <> " " <> pick_of(form)) |> text.done,
+  ])
+  |> layout.done
+}
+
+fn pick_of(form: Form) -> String {
+  case form.done {
+    True -> "done:" <> form.pick
+    False -> "open:" <> form.pick
+  }
+}
+
+pub fn update(form: Form, msg: Msg) -> Form {
+  case msg {
+    SetName(name) -> Form(..form, name: name)
+    Submit(name) -> Form(..form, name: name <> "!")
+    SetDone(done) -> Form(..form, done: done)
+    Pick(pick) -> Form(..form, pick: pick)
+  }
+}
+
+pub fn main() {
+  app.create(fn() { Form("", False, "a") }, view, update)
+  |> app.run
+}`;
+
+// The names in the attributes are the host's, not the library's. The submit
+// says "ana" where the last input said "an", so the text the program ends with
+// is the submit's own and not the model's.
+Deno.test("a frame is written in the host's names for its events", async () => {
+  const ctx = await newRepl(FORM, {
+    uiEvents: [
+      '{"kind":"ui","h":0,"e":"input","value":"an"}',
+      '{"kind":"ui","h":1,"e":"submit","value":"ana"}',
+      '{"kind":"ui","h":2,"e":"check","checked":true}',
+      '{"kind":"ui","h":3,"e":"select","value":"b"}',
+    ],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.stderr, "", `unexpected stderr: ${r.stderr}`);
+  assertEquals(r.result, REPL_OK);
+  assertMatch(
+    r.views[0],
+    /<input value="" data-on-input="0" data-on-submit="1">/,
+  );
+  assertMatch(r.views[0], /data-on-check="2"/);
+  assertMatch(r.views[0], /data-on-select="3"/);
+  assertMatch(r.views[1], /<span>ana! done:b<\/span>/);
+  destroy(ctx);
 });
