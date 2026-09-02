@@ -262,7 +262,7 @@
 		<itemData name="Crash" defStyleNum="dsControlFlow" />
 		<!-- Names -->
 		<itemData name="Attribute" defStyleNum="dsAttribute" />
-		<itemData name="Module" defStyleNum="dsImport" />
+		<itemData name="Module" defStyleNum="dsNormal" />
 		<itemData name="Function" defStyleNum="dsFunction" />
 		<itemData name="Type" defStyleNum="dsDataType" />
 		<!-- Numbers -->
