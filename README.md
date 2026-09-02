@@ -1,64 +1,52 @@
 # sgleam
 
-A student-friendly Gleam environment with an interactive REPL, image support,
-and interactive programs, designed for teaching functional programming.
+sgleam is a version of [Gleam](https://gleam.run/) for students. It has a
+REPL, runs a single `.gleam` file without a project, and comes with libraries
+for drawing images and writing interactive programs, in the spirit of
+[HtDP](https://htdp.org/).
 
-sgleam is built on [Gleam](https://gleam.run/) for compilation and
-[QuickJS](https://bellard.org/quickjs/) (via
-[rquickjs](https://github.com/aspect-build/rquickjs)) for execution. A similar
-project for Python is [spython](https://github.com/malbarbo/spython).
+You can try it in the browser at <https://malbarbo.pro.br/sgleam/>. The web
+version has an editor, the REPL, and shows images and interactive programs
+inline.
 
-## Features
+sgleam uses the Gleam compiler and runs the generated JavaScript on
+[QuickJS](https://bellard.org/quickjs/), through
+[rquickjs](https://github.com/aspect-build/rquickjs). There is a similar
+project for Python, [spython](https://github.com/malbarbo/spython).
 
-- **Gleam stdlib included** — 18 standard library modules available
-  out-of-the-box, no project setup required
-- **Scripting** — run single `.gleam` files directly, without creating a
-  Gleam project. Use `smain` to read from stdin, making sgleam suitable for
-  solving [Advent of Code](https://adventofcode.com/) challenges and other
-  scripting tasks
-- **Interactive REPL** — auto-indent, tab completion, multiline editing
-- **BigInt / Number modes** — BigInt (default) for arbitrary-precision
-  integers, or Number mode (`-n`) for better performance
-- **Image library** — built-in SVG-based graphics library for teaching,
-  inspired by [HtDP](https://htdp.org/) image teachpacks
-- **Interactive programs** — `world` library for animations and
-  keyboard-driven programs
-- **Testing** — `check` library for example-based testing
-- **WASM support** — runs in the browser via a WASM build
+## Install
 
-## Build
+Download the archive for your system from the
+[releases page](https://github.com/malbarbo/sgleam/releases), extract it, and
+put the `sgleam` binary somewhere on your `PATH`. That is all. The Gleam
+standard library ships inside the binary.
 
-Requires Rust (stable). Dependencies are fetched automatically.
+To build from source you need stable Rust:
 
-```bash
-cargo build                # debug build
-cargo build --release      # optimized build
+```sh
+cargo build --release
 ```
 
-## Usage
+## Use
 
-```bash
-# Start the REPL
-sgleam
+`sgleam` with no arguments starts the REPL. It highlights the code as you type,
+completes names with tab, and keeps reading when an expression is not finished.
 
-# Run a script
-sgleam file.gleam
+To run a program, give it the file:
 
-# Run with Number mode (instead of BigInt)
-sgleam -n file.gleam
+```sh
+sgleam hello.gleam
 ```
 
-### Scripting with `smain`
-
-sgleam can run single `.gleam` files without a project. Define a `smain`
-function to read input from stdin:
+sgleam calls the `main` function of the file. A program that reads from stdin
+defines `smain` instead, and gets the input as one `String` or as a
+`List(String)` of lines:
 
 ```gleam
 import gleam/io
 import gleam/list
 import gleam/string
 
-/// Reads lines from stdin and prints them reversed
 pub fn smain(lines: List(String)) {
   lines
   |> list.map(string.reverse)
@@ -66,62 +54,82 @@ pub fn smain(lines: List(String)) {
 }
 ```
 
-```bash
-echo -e "hello\nworld" | sgleam file.gleam
-# olleh
-# dlrow
+```sh
+$ printf 'hello\nworld\n' | sgleam reverse.gleam
+olleh
+dlrow
 ```
 
-The `smain` function accepts three signatures:
+Integers have arbitrary precision. The `-n` flag uses JavaScript numbers
+instead, which is faster.
 
-- `fn smain() -> a` — no input
-- `fn smain(input: String) -> a` — all stdin as a single string
-- `fn smain(lines: List(String)) -> a` — stdin split into lines
-
-## Image Library
-
-sgleam includes a built-in image library for teaching graphics programming,
-inspired by the [HtDP](https://htdp.org/) image teachpacks. Images are
-rendered as SVG.
+Tests are functions whose names end in `_examples`. They state what a function
+returns for a few inputs, with the `sgleam/check` module, and `sgleam test`
+runs them:
 
 ```gleam
-import sgleam/image.{circle, overlay, rectangle, to_svg}
-import sgleam/fill
-import sgleam/stroke
+import sgleam/check
 
-let img = overlay(circle(30, stroke.red), rectangle(80, 50, fill.blue))
+pub fn double(x: Int) -> Int {
+  x * 2
+}
+
+pub fn double_examples() {
+  check.eq(double(0), 0)
+  check.eq(double(3), 6)
+}
 ```
 
-The library provides:
+`sgleam format` formats a file, and `sgleam repl file.gleam` loads the
+definitions of a file into the REPL. `sgleam --help` lists the rest.
 
-- **Shapes** — rectangles, circles, ellipses, triangles (7 constructors),
-  polygons, stars, lines, wedges, bezier curves
-- **Transformations** — rotate, scale, flip, crop
-- **Composition** — overlay, underlay, beside, above (with alignment options)
-- **Scenes** — place images at coordinates, draw lines/polygons/curves
-- **Text and fonts** — text rendering with customizable fonts
-- **Styles** — fill and stroke with color, opacity, width, dash patterns
-- **Colors** — 140+ CSS named colors, `rgb()`, `rgba()`
-- **Animation** — `world` library for interactive programs with keyboard input
+## Images and interactive programs
 
-## Architecture
+The `sgleam/image` module builds a picture out of shapes, places pictures over,
+beside, and above each other, and rotates, scales, and crops them. A picture is
+an SVG.
 
-The workspace has three crates:
+```gleam
+import sgleam/fill
+import sgleam/image
+import sgleam/stroke
 
-- `engine` — shared library (REPL engine, Gleam compiler integration, QuickJS
-  runtime)
-- `cli` — CLI binary with REPL
-- `wasm` — WASM target for browser use
+image.overlay(image.circle(30, stroke.red), image.rectangle(80, 50, fill.blue))
+```
+
+The `sgleam/world` module is for animations and games. A program is a state, a
+function that draws the state, and functions that update the state on each
+tick of the clock or key press:
+
+```gleam
+world.create(initial_state, draw)
+|> world.on_tick(tick)
+|> world.on_key_press(key)
+|> world.run()
+```
+
+Both work best in the web version, which shows the picture as you go. The
+[examples](examples/) directory has a few complete programs.
+
+## Documentation
+
+The guides are in [English](docs/en/) and in
+[Portuguese](docs/pt-br/). There is one for the command line and one for the
+web version, which also covers images and interactive programs.
 
 ## Development
 
-```bash
-make check              # clippy + fmt + deno fmt
-make test               # cargo test + deno test (WASM)
-make test-rs            # cargo test only (faster)
-make wasm               # build WASM binary
+The workspace has three crates. `engine` has the compiler integration, the
+QuickJS runtime, and the REPL. `cli` is the binary, and `wasm` is the build
+for the browser.
+
+```sh
+make check      # clippy, cargo fmt, deno fmt
+make test       # cargo test and the WASM tests
+make test-rs    # cargo test only
+make wasm       # the WASM binary
 ```
 
 ## License
 
-Apache 2.0 — see [LICENSE](LICENSE).
+Apache 2.0. See [LICENSE](LICENSE).
