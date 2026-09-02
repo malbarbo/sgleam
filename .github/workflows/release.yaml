@@ -15,6 +15,9 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     strategy:
+      # One target that fails leaves the others to finish, so a flaky run
+      # still says which targets build.
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-24.04
@@ -86,7 +89,31 @@ jobs:
               ./sgleam --version ;;
           esac
 
-      - name: Upload release archive
+      - name: Hand the archive to the publish job
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: |
+            ${{ env.ASSET }}
+            ${{ env.ASSET }}.sha256
+          if-no-files-found: error
+
+  # The whole matrix publishes through this one job. A release step inside the
+  # matrix has every job create the draft at once, and the tag ends up with a
+  # draft per job and the archives split among them.
+  publish:
+    name: Publish the draft release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Collect every archive
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Upload release archives
         # https://github.com/softprops/action-gh-release/issues/445
         # uses: softprops/action-gh-release@v2
         uses: softprops/action-gh-release@0bd7e8b279c9b5b36661d552472fbbfe671fe26e
@@ -94,6 +121,4 @@ jobs:
           draft: true
           prerelease: false
           fail_on_unmatched_files: true
-          files: |
-            ${{ env.ASSET }}
-            ${{ env.ASSET }}.sha256
+          files: dist/*
