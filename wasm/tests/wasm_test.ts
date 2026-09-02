@@ -53,7 +53,9 @@ function readCstr(exports: WasmExports, ptr: number): string {
 
 // --- Mock env ---
 
+const KEYPRESS = 0;
 const KEYDOWN = 1;
+const KEYUP = 2;
 const KEYNONE = 3;
 
 interface EnvKeyEvent {
@@ -303,6 +305,112 @@ pub fn move(p: Pos, key: world.Key) -> Pos {
 }
 `;
 
+// A world with a handler for every kind of key event but keydown. What it
+// prints says which handler ran, and for which key.
+const KEY_HANDLERS = `import gleam/io
+import gleam/string
+import sgleam/image
+import sgleam/stroke
+import sgleam/world
+
+pub fn main() {
+  world.create(0, draw)
+  |> world.on_key_press(handler("press"))
+  |> world.on_key_up(handler("up"))
+  |> world.stop_when(fn(handled) { handled == 2 })
+  |> world.run()
+}
+
+pub fn draw(_handled: Int) -> image.Image {
+  image.circle(20, stroke.red)
+}
+
+fn handler(name: String) -> fn(Int, world.Key) -> Int {
+  fn(handled, key) {
+    io.println(name <> " " <> string.inspect(key))
+    handled + 1
+  }
+}
+`;
+
+// Every name `world` knows, in the order it lists them.
+const KEY_NAMES = [
+  "ArrowLeft",
+  "ArrowRight",
+  "ArrowUp",
+  "ArrowDown",
+  "PageUp",
+  "PageDown",
+  "Home",
+  "End",
+  "Backspace",
+  "Tab",
+  "Enter",
+  "Escape",
+  "Delete",
+  "Insert",
+  "F1",
+  "F2",
+  "F3",
+  "F4",
+  "F5",
+  "F6",
+  "F7",
+  "F8",
+  "F9",
+  "F10",
+  "F11",
+  "F12",
+  "CapsLock",
+  "NumLock",
+  "ScrollLock",
+  "PrintScreen",
+  "Pause",
+  "Shift",
+  "Control",
+  "Alt",
+  "Meta",
+];
+
+// A world that prints the key of every keydown it is given, and stops once it
+// has seen `count` of them.
+function keyNamesProgram(count: number): string {
+  return `import gleam/io
+import gleam/string
+import sgleam/image
+import sgleam/stroke
+import sgleam/world
+
+pub fn main() {
+  world.create(0, draw)
+  |> world.on_key_down(fn(seen, key) {
+    io.println(string.inspect(key))
+    seen + 1
+  })
+  |> world.stop_when(fn(seen) { seen == ${count} })
+  |> world.run()
+}
+
+pub fn draw(_seen: Int) -> image.Image {
+  image.circle(20, stroke.red)
+}
+`;
+}
+
+const ANIMATE = `import gleam/int
+import gleam/io
+import sgleam/image
+import sgleam/stroke
+import sgleam/world
+
+pub fn main() {
+  world.animate(fn(frame) {
+    io.println("frame " <> int.to_string(frame))
+    image.circle(10 + frame, stroke.red)
+  })
+}
+`;
+
 // --- Tests ---
 
 Deno.test("version returns non-empty string", async () => {
@@ -505,6 +613,54 @@ Deno.test("world.run does not crash (sleep regression)", async () => {
   const r = run(ctx, "main()");
   assertEquals(r.svgs.length > 0, true, "expected SVG frames from world.run");
   // check_interrupt fires here, so stderr says "Interrupted."
+  destroy(ctx);
+});
+
+// The events a handler is not for go by untouched: this world has no
+// on_key_down, so the keydown it is given reaches none of its handlers.
+Deno.test("on_key_press and on_key_up take their own events", async () => {
+  const ctx = await newRepl(KEY_HANDLERS, {
+    interruptAfter: 200_000,
+    keyEvents: [
+      { type: KEYDOWN, key: "ArrowLeft" },
+      { type: KEYPRESS, key: "a" },
+      { type: KEYUP, key: "Enter" },
+    ],
+  });
+  const r = run(ctx, "main()");
+  // The last line is the repl echoing what main() gave back.
+  assertEquals(r.stdout, 'press Char("a")\nup Enter\nNil\n');
+  // The first state, one per handled event, and the one stop_when draws.
+  assertEquals(r.svgs.length, 4, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("every key name decodes to its Key", async () => {
+  const keys = [...KEY_NAMES, "a"];
+  const ctx = await newRepl(keyNamesProgram(keys.length), {
+    interruptAfter: 200_000,
+    keyEvents: keys.map((key) => ({ type: KEYDOWN, key })),
+  });
+  const r = run(ctx, "main()");
+  const expected = [...KEY_NAMES, 'Char("a")', "Nil"]
+    .map((k) => `${k}\n`)
+    .join("");
+  assertEquals(r.stdout, expected, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+// animate has no stop of its own: it draws until it is interrupted.
+Deno.test("animate draws a frame per number", async () => {
+  const ctx = await newRepl(ANIMATE, { interruptAfter: 20 });
+  const r = run(ctx, "main()");
+  assertEquals(
+    r.stdout.startsWith("frame 0\nframe 1\nframe 2\n"),
+    true,
+    `stdout:\n${r.stdout}`,
+  );
+  assertEquals(r.svgs.length >= 3, true, `got ${r.svgs.length} frames`);
+  // The frame is what the image is drawn from, so no two frames are alike.
+  assertEquals(r.svgs[0] !== r.svgs[1], true, "expected the frames to differ");
   destroy(ctx);
 });
 

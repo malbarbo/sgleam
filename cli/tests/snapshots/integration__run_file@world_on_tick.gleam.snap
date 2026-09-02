@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Image
+tick 1
+Image
+tick 2
+Image
+tick 3
+Image
+Image
+STDERR
