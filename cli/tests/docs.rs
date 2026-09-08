@@ -77,8 +77,16 @@ fn matches(actual: &str, expected: &str) -> bool {
     rest.is_empty() || expected.ends_with(&format!("\n{ELISION}\n"))
 }
 
+/// The binary under test. A FORCE_COLOR the machine running the tests set for
+/// something else would put escape codes in every snapshot here, so it goes.
+fn sgleam() -> assert_cmd::Command {
+    let mut command = assert_cmd::cargo::cargo_bin_cmd!();
+    command.env_remove("FORCE_COLOR");
+    command
+}
+
 fn run_repl(dir: &Path, file: Option<&str>, input: &str) -> (String, String) {
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    let mut cmd = sgleam();
     cmd.current_dir(dir).args(["repl", "-q"]);
     if let Some(file) = file {
         cmd.arg(file);

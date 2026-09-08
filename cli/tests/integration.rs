@@ -5,12 +5,20 @@
 
 use insta::{Settings, assert_snapshot};
 
+/// The binary under test. A FORCE_COLOR the machine running the tests set for
+/// something else would put escape codes in every snapshot here, so it goes.
+fn sgleam() -> assert_cmd::Command {
+    let mut command = assert_cmd::cargo::cargo_bin_cmd!();
+    command.env_remove("FORCE_COLOR");
+    command
+}
+
 /// The binary is run from the directory of the file it is given, and given only
 /// its name — so a path in a diagnostic is the one a user of that file sees,
 /// and says nothing of where these tests keep it.
 fn output_of(command: &str, file: &str) -> (String, String) {
     let (dir, name) = file.rsplit_once('/').expect("a file in a directory");
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
+    let out = sgleam()
         .current_dir(format!("{}/{dir}", env!("CARGO_MANIFEST_DIR")))
         .args([command, name])
         .output()

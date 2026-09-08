@@ -2,6 +2,14 @@ use engine::shell::welcome_message;
 use indoc::{formatdoc, indoc};
 use insta::assert_snapshot;
 
+/// The binary under test. A FORCE_COLOR the machine running the tests set for
+/// something else would put escape codes in every snapshot here, so it goes.
+fn sgleam() -> assert_cmd::Command {
+    let mut command = assert_cmd::cargo::cargo_bin_cmd!();
+    command.env_remove("FORCE_COLOR");
+    command
+}
+
 /// Strip the random 8-hex suffix from internal REPL names so snapshot tests
 /// are deterministic.
 fn strip_repl_suffix(s: &str) -> String {
@@ -2172,7 +2180,7 @@ fn format_check_fails_over_a_directory() {
 #[test]
 fn format_a_file_outside_the_current_directory() {
     let (dir, _) = run_in_new_dir(&[("a.gleam", UNFORMATTED), ("sub/b.gleam", "")], &[], None);
-    let out = assert_cmd::cargo::cargo_bin_cmd!()
+    let out = sgleam()
         .current_dir(dir.path().join("sub"))
         .args(["format", "../a.gleam"])
         .output()
@@ -2296,9 +2304,8 @@ fn stderr_of_a_broken_module(env: &[(&str, &str)]) -> Vec<u8> {
     )
     .expect("write the module");
 
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    let mut cmd = sgleam();
     cmd.current_dir(dir.path())
-        .env_remove("FORCE_COLOR")
         .env_remove("NO_COLOR")
         .args(["run", "broken.gleam"]);
     for (name, value) in env {
@@ -2350,7 +2357,7 @@ fn examples_compile() {
     for entry in std::fs::read_dir(&examples_dir).expect("read examples dir") {
         let path = entry.expect("read entry").path();
         if path.extension().and_then(|e| e.to_str()) == Some("gleam") {
-            let output = assert_cmd::cargo::cargo_bin_cmd!()
+            let output = sgleam()
                 .current_dir(&project_root)
                 .args(["check", path.to_str().expect("a utf8 path")])
                 .output()
@@ -2439,10 +2446,7 @@ fn check_location_is_relative_to_the_test() {
 #[test]
 fn failing_tests_exit_with_nonzero() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/check_eq.gleam");
-    let output = assert_cmd::cargo::cargo_bin_cmd!()
-        .args(["test", input])
-        .output()
-        .expect("run sgleam");
+    let output = sgleam().args(["test", input]).output().expect("run sgleam");
     assert!(
         !output.status.success(),
         "expected non-zero exit code for a failed check"
@@ -2476,10 +2480,7 @@ fn runtime_error_exits_with_nonzero() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/runtime_panic.gleam"
     );
-    let output = assert_cmd::cargo::cargo_bin_cmd!()
-        .args(["run", input])
-        .output()
-        .expect("run sgleam");
+    let output = sgleam().args(["run", input]).output().expect("run sgleam");
     assert!(
         !output.status.success(),
         "expected non-zero exit code for runtime error"
@@ -2490,7 +2491,7 @@ fn runtime_error_exits_with_nonzero() {
 #[test]
 fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-    assert_cmd::cargo::cargo_bin_cmd!()
+    sgleam()
         .current_dir(&root)
         .args(["repl", "-q", "cli/tests/images/world1.gleam"])
         .write_stdin("main()\n")
@@ -2501,7 +2502,7 @@ fn world_run_in_repl_bigint() {
 #[test]
 fn world_run_in_repl_number() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
-    assert_cmd::cargo::cargo_bin_cmd!()
+    sgleam()
         .current_dir(&root)
         .args(["repl", "-n", "-q", "cli/tests/images/world1.gleam"])
         .write_stdin("main()\n")
@@ -2531,7 +2532,7 @@ fn run_in_new_dir(
         }
         std::fs::write(path, source).expect("write the module");
     }
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    let mut cmd = sgleam();
     cmd.current_dir(dir.path()).args(args);
     if let Some(input) = input {
         cmd.write_stdin(input.to_string());
@@ -2546,7 +2547,7 @@ fn out_in_dir(files: &[(&str, &str)], args: &[&str], input: Option<&str>) -> Str
 }
 
 fn run_native(args: &[&str], input: Option<&str>) -> (String, String) {
-    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    let mut cmd = sgleam();
     cmd.args(args);
     if let Some(input) = input {
         cmd.write_stdin(format!("{input}\n"));
