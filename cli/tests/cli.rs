@@ -2285,29 +2285,59 @@ fn run_sgleam_cmd_stdout(args: &[&str], input: Option<&str>) -> String {
     run_sgleam_cmd(args, input).0
 }
 
+/// What sgleam says about a module that does not compile, with `env` set.
+/// The module names an unknown variable, so the answer carries a span, which
+/// is what write_span() and codespan_reporting colour.
+fn stderr_of_a_broken_module(env: &[(&str, &str)]) -> Vec<u8> {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        dir.path().join("broken.gleam"),
+        "pub fn main() { unknown_variable }\n",
+    )
+    .expect("write the module");
+
+    let mut cmd = assert_cmd::cargo::cargo_bin_cmd!();
+    cmd.current_dir(dir.path())
+        .env_remove("FORCE_COLOR")
+        .env_remove("NO_COLOR")
+        .args(["run", "broken.gleam"]);
+    for (name, value) in env {
+        cmd.env(name, value);
+    }
+    cmd.output().expect("run sgleam").stderr
+}
+
 #[test]
 fn error_output_has_ansi_colors() {
-    // Use a file within the current directory to trigger a compile error with source location.
-    // This exercises write_span() → codespan_reporting, which must emit ANSI codes.
-    let file = std::env::current_dir()
-        .expect("the current directory")
-        .join("tests/inputs/unknown_variable.gleam");
-    std::fs::write(&file, "pub fn main() { unknown_variable }\n").expect("write the module");
-
-    let output = assert_cmd::Command::cargo_bin(env!("CARGO_PKG_NAME"))
-        .expect("cargo bin")
-        .env("FORCE_COLOR", "1")
-        .arg("run")
-        .arg(&file)
-        .output()
-        .expect("run sgleam");
-
-    let _ = std::fs::remove_file(&file);
-
+    let err = stderr_of_a_broken_module(&[("FORCE_COLOR", "1")]);
     assert!(
-        output.stderr.contains(&0x1b),
+        err.contains(&0x1b),
         "expected ANSI escape codes in stderr, got: {:?}",
-        String::from_utf8_lossy(&output.stderr)
+        String::from_utf8_lossy(&err)
+    );
+}
+
+#[test]
+fn no_color_keeps_the_codes_out_of_a_diagnostic() {
+    let err = stderr_of_a_broken_module(&[("FORCE_COLOR", "1"), ("NO_COLOR", "1")]);
+    let text = String::from_utf8_lossy(&err);
+    assert!(
+        !err.contains(&0x1b),
+        "expected no escape codes, got: {text}"
+    );
+    assert!(
+        text.contains("Unknown variable"),
+        "expected the diagnostic, got: {text}"
+    );
+}
+
+#[test]
+fn an_empty_no_color_asks_for_nothing() {
+    let err = stderr_of_a_broken_module(&[("FORCE_COLOR", "1"), ("NO_COLOR", "")]);
+    assert!(
+        err.contains(&0x1b),
+        "expected ANSI escape codes in stderr, got: {:?}",
+        String::from_utf8_lossy(&err)
     );
 }
 

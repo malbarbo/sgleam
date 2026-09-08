@@ -37,6 +37,10 @@ change is more than one, and it becomes more than one commit.
   source file.
 - Nothing the user reads names a path inside the source root. A diagnostic,
   an `echo`, and a runtime error all say the path the user gave.
+- Colour is decided by `color_stderr` and `color_stdout` in
+  `engine/src/error.rs`, and nowhere else. A non-empty `NO_COLOR` keeps the
+  escape codes out of both streams, as <https://no-color.org> asks, and a
+  non-empty `FORCE_COLOR` asks for them where no terminal is watching.
 - `gleam-core` and `rustyline` come from forks under `malbarbo/`. Prefer a
   change in `engine` or `cli` to a change in a fork.
 

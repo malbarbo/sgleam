@@ -181,17 +181,41 @@ fn flush_buffer(buffer_writer: &BufferWriter, buffer: &termcolor::Buffer) {
 }
 
 pub fn stderr_buffer_writer() -> BufferWriter {
-    BufferWriter::stderr(color_choice())
-}
-
-fn color_choice() -> ColorChoice {
-    if colour_forced() || std::io::stderr().is_terminal() {
+    BufferWriter::stderr(if color_stderr() {
         ColorChoice::Always
     } else {
         ColorChoice::Never
-    }
+    })
 }
 
-fn colour_forced() -> bool {
-    std::env::var("FORCE_COLOR").is_ok_and(|v| !v.is_empty())
+/// Whether what goes to stderr takes colour, which a diagnostic asks before
+/// it is written.
+pub fn color_stderr() -> bool {
+    use_color(std::io::stderr().is_terminal())
+}
+
+/// Whether what goes to stdout takes colour, which the reader asks before it
+/// highlights what the student is typing.
+pub fn color_stdout() -> bool {
+    use_color(std::io::stdout().is_terminal())
+}
+
+/// The one rule, for a stream that is or is not a terminal. A terminal wants
+/// colour, and a redirected stream keeps the codes out of the file it is
+/// being read into.
+///
+/// `NO_COLOR` with anything in it keeps them out of every stream, as
+/// <https://no-color.org> asks, and it wins over `FORCE_COLOR`: the spec
+/// gives way to an option written on the command line, and neither of these
+/// is one. `FORCE_COLOR` asks for colour where no terminal is watching, which
+/// is how a test reads what a student sees.
+fn use_color(is_terminal: bool) -> bool {
+    !env_is_set("NO_COLOR") && (env_is_set("FORCE_COLOR") || is_terminal)
+}
+
+/// Whether the environment holds `name` with something in it. An empty value
+/// is not an answer: no-color.org says so of `NO_COLOR`, and `FORCE_COLOR`
+/// reads the same way here.
+fn env_is_set(name: &str) -> bool {
+    std::env::var_os(name).is_some_and(|value| !value.is_empty())
 }

@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::io::IsTerminal;
 use std::path::PathBuf;
 
 use engine::input::complete;
@@ -29,7 +28,7 @@ impl ReplReader {
             .build();
         let mut editor = Editor::with_config(config)?;
 
-        let color = std::io::stdout().is_terminal() && std::env::var_os("NO_COLOR").is_none();
+        let color = engine::error::color_stdout();
 
         editor.set_helper(Some(InputHelper {
             validator: CompleteInputValidator::default(),
