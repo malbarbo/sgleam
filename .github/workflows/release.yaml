@@ -50,6 +50,10 @@ jobs:
           # the version of the crate and does not publish them.
           CRATE="v$(sed -n 's/^version = "\([^"]*\)".*/\1/p' cli/Cargo.toml)"
           if [ "$GITHUB_REF_TYPE" = tag ]; then
+            if [ "$GITHUB_REF_NAME" != "$CRATE" ]; then
+              echo "::error::The tag $GITHUB_REF_NAME differs from the version $CRATE of cli/Cargo.toml"
+              exit 1
+            fi
             VERSION="$GITHUB_REF_NAME"
           else
             VERSION="$CRATE"
