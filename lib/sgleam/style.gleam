@@ -28,6 +28,19 @@ pub fn join(style: List(Style)) -> Style {
 
 pub const none = Style([])
 
+/// `style` for a shape scaled by `factor`. A stroke with no width of its
+/// own stays one pixel wide, as an outline does in 2htdp.
+pub fn scale(style: Style, factor: Float) -> Style {
+  style.attributes
+  |> list.map(fn(a) {
+    case a {
+      StrokeWidth(v) -> StrokeWidth(v *. factor)
+      _ -> a
+    }
+  })
+  |> Style
+}
+
 pub fn fill(c: Color) -> Style {
   Style([Fill(c)])
 }

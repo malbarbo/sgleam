@@ -1,0 +1,15 @@
+---
+source: cli/tests/integration.rs
+---
+<svg width="240.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
+  <g>
+    <g>
+      <path d="M 0.0 30.0 L 20.0 30.0 L 20.0 50.0 L 0.0 50.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+      <path d="M 20.0 10.0 L 80.0 10.0 L 80.0 70.0 L 20.0 70.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+    </g>
+    <g>
+      <path d="M 80.0 30.0 L 160.0 30.0 L 160.0 50.0 L 80.0 50.0 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-width="5.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+      <path d="M 160.5 0.5 L 240.5 0.5 L 240.5 80.5 L 160.5 80.5 Z" fill="none" stroke="rgba(0, 0, 0, 1.0)" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+    </g>
+  </g>
+</svg>
