@@ -19,6 +19,18 @@ pub fn main() {
     create_tar(&outdir, "gleam-stdlib.tar", "sgleam-stdlib-1.0.5");
 }
 
+/// Returns `true` if the clone at `repo` already has `revision`, `false`
+/// otherwise. A clone that has it needs no pull, and so no network.
+fn has_revision(repo: &Path, revision: &str) -> bool {
+    Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["rev-parse", "--verify", "--quiet"])
+        .arg(format!("{revision}^{{commit}}"))
+        .output()
+        .is_ok_and(|o| o.status.success())
+}
+
 fn create_tar(outdir: &Path, name: &str, hash: &str) {
     let stdlib = &outdir.join("gleam-stdlib");
     let tar = outdir.join(name);
@@ -33,7 +45,7 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
                 .unwrap()
                 .success()
         );
-    } else {
+    } else if !has_revision(stdlib, hash) {
         env::set_current_dir(stdlib).unwrap();
         assert!(
             Command::new("git")
