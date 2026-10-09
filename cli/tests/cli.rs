@@ -2712,3 +2712,11 @@ fn normalize_durations(s: &str) -> String {
 fn run_sgleam_cmd_native_only(args: &[&str], input: Option<&str>) -> (String, String) {
     run_native(args, input)
 }
+
+#[test]
+fn help_names_the_program_in_its_usage() {
+    let output = sgleam().arg("help").output().expect("run sgleam");
+    let out = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "got: {out}");
+    assert!(out.contains("Usage: sgleam "), "got: {out}");
+}

@@ -157,7 +157,7 @@ fn run() -> Result<(), SgleamError> {
 
     match command {
         Command::Help => {
-            if let Err(err) = cli().run_inner(bpaf::Args::from(&["--help"])) {
+            if let Err(err) = cli().run_inner(bpaf::Args::from(&["--help"]).set_name("sgleam")) {
                 err.print_message(80);
             }
             Ok(())
