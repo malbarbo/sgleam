@@ -724,9 +724,41 @@ fn cmd_scale(cmd: PathCmd, x_factor: Float, y_factor: Float) -> PathCmd {
     LineTo(p) -> LineTo(sp(p))
     QuadTo(c, e) -> QuadTo(sp(c), sp(e))
     CubicTo(c1, c2, e) -> CubicTo(sp(c1), sp(c2), sp(e))
-    ArcTo(rx, ry, rot, la, sw, e) ->
-      ArcTo(rx *. x_factor, ry *. y_factor, rot, la, sw, sp(e))
+    ArcTo(rx, ry, rot, la, sw, e) -> {
+      let #(rx, ry, rot) = arc_scale(rx, ry, rot, x_factor, y_factor)
+      ArcTo(rx, ry, rot, la, sw, sp(e))
+    }
   }
+}
+
+fn arc_scale(
+  rx: Float,
+  ry: Float,
+  rotation: Float,
+  x_factor: Float,
+  y_factor: Float,
+) -> #(Float, Float, Float) {
+  // A rotated ellipse scaled along x and y is an ellipse with other axes.
+  // The axes are the eigenvectors of A = M M^T, where M takes the unit
+  // circle to the scaled ellipse.
+  let ux = rx *. cos_deg(rotation) *. x_factor
+  let uy = rx *. sin_deg(rotation) *. y_factor
+  let vx = 0.0 -. ry *. sin_deg(rotation) *. x_factor
+  let vy = ry *. cos_deg(rotation) *. y_factor
+  let a = ux *. ux +. vx *. vx
+  let b = ux *. uy +. vx *. vy
+  let d = uy *. uy +. vy *. vy
+  let new_rotation = 0.5 *. atan2(2.0 *. b, a -. d) *. 180.0 /. pi
+  // Of the four axis directions, take the one closest to the old rotation,
+  // so an arc that is not rotated stays that way.
+  let turns = float.round({ rotation -. new_rotation } /. 90.0)
+  let new_rotation = new_rotation +. 90.0 *. int.to_float(turns)
+  let radius = fn(angle) {
+    let c = cos_deg(angle)
+    let s = sin_deg(angle)
+    sqrt(float.max(a *. c *. c +. 2.0 *. b *. s *. c +. d *. s *. s, 0.0))
+  }
+  #(radius(new_rotation), radius(new_rotation +. 90.0), new_rotation)
 }
 
 fn cmd_flip(cmd: PathCmd, pf: fn(Pointf) -> Pointf) -> PathCmd {
