@@ -1508,7 +1508,8 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
   let y_factor = positive(y_factor)
   case img {
     // The path takes the scale point by point, but its stroke has one
-    // width, so the width takes the mean of the two factors, as in 2htdp.
+    // width and one dash, so they take the mean of the two factors, as the
+    // width does in 2htdp.
     Path(style:, commands:, closed:) ->
       Path(
         style.scale(style, { x_factor +. y_factor } /. 2.0),

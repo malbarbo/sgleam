@@ -17,7 +17,7 @@ type Attribute {
   StrokeLineJoin(String)
   StrokeWidth(Float)
   StrokeOpacity(Float)
-  StrokeDashArray(List(Int))
+  StrokeDashArray(List(Float))
 }
 
 pub fn join(style: List(Style)) -> Style {
@@ -35,6 +35,8 @@ pub fn scale(style: Style, factor: Float) -> Style {
   |> list.map(fn(a) {
     case a {
       StrokeWidth(v) -> StrokeWidth(v *. factor)
+      StrokeDashArray(values) ->
+        StrokeDashArray(list.map(values, fn(v) { v *. factor }))
       _ -> a
     }
   })
@@ -74,16 +76,18 @@ pub fn stroke_opacityf(opacity: Float) -> Style {
 }
 
 pub fn stroke_dash_array(values: List(Int)) -> Style {
-  Style([StrokeDashArray(list.map(values, int.max(0, _)))])
+  Style([
+    StrokeDashArray(list.map(values, fn(v) { int.to_float(int.max(0, v)) })),
+  ])
 }
 
-pub const stroke_dashed = Style([StrokeDashArray([6, 3])])
+pub const stroke_dashed = Style([StrokeDashArray([6.0, 3.0])])
 
-pub const stroke_dotted = Style([StrokeDashArray([2, 2])])
+pub const stroke_dotted = Style([StrokeDashArray([2.0, 2.0])])
 
-pub const stroke_long_dashed = Style([StrokeDashArray([12, 4])])
+pub const stroke_long_dashed = Style([StrokeDashArray([12.0, 4.0])])
 
-pub const stroke_dash_dot = Style([StrokeDashArray([6, 3, 2, 3])])
+pub const stroke_dash_dot = Style([StrokeDashArray([6.0, 3.0, 2.0, 3.0])])
 
 pub fn to_svg(style: Style) -> String {
   let attrs = case has_outline(style) && !has_fill(style) {
@@ -173,10 +177,7 @@ fn attribute_to_svg(style: Attribute) -> String {
     StrokeLineCap(s) -> attribs("stroke-linecap", s)
     StrokeLineJoin(s) -> attribs("stroke-linejoin", s)
     StrokeDashArray(values) ->
-      attribs(
-        "stroke-dasharray",
-        values |> list.map(int.to_string) |> string.join(", "),
-      )
+      attribs("stroke-dasharray", values |> list.map(fs) |> string.join(", "))
     StrokeOpacity(v) -> attrib("stroke-opacity", v)
     StrokeWidth(v) -> attrib("stroke-width", v)
   }
