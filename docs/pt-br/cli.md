@@ -247,7 +247,7 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 | `sgleam test arquivo` | Executa os testes |
 | `sgleam format [arquivos]` | Formata o código (lê stdin se nenhum arquivo for dado) |
 | `sgleam check arquivo` | Verifica o código (apenas compilação) |
-| `sgleam help` | Exibe ajuda |
+| `sgleam help [comando]` | Exibe a ajuda do programa ou de um comando |
 
 # Opções
 

@@ -2720,3 +2720,23 @@ fn help_names_the_program_in_its_usage() {
     assert!(output.status.success(), "got: {out}");
     assert!(out.contains("Usage: sgleam "), "got: {out}");
 }
+
+#[test]
+fn help_shows_the_help_of_the_command_it_names() {
+    let output = sgleam().args(["help", "run"]).output().expect("run sgleam");
+    assert!(output.status.success());
+    let expected = sgleam()
+        .args(["run", "--help"])
+        .output()
+        .expect("run sgleam");
+    assert_eq!(output.stdout, expected.stdout);
+
+    // A name that is not a command is not a file to run either.
+    let output = sgleam()
+        .args(["help", "nosuch"])
+        .output()
+        .expect("run sgleam");
+    let out = String::from_utf8_lossy(&output.stdout);
+    assert!(output.status.success(), "got: {out}");
+    assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
+}

@@ -85,7 +85,11 @@ enum Command {
     },
     /// Show help information.
     #[bpaf(command)]
-    Help,
+    Help {
+        /// Command to show the help of.
+        #[bpaf(positional("COMMAND"), optional)]
+        command: Option<String>,
+    },
 }
 
 fn cli() -> bpaf::OptionParser<Option<Command>> {
@@ -138,6 +142,13 @@ fn main() {
     }
 }
 
+/// Print what `parser` answers to `args`, which ask it for its help.
+fn show_help<T>(parser: bpaf::OptionParser<T>, args: &[&str]) {
+    if let Err(err) = parser.run_inner(bpaf::Args::from(args).set_name("sgleam")) {
+        err.print_message(80);
+    }
+}
+
 fn run() -> Result<(), SgleamError> {
     let command = cli().run().unwrap_or(Command::Repl {
         number: false,
@@ -156,10 +167,16 @@ fn run() -> Result<(), SgleamError> {
     set_bigint_enabled(!number);
 
     match command {
-        Command::Help => {
-            if let Err(err) = cli().run_inner(bpaf::Args::from(&["--help"]).set_name("sgleam")) {
-                err.print_message(80);
-            }
+        Command::Help { command: None } => {
+            show_help(cli(), &["--help"]);
+            Ok(())
+        }
+        // The commands alone, without the shorthand, so that a name that is
+        // not a command lists the commands and does not run as a file.
+        Command::Help {
+            command: Some(name),
+        } => {
+            show_help(crate::command().to_options(), &[&name, "--help"]);
             Ok(())
         }
         Command::Repl { file, quiet, .. } => {

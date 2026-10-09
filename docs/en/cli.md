@@ -245,7 +245,7 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 | `sgleam test file` | Run tests |
 | `sgleam format [files]` | Format code (reads stdin if no files given) |
 | `sgleam check file` | Check code (compile only) |
-| `sgleam help` | Show help |
+| `sgleam help [command]` | Show help, of the program or of a command |
 
 # Options
 
