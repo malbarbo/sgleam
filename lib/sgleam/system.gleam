@@ -16,6 +16,15 @@ pub fn get_key_event() -> List(String)
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "text_metrics")
 pub fn text_metrics(text: String, font: Font) -> #(Float, Float)
 
-/// Returns #(width, height, data_uri) for a bitmap file.
+/// An image that the engine holds, which a bitmap draws.
+pub type Loaded
+
+/// Returns #(width, height, image) for a bitmap file. A file that does not
+/// load has no size and draws nothing.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")
-pub fn load_bitmap(path: String) -> #(Float, Float, String)
+pub fn load_bitmap(path: String) -> #(Float, Float, Loaded)
+
+/// Returns the image in `data_uri`. A data URI that does not load draws
+/// nothing.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "load_image")
+pub fn load_image(data_uri: String) -> Loaded

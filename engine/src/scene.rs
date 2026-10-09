@@ -7,7 +7,12 @@
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rquickjs::{Ctx, Exception, FromJs, Object, Result, Value, convert::List};
+use rquickjs::class::{JsClass, Readable, Trace, Tracer};
+use rquickjs::function::This;
+use rquickjs::{
+    Class, Constructor, Ctx, Exception, FromJs, Function, JsLifetime, Object, Result, Value,
+    convert::List,
+};
 use sinteract::asset::decode_data_uri;
 use sinteract::renderer::Renderer;
 use sinteract::renderer::svg::SvgRenderer;
@@ -100,17 +105,15 @@ fn walk(image: &Object, region: &Region, runs: &mut Vec<(Region, Vec<Leaf>)>) ->
         "Text" => text(image)?.map(Leaf::Text),
         "Bitmap" => {
             let transform = affine(&image.get("box")?)?;
-            let data_uri: String = image.get("data_uri")?;
-            // A bitmap that did not load has an empty data URI and no size.
-            decode_data_uri(&data_uri)
-                .and_then(|b| Image::load(b).ok())
-                .map(|image| {
-                    Leaf::Bitmap(Bitmap {
-                        image,
-                        transform,
-                        sampling: Sampling::Smooth,
-                    })
+            let loaded: MaybeLoaded = image.get("image")?;
+            loaded.map(|loaded| {
+                let image = loaded.borrow().0.clone();
+                Leaf::Bitmap(Bitmap {
+                    image,
+                    transform,
+                    sampling: Sampling::Smooth,
                 })
+            })
         }
         other => return Err(type_error(image.ctx(), &format!("cannot draw a {other}"))),
     };
@@ -204,6 +207,82 @@ fn intersect(region: &Region, corners: &[(f64, f64); 4]) -> Region {
 /// Twice the signed area of the triangle `p`, `q`, `r`.
 fn cross(p: (f64, f64), q: (f64, f64), r: (f64, f64)) -> f64 {
     (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+}
+
+/// The image of a `Bitmap`, so a frame draws the image with no decode. The
+/// garbage collector of JavaScript frees the image with the last bitmap that
+/// holds it.
+pub struct Loaded(Image);
+
+unsafe impl<'js> JsLifetime<'js> for Loaded {
+    type Changed<'to> = Loaded;
+}
+
+impl<'js> Trace<'js> for Loaded {
+    fn trace<'a>(&self, _tracer: Tracer<'a, 'js>) {}
+}
+
+impl<'js> JsClass<'js> for Loaded {
+    const NAME: &'static str = "Loaded";
+
+    type Mutable = Readable;
+
+    /// The prototype has the `equals` that the `==` of Gleam calls. Two
+    /// images are equal when their files are, as sinteract compares them.
+    /// Without it, `==` would find no field to compare and take any two
+    /// bitmaps as equal.
+    fn prototype(ctx: &Ctx<'js>) -> Result<Option<Object<'js>>> {
+        let proto = Object::new(ctx.clone())?;
+        let equals = |this: This<Class<'js, Loaded>>, other: Value<'js>| {
+            other
+                .as_object()
+                .and_then(Class::<Loaded>::from_object)
+                .is_some_and(|other| this.borrow().0 == other.borrow().0)
+        };
+        proto.set("equals", Function::new(ctx.clone(), equals)?)?;
+        Ok(Some(proto))
+    }
+
+    fn constructor(_ctx: &Ctx<'js>) -> Result<Option<Constructor<'js>>> {
+        Ok(None)
+    }
+}
+
+/// The image of a bitmap, or `None` when it did not load.
+type MaybeLoaded<'js> = Option<Class<'js, Loaded>>;
+
+/// `system.load_bitmap` gives the width and the height of the image file at
+/// `path`, and its image. A file that does not load gives no size and no
+/// image. An image larger than the limit of sinteract shrinks, and the size
+/// stays the one of the original.
+pub fn load_bitmap<'js>(ctx: Ctx<'js>, path: String) -> Result<List<(f64, f64, MaybeLoaded<'js>)>> {
+    let Some(blob) = crate::host::load_bitmap(&path) else {
+        return Ok(List((0.0, 0.0, None)));
+    };
+    match Image::load_with_head(blob) {
+        Ok((image, head)) if head.width > 0 && head.height > 0 => Ok(List((
+            f64::from(head.width),
+            f64::from(head.height),
+            Some(Class::instance(ctx, Loaded(image))?),
+        ))),
+        Ok(_) => {
+            eprintln!("Error: {path} has no pixels");
+            Ok(List((0.0, 0.0, None)))
+        }
+        Err(err) => {
+            eprintln!("Error reading {path}: {err}");
+            Ok(List((0.0, 0.0, None)))
+        }
+    }
+}
+
+/// `system.load_image` gives the image in `data_uri`, or no image. An image
+/// larger than the limit of sinteract shrinks.
+pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<MaybeLoaded<'js>> {
+    match decode_data_uri(&data_uri).and_then(|blob| Image::load(blob).ok()) {
+        Some(image) => Ok(Some(Class::instance(ctx, Loaded(image))?)),
+        None => Ok(None),
+    }
 }
 
 /// The path of a `Path`, or `None` when its commands do not start with a

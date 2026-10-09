@@ -36,7 +36,8 @@ pub fn sleep(ms: u64) {
     std::thread::sleep(std::time::Duration::from_millis(ms));
 }
 
-// The file system holds the image, and its header says what it is.
-#[path = "native/bitmap.rs"]
-mod bitmap;
-pub use bitmap::load_bitmap;
+pub fn load_bitmap(path: &str) -> Option<Vec<u8>> {
+    std::fs::read(path)
+        .inspect_err(|err| eprintln!("Error reading {path}: {err}"))
+        .ok()
+}

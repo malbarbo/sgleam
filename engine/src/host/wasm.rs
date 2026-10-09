@@ -20,8 +20,6 @@ mod ffi {
         /// Reads the image and holds it. Returns the length of the data URI,
         /// and 0 when the page cannot read the file.
         pub fn load_bitmap_fetch(path: *const u8, path_len: usize) -> usize;
-        pub fn load_bitmap_width() -> f64;
-        pub fn load_bitmap_height() -> f64;
         /// Writes the data URI into `buf` and returns how many bytes it wrote.
         pub fn load_bitmap_data(buf: *mut u8, buf_len: usize) -> usize;
     }
@@ -71,16 +69,14 @@ pub fn get_key_event() -> Vec<String> {
     ret
 }
 
-pub fn load_bitmap(path: String) -> (f64, f64, String) {
+/// The page gives the file as a data URI.
+pub fn load_bitmap(path: &str) -> Option<Vec<u8>> {
     let data_uri_len = unsafe { ffi::load_bitmap_fetch(path.as_ptr(), path.len()) };
     if data_uri_len == 0 {
-        return (0.0, 0.0, String::new());
+        return None;
     }
-    let w = unsafe { ffi::load_bitmap_width() };
-    let h = unsafe { ffi::load_bitmap_height() };
     let mut buf = vec![0u8; data_uri_len];
     let filled = unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
     buf.truncate(filled);
-    let data_uri = String::from_utf8_lossy(&buf).into_owned();
-    (w, h, data_uri)
+    sinteract::asset::decode_data_uri(std::str::from_utf8(&buf).ok()?)
 }

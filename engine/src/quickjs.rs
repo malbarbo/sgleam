@@ -8,7 +8,6 @@ use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
     Promise, Result, Runtime, Value,
     context::EvalOptions,
-    convert::List,
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
@@ -20,7 +19,7 @@ use crate::{
     engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
-    host::{check_interrupt, init, load_bitmap, now_ms, sleep},
+    host::{check_interrupt, init, now_ms, sleep},
     swriteln,
 };
 
@@ -224,9 +223,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
     }
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
-    set_fn(&sgleam, "load_bitmap", |path: String| {
-        List(load_bitmap(path))
-    })?;
+    set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;
+    set_fn(&sgleam, "load_image", crate::scene::load_image)?;
     set_fn(&sgleam, "image_to_svg", crate::scene::to_svg)?;
     ctx.globals().set("sgleam", sgleam)
 }

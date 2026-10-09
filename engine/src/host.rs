@@ -17,10 +17,8 @@ pub use target::check_interrupt;
 /// `system.sleep` holds the program for `ms` milliseconds.
 pub use target::sleep;
 
-/// `system.load_bitmap` reads an image file and gives the width and the height
-/// of the image, and its bytes as a data URI, which a drawing puts in an
-/// `<image>` element. Zeros and an empty string say that the file is missing,
-/// or that nothing here reads a file of that kind.
+/// The bytes of the image file at the path, or `None` when the file cannot be
+/// read. In the browser, the page fetches the file.
 pub use target::load_bitmap;
 
 /// `system.draw_svg` puts a drawing on the page. Only the browser draws, so a

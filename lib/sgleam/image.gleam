@@ -135,7 +135,7 @@ pub opaque type Image {
   Combination(Image, Image)
   Crop(box: Box, image: Image)
   Text(style: Style, box: Box, text: String, font: Font)
-  Bitmap(box: Box, data_uri: String)
+  Bitmap(box: Box, image: system.Loaded)
 }
 
 /// The image of a rectangle under an affine map. `x_axis` goes from the
@@ -1435,12 +1435,12 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 // **************************
 
 pub fn bitmap(path: String) -> Image {
-  let #(width, height, data_uri) = system.load_bitmap(path)
-  Bitmap(box_of_size(width, height), data_uri)
+  let #(width, height, image) = system.load_bitmap(path)
+  Bitmap(box_of_size(width, height), image)
 }
 
 pub fn bitmap_data_uri(data_uri: String, width: Float, height: Float) -> Image {
-  Bitmap(box_of_size(width, height), data_uri)
+  Bitmap(box_of_size(width, height), system.load_image(data_uri))
 }
 
 // **************************

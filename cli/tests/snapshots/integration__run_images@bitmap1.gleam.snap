@@ -1,0 +1,9 @@
+---
+source: cli/tests/integration.rs
+---
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1" height="1" viewBox="0 0 1 1">
+  <defs>
+    <image id="s0-i0" x="-0.5" y="-0.5" width="1" height="1" preserveAspectRatio="none" xlink:href="data:image/bmp;base64,Qk06AAAAAAAAADYAAAAoAAAAAQAAAAEAAAABABgAAAAAAAQAAAATCwAAEwsAAAAAAAAAAAAAAAD/AA=="/>
+  </defs>
+  <use xlink:href="#s0-i0" transform="matrix(1 0 0 1 0.5 0.5)"/>
+</svg>
