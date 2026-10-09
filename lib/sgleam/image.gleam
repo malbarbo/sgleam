@@ -1017,21 +1017,21 @@ pub fn wedge(radius: Int, angle: Int, style: Style) -> Image {
 
 fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
   let r = positive(radius)
-  let x1 = r
-  let y1 = 0.0
-  let x2 = r *. cos_deg(angle)
-  let y2 = 0.0 -. r *. sin_deg(angle)
-  let large_arc = float.absolute_value(angle) >. 180.0
   let sweep_flag = angle <. 0.0
-  Path(
-    style,
-    [
-      MoveTo(Pointf(0.0, 0.0)),
-      LineTo(Pointf(x1, y1)),
-      ArcTo(r, r, 0.0, large_arc, sweep_flag, Pointf(x2, y2)),
-    ],
-    True,
-  )
+  let arcs = case float.absolute_value(angle) >=. 360.0 {
+    // An arc that ends where it starts draws nothing, so a full turn takes
+    // two halves.
+    True -> [
+      ArcTo(r, r, 0.0, False, sweep_flag, Pointf(0.0 -. r, 0.0)),
+      ArcTo(r, r, 0.0, False, sweep_flag, Pointf(r, 0.0)),
+    ]
+    False -> {
+      let large_arc = float.absolute_value(angle) >. 180.0
+      let end = Pointf(r *. cos_deg(angle), 0.0 -. r *. sin_deg(angle))
+      [ArcTo(r, r, 0.0, large_arc, sweep_flag, end)]
+    }
+  }
+  Path(style, [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(r, 0.0)), ..arcs], True)
 }
 
 // **************************
