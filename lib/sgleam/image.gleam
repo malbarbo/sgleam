@@ -143,7 +143,7 @@ pub opaque type Image {
     flip_horizontal: Bool,
     font: Font,
   )
-  Bitmap(box: Box, data_uri: String)
+  Bitmap(box: Box, data_uri: String, flip_vertical: Bool, flip_horizontal: Bool)
 }
 
 type Box {
@@ -1411,11 +1411,21 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 
 pub fn bitmap(path: String) -> Image {
   let #(width, height, data_uri) = system.load_bitmap(path)
-  Bitmap(Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0), data_uri)
+  Bitmap(
+    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
+    data_uri,
+    False,
+    False,
+  )
 }
 
 pub fn bitmap_data_uri(data_uri: String, width: Float, height: Float) -> Image {
-  Bitmap(Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0), data_uri)
+  Bitmap(
+    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
+    data_uri,
+    False,
+    False,
+  )
 }
 
 // **************************
@@ -1523,7 +1533,19 @@ fn flip(
           False -> img.flip_vertical
         },
       )
-    Bitmap(box:, ..) -> Bitmap(..img, box: box_flip(box, point_flip))
+    Bitmap(box:, ..) ->
+      Bitmap(
+        ..img,
+        box: box_flip(box, point_flip),
+        flip_horizontal: case flip_horizontal {
+          True -> !img.flip_horizontal
+          False -> img.flip_horizontal
+        },
+        flip_vertical: case flip_vertical {
+          True -> !img.flip_vertical
+          False -> img.flip_vertical
+        },
+      )
   }
 }
 
@@ -2333,18 +2355,33 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> text
       <> "</text>\n"
     }
-    Bitmap(box: Box(center:, width:, height:, angle:), data_uri:) -> {
+    Bitmap(
+      box: Box(center:, width:, height:, angle:),
+      data_uri:,
+      flip_horizontal:,
+      flip_vertical:,
+    ) -> {
+      let sign = fn(flip) {
+        case flip {
+          True -> -1.0
+          False -> 1.0
+        }
+      }
       indent(level)
       <> "<image "
       <> attribs("href", data_uri)
-      <> attrib("x", center.x -. width /. 2.0)
-      <> attrib("y", center.y -. height /. 2.0)
+      <> attrib("x", 0.0 -. width /. 2.0)
+      <> attrib("y", 0.0 -. height /. 2.0)
       <> attrib("width", width)
       <> attrib("height", height)
-      <> case angle != 0.0 {
-        True -> attribs("transform", rotate_str(angle, center))
-        False -> ""
-      }
+      <> attribs(
+        "transform",
+        translate_str(center.x, center.y)
+          <> " "
+          <> rotate_str(angle, Pointf(0.0, 0.0))
+          <> " "
+          <> scale_str(sign(flip_horizontal), sign(flip_vertical)),
+      )
       <> "/>\n"
     }
   }
