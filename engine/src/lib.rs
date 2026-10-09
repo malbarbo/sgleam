@@ -37,6 +37,8 @@ pub const SGLEAM_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The commit the binary was built from, which tells apart two builds of
 /// one version, a page in particular.
 pub const GIT_HASH: &str = env!("GIT_HASH");
+/// The day the build script last ran, in UTC.
+pub const BUILD_DATE: &str = env!("BUILD_DATE");
 
 pub const STACK_SIZE: usize = 128 * 1024 * 1024;
 
@@ -63,6 +65,6 @@ pub fn version() -> String {
 pub fn version_short() -> String {
     let quickjs = quickjs::version();
     format!(
-        "{SGLEAM_VERSION} ({GIT_HASH}, using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {quickjs})"
+        "{SGLEAM_VERSION} (using gleam {GLEAM_VERSION}, stdlib {GLEAM_STDLIB_VERSION} and quickjs {quickjs}, {BUILD_DATE}, {GIT_HASH})"
     )
 }

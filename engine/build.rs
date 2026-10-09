@@ -6,6 +6,7 @@ use std::{
     env, fs,
     path::{Path, PathBuf},
     process::Command,
+    time::SystemTime,
 };
 
 use flate2::{Compression, write::GzEncoder};
@@ -22,6 +23,16 @@ pub fn main() {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
         .unwrap_or_else(|| "unknown".to_string());
     println!("cargo::rustc-env=GIT_HASH={git_hash}");
+
+    let build_date = {
+        let secs = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("system clock before UNIX epoch")
+            .as_secs();
+        let (y, m, d) = civil_from_days((secs / 86400) as i64);
+        format!("{y:04}-{m:02}-{d:02}")
+    };
+    println!("cargo::rustc-env=BUILD_DATE={build_date}");
     // Cargo takes a missing file for changed and would run this script at
     // every build, so it watches only the files git names. In a worktree
     // `.git` is a file, HEAD is under the worktree and the refs are not.
@@ -46,6 +57,22 @@ fn has_revision(repo: &Path, revision: &str) -> bool {
         .arg(format!("{revision}^{{commit}}"))
         .output()
         .is_ok_and(|o| o.status.success())
+}
+
+/// Convert days since 1970-01-01 to (year, month, day).
+/// Algorithm from Howard Hinnant.
+fn civil_from_days(days: i64) -> (i64, u32, u32) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = (z - era * 146_097) as u32;
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe as i64 + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    (y, m, d)
 }
 
 /// The files that change when HEAD moves: HEAD itself, the refs, and the
