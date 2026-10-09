@@ -96,18 +96,6 @@ async function loadWasm(
     sleep: (_ms: bigint): void => {},
     draw_svg: (): void => {},
     get_key_event: (): number => 3, // EVENT_NONE
-    text_metrics: (
-      _text: number,
-      _textLen: number,
-      _font: number,
-      _fontLen: number,
-      out: number,
-    ): void => {
-      const view = new DataView(exports.memory.buffer);
-      for (const [i, v] of [10, 16, -5, 12].entries()) {
-        view.setFloat64(out + i * 8, v, true);
-      }
-    },
     load_bitmap_fetch: (): number => 0,
     load_bitmap_width: (): number => 0,
     load_bitmap_height: (): number => 0,

@@ -21,7 +21,6 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
 libc = "0.2"
 
 [features]
-resvg = ["engine/resvg"]
 # Enables the WASM backend in the CLI integration tests: every `run_sgleam_cmd`
 # invocation also runs the Deno `wasm/sgleam.ts` wrapper and asserts both
 # backends produce identical output. Enabled in CI only on Linux (needs

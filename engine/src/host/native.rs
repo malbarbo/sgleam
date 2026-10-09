@@ -1,5 +1,5 @@
 //! The operating system answers. Ctrl-C stops a program, the file system holds
-//! an image and resvg measures a piece of text.
+//! an image.
 
 use std::sync::{
     OnceLock,
@@ -40,8 +40,3 @@ pub fn sleep(ms: u64) {
 #[path = "native/bitmap.rs"]
 mod bitmap;
 pub use bitmap::load_bitmap;
-
-// resvg measures the text, or a guess from the font does.
-#[path = "native/text.rs"]
-mod text;
-pub use text::text_metrics;

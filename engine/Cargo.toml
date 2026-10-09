@@ -21,6 +21,8 @@ rquickjs = { version = "0.12.2", features = ["loader"] }
 # debug-embed: without it a debug build reads lib/sgleam from the disk of the
 # machine it was built on, so a debug binary anywhere else has no library.
 rust-embed = { version = "8.7.2", features = ["debug-embed"] }
+# The header and the data URI of a bitmap, and the measure of a text.
+sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false }
 tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"
@@ -31,12 +33,6 @@ vec1 = "1.12.1"
 flate2 = "1"
 tar = "0.4.41"
 
-[features]
-resvg = ["dep:resvg"]
-
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ctrlc = "3.4.6"
-resvg = { version = "0.47", optional = true }
-# The header of a bitmap and its data URI.
-sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }

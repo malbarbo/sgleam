@@ -60,7 +60,6 @@ test: test-rs test-wasm test-wasm-cli
 
 test-rs:
 	cargo test
-	cargo test -p engine --features resvg
 
 test-wasm: wasm
 	deno test --allow-read wasm/tests/
@@ -74,7 +73,6 @@ test-wasm-cli: wasm
 
 check:
 	cargo clippy -- -D warnings
-	cargo clippy --features resvg -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
 	cargo fmt -- --check
 	cargo run -- format --check lib/sgleam/*.gleam
