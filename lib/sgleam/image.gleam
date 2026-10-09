@@ -1506,7 +1506,13 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
         box: box_scale(box, x_factor, y_factor),
         image: scale_xyf(image, x_factor, y_factor),
       )
-    Text(box:, ..) -> Text(..img, box: box_scale(box, x_factor, y_factor))
+    // The stroke of a text is as wide as the stroke of a path.
+    Text(style:, box:, ..) ->
+      Text(
+        ..img,
+        style: style.scale(style, { x_factor +. y_factor } /. 2.0),
+        box: box_scale(box, x_factor, y_factor),
+      )
     Bitmap(box:, ..) -> Bitmap(..img, box: box_scale(box, x_factor, y_factor))
   }
 }
