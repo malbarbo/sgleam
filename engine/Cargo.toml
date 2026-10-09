@@ -7,7 +7,6 @@ edition = "2024"
 workspace = true
 
 [dependencies]
-base64 = "0.22"
 camino = "1.1.9"
 ecow = "0.2.3"
 flate2 = "1"
@@ -38,4 +37,6 @@ resvg = ["dep:resvg"]
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ctrlc = "3.4.6"
 resvg = { version = "0.47", optional = true }
+# The header of a bitmap and its data URI.
+sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }

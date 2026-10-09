@@ -470,6 +470,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "capnp"
+version = "0.25.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4777a3bc19b8f8e5fb2d0196c6b5dfcbbcc8b2fe08ae57f873f2f35f15cfc210"
+dependencies = [
+ "embedded-io",
+]
+
+[[package]]
 name = "cc"
 version = "1.2.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -862,6 +871,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
+name = "embedded-io"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9eb1aa714776b75c7e67e1da744b81a129b3ff919c8712b5e1b32252c1f07cc7"
+
+[[package]]
 name = "encode_unicode"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -877,7 +892,6 @@ checksum = "869b0adbda23651a9c5c0c3d270aac9fcb52e8622a8f2b17e57802d7791962f2"
 name = "engine"
 version = "0.8.0"
 dependencies = [
- "base64 0.22.1",
  "camino",
  "ctrlc",
  "ecow",
@@ -890,6 +904,7 @@ dependencies = [
  "resvg",
  "rquickjs",
  "rust-embed",
+ "sinteract",
  "tar",
  "termcolor",
  "thiserror 2.0.18",
@@ -2934,6 +2949,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a9c6883ca9c3c7c90e888de77b7a5c849c779d25d74a1269b0218b14e8b136c"
 dependencies = [
  "log",
+]
+
+[[package]]
+name = "sinteract"
+version = "0.1.0"
+source = "git+https://github.com/malbarbo/sinteract.git?branch=master#8cfaf915ba9457ada3c0a7f7dd9765004f4a2205"
+dependencies = [
+ "base64 0.22.1",
+ "capnp",
+ "kurbo",
+ "ttf-parser",
 ]
 
 [[package]]
