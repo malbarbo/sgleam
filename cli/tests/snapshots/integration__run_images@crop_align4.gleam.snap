@@ -1,27 +1,23 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="80.0" height="80.0" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <g>
-      <defs><clipPath id="clip0" ><path d="M 0.0 0.0 L 40.0 0.0 L 40.0 40.0 L 0.0 40.0 Z" /></clipPath></defs>
-      <g clip-path="url(#clip0)" >
-        <path d="M 40.0 0.0 A 40.0 40.0 0.0 0 1 -40.0 0.0 A 40.0 40.0 0.0 0 1 40.0 0.0 Z" fill="rgba(219, 112, 147, 1.0)" />
-      </g>
-      <defs><clipPath id="clip1" ><path d="M 40.0 0.0 L 80.0 0.0 L 80.0 40.0 L 40.0 40.0 Z" /></clipPath></defs>
-      <g clip-path="url(#clip1)" >
-        <path d="M 120.0 0.0 A 40.0 40.0 0.0 0 1 40.0 0.0 A 40.0 40.0 0.0 0 1 120.0 0.0 Z" fill="rgba(240, 128, 128, 1.0)" />
-      </g>
-    </g>
-    <g>
-      <defs><clipPath id="clip2" ><path d="M 0.0 40.0 L 40.0 40.0 L 40.0 80.0 L 0.0 80.0 Z" /></clipPath></defs>
-      <g clip-path="url(#clip2)" >
-        <path d="M 40.0 80.0 A 40.0 40.0 0.0 0 1 -40.0 80.0 A 40.0 40.0 0.0 0 1 40.0 80.0 Z" fill="rgba(240, 128, 128, 1.0)" />
-      </g>
-      <defs><clipPath id="clip3" ><path d="M 40.0 40.0 L 80.0 40.0 L 80.0 80.0 L 40.0 80.0 Z" /></clipPath></defs>
-      <g clip-path="url(#clip3)" >
-        <path d="M 120.0 80.0 A 40.0 40.0 0.0 0 1 40.0 80.0 A 40.0 40.0 0.0 0 1 120.0 80.0 Z" fill="rgba(219, 112, 147, 1.0)" />
-      </g>
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="80" height="80" viewBox="0 0 80 80">
+  <defs>
+    <clipPath id="s0-c0"><path d="M0 0 L40 0 L40 40 L0 40"/></clipPath>
+    <clipPath id="s0-c1"><path d="M40 0 L80 0 L80 40 L40 40"/></clipPath>
+    <clipPath id="s0-c2"><path d="M0 40 L40 40 L40 80 L0 80"/></clipPath>
+    <clipPath id="s0-c3"><path d="M40 40 L80 40 L80 80 L40 80"/></clipPath>
+  </defs>
+  <g clip-path="url(#s0-c0)">
+    <path d="M40 0 C40 22.09139 22.09139 40 0.0000000000000024492936 40 C-22.09139 40 -40 22.09139 -40 0.000000000000004898587 C-40 -22.09139 -22.09139 -40 -0.00000000000000734788 -40 C22.09139 -40 40 -22.09139 40 -0.000000000000009797174 Z" fill="#db7093"/>
+  </g>
+  <g clip-path="url(#s0-c1)">
+    <path d="M120 0 C120 22.09139 102.09139 40 80 40 C57.90861 40 40 22.09139 40 0.000000000000004898587 C40 -22.09139 57.90861 -40 80 -40 C102.09139 -40 120 -22.09139 120 -0.000000000000009797174 Z" fill="#f08080"/>
+  </g>
+  <g clip-path="url(#s0-c2)">
+    <path d="M40 80 C40 102.09139 22.09139 120 0.0000000000000024492936 120 C-22.09139 120 -40 102.09139 -40 80 C-40 57.90861 -22.09139 40 -0.00000000000000734788 40 C22.09139 40 40 57.90861 40 80 Z" fill="#f08080"/>
+  </g>
+  <g clip-path="url(#s0-c3)">
+    <path d="M120 80 C120 102.09139 102.09139 120 80 120 C57.90861 120 40 102.09139 40 80 C40 57.90861 57.90861 40 80 40 C102.09139 40 120 57.90861 120 80 Z" fill="#db7093"/>
   </g>
 </svg>

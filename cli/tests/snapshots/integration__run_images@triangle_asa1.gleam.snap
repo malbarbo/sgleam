@@ -1,6 +1,6 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="197.0" height="35.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 0.0 0.0 L 167.819926 0.0 L 196.961551 34.729636 Z" fill="rgba(46, 139, 87, 1.0)" />
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="197" height="35" viewBox="0 0 197 35">
+  <path d="M0 0 L167.81993 0 L196.96155 34.729637 Z" fill="#2e8b57"/>
 </svg>

@@ -1,12 +1,12 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="65.0" height="65.0" xmlns="http://www.w3.org/2000/svg">
-  <defs><clipPath id="clip0" ><path d="M 0.0 0.0 L 65.0 0.0 L 65.0 65.0 L 0.0 65.0 Z" /></clipPath></defs>
-  <g clip-path="url(#clip0)" >
-    <g>
-      <path d="M 0.0 0.0 L 65.0 0.0 L 65.0 65.0 L 0.0 65.0 Z" fill="rgba(173, 216, 230, 1.0)" />
-      <path d="M 30.0 -20.0 L 50.0 50.0 L -20.0 30.0 Z" fill="rgba(34, 139, 34, 1.0)" />
-    </g>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="65" height="65" viewBox="0 0 65 65">
+  <defs>
+    <clipPath id="s0-c0"><path d="M0 0 L65 0 L65 65 L0 65"/></clipPath>
+  </defs>
+  <g clip-path="url(#s0-c0)">
+    <path d="M0 0 L65 0 L65 65 L0 65 Z" fill="#add8e6"/>
+    <path d="M30 -20 L50 50 L-20 30 Z" fill="#228b22"/>
   </g>
 </svg>

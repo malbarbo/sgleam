@@ -1,9 +1,7 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="600.0" height="400.0" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <path d="M 0.0 0.0 L 200.0 0.0 L 200.0 400.0 L 0.0 400.0 Z" fill="rgba(0, 0, 0, 1.0)" />
-    <path d="M 200.0 100.0 L 600.0 100.0 L 600.0 300.0 L 200.0 300.0 Z" fill="rgba(0, 0, 255, 1.0)" />
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="600" height="400" viewBox="0 0 600 400">
+  <path d="M0 0 L200 0 L200 400 L0 400 Z" fill="#000000"/>
+  <path d="M200 100 L600 100 L600 300 L200 300 Z" fill="#0000ff"/>
 </svg>

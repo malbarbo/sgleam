@@ -1,15 +1,9 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="50.0" height="50.0" xmlns="http://www.w3.org/2000/svg">
-  <g>
-    <path d="M 0.0 0.0 L 50.0 0.0 L 50.0 50.0 L 0.0 50.0 Z" fill="rgba(46, 139, 87, 1.0)" />
-    <g>
-      <path d="M 10.0 10.0 L 50.0 10.0 L 50.0 50.0 L 10.0 50.0 Z" fill="rgba(192, 192, 192, 1.0)" />
-      <g>
-        <path d="M 20.0 20.0 L 50.0 20.0 L 50.0 50.0 L 20.0 50.0 Z" fill="rgba(46, 139, 87, 1.0)" />
-        <path d="M 30.0 30.0 L 50.0 30.0 L 50.0 50.0 L 30.0 50.0 Z" fill="rgba(192, 192, 192, 1.0)" />
-      </g>
-    </g>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="50" height="50" viewBox="0 0 50 50">
+  <path d="M0 0 L50 0 L50 50 L0 50 Z" fill="#2e8b57"/>
+  <path d="M10 10 L50 10 L50 50 L10 50 Z" fill="#c0c0c0"/>
+  <path d="M20 20 L50 20 L50 50 L20 50 Z" fill="#2e8b57"/>
+  <path d="M30 30 L50 30 L50 50 L30 50 Z" fill="#c0c0c0"/>
 </svg>

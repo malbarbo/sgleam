@@ -6,22 +6,6 @@ pub opaque type Color {
   Rgb(Int, Int, Int, Float)
 }
 
-pub fn to_svg(color: Color) -> String {
-  case color {
-    None -> "none"
-    Rgb(r, g, b, a) ->
-      "rgba("
-      <> int.to_string(r)
-      <> ", "
-      <> int.to_string(g)
-      <> ", "
-      <> int.to_string(b)
-      <> ", "
-      <> fs(a)
-      <> ")"
-  }
-}
-
 pub fn rgb(red: Int, green: Int, blue: Int) -> Color {
   Rgb(
     int.clamp(red, 0, 255),
@@ -485,6 +469,3 @@ pub const all = [
   #("darkmagenta", darkmagenta),
   #("mediumvioletred", mediumvioletred),
 ]
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
-fn fs(v: Float) -> String

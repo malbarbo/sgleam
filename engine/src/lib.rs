@@ -17,6 +17,7 @@ pub mod parser;
 pub mod quickjs;
 pub mod repl;
 pub mod run;
+mod scene;
 pub mod scope;
 pub mod shell;
 pub mod source;

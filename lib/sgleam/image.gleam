@@ -2,7 +2,6 @@ import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/list
-import gleam/string
 import sgleam/color.{type Color}
 import sgleam/font.{type Font, Font}
 import sgleam/math.{atan2, cos, cos_deg, pi, sin, sin_deg, sqrt}
@@ -188,24 +187,6 @@ fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
 
 fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
   Box(point_flip(box.center), point_flip(box.x_axis), point_flip(box.y_axis))
-}
-
-/// The affine of `box`, which takes the unit square centred on the origin
-/// to the box, after a scale of `1 / width` and `1 / height`.
-fn box_matrix(box: Box, width: Float, height: Float) -> String {
-  "matrix("
-  <> fs(box.x_axis.x /. width)
-  <> " "
-  <> fs(box.x_axis.y /. width)
-  <> " "
-  <> fs(box.y_axis.x /. height)
-  <> " "
-  <> fs(box.y_axis.y /. height)
-  <> " "
-  <> fs(box.center.x)
-  <> " "
-  <> fs(box.center.y)
-  <> ")"
 }
 
 pub const empty = Path(style.none, [], True)
@@ -2242,201 +2223,17 @@ fn curve_controls(
 // **************************
 
 pub fn to_svg(img: Image) -> String {
-  "<svg "
-  <> attrib("width", float.ceiling(round2(widthf(img))))
-  <> attrib("height", float.ceiling(round2(heightf(img))))
-  <> "xmlns=\"http://www.w3.org/2000/svg\">\n"
-  <> to_svg_(img, 1)
-  <> "</svg>"
+  image_to_svg(
+    img,
+    float.ceiling(round2(widthf(img))),
+    float.ceiling(round2(heightf(img))),
+  )
 }
 
 fn round2(v: Float) -> Float {
   int.to_float(float.round(v *. 100.0)) /. 100.0
 }
 
-fn to_svg_(img: Image, level: Int) -> String {
-  case img {
-    Path(style:, commands:, closed:) -> {
-      let aligned = style.outline_offset(style) >. 0.0
-      let path_d = commands_to_d(commands, aligned)
-      let path_d = case closed {
-        True -> path_d <> " Z"
-        False -> path_d
-      }
-      indent(level)
-      <> "<path "
-      <> attribs("d", path_d)
-      <> style.to_svg(style)
-      <> "/>\n"
-    }
-    Combination(a, b) ->
-      indent(level)
-      <> "<g>\n"
-      <> to_svg_(a, level + 1)
-      <> to_svg_(b, level + 1)
-      <> indent(level)
-      <> "</g>\n"
-    Crop(box:, image:) -> {
-      let clipid = "clip" <> int.to_string(next_clip_id())
-      let corner = fn(x, y) {
-        let p =
-          Pointf(
-            box.center.x +. x *. box.x_axis.x +. y *. box.y_axis.x,
-            box.center.y +. x *. box.x_axis.y +. y *. box.y_axis.y,
-          )
-        fs(p.x) <> " " <> fs(p.y)
-      }
-      let rect =
-        "<path "
-        <> attribs(
-          "d",
-          "M "
-            <> corner(-0.5, -0.5)
-            <> " L "
-            <> corner(0.5, -0.5)
-            <> " L "
-            <> corner(0.5, 0.5)
-            <> " L "
-            <> corner(-0.5, 0.5)
-            <> " Z",
-        )
-        <> "/>"
-      indent(level)
-      <> "<defs>"
-      <> "<clipPath "
-      <> attribs("id", clipid)
-      <> ">"
-      <> rect
-      <> "</clipPath>"
-      <> "</defs>\n"
-      <> indent(level)
-      <> "<g "
-      <> attribs("clip-path", "url(#" <> clipid <> ")")
-      <> ">\n"
-      <> to_svg_(image, level + 1)
-      <> indent(level)
-      <> "</g>\n"
-    }
-    Text(style:, box:, text:, font:) -> {
-      let css = font.to_css(font)
-      let #(original_width, original_height, x_offset, y_offset) =
-        system.text_metrics(text, css)
-      indent(level)
-      <> "<text "
-      <> attribs("dominant-baseline", "alphabetic")
-      <> attribs("text-anchor", "start")
-      <> attrib("x", x_offset)
-      <> attrib("y", y_offset)
-      <> attribs("font-family", font.family)
-      <> attrib("font-size", font.size)
-      <> attribs("font-style", font.font_style_to_svg(font.font_style))
-      <> attribs("font-weight", font.font_weight_to_svg(font.font_weight))
-      <> case font.underline {
-        True -> attribs("text-decoration", "underline")
-        False -> ""
-      }
-      <> attribs("transform", box_matrix(box, original_width, original_height))
-      <> style.to_svg(style)
-      <> ">"
-      <> text
-      <> "</text>\n"
-    }
-    Bitmap(box:, data_uri:) -> {
-      indent(level)
-      <> "<image "
-      <> attribs("href", data_uri)
-      <> attrib("x", -0.5)
-      <> attrib("y", -0.5)
-      <> attrib("width", 1.0)
-      <> attrib("height", 1.0)
-      <> attribs("preserveAspectRatio", "none")
-      <> attribs("transform", box_matrix(box, 1.0, 1.0))
-      <> "/>\n"
-    }
-  }
-}
-
-fn commands_to_d(commands: List(PathCmd), aligned: Bool) -> String {
-  // For outline-only paths, round coordinates to pixel boundaries
-  // (floor + 0.5) to match HtDP's aligned drawing mode.
-  let c = case aligned {
-    True -> align
-    False -> fs
-  }
-  commands
-  |> list.map(cmd_to_d(_, c))
-  |> string.join(" ")
-}
-
-fn cmd_to_d(cmd: PathCmd, c: fn(Float) -> String) -> String {
-  case cmd {
-    MoveTo(p) -> "M " <> c(p.x) <> " " <> c(p.y)
-    LineTo(p) -> "L " <> c(p.x) <> " " <> c(p.y)
-    QuadTo(ctrl, e) ->
-      "Q " <> c(ctrl.x) <> " " <> c(ctrl.y) <> " " <> c(e.x) <> " " <> c(e.y)
-    CubicTo(c1, c2, e) ->
-      "C "
-      <> c(c1.x)
-      <> " "
-      <> c(c1.y)
-      <> " "
-      <> c(c2.x)
-      <> " "
-      <> c(c2.y)
-      <> " "
-      <> c(e.x)
-      <> " "
-      <> c(e.y)
-    ArcTo(rx, ry, rot, la, sw, e) ->
-      "A "
-      <> fs(rx)
-      <> " "
-      <> fs(ry)
-      <> " "
-      <> fs(rot)
-      <> " "
-      <> bool01(la)
-      <> " "
-      <> bool01(sw)
-      <> " "
-      <> c(e.x)
-      <> " "
-      <> c(e.y)
-  }
-}
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "float_to_string_6")
-fn fs(v: Float) -> String
-
-/// Pixel-aligned coordinate for HtDP's aligned drawing mode.
-/// Rounds to nearest integer (floor) then adds 0.5 to center
-/// the 1px stroke on the pixel boundary. A small epsilon
-/// compensates for floating-point rounding errors (e.g.
-/// 9.999999999999998 should be treated as 10.0).
-const fp_epsilon = 1.0e-10
-
-fn align(v: Float) -> String {
-  fs(float.floor(v +. fp_epsilon) +. 0.5)
-}
-
-fn bool01(b: Bool) -> String {
-  case b {
-    True -> "1"
-    False -> "0"
-  }
-}
-
-fn indent(level: Int) -> String {
-  string.repeat(" ", 2 * level)
-}
-
-fn attrib(name: String, value: Float) -> String {
-  name <> "=\"" <> fs(value) <> "\" "
-}
-
-fn attribs(name: String, value: String) -> String {
-  name <> "=\"" <> value <> "\" "
-}
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "next_clip_id")
-fn next_clip_id() -> Int
+/// sinteract draws `img` on a canvas of `width` by `height`.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "image_to_svg")
+fn image_to_svg(img: Image, width: Float, height: Float) -> String

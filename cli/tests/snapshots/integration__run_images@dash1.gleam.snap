@@ -1,6 +1,6 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg width="60.0" height="60.0" xmlns="http://www.w3.org/2000/svg">
-  <path d="M 60.5 30.5 A 30.0 30.0 0.0 0 1 0.5 30.5 A 30.0 30.0 0.0 0 1 60.5 30.5 Z" fill="none" stroke="rgba(255, 0, 0, 1.0)" stroke-dasharray="6.0, 3.0" stroke-linecap="round" stroke-linejoin="miter" stroke-miterlimit="10.0" />
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="60" height="60" viewBox="0 0 60 60">
+  <path d="M60.5 30.5 C60.5 47.068542 47.068542 60.5 30.5 60.5 C13.9314575 60.5 0.5 47.068542 0.5 30.5 C0.5 13.9314575 13.9314575 0.5 30.5 0.5 C47.068542 0.5 60.5 13.9314575 60.5 30.5 Z" fill="none" stroke="#ff0000" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10" stroke-dasharray="6 3"/>
 </svg>
