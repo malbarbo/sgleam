@@ -3,10 +3,11 @@
 //! which the svg renderer of sinteract writes out.
 //!
 //! The size of a text comes from here too, so the text measures with the
-//! face that draws it.
+//! face that draws it, and so does the box of a path.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+use kurbo::{BezPath, ParamCurveExtrema, Point, Rect, SvgArc, Vec2};
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
 use rquickjs::function::This;
 use rquickjs::{
@@ -359,6 +360,72 @@ fn segment(
         }
         other => return Err(type_error(cmd.ctx(), &format!("cannot draw a {other}"))),
     })
+}
+
+/// `path_box` of `sgleam/image` gives the box around the path of
+/// `commands` as the least x, the least y, the greatest x and the greatest y.
+/// An arc counts as the cubics that sinteract draws for it.
+pub fn path_box<'js>(commands: Object<'js>) -> Result<List<(f64, f64, f64, f64)>> {
+    let mut path = BezPath::new();
+    for cmd in list::<Object>(commands)? {
+        let at = |name: &str| -> Result<Point> {
+            let p: Object = cmd.get(name)?;
+            Ok(Point::new(p.get("x")?, p.get("y")?))
+        };
+        let kind = class(&cmd)?;
+        let end = at(match kind.as_str() {
+            "MoveTo" | "LineTo" => "0",
+            _ => "end",
+        })?;
+        // A path that starts with a segment other than a move starts at the
+        // end of that segment.
+        let Some(from) = path.elements().last().and_then(|el| el.end_point()) else {
+            path.move_to(end);
+            continue;
+        };
+        match kind.as_str() {
+            "MoveTo" => path.move_to(end),
+            "LineTo" => path.line_to(end),
+            "QuadTo" => path.quad_to(at("control")?, end),
+            "CubicTo" => path.curve_to(at("c1")?, at("c2")?, end),
+            "ArcTo" => {
+                let arc = SvgArc {
+                    from,
+                    to: end,
+                    radii: Vec2::new(cmd.get("rx")?, cmd.get("ry")?),
+                    x_rotation: cmd.get::<_, f64>("rotation")?.to_radians(),
+                    large_arc: cmd.get("large_arc")?,
+                    sweep: cmd.get("sweep")?,
+                };
+                match kurbo::Arc::from_svg_arc(&arc) {
+                    Some(arc) => {
+                        let tolerance = arc_tolerance(arc.radii.x.max(arc.radii.y));
+                        path.extend(arc.append_iter(tolerance));
+                    }
+                    None => path.line_to(end),
+                }
+            }
+            other => {
+                return Err(type_error(cmd.ctx(), &format!("cannot measure a {other}")));
+            }
+        }
+    }
+    // A move adds its point even when no segment leaves it.
+    let mut points = path.elements().iter().filter_map(|el| el.end_point());
+    let Some(first) = points.next() else {
+        return Ok(List((0.0, 0.0, 0.0, 0.0)));
+    };
+    let rect = points.fold(Rect::from_points(first, first), |rect, p| rect.union_pt(p));
+    let rect = path
+        .segments()
+        .fold(rect, |rect, seg| rect.union(seg.bounding_box()));
+    Ok(List((rect.x0, rect.y0, rect.x1, rect.y1)))
+}
+
+/// The tolerance that sinteract takes to turn an arc of `radius` into
+/// cubics. It grows with the radius, so one turn takes at most 64 cubics.
+fn arc_tolerance(radius: f64) -> f64 {
+    0.1f64.max(1.1163 * radius / 64f64.powi(6))
 }
 
 /// The text of a `Text`, or `None` when it draws nothing.

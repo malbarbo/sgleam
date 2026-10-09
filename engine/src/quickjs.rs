@@ -226,6 +226,7 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;
     set_fn(&sgleam, "image_to_svg", crate::scene::to_svg)?;
+    set_fn(&sgleam, "path_box", crate::scene::path_box)?;
     ctx.globals().set("sgleam", sgleam)
 }
 

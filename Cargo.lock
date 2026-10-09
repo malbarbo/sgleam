@@ -861,6 +861,7 @@ dependencies = [
  "gleam-format",
  "im",
  "indoc",
+ "kurbo",
  "path-clean",
  "rquickjs",
  "rust-embed",
