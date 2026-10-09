@@ -1,10 +1,13 @@
 //! The svg of an `Image` of `sgleam/image`. The image is a value of the
 //! compiled JavaScript, and this module reads it into a sinteract [`Scene`],
 //! which the svg renderer of sinteract writes out.
+//!
+//! The size of a text comes from here too, so the text measures with the
+//! face that draws it.
 
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use rquickjs::{Ctx, Exception, FromJs, Object, Result, Value};
+use rquickjs::{Ctx, Exception, FromJs, Object, Result, Value, convert::List};
 use sinteract::asset::decode_data_uri;
 use sinteract::renderer::Renderer;
 use sinteract::renderer::svg::SvgRenderer;
@@ -142,7 +145,41 @@ fn segment(
 fn text(image: &Object, scene: &mut Scene) -> Result<()> {
     let style = Style::read(&image.get("style")?)?;
     let font: Object = image.get("font")?;
-    let spec = TextSpec {
+    let spec = text_spec(image.get("text")?, &font)?;
+    let Some(mut text) = spec.fit_transform(affine(&image.get("box")?)?) else {
+        return Ok(());
+    };
+    let path_style = style.path_style();
+    text.fill = path_style.fill;
+    text.stroke = path_style.stroke;
+    text.stroke_width = path_style.stroke_width;
+    text.underline = font.get("underline")?;
+    scene.add_text(text);
+    Ok(())
+}
+
+/// `system.text_metrics` gives the width and the height of the box around
+/// `text` in `font`, a `Font` of `sgleam/font`. sinteract measures, with the
+/// fonts that it embeds, so a text has the same size on every target. A size
+/// that cannot draw measures nothing.
+pub fn text_metrics<'js>(text: String, font: Object<'js>) -> Result<List<(f64, f64)>> {
+    let spec = text_spec(text, &font)?;
+    let size = match sinteract::text::measure(
+        &spec.family,
+        spec.weight,
+        spec.style,
+        spec.size,
+        &spec.text,
+    ) {
+        Some(m) => (f64::from(m.width()), f64::from(m.height())),
+        None => (0.0, 0.0),
+    };
+    Ok(List(size))
+}
+
+/// The spec of `text` in `font`, a `Font` of `sgleam/font`.
+fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
+    Ok(TextSpec {
         size: font.get::<_, f64>("size")? as f32,
         family: font.get::<_, String>("family")?.into(),
         weight: match class(&font.get("font_weight")?)?.as_str() {
@@ -155,18 +192,8 @@ fn text(image: &Object, scene: &mut Scene) -> Result<()> {
             "Slant" => FontStyle::Oblique,
             _ => FontStyle::Normal,
         },
-        text: image.get("text")?,
-    };
-    let Some(mut text) = spec.fit_transform(affine(&image.get("box")?)?) else {
-        return Ok(());
-    };
-    let path_style = style.path_style();
-    text.fill = path_style.fill;
-    text.stroke = path_style.stroke;
-    text.stroke_width = path_style.stroke_width;
-    text.underline = font.get("underline")?;
-    scene.add_text(text);
-    Ok(())
+        text,
+    })
 }
 
 /// The affine of a `Box`, which takes the unit square centred on the origin
