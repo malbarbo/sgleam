@@ -14,6 +14,23 @@ pub fn main() {
     println!("cargo::rerun-if-changed=build.rs");
     println!("cargo::rerun-if-changed=../lib/sgleam");
 
+    let git_hash = Command::new("git")
+        .args(["rev-parse", "--short", "HEAD"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string());
+    println!("cargo::rustc-env=GIT_HASH={git_hash}");
+    // Cargo takes a missing file for changed and would run this script at
+    // every build, so it watches only the files git names. In a worktree
+    // `.git` is a file, HEAD is under the worktree and the refs are not.
+    for path in git_paths() {
+        if Path::new(&path).exists() {
+            println!("cargo::rerun-if-changed={path}");
+        }
+    }
+
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
     create_tar(&outdir, "gleam-stdlib.tar", "sgleam-stdlib-1.0.5");
@@ -29,6 +46,35 @@ fn has_revision(repo: &Path, revision: &str) -> bool {
         .arg(format!("{revision}^{{commit}}"))
         .output()
         .is_ok_and(|o| o.status.success())
+}
+
+/// The files that change when HEAD moves: HEAD itself, the refs, and the
+/// refs packed by a gc. None outside a git repository.
+fn git_paths() -> Vec<String> {
+    let Some(output) = Command::new("git")
+        .args([
+            "rev-parse",
+            "--path-format=absolute",
+            "--git-path",
+            "HEAD",
+            "--git-common-dir",
+        ])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+    else {
+        return Vec::new();
+    };
+    let output = String::from_utf8_lossy(&output.stdout);
+    let mut lines = output.lines();
+    let (Some(head), Some(common)) = (lines.next(), lines.next()) else {
+        return Vec::new();
+    };
+    vec![
+        head.to_owned(),
+        format!("{common}/refs"),
+        format!("{common}/packed-refs"),
+    ]
 }
 
 fn create_tar(outdir: &Path, name: &str, hash: &str) {
