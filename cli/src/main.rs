@@ -150,7 +150,16 @@ fn show_help<T>(parser: bpaf::OptionParser<T>, args: &[&str]) {
 }
 
 fn run() -> Result<(), SgleamError> {
-    let command = cli().run().unwrap_or(Command::Repl {
+    // The name of the executable ends in .exe on Windows.
+    let args = bpaf::Args::current_args().set_name("sgleam");
+    let command = match cli().run_inner(args) {
+        Ok(command) => command,
+        Err(err) => {
+            err.print_message(100);
+            std::process::exit(err.exit_code())
+        }
+    };
+    let command = command.unwrap_or(Command::Repl {
         number: false,
         file: None,
         quiet: false,
