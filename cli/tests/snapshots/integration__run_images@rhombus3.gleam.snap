@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="79" height="14" viewBox="0 0 79 14">
+  <path d="M0 6.945927 L39.39231 0 L78.78462 6.945927 L39.39231 13.891854 Z" fill="#9370db"/>
+</svg>

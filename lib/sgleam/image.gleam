@@ -1185,8 +1185,9 @@ pub fn triangle_saa(
 
 pub fn rhombusf(side_length: Float, angle: Float, style: Style) -> Image {
   let side_length = positive(side_length)
-  let height = 2.0 *. side_length *. cos_deg(angle /. 2.0)
-  let width = 2.0 *. side_length *. sin_deg(angle /. 2.0)
+  // An angle above 180 makes the cosine negative.
+  let height = float.absolute_value(2.0 *. side_length *. cos_deg(angle /. 2.0))
+  let width = float.absolute_value(2.0 *. side_length *. sin_deg(angle /. 2.0))
   points_to_path(
     [
       Pointf(0.0, height /. 2.0),
