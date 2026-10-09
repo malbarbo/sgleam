@@ -86,6 +86,15 @@ fn repl_constructor_types() {
 }
 
 #[test]
+fn repl_image_by_class() {
+    let lit = formatdoc! { r#"
+        type T {{ Text(String) }}
+        Text("a")"#
+    };
+    assert_eq!(repl_exec(&lit), "Text(\"a\")");
+}
+
+#[test]
 fn repl_import() {
     assert_eq!(
         repl_exec(&formatdoc! {r#"

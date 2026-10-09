@@ -146,6 +146,20 @@ type Box {
   Box(center: Pointf, x_axis: Pointf, y_axis: Pointf)
 }
 
+/// One image of each variant. The constructors of an opaque type stay out of
+/// the exports of the module, so the FFI takes the classes from these.
+@internal
+pub fn variants() -> List(Image) {
+  let box = box_of_size(0.0, 0.0)
+  [
+    empty,
+    Combination(empty, empty),
+    Crop(box, empty),
+    Text(style.none, box, "", font.default()),
+    Bitmap(box, system.load_image("")),
+  ]
+}
+
 fn box_of_size(width: Float, height: Float) -> Box {
   Box(
     Pointf(width /. 2.0, height /. 2.0),
