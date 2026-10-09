@@ -181,8 +181,8 @@ fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
 fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
   Box(
     Pointf(box.center.x *. x_factor, box.center.y *. y_factor),
-    Pointf(box.x_axis.x *. x_factor, box.x_axis.y *. x_factor),
-    Pointf(box.y_axis.x *. y_factor, box.y_axis.y *. y_factor),
+    Pointf(box.x_axis.x *. x_factor, box.x_axis.y *. y_factor),
+    Pointf(box.y_axis.x *. x_factor, box.y_axis.y *. y_factor),
   )
 }
 
