@@ -20,6 +20,10 @@ use sinteract::scene::{
 /// run into one HTML document, so two svgs must not share an id.
 static NEXT_SVG: AtomicUsize = AtomicUsize::new(0);
 
+/// How far from a whole number, or from 0, a coordinate may be and still
+/// count as one.
+const FP_EPSILON: f64 = 1.0e-10;
+
 /// The svg of `image` on a canvas of `width` by `height`.
 pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String> {
     let mut scene = Scene::new(width as f32, height as f32);
@@ -80,13 +84,13 @@ fn path(image: &Object) -> Result<Option<Path>> {
     // pixel it blurs over two. The epsilon takes 9.999999999999998 as 10.
     let snap = |v: f64| {
         if style.aligned() {
-            (v + 1.0e-10).floor() + 0.5
+            (v + FP_EPSILON).floor() + 0.5
         } else {
             v
         }
     };
     let point = |p: Object| -> Result<(f32, f32)> {
-        Ok((snap(p.get("x")?) as f32, snap(p.get("y")?) as f32))
+        Ok((snap(float(&p, "x")?) as f32, snap(float(&p, "y")?) as f32))
     };
     let (x, y) = point(first.get("0")?)?;
     let mut path_style = style.path_style();
@@ -128,9 +132,9 @@ fn segment(
         "ArcTo" => {
             let (x, y) = at("end")?;
             builder.arc_to(
-                cmd.get::<_, f64>("rx")? as f32,
-                cmd.get::<_, f64>("ry")? as f32,
-                cmd.get::<_, f64>("rotation")? as f32,
+                float(cmd, "rx")? as f32,
+                float(cmd, "ry")? as f32,
+                float(cmd, "rotation")? as f32,
                 cmd.get("large_arc")?,
                 cmd.get("sweep")?,
                 x,
@@ -201,7 +205,7 @@ fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
 fn affine(b: &Object) -> Result<[f32; 6]> {
     let point = |name: &str| -> Result<(f32, f32)> {
         let p: Object = b.get(name)?;
-        Ok((p.get::<_, f64>("x")? as f32, p.get::<_, f64>("y")? as f32))
+        Ok((float(&p, "x")? as f32, float(&p, "y")? as f32))
     };
     let (cx, cy) = point("center")?;
     let (ux, uy) = point("x_axis")?;
@@ -372,6 +376,14 @@ fn list<'js, T: FromJs<'js>>(mut list: Object<'js>) -> Result<Vec<T>> {
         list = list.get("tail")?;
     }
     Ok(items)
+}
+
+/// The number at `obj.name`, or 0 when it is within [`FP_EPSILON`] of 0. A
+/// sine or a cosine leaves a residue near 0 that differs from one libm to
+/// another, and the svg would write the residue in full.
+fn float(obj: &Object, name: &str) -> Result<f64> {
+    let v: f64 = obj.get(name)?;
+    Ok(if v.abs() < FP_EPSILON { 0.0 } else { v })
 }
 
 /// A number, which an `Int` is too, as a `BigInt` when the program runs with
