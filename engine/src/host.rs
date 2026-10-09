@@ -43,25 +43,15 @@ mod target;
 #[path = "host/native.rs"]
 mod target;
 
-/// What `system.text_metrics` gives a program, in order. The width and the
-/// height are those of the box around the text. The offsets go from the middle
-/// of that box to the origin of an svg `<text>` element, which sits at the
-/// start of the baseline. sinteract measures, with the fonts that it embeds, so
+/// `system.text_metrics` gives the width and the height of the box around the
+/// text. sinteract measures, with the fonts that it embeds, so
 /// a text has the same size on every target. A size that cannot draw measures
 /// nothing.
-pub fn text_metrics(text: String, font_css: String) -> (f64, f64, f64, f64) {
+pub fn text_metrics(text: String, font_css: String) -> (f64, f64) {
     let font = CssFont::parse(&font_css);
     match sinteract::text::measure(font.family, font.weight, font.style, font.size, &text) {
-        Some(m) => {
-            let width = f64::from(m.width());
-            (
-                width,
-                f64::from(m.height()),
-                -width / 2.0,
-                f64::from(m.baseline_y()),
-            )
-        }
-        None => (0.0, 0.0, 0.0, 0.0),
+        Some(m) => (f64::from(m.width()), f64::from(m.height())),
+        None => (0.0, 0.0),
     }
 }
 
@@ -137,16 +127,14 @@ mod tests {
     }
 
     #[test]
-    fn text_metrics_centers_the_box_on_the_text() {
-        let (width, height, x, y) = text_metrics("sgleam".into(), "14px sans-serif".into());
+    fn text_metrics_measures_a_text() {
+        let (width, height) = text_metrics("sgleam".into(), "14px sans-serif".into());
         assert!(width > 0.0 && height > 0.0);
-        assert_eq!(x, -width / 2.0);
-        assert!(0.0 < y && y < height / 2.0);
     }
 
     #[test]
     fn text_metrics_of_a_size_that_cannot_draw_is_nothing() {
         let metrics = text_metrics("sgleam".into(), "0px sans-serif".into());
-        assert_eq!(metrics, (0.0, 0.0, 0.0, 0.0));
+        assert_eq!(metrics, (0.0, 0.0));
     }
 }

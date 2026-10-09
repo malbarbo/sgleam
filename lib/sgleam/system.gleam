@@ -10,14 +10,10 @@ pub fn show_svg(svg: String) -> Nil
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "get_key_event")
 pub fn get_key_event() -> List(String)
 
-/// Returns #(width, height, x_offset, y_offset) for a piece of text. The css is
-/// the whole font shorthand, size and all, and the host measures with it as it
-/// comes.
+/// Returns #(width, height) for a piece of text. The css is the whole font
+/// shorthand, size and all, and the host measures with it as it comes.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "text_metrics")
-pub fn text_metrics(
-  text: String,
-  font_css: String,
-) -> #(Float, Float, Float, Float)
+pub fn text_metrics(text: String, font_css: String) -> #(Float, Float)
 
 /// Returns #(width, height, data_uri) for a bitmap file.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")

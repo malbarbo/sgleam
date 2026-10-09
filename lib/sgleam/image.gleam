@@ -1415,7 +1415,7 @@ fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
 
 pub fn text_fontf(text: String, font: Font, style: Style) -> Image {
   let css = font.to_css(font)
-  let #(width, height, _, _) = system.text_metrics(text, css)
+  let #(width, height) = system.text_metrics(text, css)
   Text(style, box_of_size(width, height), text, font)
 }
 
