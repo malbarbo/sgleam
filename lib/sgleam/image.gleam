@@ -268,23 +268,35 @@ fn fix_position(img: Image) -> Image {
 // **************************
 
 fn box(img: Image) -> #(Pointf, Pointf) {
+  case drawn_box(img) {
+    Ok(box) -> box
+    Error(Nil) -> #(Pointf(0.0, 0.0), Pointf(0.0, 0.0))
+  }
+}
+
+/// The box of what `img` draws, or `Error(Nil)` when `img` holds no path
+/// with commands. A part with nothing in it adds nothing to the box of a
+/// combination, wherever a translation left it.
+fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
   case img {
-    Path(commands: [], ..) -> #(Pointf(0.0, 0.0), Pointf(0.0, 0.0))
+    Path(commands: [], ..) -> Error(Nil)
     Path(commands: [first, ..rest], ..) -> {
       let p = cmd_endpoint(first)
-      path_box(rest, p, p.x, p.y, p.x, p.y)
+      Ok(path_box(rest, p, p.x, p.y, p.x, p.y))
     }
-    Combination(a, b) -> {
-      let #(amin, amax) = box(a)
-      let #(bmin, bmax) = box(b)
-      #(
-        Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
-        Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
-      )
-    }
-    Crop(box:, ..) -> box_box(box)
-    Text(box:, ..) -> box_box(box)
-    Bitmap(box:, ..) -> box_box(box)
+    Combination(a, b) ->
+      case drawn_box(a), drawn_box(b) {
+        Ok(#(amin, amax)), Ok(#(bmin, bmax)) ->
+          Ok(#(
+            Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
+            Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
+          ))
+        Ok(box), Error(Nil) | Error(Nil), Ok(box) -> Ok(box)
+        Error(Nil), Error(Nil) -> Error(Nil)
+      }
+    Crop(box:, ..) -> Ok(box_box(box))
+    Text(box:, ..) -> Ok(box_box(box))
+    Bitmap(box:, ..) -> Ok(box_box(box))
   }
 }
 
