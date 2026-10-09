@@ -1572,8 +1572,18 @@ pub fn crop_alignf(
 ) -> Image {
   let crop_width = positive(crop_width)
   let crop_height = positive(crop_height)
-  let #(_, dx) = x_place_dx(x_place, widthf(img), crop_width)
-  let #(_, dy) = y_place_dy(y_place, heightf(img), crop_height)
+  // The offset is negative when the crop is larger than the image, which
+  // puts the image at the right or bottom of the crop.
+  let dx = case x_place {
+    Left -> 0.0
+    Center -> mid(widthf(img), crop_width)
+    Right -> widthf(img) -. crop_width
+  }
+  let dy = case y_place {
+    Top -> 0.0
+    Middle -> mid(heightf(img), crop_height)
+    Bottom -> heightf(img) -. crop_height
+  }
   cropf(img, dx, dy, crop_width, crop_height)
 }
 
