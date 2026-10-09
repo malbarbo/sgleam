@@ -2,7 +2,7 @@
 source: cli/tests/integration.rs
 ---
 <svg width="180.0" height="180.0" xmlns="http://www.w3.org/2000/svg">
-  <defs><clipPath id="clip0" ><rect x="0.0" y="0.0" width="180.0" height="180.0" transform="rotate(0.0 90.0 90.0)" /></clipPath></defs>
+  <defs><clipPath id="clip0" ><path d="M 0.0 0.0 L 180.0 0.0 L 180.0 180.0 L 0.0 180.0 Z" /></clipPath></defs>
   <g clip-path="url(#clip0)" >
     <g>
       <path d="M 0.0 0.0 L 180.0 0.0 L 180.0 180.0 L 0.0 180.0 Z" fill="rgba(255, 255, 0, 1.0)" />

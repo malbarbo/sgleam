@@ -4,9 +4,9 @@ source: cli/tests/integration.rs
 <svg width="6.0" height="2.0" xmlns="http://www.w3.org/2000/svg">
   <g>
     <g>
-      <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-1.0" y="-1.0" width="2.0" height="2.0" transform="translate(1.0,1.0) rotate(0.0 0.0 0.0) scale(1.0,1.0)" />
-      <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-1.0" y="-1.0" width="2.0" height="2.0" transform="translate(3.0,1.0) rotate(0.0 0.0 0.0) scale(-1.0,1.0)" />
+      <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-0.5" y="-0.5" width="1.0" height="1.0" preserveAspectRatio="none" transform="matrix(2.0 0.0 0.0 2.0 1.0 1.0)" />
+      <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-0.5" y="-0.5" width="1.0" height="1.0" preserveAspectRatio="none" transform="matrix(-2.0 0.0 0.0 2.0 3.0 1.0)" />
     </g>
-    <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-1.0" y="-1.0" width="2.0" height="2.0" transform="translate(5.0,1.0) rotate(0.0 0.0 0.0) scale(1.0,-1.0)" />
+    <image href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91JpzAAAAFklEQVR4nGP4z8DA8J+BkYHh////DAAe9gT9Ce00PgAAAABJRU5ErkJggg==" x="-0.5" y="-0.5" width="1.0" height="1.0" preserveAspectRatio="none" transform="matrix(2.0 0.0 0.0 -2.0 5.0 1.0)" />
   </g>
 </svg>

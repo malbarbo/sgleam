@@ -135,19 +135,24 @@ pub opaque type Image {
   Path(style: Style, commands: List(PathCmd), closed: Bool)
   Combination(Image, Image)
   Crop(box: Box, image: Image)
-  Text(
-    style: Style,
-    box: Box,
-    text: String,
-    flip_vertical: Bool,
-    flip_horizontal: Bool,
-    font: Font,
-  )
-  Bitmap(box: Box, data_uri: String, flip_vertical: Bool, flip_horizontal: Bool)
+  Text(style: Style, box: Box, text: String, font: Font)
+  Bitmap(box: Box, data_uri: String)
 }
 
+/// The image of a rectangle under an affine map. `x_axis` goes from the
+/// middle of the left side to the middle of the right side, and `y_axis`
+/// from the middle of the top side to the middle of the bottom side. A flip
+/// makes the two axes a mirror of a rotation.
 type Box {
-  Box(center: Pointf, width: Float, height: Float, angle: Float)
+  Box(center: Pointf, x_axis: Pointf, y_axis: Pointf)
+}
+
+fn box_of_size(width: Float, height: Float) -> Box {
+  Box(
+    Pointf(width /. 2.0, height /. 2.0),
+    Pointf(width, 0.0),
+    Pointf(0.0, height),
+  )
 }
 
 fn box_translate(box: Box, dx: Float, dy: Float) -> Box {
@@ -155,11 +160,9 @@ fn box_translate(box: Box, dx: Float, dy: Float) -> Box {
 }
 
 fn box_box(box: Box) -> #(Pointf, Pointf) {
-  let hw = box.width /. 2.0
-  let hh = box.height /. 2.0
   let abs = float.absolute_value
-  let dx = hw *. abs(cos_deg(box.angle)) +. hh *. abs(sin_deg(box.angle))
-  let dy = hw *. abs(sin_deg(box.angle)) +. hh *. abs(cos_deg(box.angle))
+  let dx = { abs(box.x_axis.x) +. abs(box.y_axis.x) } /. 2.0
+  let dy = { abs(box.x_axis.y) +. abs(box.y_axis.y) } /. 2.0
   #(
     point_translate(box.center, 0.0 -. dx, 0.0 -. dy),
     point_translate(box.center, dx, dy),
@@ -167,25 +170,42 @@ fn box_box(box: Box) -> #(Pointf, Pointf) {
 }
 
 fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
+  let origin = Pointf(0.0, 0.0)
   Box(
-    ..box,
-    center: point_rotate(box.center, center, angle),
-    angle: box.angle +. angle,
+    point_rotate(box.center, center, angle),
+    point_rotate(box.x_axis, origin, angle),
+    point_rotate(box.y_axis, origin, angle),
   )
 }
 
 fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
-  let center = Pointf(box.center.x *. x_factor, box.center.y *. y_factor)
   Box(
-    ..box,
-    center: center,
-    width: box.width *. x_factor,
-    height: box.height *. y_factor,
+    Pointf(box.center.x *. x_factor, box.center.y *. y_factor),
+    Pointf(box.x_axis.x *. x_factor, box.x_axis.y *. x_factor),
+    Pointf(box.y_axis.x *. y_factor, box.y_axis.y *. y_factor),
   )
 }
 
 fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
-  Box(..box, center: point_flip(box.center), angle: 0.0 -. box.angle)
+  Box(point_flip(box.center), point_flip(box.x_axis), point_flip(box.y_axis))
+}
+
+/// The affine of `box`, which takes the unit square centred on the origin
+/// to the box, after a scale of `1 / width` and `1 / height`.
+fn box_matrix(box: Box, width: Float, height: Float) -> String {
+  "matrix("
+  <> fs(box.x_axis.x /. width)
+  <> " "
+  <> fs(box.x_axis.y /. width)
+  <> " "
+  <> fs(box.y_axis.x /. height)
+  <> " "
+  <> fs(box.y_axis.y /. height)
+  <> " "
+  <> fs(box.center.x)
+  <> " "
+  <> fs(box.center.y)
+  <> ")"
 }
 
 pub const empty = Path(style.none, [], True)
@@ -1415,14 +1435,7 @@ fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
 pub fn text_fontf(text: String, font: Font, style: Style) -> Image {
   let css = font.to_css(font)
   let #(width, height, _, _) = system.text_metrics(text, css)
-  Text(
-    style,
-    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
-    text,
-    False,
-    False,
-    font,
-  )
+  Text(style, box_of_size(width, height), text, font)
 }
 
 pub fn textf(text: String, size: Float, style: Style) -> Image {
@@ -1443,21 +1456,11 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 
 pub fn bitmap(path: String) -> Image {
   let #(width, height, data_uri) = system.load_bitmap(path)
-  Bitmap(
-    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
-    data_uri,
-    False,
-    False,
-  )
+  Bitmap(box_of_size(width, height), data_uri)
 }
 
 pub fn bitmap_data_uri(data_uri: String, width: Float, height: Float) -> Image {
-  Bitmap(
-    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
-    data_uri,
-    False,
-    False,
-  )
+  Bitmap(box_of_size(width, height), data_uri)
 }
 
 // **************************
@@ -1526,58 +1529,22 @@ pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
 }
 
 pub fn flip_horizontal(img: Image) -> Image {
-  flip(img, point_flip_x, True, False) |> fix_position
+  flip(img, point_flip_x) |> fix_position
 }
 
 pub fn flip_vertical(img: Image) -> Image {
-  flip(img, point_flip_y, False, True) |> fix_position
+  flip(img, point_flip_y) |> fix_position
 }
 
-fn flip(
-  img: Image,
-  point_flip: fn(Pointf) -> Pointf,
-  flip_horizontal: Bool,
-  flip_vertical: Bool,
-) -> Image {
+fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
   case img {
     Path(style:, commands:, closed:) ->
       Path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
-    Combination(a, b) ->
-      Combination(
-        flip(a, point_flip, flip_horizontal, flip_vertical),
-        flip(b, point_flip, flip_horizontal, flip_vertical),
-      )
+    Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
     Crop(box:, image:) ->
-      Crop(
-        box: box_flip(box, point_flip),
-        image: flip(image, point_flip, flip_horizontal, flip_vertical),
-      )
-    Text(box:, ..) ->
-      Text(
-        ..img,
-        box: box_flip(box, point_flip),
-        flip_horizontal: case flip_horizontal {
-          True -> !img.flip_horizontal
-          False -> img.flip_horizontal
-        },
-        flip_vertical: case flip_vertical {
-          True -> !img.flip_vertical
-          False -> img.flip_vertical
-        },
-      )
-    Bitmap(box:, ..) ->
-      Bitmap(
-        ..img,
-        box: box_flip(box, point_flip),
-        flip_horizontal: case flip_horizontal {
-          True -> !img.flip_horizontal
-          False -> img.flip_horizontal
-        },
-        flip_vertical: case flip_vertical {
-          True -> !img.flip_vertical
-          False -> img.flip_vertical
-        },
-      )
+      Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
+    Text(box:, ..) -> Text(..img, box: box_flip(box, point_flip))
+    Bitmap(box:, ..) -> Bitmap(..img, box: box_flip(box, point_flip))
   }
 }
 
@@ -1601,10 +1568,7 @@ pub fn cropf(
 ) -> Image {
   let width = positive(width)
   let height = positive(height)
-  Crop(
-    Box(Pointf(width /. 2.0, height /. 2.0), width, height, 0.0),
-    translate(img, 0.0 -. x, 0.0 -. y),
-  )
+  Crop(box_of_size(width, height), translate(img, 0.0 -. x, 0.0 -. y))
 }
 
 pub fn crop(img: Image, x: Int, y: Int, width: Int, height: Int) -> Image {
@@ -2305,15 +2269,30 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> to_svg_(b, level + 1)
       <> indent(level)
       <> "</g>\n"
-    Crop(box: Box(center:, width:, height:, angle:), image:) -> {
+    Crop(box:, image:) -> {
       let clipid = "clip" <> int.to_string(next_clip_id())
+      let corner = fn(x, y) {
+        let p =
+          Pointf(
+            box.center.x +. x *. box.x_axis.x +. y *. box.y_axis.x,
+            box.center.y +. x *. box.x_axis.y +. y *. box.y_axis.y,
+          )
+        fs(p.x) <> " " <> fs(p.y)
+      }
       let rect =
-        "<rect "
-        <> attrib("x", center.x -. width /. 2.0)
-        <> attrib("y", center.y -. height /. 2.0)
-        <> attrib("width", width)
-        <> attrib("height", height)
-        <> attribs("transform", rotate_str(angle, center))
+        "<path "
+        <> attribs(
+          "d",
+          "M "
+            <> corner(-0.5, -0.5)
+            <> " L "
+            <> corner(0.5, -0.5)
+            <> " L "
+            <> corner(0.5, 0.5)
+            <> " L "
+            <> corner(-0.5, 0.5)
+            <> " Z",
+        )
         <> "/>"
       indent(level)
       <> "<defs>"
@@ -2331,35 +2310,10 @@ fn to_svg_(img: Image, level: Int) -> String {
       <> indent(level)
       <> "</g>\n"
     }
-    Text(
-      style:,
-      box: Box(center:, width:, height:, angle:),
-      text:,
-      flip_horizontal:,
-      flip_vertical:,
-      font:,
-    ) -> {
+    Text(style:, box:, text:, font:) -> {
       let css = font.to_css(font)
       let #(original_width, original_height, x_offset, y_offset) =
         system.text_metrics(text, css)
-      let scale_x =
-        width
-        /. original_width
-        *. {
-          case flip_horizontal {
-            True -> -1.0
-            False -> 1.0
-          }
-        }
-      let scale_y =
-        height
-        /. original_height
-        *. {
-          case flip_vertical {
-            True -> -1.0
-            False -> 1.0
-          }
-        }
       indent(level)
       <> "<text "
       <> attribs("dominant-baseline", "alphabetic")
@@ -2374,46 +2328,22 @@ fn to_svg_(img: Image, level: Int) -> String {
         True -> attribs("text-decoration", "underline")
         False -> ""
       }
-      <> attribs(
-        "transform",
-        translate_str(center.x, center.y)
-          <> " "
-          <> rotate_str(angle, Pointf(0.0, 0.0))
-          <> " "
-          <> scale_str(scale_x, scale_y),
-      )
+      <> attribs("transform", box_matrix(box, original_width, original_height))
       <> style.to_svg(style)
       <> ">"
       <> text
       <> "</text>\n"
     }
-    Bitmap(
-      box: Box(center:, width:, height:, angle:),
-      data_uri:,
-      flip_horizontal:,
-      flip_vertical:,
-    ) -> {
-      let sign = fn(flip) {
-        case flip {
-          True -> -1.0
-          False -> 1.0
-        }
-      }
+    Bitmap(box:, data_uri:) -> {
       indent(level)
       <> "<image "
       <> attribs("href", data_uri)
-      <> attrib("x", 0.0 -. width /. 2.0)
-      <> attrib("y", 0.0 -. height /. 2.0)
-      <> attrib("width", width)
-      <> attrib("height", height)
-      <> attribs(
-        "transform",
-        translate_str(center.x, center.y)
-          <> " "
-          <> rotate_str(angle, Pointf(0.0, 0.0))
-          <> " "
-          <> scale_str(sign(flip_horizontal), sign(flip_vertical)),
-      )
+      <> attrib("x", -0.5)
+      <> attrib("y", -0.5)
+      <> attrib("width", 1.0)
+      <> attrib("height", 1.0)
+      <> attribs("preserveAspectRatio", "none")
+      <> attribs("transform", box_matrix(box, 1.0, 1.0))
       <> "/>\n"
     }
   }
@@ -2487,18 +2417,6 @@ fn bool01(b: Bool) -> String {
     True -> "1"
     False -> "0"
   }
-}
-
-fn rotate_str(angle: Float, center: Pointf) -> String {
-  "rotate(" <> fs(angle) <> " " <> fs(center.x) <> " " <> fs(center.y) <> ")"
-}
-
-fn scale_str(scale_x: Float, scale_y: Float) -> String {
-  "scale(" <> fs(scale_x) <> "," <> fs(scale_y) <> ")"
-}
-
-fn translate_str(x: Float, y: Float) -> String {
-  "translate(" <> fs(x) <> "," <> fs(y) <> ")"
 }
 
 fn indent(level: Int) -> String {
