@@ -218,6 +218,20 @@ image.dimension(img)  // #(largura, altura)
 image.center(img)     // #(x, y) do centro
 ```
 
+## Comparação de imagens
+
+O operador `==` compara como duas imagens foram construídas, então um
+retângulo girado em 90 graus não é `==` ao retângulo com os lados trocados,
+embora os dois pareçam iguais. `image.same` compara o que as imagens
+desenham, pixel a pixel, e num teste `check.same` faz o mesmo:
+
+```gleam
+let r = image.rectangle(20, 10, fill.red)
+image.rotate(r, 90) == image.rectangle(10, 20, fill.red)          // False
+image.same(image.rotate(r, 90), image.rectangle(10, 20, fill.red)) // True
+check.same(image.rotate(r, 90), image.rectangle(10, 20, fill.red))
+```
+
 
 ## Sistema de coordenadas
 
