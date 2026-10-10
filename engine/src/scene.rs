@@ -15,8 +15,9 @@ use rquickjs::{
     Class, Constructor, Ctx, Exception, FromJs, Function, IntoJs, JsLifetime, Object, Result,
     Value, convert::List,
 };
-use sinteract::asset::decode_data_uri;
+use sinteract::asset::{ImageHead, decode_data_uri};
 use sinteract::renderer::Renderer;
+use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::SvgRenderer;
 use sinteract::scene::{
     Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path,
@@ -39,6 +40,49 @@ pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String
     let mut renderer = SvgRenderer::with_id_prefix(&prefix).expect("a valid id prefix");
     let Ok(svg) = renderer.render(&scene);
     Ok(svg.to_owned())
+}
+
+/// `same_pixels` of `sgleam/image` returns `true` if `a` and `b` draw the
+/// same pixels on a canvas of `width` by `height`, `false` otherwise. The
+/// pixmap draws a marker for an image that is not a PNG, so the bitmaps of
+/// such images also have to show the same images in the same order.
+pub fn same_pixels<'js>(
+    ctx: Ctx<'js>,
+    a: Object<'js>,
+    b: Object<'js>,
+    width: f64,
+    height: f64,
+) -> Result<bool> {
+    let a = leaves(&a)?;
+    let b = leaves(&b)?;
+    if other_images(&a) != other_images(&b) {
+        return Ok(false);
+    }
+    Ok(pixels(&ctx, a, width, height)? == pixels(&ctx, b, width, height)?)
+}
+
+/// The images of the bitmaps in `runs` that are not a PNG.
+fn other_images(runs: &[Run]) -> Vec<&Image> {
+    runs.iter()
+        .flat_map(|(_, leaves)| leaves)
+        .filter_map(|leaf| match leaf {
+            Leaf::Bitmap { bitmap, png: false } => Some(&bitmap.image),
+            _ => None,
+        })
+        .collect()
+}
+
+/// The pixels of `runs` on a canvas of `width` by `height`.
+fn pixels(ctx: &Ctx, runs: Vec<Run>, width: f64, height: f64) -> Result<Vec<u8>> {
+    let mut scene = Scene::new(width as f32, height as f32);
+    draw(runs, &mut scene);
+    match render_to_pixmap(&scene, 1.0) {
+        Ok(pixmap) => Ok(pixmap.take()),
+        Err(_) => Err(Exception::throw_range(
+            ctx,
+            "the images are too large to compare by their pixels",
+        )),
+    }
 }
 
 /// The elements of `image`, in runs that share a region, in drawing order.
@@ -86,7 +130,7 @@ type Run = (Region, Vec<Leaf>);
 enum Leaf {
     Path(Path),
     Text(Text),
-    Bitmap(Bitmap),
+    Bitmap { bitmap: Bitmap, png: bool },
 }
 
 impl Leaf {
@@ -94,7 +138,7 @@ impl Leaf {
         match self {
             Leaf::Path(path) => scene.add_path(path),
             Leaf::Text(text) => scene.add_text(text),
-            Leaf::Bitmap(bitmap) => scene.add_bitmap(bitmap),
+            Leaf::Bitmap { bitmap, .. } => scene.add_bitmap(bitmap),
         }
     }
 }
@@ -130,12 +174,15 @@ fn walk<'js>(image: &Object<'js>, at: Offset, region: &Region, runs: &mut Vec<Ru
                 let transform = affine(&image.get("box")?, at)?;
                 let loaded: MaybeLoaded = image.get("image")?;
                 loaded.map(|loaded| {
-                    let image = loaded.borrow().0.clone();
-                    Leaf::Bitmap(Bitmap {
-                        image,
-                        transform,
-                        sampling: Sampling::Smooth,
-                    })
+                    let loaded = loaded.borrow();
+                    Leaf::Bitmap {
+                        bitmap: Bitmap {
+                            image: loaded.image.clone(),
+                            transform,
+                            sampling: Sampling::Smooth,
+                        },
+                        png: loaded.png,
+                    }
                 })
             }
             other => return Err(type_error(image.ctx(), &format!("cannot draw a {other}"))),
@@ -241,7 +288,18 @@ fn cross(p: (f64, f64), q: (f64, f64), r: (f64, f64)) -> f64 {
 /// The image of a `Bitmap`, so a frame draws the image with no decode. The
 /// garbage collector of JavaScript frees the image with the last bitmap that
 /// holds it.
-pub struct Loaded(Image);
+pub struct Loaded {
+    image: Image,
+    /// Whether the image is a PNG, the one format that the pixmap decodes.
+    png: bool,
+}
+
+impl Loaded {
+    fn new(image: Image, head: ImageHead) -> Self {
+        let png = head.mime == "image/png";
+        Self { image, png }
+    }
+}
 
 unsafe impl<'js> JsLifetime<'js> for Loaded {
     type Changed<'to> = Loaded;
@@ -266,7 +324,7 @@ impl<'js> JsClass<'js> for Loaded {
             other
                 .as_object()
                 .and_then(Class::<Loaded>::from_object)
-                .is_some_and(|other| this.borrow().0 == other.borrow().0)
+                .is_some_and(|other| this.borrow().image == other.borrow().image)
         };
         proto.set("equals", Function::new(ctx.clone(), equals)?)?;
         Ok(Some(proto))
@@ -303,7 +361,7 @@ pub fn load_bitmap<'js>(ctx: Ctx<'js>, path: String) -> Result<Value<'js>> {
         Ok((image, head)) => List((
             f64::from(head.width),
             f64::from(head.height),
-            Class::instance(ctx.clone(), Loaded(image))?,
+            Class::instance(ctx.clone(), Loaded::new(image, head))?,
         ))
         .into_js(&ctx),
         Err(reason) => format!("cannot read {path}: {reason}").into_js(&ctx),
@@ -326,7 +384,7 @@ pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<Option<Sized<'
     Ok(Some(List((
         f64::from(head.width),
         f64::from(head.height),
-        Class::instance(ctx, Loaded(image))?,
+        Class::instance(ctx, Loaded::new(image, head))?,
     ))))
 }
 
