@@ -474,12 +474,17 @@ pub fn ellipsef(width: Float, height: Float, style: Style) -> Image {
   let h = positive(height)
   let rx = w /. 2.0
   let ry = h /. 2.0
+  let arc = ArcTo(rx, ry, 0.0, False, True, _)
+  // A quarter arc ends away from where it starts even when the width or the
+  // height is 0, so the box keeps the other side.
   Path(
     style,
     [
       MoveTo(Pointf(w, ry)),
-      ArcTo(rx, ry, 0.0, False, True, Pointf(0.0, ry)),
-      ArcTo(rx, ry, 0.0, False, True, Pointf(w, ry)),
+      arc(Pointf(rx, h)),
+      arc(Pointf(0.0, ry)),
+      arc(Pointf(rx, 0.0)),
+      arc(Pointf(w, ry)),
     ],
     True,
   )

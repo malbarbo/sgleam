@@ -1,5 +1,6 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 53
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="160" height="32" viewBox="0 0 160 32">
   <defs>
@@ -11,11 +12,11 @@ source: cli/tests/integration.rs
   </defs>
   <g clip-path="url(#s0-c0)">
     <path d="M0.5 0.5 L32.5 0.5 L32.5 32.5 L0.5 32.5 Z" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10"/>
-    <path d="M8 0 C8 4.418278 4.418278 8 0.00000000000000048985874 8 C-4.418278 8 -8 4.418278 -8 0.0000000000000009797175 C-8 -4.418278 -4.418278 -8 -0.0000000000000014695761 -8 C4.418278 -8 8 -4.418278 8 -0.000000000000001959435 Z" fill="#ff6347"/>
+    <path d="M8 0 C8 4.418278 4.418278 8 0.00000000000000048985874 8 C-4.418278 8 -8 4.418278 -8 0.0000000000000009797175 C-8 -4.418278 -4.418278 -8 -0.0000000000000014695761 -8 C4.418278 -8 8 -4.418278 8 0 Z" fill="#ff6347"/>
   </g>
   <g clip-path="url(#s0-c1)">
     <path d="M32.5 0.5 L64.5 0.5 L64.5 32.5 L32.5 32.5 Z" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10"/>
-    <path d="M48 8 C48 12.418278 44.418278 16 40 16 C35.581722 16 32 12.418278 32 8 C32 3.581722 35.581722 0.0000000000000008881784 40 0 C44.418278 -0.0000000000000017763568 48 3.581722 48 8 Z" fill="#ff6347"/>
+    <path d="M48 8 C48 12.418278 44.418278 16 40 16 C35.581722 16 32 12.418278 32 8 C32 3.581722 35.581722 0.0000000000000008881784 40 0 C44.418278 0 48 3.581722 48 8 Z" fill="#ff6347"/>
   </g>
   <g clip-path="url(#s0-c2)">
     <path d="M64.5 0.5 L96.5 0.5 L96.5 32.5 L64.5 32.5 Z" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10"/>
