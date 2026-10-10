@@ -516,6 +516,17 @@ Deno.test("circle image produces SVG", async () => {
   destroy(ctx);
 });
 
+Deno.test("repl draws an image with one more column and row", async () => {
+  const ctx = await newRepl();
+  const r = run(
+    ctx,
+    "import sgleam/image\nimport sgleam/stroke\nimage.rectangle(40, 20, stroke.black)",
+  );
+  assertEquals(r.result, REPL_OK);
+  assertEquals(r.svgs[0].includes('width="41" height="21"'), true, r.svgs[0]);
+  destroy(ctx);
+});
+
 Deno.test("wedge image produces SVG", async () => {
   const ctx = await newRepl();
   const r = run(

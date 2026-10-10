@@ -1853,10 +1853,22 @@ fn curve_controls(
 // **************************
 
 pub fn to_svg(img: Image) -> String {
+  svg_with_margin(img, 0.0)
+}
+
+/// The svg of `img` with one more column and one more row, where a thin
+/// outline on the right or bottom edge draws its line. DrRacket shows an
+/// image the same way.
+@internal
+pub fn to_repl_svg(img: Image) -> String {
+  svg_with_margin(img, 1.0)
+}
+
+fn svg_with_margin(img: Image, margin: Float) -> String {
   image_to_svg(
     img,
-    float.ceiling(round2(widthf(img))),
-    float.ceiling(round2(heightf(img))),
+    float.ceiling(round2(widthf(img))) +. margin,
+    float.ceiling(round2(heightf(img))) +. margin,
   )
 }
 
