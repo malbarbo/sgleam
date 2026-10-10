@@ -92,6 +92,11 @@ All functions that take dimensions have two versions:
 - `Float`{.gleam} version (suffix `f`): `image.circlef(40.5, fill.red)`{.gleam}
 
 
+## Invalid measures
+
+The shape functions do not fail. A negative measure counts as 0, so `image.rectangle(-10, 20, fill.blue)`{.gleam} is a rectangle of width 0 and height 20. An angle out of range follows the trigonometry, so `image.wedge(40, -90, fill.red)`{.gleam} draws the wedge clockwise. When the measures form no figure, the result is the empty image, of width and height 0. That happens with sides such as 1, 1 and 10 in `image.triangle_sss`{.gleam}, with two angles that add up to 180 or more in `image.triangle_aas`{.gleam}, and with a polygon of fewer than 3 sides.
+
+
 ## Text
 
 ```gleam

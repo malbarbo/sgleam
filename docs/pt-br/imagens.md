@@ -92,6 +92,11 @@ Todas as funções que recebem dimensões possuem duas versões:
 - Versão `Float`{.gleam} (sufixo `f`): `image.circlef(40.5, fill.red)`{.gleam}
 
 
+## Medidas inválidas
+
+As funções de forma não falham. Uma medida negativa conta como 0, então `image.rectangle(-10, 20, fill.blue)`{.gleam} é um retângulo de largura 0 e altura 20. Um ângulo fora da faixa segue a trigonometria, então `image.wedge(40, -90, fill.red)`{.gleam} desenha o setor no sentido horário. Quando as medidas não formam a figura, o resultado é a imagem vazia, de largura e altura 0. Isso acontece com lados como 1, 1 e 10 em `image.triangle_sss`{.gleam}, com dois ângulos que somam 180 ou mais em `image.triangle_aas`{.gleam} e com um polígono de menos de 3 lados.
+
+
 ## Texto
 
 ```gleam
