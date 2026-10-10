@@ -18,7 +18,7 @@ pub use target::check_interrupt;
 pub use target::sleep;
 
 /// The bytes of the image file at the path, or the reason the file cannot be
-/// read. In the browser, the page fetches the file.
+/// read. The browser has no files, so there it always gives the reason.
 pub use target::load_bitmap;
 
 /// `system.draw_svg` puts a drawing on the page. Only the browser draws, so a

@@ -128,10 +128,6 @@ function makeEnv(
       }
       return event.type;
     },
-    load_bitmap_fetch: (): number => 0,
-    load_bitmap_width: (): number => 0,
-    load_bitmap_height: (): number => 0,
-    load_bitmap_data: (): number => 0,
   };
 }
 

@@ -96,8 +96,6 @@ async function loadWasm(
     sleep: (_ms: bigint): void => {},
     draw_svg: (): void => {},
     get_key_event: (): number => 3, // EVENT_NONE
-    load_bitmap_fetch: (): number => 0,
-    load_bitmap_data: (): number => 0,
   };
 
   const instance = await WebAssembly.instantiate(module, {

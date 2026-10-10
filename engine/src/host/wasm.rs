@@ -16,12 +16,6 @@ mod ffi {
         /// bytes of it, and one bool per modifier into `modifiers`, which
         /// holds five, in the order alt, ctrl, shift, meta and repeat.
         pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
-
-        /// Reads the image and holds it. Returns the length of the data URI,
-        /// and 0 when the page cannot read the file.
-        pub fn load_bitmap_fetch(path: *const u8, path_len: usize) -> usize;
-        /// Writes the data URI into `buf` and returns how many bytes it wrote.
-        pub fn load_bitmap_data(buf: *mut u8, buf_len: usize) -> usize;
     }
 }
 
@@ -69,17 +63,6 @@ pub fn get_key_event() -> Vec<String> {
     ret
 }
 
-/// The page gives the file as a data URI.
-pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
-    let data_uri_len = unsafe { ffi::load_bitmap_fetch(path.as_ptr(), path.len()) };
-    if data_uri_len == 0 {
-        return Err("the page cannot fetch the file".into());
-    }
-    let mut buf = vec![0u8; data_uri_len];
-    let filled = unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
-    buf.truncate(filled);
-    std::str::from_utf8(&buf)
-        .ok()
-        .and_then(sinteract::asset::decode_data_uri)
-        .ok_or_else(|| "the page gives no data URI".into())
+pub fn load_bitmap(_path: &str) -> Result<Vec<u8>, String> {
+    Err("the web version has no files".into())
 }
