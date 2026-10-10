@@ -94,8 +94,8 @@ fn walk(image: &Object, region: &Region, runs: &mut Vec<(Region, Vec<Leaf>)>) ->
         "Path" => path(image)?.map(Leaf::Path),
         "Line" => Some(Leaf::Path(line(image)?)),
         "Combination" => {
-            walk(&image.get("0")?, region, runs)?;
-            walk(&image.get("1")?, region, runs)?;
+            walk(&image.get("a")?, region, runs)?;
+            walk(&image.get("b")?, region, runs)?;
             None
         }
         "Crop" => {

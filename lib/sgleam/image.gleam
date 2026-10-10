@@ -134,7 +134,7 @@ pub fn pathf(commands: List(PathCmd), closed: Bool, style: Style) -> Image {
 pub opaque type Image {
   Path(style: Style, commands: List(PathCmd), closed: Bool)
   Line(style: Style, from: Pointf, to: Pointf)
-  Combination(Image, Image)
+  Combination(drawn: Result(#(Pointf, Pointf), Nil), a: Image, b: Image)
   Crop(box: Box, image: Image)
   Text(style: Style, box: Box, text: String, font: Font)
   Bitmap(box: Box, image: system.Loaded)
@@ -156,7 +156,7 @@ pub fn variants() -> List(Image) {
   [
     empty,
     Line(style.none, Pointf(0.0, 0.0), Pointf(0.0, 0.0)),
-    Combination(empty, empty),
+    combination(empty, empty),
     Crop(box, empty),
     Text(style.none, box, "", font.default()),
     Bitmap(box, system.no_image()),
@@ -252,7 +252,15 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
       Path(style, list.map(commands, cmd_translate(_, dx, dy)), closed)
     Line(style:, from:, to:) ->
       Line(style, point_translate(from, dx, dy), point_translate(to, dx, dy))
-    Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
+    Combination(drawn:, a:, b:) ->
+      Combination(
+        drawn: result.map(drawn, fn(drawn) {
+          let #(min, max) = drawn
+          #(point_translate(min, dx, dy), point_translate(max, dx, dy))
+        }),
+        a: translate(a, dx, dy),
+        b: translate(b, dx, dy),
+      )
     Crop(box:, image:) ->
       Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
     Text(box:, ..) -> Text(..img, box: box_translate(box, dx, dy))
@@ -296,20 +304,26 @@ fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
         Pointf(float.min(from.x, to.x) -. 0.5, float.min(from.y, to.y) -. 0.5),
         Pointf(float.max(from.x, to.x) +. 0.5, float.max(from.y, to.y) +. 0.5),
       ))
-    Combination(a, b) ->
-      case drawn_box(a), drawn_box(b) {
-        Ok(#(amin, amax)), Ok(#(bmin, bmax)) ->
-          Ok(#(
-            Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
-            Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
-          ))
-        Ok(box), Error(Nil) | Error(Nil), Ok(box) -> Ok(box)
-        Error(Nil), Error(Nil) -> Error(Nil)
-      }
+    Combination(drawn:, ..) -> drawn
     Crop(box:, ..) -> Ok(box_box(box))
     Text(box:, ..) -> Ok(box_box(box))
     Bitmap(box:, ..) -> Ok(box_box(box))
   }
+}
+
+/// Draws `b` over `a`. The node keeps the box of the two, so the box of a
+/// combination does not walk the tree under it.
+fn combination(a: Image, b: Image) -> Image {
+  let drawn = case drawn_box(a), drawn_box(b) {
+    Ok(#(amin, amax)), Ok(#(bmin, bmax)) ->
+      Ok(#(
+        Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
+        Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
+      ))
+    Ok(box), Error(Nil) | Error(Nil), Ok(box) -> Ok(box)
+    Error(Nil), Error(Nil) -> Error(Nil)
+  }
+  Combination(drawn:, a:, b:)
 }
 
 /// The box of the path of `commands`, as sinteract draws it.
@@ -1155,8 +1169,8 @@ fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
         point_rotate(from, center, angle),
         point_rotate(to, center, angle),
       )
-    Combination(a, b) ->
-      Combination(
+    Combination(a:, b:, ..) ->
+      combination(
         rotate_around(a, center, angle),
         rotate_around(b, center, angle),
       )
@@ -1203,8 +1217,8 @@ fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
         scale(to),
       )
     }
-    Combination(a, b) ->
-      Combination(
+    Combination(a:, b:, ..) ->
+      combination(
         scale_parts(a, x_factor, y_factor),
         scale_parts(b, x_factor, y_factor),
       )
@@ -1241,7 +1255,8 @@ fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
     Path(style:, commands:, closed:) ->
       Path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
     Line(style:, from:, to:) -> Line(style, point_flip(from), point_flip(to))
-    Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
+    Combination(a:, b:, ..) ->
+      combination(flip(a, point_flip), flip(b, point_flip))
     Crop(box:, image:) ->
       Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
     Text(box:, ..) -> Text(..img, box: box_flip(box, point_flip))
@@ -1336,7 +1351,7 @@ pub fn above(a: Image, b: Image) -> Image {
 
 pub fn above_align(a: Image, x_place: XPlace, b: Image) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(a), widthf(b))
-  Combination(translate(a, dxa, 0.0), translate(b, dxb, heightf(a)))
+  combination(translate(a, dxa, 0.0), translate(b, dxb, heightf(a)))
 }
 
 pub fn beside(a: Image, b: Image) -> Image {
@@ -1345,7 +1360,7 @@ pub fn beside(a: Image, b: Image) -> Image {
 
 pub fn beside_align(a: Image, y_place: YPlace, b: Image) -> Image {
   let #(dya, dyb) = y_place_dy(y_place, heightf(a), heightf(b))
-  Combination(translate(a, 0.0, dya), translate(b, widthf(a), dyb))
+  combination(translate(a, 0.0, dya), translate(b, widthf(a), dyb))
 }
 
 pub fn overlay(top: Image, bottom: Image) -> Image {
@@ -1360,7 +1375,7 @@ pub fn overlay_align(
 ) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(top), widthf(bottom))
   let #(dya, dyb) = y_place_dy(y_place, heightf(top), heightf(bottom))
-  Combination(translate(bottom, dxb, dyb), translate(top, dxa, dya))
+  combination(translate(bottom, dxb, dyb), translate(top, dxa, dya))
   |> fix_position
 }
 
@@ -1402,7 +1417,7 @@ pub fn overlay_align_offset(
 }
 
 pub fn overlay_xyf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
-  Combination(translate(bottom, x, y), top) |> fix_position
+  combination(translate(bottom, x, y), top) |> fix_position
 }
 
 pub fn overlay_xy(top: Image, x: Int, y: Int, bottom: Image) -> Image {
@@ -1465,7 +1480,7 @@ pub fn underlay_align_offset(
 }
 
 pub fn underlay_xyf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
-  Combination(bottom, translate(top, x, y)) |> fix_position
+  combination(bottom, translate(top, x, y)) |> fix_position
 }
 
 pub fn underlay_xy(bottom: Image, x: Int, y: Int, top: Image) -> Image {
@@ -1519,7 +1534,7 @@ pub fn place_image_alignf(
     Middle -> heightf(img) /. -2.0
     Top -> 0.0
   }
-  Combination(scene, translate(img, x +. dx, y +. dy))
+  combination(scene, translate(img, x +. dx, y +. dy))
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
 }
@@ -1606,7 +1621,7 @@ pub fn place_linef(
   y2: Float,
   style: Style,
 ) -> Image {
-  Combination(
+  combination(
     scene,
     Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
   )
@@ -1637,7 +1652,7 @@ pub fn place_polygonf(
   points: List(Pointf),
   style: Style,
 ) -> Image {
-  Combination(scene, points_to_path(points, style))
+  combination(scene, points_to_path(points, style))
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
 }
@@ -1659,7 +1674,7 @@ pub fn place_curvef(
   style: Style,
 ) -> Image {
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
-  Combination(
+  combination(
     scene,
     Path(
       style,
@@ -1705,7 +1720,7 @@ pub fn place_wedgef(
   angle: Float,
   style: Style,
 ) -> Image {
-  Combination(scene, translate(wedge_path(radius, angle, style), x, y))
+  combination(scene, translate(wedge_path(radius, angle, style), x, y))
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
 }
@@ -1748,7 +1763,7 @@ pub fn add_linef(
   y2: Float,
   style: Style,
 ) -> Image {
-  Combination(
+  combination(
     img,
     Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
   )
@@ -1774,7 +1789,7 @@ pub fn add_line(
 }
 
 pub fn add_polygonf(img: Image, points: List(Pointf), style: Style) -> Image {
-  Combination(img, points_to_path(points, style)) |> fix_position
+  combination(img, points_to_path(points, style)) |> fix_position
 }
 
 pub fn add_polygon(img: Image, points: List(Point), style: Style) -> Image {
@@ -1794,7 +1809,7 @@ pub fn add_curvef(
   style: Style,
 ) -> Image {
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
-  Combination(
+  combination(
     img,
     Path(
       style,
@@ -1844,7 +1859,7 @@ pub fn add_solid_curvef(
   style: Style,
 ) -> Image {
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
-  Combination(
+  combination(
     img,
     Path(style, [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))], True),
   )
@@ -1885,7 +1900,7 @@ pub fn add_wedgef(
   angle: Float,
   style: Style,
 ) -> Image {
-  Combination(img, translate(wedge_path(radius, angle, style), x, y))
+  combination(img, translate(wedge_path(radius, angle, style), x, y))
   |> fix_position
 }
 
