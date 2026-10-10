@@ -808,6 +808,12 @@ pub fn triangle_saaf(
 ) -> Image {
   use <- bool.guard(!triangle_angles(angle_b, angle_c), empty)
   let side_a = positive(side_a)
+  // With B and C at 0, the law of sines gives 0 / 0, and the triangle is
+  // the segment of side a.
+  use <- bool.guard(
+    angle_b +. angle_c == 0.0,
+    triangle_from_sides_angle(side_a, 0.0, 180.0, style),
+  )
   let angle_a = 180.0 -. angle_b -. angle_c
   let ratio = side_a /. sin_deg(angle_a)
   let side_b = ratio *. sin_deg(angle_b)

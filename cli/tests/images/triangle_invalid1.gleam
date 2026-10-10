@@ -26,5 +26,8 @@ pub fn main() {
   show(image.triangle_asa(60, 10, 60, s))
   show(image.triangle_saa(10, 90, 90, s))
   show(image.triangle_saa(10, 0, 60, s))
+  show(image.triangle_saa(10, 0, 0, s))
+  show(image.triangle_aas(0, 0, 10, s))
+  show(image.triangle_asa(0, 10, 0, s))
   show(image.triangle_saa(10, 60, 60, s))
 }
