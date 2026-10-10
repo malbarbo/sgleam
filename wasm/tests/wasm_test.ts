@@ -625,8 +625,8 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
   const r = run(ctx, "main()");
   // The last line is the repl echoing what main() gave back.
   assertEquals(r.stdout, 'press Char("a")\nup Enter\nNil\n');
-  // The first state, one per handled event, and the one stop_when draws.
-  assertEquals(r.svgs.length, 4, `stderr:\n${r.stderr}`);
+  // The first state and one per handled event.
+  assertEquals(r.svgs.length, 3, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 

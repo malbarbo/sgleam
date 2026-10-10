@@ -201,7 +201,7 @@ fn run_loop(world: World(a), next_tick_at: Int) {
     False -> Nil
   }
   case world.stop_when |> option.map(fn(f) { f(world.state) }) {
-    Some(True) -> show_svg(world)
+    Some(True) -> Nil
     _ -> {
       let wait =
         int.min(next_tick_at - system.now_ms(), key_event_polling_delay)
