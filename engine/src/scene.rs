@@ -34,19 +34,24 @@ const FP_EPSILON: f64 = 1.0e-10;
 /// The svg of `image` on a canvas of `width` by `height`.
 pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String> {
     let mut scene = Scene::new(width as f32, height as f32);
-    draw(&image, &mut scene)?;
+    draw(leaves(&image)?, &mut scene);
     let prefix = format!("s{}-", NEXT_SVG.fetch_add(1, Ordering::Relaxed));
     let mut renderer = SvgRenderer::with_id_prefix(&prefix).expect("a valid id prefix");
     let Ok(svg) = renderer.render(&scene);
     Ok(svg.to_owned())
 }
 
-/// Puts `image` into `scene`. A crop inside another becomes one clip of the
-/// two boxes together, so no clip of the scene holds another, and the
-/// nesting limit of sinteract drops nothing.
-fn draw(image: &Object, scene: &mut Scene) -> Result<()> {
+/// The elements of `image`, in runs that share a region, in drawing order.
+fn leaves(image: &Object) -> Result<Vec<Run>> {
     let mut runs = Vec::new();
     walk(image, (0.0, 0.0), &None, &mut runs)?;
+    Ok(runs)
+}
+
+/// Puts `runs` into `scene`. A crop inside another becomes one clip of the
+/// two boxes together, so no clip of the scene holds another, and the
+/// nesting limit of sinteract drops nothing.
+fn draw(runs: Vec<Run>, scene: &mut Scene) {
     for (region, leaves) in runs {
         let Some(region) = region else {
             leaves.into_iter().for_each(|leaf| leaf.add_to(scene));
@@ -63,7 +68,6 @@ fn draw(image: &Object, scene: &mut Scene) -> Result<()> {
             leaves.into_iter().for_each(|leaf| leaf.add_to(inner));
         });
     }
-    Ok(())
 }
 
 /// The area that the crops around an element leave visible, as the corners
@@ -74,6 +78,9 @@ type Region = Option<Vec<(f64, f64)>>;
 /// How far the nodes above an element move it, as the offsets of the
 /// children of `Combination` and `Crop` say.
 type Offset = (f64, f64);
+
+/// Elements in a row that share a region.
+type Run = (Region, Vec<Leaf>);
 
 /// An element of the scene, before it goes into a clip.
 enum Leaf {
@@ -96,12 +103,7 @@ impl Leaf {
 /// the elements in a row that share a region, in drawing order. The nodes
 /// wait on a stack of their own, so a deep image does not overflow the stack
 /// of the thread.
-fn walk<'js>(
-    image: &Object<'js>,
-    at: Offset,
-    region: &Region,
-    runs: &mut Vec<(Region, Vec<Leaf>)>,
-) -> Result<()> {
+fn walk<'js>(image: &Object<'js>, at: Offset, region: &Region, runs: &mut Vec<Run>) -> Result<()> {
     let mut pending = vec![(image.clone(), at, Rc::new(region.clone()))];
     while let Some((image, at, region)) = pending.pop() {
         let leaf = match class(&image)?.as_str() {
