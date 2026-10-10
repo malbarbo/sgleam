@@ -1282,40 +1282,27 @@ pub fn rotate(img: Image, angle: Int) -> Image {
 fn rotate_around(img: Image, center: Pointf, angle: Float) -> #(Image, Pointf) {
   // For a child at `at`, the center is at `center - at`, so the child
   // rotates around that point and keeps `at`.
-  let child = fn(child, at: Pointf) {
-    let #(child, child_at) =
-      rotate_around(
-        child,
-        point_translate(center, 0.0 -. at.x, 0.0 -. at.y),
-        angle,
-      )
-    #(child, point_translate(child_at, at.x, at.y))
+  let enter = fn(center, at: Pointf) {
+    #(point_translate(center, 0.0 -. at.x, 0.0 -. at.y), at)
   }
-  case img {
-    Path(style:, commands:, closed:, ..) ->
-      path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
-      |> settle(origin)
-    Line(style:, from:, to:) ->
-      Line(
-        style,
-        point_rotate(from, center, angle),
-        point_rotate(to, center, angle),
-      )
-      |> settle(origin)
-    Combination(a:, a_at:, b:, b_at:, ..) -> {
-      let #(a, a_at) = child(a, a_at)
-      let #(b, b_at) = child(b, b_at)
-      combination_settled(a, a_at, b, b_at)
+  let leaf = fn(img, center) {
+    case img {
+      Path(style:, commands:, closed:, ..) ->
+        path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
+      Line(style:, from:, to:) ->
+        Line(
+          style,
+          point_rotate(from, center, angle),
+          point_rotate(to, center, angle),
+        )
+      Text(box:, ..) -> Text(..img, box: box_rotate(box, center, angle))
+      Bitmap(box:, ..) -> Bitmap(..img, box: box_rotate(box, center, angle))
+      Combination(..) | Crop(..) -> img
     }
-    Crop(box:, image:, at:) -> {
-      let #(image, at) = child(image, at)
-      crop_settled(box_rotate(box, center, angle), image, at)
-    }
-    Text(box:, ..) ->
-      Text(..img, box: box_rotate(box, center, angle)) |> settle(origin)
-    Bitmap(box:, ..) ->
-      Bitmap(..img, box: box_rotate(box, center, angle)) |> settle(origin)
   }
+  map_leaves(img, center, enter, leaf, fn(box, center) {
+    box_rotate(box, center, angle)
+  })
 }
 
 pub fn scalef(img: Image, factor: Float) -> Image {
@@ -1339,49 +1326,37 @@ fn scale_parts(
   y_factor: Float,
 ) -> #(Image, Pointf) {
   let scale = fn(p: Pointf) { Pointf(p.x *. x_factor, p.y *. y_factor) }
-  let child = fn(child, at: Pointf) {
-    let #(child, child_at) = scale_parts(child, x_factor, y_factor)
-    let at = scale(at)
-    #(child, point_translate(child_at, at.x, at.y))
-  }
-  case img {
-    // The path takes the scale point by point, but its stroke has one
-    // width and one dash, so they take the mean of the two factors, as the
-    // width does in 2htdp.
-    Path(style:, commands:, closed:, ..) ->
-      path(
-        style.scale(style, { x_factor +. y_factor } /. 2.0),
-        list.map(commands, cmd_scale(_, x_factor, y_factor)),
-        closed,
-      )
-      |> settle(origin)
-    Line(style:, from:, to:) ->
-      Line(
-        style.scale(style, { x_factor +. y_factor } /. 2.0),
-        scale(from),
-        scale(to),
-      )
-      |> settle(origin)
-    Combination(a:, a_at:, b:, b_at:, ..) -> {
-      let #(a, a_at) = child(a, a_at)
-      let #(b, b_at) = child(b, b_at)
-      combination_settled(a, a_at, b, b_at)
+  let leaf = fn(img, _) {
+    case img {
+      // The path takes the scale point by point, but its stroke has one
+      // width and one dash, so they take the mean of the two factors, as
+      // the width does in 2htdp.
+      Path(style:, commands:, closed:, ..) ->
+        path(
+          style.scale(style, { x_factor +. y_factor } /. 2.0),
+          list.map(commands, cmd_scale(_, x_factor, y_factor)),
+          closed,
+        )
+      Line(style:, from:, to:) ->
+        Line(
+          style.scale(style, { x_factor +. y_factor } /. 2.0),
+          scale(from),
+          scale(to),
+        )
+      // The stroke of a text is as wide as the stroke of a path.
+      Text(style:, box:, ..) ->
+        Text(
+          ..img,
+          style: style.scale(style, { x_factor +. y_factor } /. 2.0),
+          box: box_scale(box, x_factor, y_factor),
+        )
+      Bitmap(box:, ..) -> Bitmap(..img, box: box_scale(box, x_factor, y_factor))
+      Combination(..) | Crop(..) -> img
     }
-    Crop(box:, image:, at:) -> {
-      let #(image, at) = child(image, at)
-      crop_settled(box_scale(box, x_factor, y_factor), image, at)
-    }
-    // The stroke of a text is as wide as the stroke of a path.
-    Text(style:, box:, ..) ->
-      Text(
-        ..img,
-        style: style.scale(style, { x_factor +. y_factor } /. 2.0),
-        box: box_scale(box, x_factor, y_factor),
-      )
-      |> settle(origin)
-    Bitmap(box:, ..) ->
-      Bitmap(..img, box: box_scale(box, x_factor, y_factor)) |> settle(origin)
   }
+  map_leaves(img, Nil, fn(_, at) { #(Nil, scale(at)) }, leaf, fn(box, _) {
+    box_scale(box, x_factor, y_factor)
+  })
 }
 
 pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
@@ -1398,30 +1373,96 @@ pub fn flip_vertical(img: Image) -> Image {
 
 /// Returns `img` flipped and settled, with the place of its least corner.
 fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> #(Image, Pointf) {
-  let child = fn(child, at: Pointf) {
-    let #(child, child_at) = flip(child, point_flip)
-    let at = point_flip(at)
-    #(child, point_translate(child_at, at.x, at.y))
+  let leaf = fn(img, _) {
+    case img {
+      Path(style:, commands:, closed:, ..) ->
+        path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
+      Line(style:, from:, to:) -> Line(style, point_flip(from), point_flip(to))
+      Text(box:, ..) -> Text(..img, box: box_flip(box, point_flip))
+      Bitmap(box:, ..) -> Bitmap(..img, box: box_flip(box, point_flip))
+      Combination(..) | Crop(..) -> img
+    }
   }
-  case img {
-    Path(style:, commands:, closed:, ..) ->
-      path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
-      |> settle(origin)
-    Line(style:, from:, to:) ->
-      Line(style, point_flip(from), point_flip(to)) |> settle(origin)
-    Combination(a:, a_at:, b:, b_at:, ..) -> {
-      let #(a, a_at) = child(a, a_at)
-      let #(b, b_at) = child(b, b_at)
-      combination_settled(a, a_at, b, b_at)
+  map_leaves(img, Nil, fn(_, at) { #(Nil, point_flip(at)) }, leaf, fn(box, _) {
+    box_flip(box, point_flip)
+  })
+}
+
+/// A step of [`map_leaves`].
+type Pending(p) {
+  /// Maps `image`, which takes `param`.
+  Visit(image: Image, param: p)
+  /// Joins the last two images mapped, each moved by its shift.
+  Join(a_shift: Pointf, b_shift: Pointf)
+  /// Crops the last image mapped, moved by `shift`, to `box`.
+  Clip(box: Box, shift: Pointf)
+}
+
+/// Returns `img` with `leaf` applied to each leaf and `box` to the box of
+/// each crop, settled, with the place of its least corner. A node passes
+/// its parameter and the place of a child to `enter`, which gives the
+/// parameter of the child and how far the mapped child moves. `leaf` never
+/// sees a combination or a crop. The nodes wait on a list, so a deep image
+/// does not overflow the stack.
+fn map_leaves(
+  img: Image,
+  param: p,
+  enter: fn(p, Pointf) -> #(p, Pointf),
+  leaf: fn(Image, p) -> Image,
+  box: fn(Box, p) -> Box,
+) -> #(Image, Pointf) {
+  map_pending([Visit(img, param)], [], enter, leaf, box)
+}
+
+fn map_pending(
+  pending: List(Pending(p)),
+  done: List(#(Image, Pointf)),
+  enter: fn(p, Pointf) -> #(p, Pointf),
+  leaf: fn(Image, p) -> Image,
+  box: fn(Box, p) -> Box,
+) -> #(Image, Pointf) {
+  case pending, done {
+    [], [result] -> result
+    [Visit(Combination(a:, a_at:, b:, b_at:, ..), param), ..pending], _ -> {
+      let #(a_param, a_shift) = enter(param, a_at)
+      let #(b_param, b_shift) = enter(param, b_at)
+      let pending = [
+        Visit(a, a_param),
+        Visit(b, b_param),
+        Join(a_shift, b_shift),
+        ..pending
+      ]
+      map_pending(pending, done, enter, leaf, box)
     }
-    Crop(box:, image:, at:) -> {
-      let #(image, at) = child(image, at)
-      crop_settled(box_flip(box, point_flip), image, at)
+    [Visit(Crop(box: crop_box, image:, at:), param), ..pending], _ -> {
+      let #(image_param, shift) = enter(param, at)
+      let pending = [
+        Visit(image, image_param),
+        Clip(box(crop_box, param), shift),
+        ..pending
+      ]
+      map_pending(pending, done, enter, leaf, box)
     }
-    Text(box:, ..) ->
-      Text(..img, box: box_flip(box, point_flip)) |> settle(origin)
-    Bitmap(box:, ..) ->
-      Bitmap(..img, box: box_flip(box, point_flip)) |> settle(origin)
+    [Visit(image, param), ..pending], _ -> {
+      let done = [settle(leaf(image, param), origin), ..done]
+      map_pending(pending, done, enter, leaf, box)
+    }
+    [Join(a_shift, b_shift), ..pending], [#(b, b_at), #(a, a_at), ..done] -> {
+      let joined =
+        combination_settled(
+          a,
+          point_translate(a_at, a_shift.x, a_shift.y),
+          b,
+          point_translate(b_at, b_shift.x, b_shift.y),
+        )
+      map_pending(pending, [joined, ..done], enter, leaf, box)
+    }
+    [Clip(box: clip_box, shift:), ..pending], [#(image, at), ..done] -> {
+      let clipped =
+        crop_settled(clip_box, image, point_translate(at, shift.x, shift.y))
+      map_pending(pending, [clipped, ..done], enter, leaf, box)
+    }
+    _, _ -> panic as "a step of map_leaves without its images"
   }
 }
 
