@@ -124,7 +124,7 @@ pub fn arc_to(
 }
 
 pub fn pathf(commands: List(PathCmd), closed: Bool, style: Style) -> Image {
-  Path(style, commands, closed) |> fix_position
+  path(style, commands, closed) |> fix_position
 }
 
 // **************************
@@ -132,7 +132,12 @@ pub fn pathf(commands: List(PathCmd), closed: Bool, style: Style) -> Image {
 // **************************
 
 pub opaque type Image {
-  Path(style: Style, commands: List(PathCmd), closed: Bool)
+  Path(
+    drawn: Result(#(Pointf, Pointf), Nil),
+    style: Style,
+    commands: List(PathCmd),
+    closed: Bool,
+  )
   Line(style: Style, from: Pointf, to: Pointf)
   Combination(drawn: Result(#(Pointf, Pointf), Nil), a: Image, b: Image)
   Crop(box: Box, image: Image)
@@ -206,7 +211,7 @@ fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
   Box(point_flip(box.center), point_flip(box.x_axis), point_flip(box.y_axis))
 }
 
-pub const empty = Path(style.none, [], True)
+pub const empty = Path(Error(Nil), style.none, [], True)
 
 pub fn widthf(img: Image) -> Float {
   let #(min, max) = box(img)
@@ -248,16 +253,18 @@ pub fn center(img: Image) -> Point {
 fn translate(img: Image, dx: Float, dy: Float) -> Image {
   use <- bool.guard(dx == 0.0 && dy == 0.0, img)
   case img {
-    Path(style:, commands:, closed:) ->
-      Path(style, list.map(commands, cmd_translate(_, dx, dy)), closed)
+    Path(drawn:, style:, commands:, closed:) ->
+      Path(
+        drawn: drawn_translate(drawn, dx, dy),
+        style:,
+        commands: list.map(commands, cmd_translate(_, dx, dy)),
+        closed:,
+      )
     Line(style:, from:, to:) ->
       Line(style, point_translate(from, dx, dy), point_translate(to, dx, dy))
     Combination(drawn:, a:, b:) ->
       Combination(
-        drawn: result.map(drawn, fn(drawn) {
-          let #(min, max) = drawn
-          #(point_translate(min, dx, dy), point_translate(max, dx, dy))
-        }),
+        drawn: drawn_translate(drawn, dx, dy),
         a: translate(a, dx, dy),
         b: translate(b, dx, dy),
       )
@@ -266,6 +273,15 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
     Text(box:, ..) -> Text(..img, box: box_translate(box, dx, dy))
     Bitmap(box:, ..) -> Bitmap(..img, box: box_translate(box, dx, dy))
   }
+}
+
+fn drawn_translate(
+  drawn: Result(#(Pointf, Pointf), Nil),
+  dx: Float,
+  dy: Float,
+) -> Result(#(Pointf, Pointf), Nil) {
+  use #(min, max) <- result.map(drawn)
+  #(point_translate(min, dx, dy), point_translate(max, dx, dy))
 }
 
 fn fix_position(img: Image) -> Image {
@@ -292,11 +308,7 @@ fn box(img: Image) -> #(Pointf, Pointf) {
 /// combination, wherever a translation left it.
 fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
   case img {
-    Path(commands: [], ..) -> Error(Nil)
-    Path(commands:, ..) -> {
-      let #(min_x, min_y, max_x, max_y) = commands_box(commands)
-      Ok(#(Pointf(min_x, min_y), Pointf(max_x, max_y)))
-    }
+    Path(drawn:, ..) -> drawn
     // Half a pixel on each side is what a pen of width 1 covers, so the ends
     // sit on the centers of pixels whatever the transformation.
     Line(from:, to:, ..) ->
@@ -309,6 +321,19 @@ fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
     Text(box:, ..) -> Ok(box_box(box))
     Bitmap(box:, ..) -> Ok(box_box(box))
   }
+}
+
+/// The path of `commands`. The node keeps the box of the path, so the box
+/// does not cost a call to sinteract each time.
+fn path(style: Style, commands: List(PathCmd), closed: Bool) -> Image {
+  let drawn = case commands {
+    [] -> Error(Nil)
+    _ -> {
+      let #(min_x, min_y, max_x, max_y) = commands_box(commands)
+      Ok(#(Pointf(min_x, min_y), Pointf(max_x, max_y)))
+    }
+  }
+  Path(drawn:, style:, commands:, closed:)
 }
 
 /// Draws `b` over `a`. The node keeps the box of the two, so the box of a
@@ -424,11 +449,11 @@ fn cmd_flip(cmd: PathCmd, pf: fn(Pointf) -> Pointf) -> PathCmd {
 
 fn points_to_path(points: List(Pointf), style: Style) -> Image {
   case points {
-    [] -> Path(style, [], False)
-    [p] -> Path(style, [MoveTo(p)], False)
-    [first, second] -> Path(style, [MoveTo(first), LineTo(second)], False)
+    [] -> path(style, [], False)
+    [p] -> path(style, [MoveTo(p)], False)
+    [first, second] -> path(style, [MoveTo(first), LineTo(second)], False)
     [first, ..rest] ->
-      Path(style, [MoveTo(first), ..list.map(rest, fn(p) { LineTo(p) })], True)
+      path(style, [MoveTo(first), ..list.map(rest, fn(p) { LineTo(p) })], True)
   }
 }
 
@@ -471,7 +496,7 @@ fn y_place_dy(y_place: YPlace, ha: Float, hb: Float) -> #(Float, Float) {
 pub fn rectanglef(width: Float, height: Float, style: Style) -> Image {
   let width = positive(width)
   let height = positive(height)
-  Path(
+  path(
     style,
     [
       MoveTo(Pointf(0.0, 0.0)),
@@ -503,7 +528,7 @@ pub fn ellipsef(width: Float, height: Float, style: Style) -> Image {
   let arc = ArcTo(rx, ry, 0.0, False, True, _)
   // A quarter arc ends away from where it starts even when the width or the
   // height is 0, so the box keeps the other side.
-  Path(
+  path(
     style,
     [
       MoveTo(Pointf(w, ry)),
@@ -1018,7 +1043,7 @@ pub fn pulled_regular_polygonf(
   case vertices {
     [first, ..] -> {
       let edges = pulled_edges(vertices, first, pull, angle)
-      Path(style, [MoveTo(first), ..edges], True) |> fix_position
+      path(style, [MoveTo(first), ..edges], True) |> fix_position
     }
     _ -> empty
   }
@@ -1103,7 +1128,7 @@ fn wedge_path(radius: Float, angle: Float, style: Style) -> Image {
       [ArcTo(r, r, 0.0, large_arc, sweep_flag, end)]
     }
   }
-  Path(style, [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(r, 0.0)), ..arcs], True)
+  path(style, [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(r, 0.0)), ..arcs], True)
 }
 
 // **************************
@@ -1161,8 +1186,8 @@ pub fn rotate(img: Image, angle: Int) -> Image {
 
 fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
   case img {
-    Path(style:, commands:, closed:) ->
-      Path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
+    Path(style:, commands:, closed:, ..) ->
+      path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
     Line(style:, from:, to:) ->
       Line(
         style,
@@ -1203,8 +1228,8 @@ fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
     // The path takes the scale point by point, but its stroke has one
     // width and one dash, so they take the mean of the two factors, as the
     // width does in 2htdp.
-    Path(style:, commands:, closed:) ->
-      Path(
+    Path(style:, commands:, closed:, ..) ->
+      path(
         style.scale(style, { x_factor +. y_factor } /. 2.0),
         list.map(commands, cmd_scale(_, x_factor, y_factor)),
         closed,
@@ -1252,8 +1277,8 @@ pub fn flip_vertical(img: Image) -> Image {
 
 fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
   case img {
-    Path(style:, commands:, closed:) ->
-      Path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
+    Path(style:, commands:, closed:, ..) ->
+      path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
     Line(style:, from:, to:) -> Line(style, point_flip(from), point_flip(to))
     Combination(a:, b:, ..) ->
       combination(flip(a, point_flip), flip(b, point_flip))
@@ -1623,7 +1648,7 @@ pub fn place_linef(
 ) -> Image {
   combination(
     scene,
-    Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+    path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
   )
   |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
   |> fix_position
@@ -1676,7 +1701,7 @@ pub fn place_curvef(
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   combination(
     scene,
-    Path(
+    path(
       style,
       [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
       False,
@@ -1765,7 +1790,7 @@ pub fn add_linef(
 ) -> Image {
   combination(
     img,
-    Path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+    path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
   )
   |> fix_position
 }
@@ -1811,7 +1836,7 @@ pub fn add_curvef(
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   combination(
     img,
-    Path(
+    path(
       style,
       [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
       False,
@@ -1861,7 +1886,7 @@ pub fn add_solid_curvef(
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   combination(
     img,
-    Path(style, [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))], True),
+    path(style, [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))], True),
   )
   |> fix_position
 }
