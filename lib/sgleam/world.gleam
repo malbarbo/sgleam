@@ -151,15 +151,11 @@ pub fn run(world: World(a)) {
 
 fn run_loop(world: World(a), next_tick_at: Int) {
   let now = system.now_ms()
-  let #(world, next_tick_at) = case now >= next_tick_at {
+  let #(world, ticked, next_tick_at) = case now >= next_tick_at {
     True -> {
-      let world = case world.on_tick {
-        Some(on_tick) -> {
-          let world = World(..world, state: on_tick(world.state))
-          show_svg(world)
-          world
-        }
-        None -> world
+      let #(world, ticked) = case world.on_tick {
+        Some(on_tick) -> #(World(..world, state: on_tick(world.state)), True)
+        None -> #(world, False)
       }
       // Schedule from the deadline (not from now) to absorb minor
       // overruns without drift. If we overran by more than a full
@@ -170,9 +166,9 @@ fn run_loop(world: World(a), next_tick_at: Int) {
         True -> now + period
         False -> bumped
       }
-      #(world, next)
+      #(world, ticked, next)
     }
-    False -> #(world, next_tick_at)
+    False -> #(world, False, next_tick_at)
   }
   let event = get_key_event()
   let #(world, h1) = case world.on_key_down, event {
@@ -196,7 +192,7 @@ fn run_loop(world: World(a), next_tick_at: Int) {
     )
     _, _ -> #(world, False)
   }
-  case h1 || h2 || h3 {
+  case ticked || h1 || h2 || h3 {
     True -> show_svg(world)
     False -> Nil
   }
