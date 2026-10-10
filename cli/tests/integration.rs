@@ -7,9 +7,13 @@ use insta::{Settings, assert_snapshot};
 
 /// The binary under test. A FORCE_COLOR the machine running the tests set for
 /// something else would put escape codes in every snapshot here, so it goes.
+/// Without DISPLAY and WAYLAND_DISPLAY a world opens no window, and prints
+/// the word `Image` for each frame.
 fn sgleam() -> assert_cmd::Command {
     let mut command = assert_cmd::cargo::cargo_bin_cmd!();
     command.env_remove("FORCE_COLOR");
+    command.env_remove("DISPLAY");
+    command.env_remove("WAYLAND_DISPLAY");
     command
 }
 
