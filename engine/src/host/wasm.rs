@@ -70,13 +70,16 @@ pub fn get_key_event() -> Vec<String> {
 }
 
 /// The page gives the file as a data URI.
-pub fn load_bitmap(path: &str) -> Option<Vec<u8>> {
+pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
     let data_uri_len = unsafe { ffi::load_bitmap_fetch(path.as_ptr(), path.len()) };
     if data_uri_len == 0 {
-        return None;
+        return Err("the page cannot fetch the file".into());
     }
     let mut buf = vec![0u8; data_uri_len];
     let filled = unsafe { ffi::load_bitmap_data(buf.as_mut_ptr(), buf.len()) };
     buf.truncate(filled);
-    sinteract::asset::decode_data_uri(std::str::from_utf8(&buf).ok()?)
+    std::str::from_utf8(&buf)
+        .ok()
+        .and_then(sinteract::asset::decode_data_uri)
+        .ok_or_else(|| "the page gives no data URI".into())
 }

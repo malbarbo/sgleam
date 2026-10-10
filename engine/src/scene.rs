@@ -254,28 +254,26 @@ impl<'js> JsClass<'js> for Loaded {
 type MaybeLoaded<'js> = Option<Class<'js, Loaded>>;
 
 /// `system.load_bitmap` gives the width and the height of the image file at
-/// `path`, and its image. A file that does not load gives no size and no
-/// image. An image larger than the limit of sinteract shrinks, and the size
-/// stays the one of the original.
-pub fn load_bitmap<'js>(ctx: Ctx<'js>, path: String) -> Result<List<(f64, f64, MaybeLoaded<'js>)>> {
-    let Some(blob) = crate::host::load_bitmap(&path) else {
-        return Ok(List((0.0, 0.0, None)));
+/// `path`, and its image. A file that does not load throws an error. An image
+/// larger than the limit of sinteract shrinks, and the size stays the one of
+/// the original.
+pub fn load_bitmap<'js>(
+    ctx: Ctx<'js>,
+    path: String,
+) -> Result<List<(f64, f64, Class<'js, Loaded>)>> {
+    let fail = |reason: &dyn std::fmt::Display| {
+        Exception::throw_message(&ctx, &format!("bitmap cannot read {path}: {reason}"))
     };
-    match Image::load_with_head(blob) {
-        Ok((image, head)) if head.width > 0 && head.height > 0 => Ok(List((
-            f64::from(head.width),
-            f64::from(head.height),
-            Some(Class::instance(ctx, Loaded(image))?),
-        ))),
-        Ok(_) => {
-            eprintln!("Error: {path} has no pixels");
-            Ok(List((0.0, 0.0, None)))
-        }
-        Err(err) => {
-            eprintln!("Error reading {path}: {err}");
-            Ok(List((0.0, 0.0, None)))
-        }
+    let blob = crate::host::load_bitmap(&path).map_err(|err| fail(&err))?;
+    let (image, head) = Image::load_with_head(blob).map_err(|err| fail(&err))?;
+    if head.width == 0 || head.height == 0 {
+        return Err(fail(&"the image has no pixels"));
     }
+    Ok(List((
+        f64::from(head.width),
+        f64::from(head.height),
+        Class::instance(ctx.clone(), Loaded(image))?,
+    )))
 }
 
 /// `system.load_image` gives the image in `data_uri`, or no image. An image

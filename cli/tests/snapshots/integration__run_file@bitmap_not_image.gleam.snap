@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Error: bitmap cannot read bitmap_not_image.gleam: the image is not a PNG, a JPEG, a GIF, a WebP or a BMP
+STDERR

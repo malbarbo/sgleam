@@ -17,7 +17,7 @@ pub use target::check_interrupt;
 /// `system.sleep` holds the program for `ms` milliseconds.
 pub use target::sleep;
 
-/// The bytes of the image file at the path, or `None` when the file cannot be
+/// The bytes of the image file at the path, or the reason the file cannot be
 /// read. In the browser, the page fetches the file.
 pub use target::load_bitmap;
 

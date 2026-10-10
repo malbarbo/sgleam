@@ -20,7 +20,7 @@ pub fn text_metrics(text: String, font: Font) -> #(Float, Float)
 pub type Loaded
 
 /// Returns #(width, height, image) for a bitmap file. A file that does not
-/// load has no size and draws nothing.
+/// load throws an error.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")
 pub fn load_bitmap(path: String) -> #(Float, Float, Loaded)
 

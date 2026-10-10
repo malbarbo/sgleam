@@ -36,8 +36,6 @@ pub fn sleep(ms: u64) {
     std::thread::sleep(std::time::Duration::from_millis(ms));
 }
 
-pub fn load_bitmap(path: &str) -> Option<Vec<u8>> {
-    std::fs::read(path)
-        .inspect_err(|err| eprintln!("Error reading {path}: {err}"))
-        .ok()
+pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
+    std::fs::read(path).map_err(|err| err.to_string())
 }
