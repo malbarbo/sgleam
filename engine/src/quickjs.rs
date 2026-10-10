@@ -222,6 +222,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
         set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
     }
+    #[cfg(not(target_arch = "wasm32"))]
+    set_fn(&sgleam, "print_image", crate::scene::print_image)?;
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;

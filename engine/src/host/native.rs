@@ -1,10 +1,14 @@
 //! The operating system answers. Ctrl-C stops a program, the file system holds
 //! an image.
 
+use std::cell::RefCell;
 use std::sync::{
     OnceLock,
     atomic::{AtomicBool, Ordering},
 };
+
+use sinteract::display::Printer;
+use sinteract::scene::Scene;
 
 use crate::error::SgleamError;
 
@@ -38,4 +42,13 @@ pub fn sleep(ms: u64) {
 
 pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|err| err.to_string())
+}
+
+pub fn print_scene(scene: &Scene) -> bool {
+    thread_local! {
+        // The first print probes the terminal, so a run that prints no image
+        // never asks it anything.
+        static PRINTER: RefCell<Option<Printer>> = RefCell::new(Printer::new().ok());
+    }
+    PRINTER.with_borrow_mut(|printer| printer.as_mut().is_some_and(|p| p.print(scene).is_ok()))
 }

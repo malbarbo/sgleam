@@ -26,6 +26,13 @@ pub use target::load_bitmap;
 #[cfg(target_arch = "wasm32")]
 pub use target::draw_svg;
 
+/// Prints a scene in the terminal at the cursor. Returns `true` if the scene
+/// went out, `false` if stdout is not a terminal that shows images or the
+/// print failed. The browser draws an svg instead, so it has no such
+/// function.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::print_scene;
+
 /// `system.get_key_event` gives the kind of the event waiting in the page, the
 /// name of the key and the modifiers that are on, or nothing when no event
 /// waits. Only the browser reads keys, so a native run has no such function.
