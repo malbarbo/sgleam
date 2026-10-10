@@ -27,6 +27,18 @@ fn point_translate(p: Pointf, dx: Float, dy: Float) -> Pointf {
   Pointf(p.x +. dx, p.y +. dy)
 }
 
+fn point_back(p: Pointf, by: Pointf) -> Pointf {
+  Pointf(p.x -. by.x, p.y -. by.y)
+}
+
+fn point_min(p: Pointf, q: Pointf) -> Pointf {
+  Pointf(float.min(p.x, q.x), float.min(p.y, q.y))
+}
+
+fn point_max(p: Pointf, q: Pointf) -> Pointf {
+  Pointf(float.max(p.x, q.x), float.max(p.y, q.y))
+}
+
 fn point_rotate(p: Pointf, center: Pointf, angle: Float) -> Pointf {
   let dx = p.x -. center.x
   let dy = p.y -. center.y
@@ -139,8 +151,14 @@ pub opaque type Image {
     closed: Bool,
   )
   Line(style: Style, from: Pointf, to: Pointf)
-  Combination(drawn: Result(#(Pointf, Pointf), Nil), a: Image, b: Image)
-  Crop(box: Box, image: Image)
+  Combination(
+    drawn: Result(#(Pointf, Pointf), Nil),
+    a: Image,
+    a_at: Pointf,
+    b: Image,
+    b_at: Pointf,
+  )
+  Crop(box: Box, image: Image, at: Pointf)
   Text(style: Style, box: Box, text: String, font: Font)
   Bitmap(box: Box, image: system.Loaded)
 }
@@ -161,8 +179,8 @@ pub fn variants() -> List(Image) {
   [
     empty,
     Line(style.none, Pointf(0.0, 0.0), Pointf(0.0, 0.0)),
-    combination(empty, empty),
-    Crop(box, empty),
+    combination(empty, origin, empty, origin),
+    Crop(box, empty, origin),
     Text(style.none, box, "", font.default()),
     Bitmap(box, system.no_image()),
   ]
@@ -210,6 +228,8 @@ fn box_scale(box: Box, x_factor: Float, y_factor: Float) -> Box {
 fn box_flip(box: Box, point_flip: fn(Pointf) -> Pointf) -> Box {
   Box(point_flip(box.center), point_flip(box.x_axis), point_flip(box.y_axis))
 }
+
+const origin = Pointf(0.0, 0.0)
 
 pub const empty = Path(Error(Nil), style.none, [], True)
 
@@ -262,14 +282,19 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
       )
     Line(style:, from:, to:) ->
       Line(style, point_translate(from, dx, dy), point_translate(to, dx, dy))
-    Combination(drawn:, a:, b:) ->
+    Combination(drawn:, a_at:, b_at:, ..) ->
       Combination(
+        ..img,
         drawn: drawn_translate(drawn, dx, dy),
-        a: translate(a, dx, dy),
-        b: translate(b, dx, dy),
+        a_at: point_translate(a_at, dx, dy),
+        b_at: point_translate(b_at, dx, dy),
       )
-    Crop(box:, image:) ->
-      Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
+    Crop(box:, at:, ..) ->
+      Crop(
+        ..img,
+        box: box_translate(box, dx, dy),
+        at: point_translate(at, dx, dy),
+      )
     Text(box:, ..) -> Text(..img, box: box_translate(box, dx, dy))
     Bitmap(box:, ..) -> Bitmap(..img, box: box_translate(box, dx, dy))
   }
@@ -285,10 +310,22 @@ fn drawn_translate(
 }
 
 fn fix_position(img: Image) -> Image {
-  let #(min, _) = box(img)
-  case min == Pointf(0.0, 0.0) {
-    True -> img
-    False -> translate(img, 0.0 -. min.x, 0.0 -. min.y)
+  settle(img, origin).0
+}
+
+/// Returns `img` moved so the least corner of its box is at the origin,
+/// with the place of that corner when `img` sits at `at`. Every image that
+/// the user sees and every child of a combination has its corner at the
+/// origin, so a picture has one tree however it was built. An image with
+/// nothing in it sits at the origin.
+fn settle(img: Image, at: Pointf) -> #(Image, Pointf) {
+  case drawn_box(img) {
+    Error(Nil) -> #(img, origin)
+    Ok(#(min, _)) if min.x == 0.0 && min.y == 0.0 -> #(img, at)
+    Ok(#(min, _)) -> #(
+      translate(img, 0.0 -. min.x, 0.0 -. min.y),
+      point_translate(at, min.x, min.y),
+    )
   }
 }
 
@@ -336,19 +373,76 @@ fn path(style: Style, commands: List(PathCmd), closed: Bool) -> Image {
   Path(drawn:, style:, commands:, closed:)
 }
 
-/// Draws `b` over `a`. The node keeps the box of the two, so the box of a
-/// combination does not walk the tree under it.
-fn combination(a: Image, b: Image) -> Image {
-  let drawn = case drawn_box(a), drawn_box(b) {
-    Ok(#(amin, amax)), Ok(#(bmin, bmax)) ->
-      Ok(#(
-        Pointf(float.min(amin.x, bmin.x), float.min(amin.y, bmin.y)),
-        Pointf(float.max(amax.x, bmax.x), float.max(amax.y, bmax.y)),
-      ))
-    Ok(box), Error(Nil) | Error(Nil), Ok(box) -> Ok(box)
-    Error(Nil), Error(Nil) -> Error(Nil)
+/// Draws `b` at `b_at` over `a` at `a_at`.
+fn combination(a: Image, a_at: Pointf, b: Image, b_at: Pointf) -> Image {
+  combination_settled(a, a_at, b, b_at).0
+}
+
+/// Draws `img` at `at` over `scene`, and crops the two to `scene`.
+fn place(scene: Image, img: Image, at: Pointf) -> Image {
+  let #(both, at) = combination_settled(scene, origin, img, at)
+  cropf(both, 0.0 -. at.x, 0.0 -. at.y, widthf(scene), heightf(scene))
+}
+
+/// Draws `b` at `b_at` over `a` at `a_at`, and gives where the least corner
+/// of the two goes. The node keeps the box of the two, so the box of a
+/// combination does not walk the tree under it, and it keeps the place of
+/// each child, so moving a child does not copy the tree under it.
+fn combination_settled(
+  a: Image,
+  a_at: Pointf,
+  b: Image,
+  b_at: Pointf,
+) -> #(Image, Pointf) {
+  let #(a, a_at) = settle(a, a_at)
+  let #(b, b_at) = settle(b, b_at)
+  case drawn_box(a), drawn_box(b) {
+    Ok(#(_, a_max)), Ok(#(_, b_max)) -> {
+      let at = point_min(a_at, b_at)
+      let end =
+        point_max(
+          point_translate(a_max, a_at.x, a_at.y),
+          point_translate(b_max, b_at.x, b_at.y),
+        )
+      #(
+        Combination(
+          Ok(#(origin, point_back(end, at))),
+          a,
+          point_back(a_at, at),
+          b,
+          point_back(b_at, at),
+        ),
+        at,
+      )
+    }
+    Ok(#(_, a_max)), Error(Nil) -> #(
+      Combination(Ok(#(origin, a_max)), a, origin, b, origin),
+      a_at,
+    )
+    Error(Nil), Ok(#(_, b_max)) -> #(
+      Combination(Ok(#(origin, b_max)), a, origin, b, origin),
+      b_at,
+    )
+    Error(Nil), Error(Nil) -> #(
+      Combination(Error(Nil), a, origin, b, origin),
+      origin,
+    )
   }
-  Combination(drawn:, a:, b:)
+}
+
+/// Crops `image` at `at` to `box`, and gives where the least corner of the
+/// box goes.
+fn crop_settled(box: Box, image: Image, at: Pointf) -> #(Image, Pointf) {
+  let #(image, at) = settle(image, at)
+  let #(min, _) = box_box(box)
+  #(
+    Crop(
+      box_translate(box, 0.0 -. min.x, 0.0 -. min.y),
+      image,
+      point_translate(at, 0.0 -. min.x, 0.0 -. min.y),
+    ),
+    min,
+  )
 }
 
 /// The box of the path of `commands`, as sinteract draws it.
@@ -1177,35 +1271,50 @@ pub fn bitmap_data_uri(data_uri: String) -> Image {
 
 pub fn rotatef(img: Image, angle: Float) -> Image {
   // the api for the user is counter clockwise, but the implementation is clockwise
-  rotate_around(img, centerf(img), 0.0 -. angle) |> fix_position
+  rotate_around(img, centerf(img), 0.0 -. angle).0
 }
 
 pub fn rotate(img: Image, angle: Int) -> Image {
   rotatef(img, int.to_float(angle))
 }
 
-fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
+/// Returns `img` rotated and settled, with the place of its least corner.
+fn rotate_around(img: Image, center: Pointf, angle: Float) -> #(Image, Pointf) {
+  // For a child at `at`, the center is at `center - at`, so the child
+  // rotates around that point and keeps `at`.
+  let child = fn(child, at: Pointf) {
+    let #(child, child_at) =
+      rotate_around(
+        child,
+        point_translate(center, 0.0 -. at.x, 0.0 -. at.y),
+        angle,
+      )
+    #(child, point_translate(child_at, at.x, at.y))
+  }
   case img {
     Path(style:, commands:, closed:, ..) ->
       path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
+      |> settle(origin)
     Line(style:, from:, to:) ->
       Line(
         style,
         point_rotate(from, center, angle),
         point_rotate(to, center, angle),
       )
-    Combination(a:, b:, ..) ->
-      combination(
-        rotate_around(a, center, angle),
-        rotate_around(b, center, angle),
-      )
-    Crop(box:, image:) ->
-      Crop(
-        box: box_rotate(box, center, angle),
-        image: rotate_around(image, center, angle),
-      )
-    Text(box:, ..) -> Text(..img, box: box_rotate(box, center, angle))
-    Bitmap(box:, ..) -> Bitmap(..img, box: box_rotate(box, center, angle))
+      |> settle(origin)
+    Combination(a:, a_at:, b:, b_at:, ..) -> {
+      let #(a, a_at) = child(a, a_at)
+      let #(b, b_at) = child(b, b_at)
+      combination_settled(a, a_at, b, b_at)
+    }
+    Crop(box:, image:, at:) -> {
+      let #(image, at) = child(image, at)
+      crop_settled(box_rotate(box, center, angle), image, at)
+    }
+    Text(box:, ..) ->
+      Text(..img, box: box_rotate(box, center, angle)) |> settle(origin)
+    Bitmap(box:, ..) ->
+      Bitmap(..img, box: box_rotate(box, center, angle)) |> settle(origin)
   }
 }
 
@@ -1220,10 +1329,21 @@ pub fn scale(img: Image, factor: Int) -> Image {
 pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
   // The half pixel around a line keeps its size, so the scaled line no
   // longer starts at 0.
-  scale_parts(img, positive(x_factor), positive(y_factor)) |> fix_position
+  scale_parts(img, positive(x_factor), positive(y_factor)).0
 }
 
-fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
+/// Returns `img` scaled and settled, with the place of its least corner.
+fn scale_parts(
+  img: Image,
+  x_factor: Float,
+  y_factor: Float,
+) -> #(Image, Pointf) {
+  let scale = fn(p: Pointf) { Pointf(p.x *. x_factor, p.y *. y_factor) }
+  let child = fn(child, at: Pointf) {
+    let #(child, child_at) = scale_parts(child, x_factor, y_factor)
+    let at = scale(at)
+    #(child, point_translate(child_at, at.x, at.y))
+  }
   case img {
     // The path takes the scale point by point, but its stroke has one
     // width and one dash, so they take the mean of the two factors, as the
@@ -1234,24 +1354,23 @@ fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
         list.map(commands, cmd_scale(_, x_factor, y_factor)),
         closed,
       )
-    Line(style:, from:, to:) -> {
-      let scale = fn(p: Pointf) { Pointf(p.x *. x_factor, p.y *. y_factor) }
+      |> settle(origin)
+    Line(style:, from:, to:) ->
       Line(
         style.scale(style, { x_factor +. y_factor } /. 2.0),
         scale(from),
         scale(to),
       )
+      |> settle(origin)
+    Combination(a:, a_at:, b:, b_at:, ..) -> {
+      let #(a, a_at) = child(a, a_at)
+      let #(b, b_at) = child(b, b_at)
+      combination_settled(a, a_at, b, b_at)
     }
-    Combination(a:, b:, ..) ->
-      combination(
-        scale_parts(a, x_factor, y_factor),
-        scale_parts(b, x_factor, y_factor),
-      )
-    Crop(box:, image:) ->
-      Crop(
-        box: box_scale(box, x_factor, y_factor),
-        image: scale_parts(image, x_factor, y_factor),
-      )
+    Crop(box:, image:, at:) -> {
+      let #(image, at) = child(image, at)
+      crop_settled(box_scale(box, x_factor, y_factor), image, at)
+    }
     // The stroke of a text is as wide as the stroke of a path.
     Text(style:, box:, ..) ->
       Text(
@@ -1259,7 +1378,9 @@ fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
         style: style.scale(style, { x_factor +. y_factor } /. 2.0),
         box: box_scale(box, x_factor, y_factor),
       )
-    Bitmap(box:, ..) -> Bitmap(..img, box: box_scale(box, x_factor, y_factor))
+      |> settle(origin)
+    Bitmap(box:, ..) ->
+      Bitmap(..img, box: box_scale(box, x_factor, y_factor)) |> settle(origin)
   }
 }
 
@@ -1268,24 +1389,39 @@ pub fn scale_xy(img: Image, x_factor: Int, y_factor: Int) -> Image {
 }
 
 pub fn flip_horizontal(img: Image) -> Image {
-  flip(img, point_flip_x) |> fix_position
+  flip(img, point_flip_x).0
 }
 
 pub fn flip_vertical(img: Image) -> Image {
-  flip(img, point_flip_y) |> fix_position
+  flip(img, point_flip_y).0
 }
 
-fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
+/// Returns `img` flipped and settled, with the place of its least corner.
+fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> #(Image, Pointf) {
+  let child = fn(child, at: Pointf) {
+    let #(child, child_at) = flip(child, point_flip)
+    let at = point_flip(at)
+    #(child, point_translate(child_at, at.x, at.y))
+  }
   case img {
     Path(style:, commands:, closed:, ..) ->
       path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
-    Line(style:, from:, to:) -> Line(style, point_flip(from), point_flip(to))
-    Combination(a:, b:, ..) ->
-      combination(flip(a, point_flip), flip(b, point_flip))
-    Crop(box:, image:) ->
-      Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
-    Text(box:, ..) -> Text(..img, box: box_flip(box, point_flip))
-    Bitmap(box:, ..) -> Bitmap(..img, box: box_flip(box, point_flip))
+      |> settle(origin)
+    Line(style:, from:, to:) ->
+      Line(style, point_flip(from), point_flip(to)) |> settle(origin)
+    Combination(a:, a_at:, b:, b_at:, ..) -> {
+      let #(a, a_at) = child(a, a_at)
+      let #(b, b_at) = child(b, b_at)
+      combination_settled(a, a_at, b, b_at)
+    }
+    Crop(box:, image:, at:) -> {
+      let #(image, at) = child(image, at)
+      crop_settled(box_flip(box, point_flip), image, at)
+    }
+    Text(box:, ..) ->
+      Text(..img, box: box_flip(box, point_flip)) |> settle(origin)
+    Bitmap(box:, ..) ->
+      Bitmap(..img, box: box_flip(box, point_flip)) |> settle(origin)
   }
 }
 
@@ -1309,7 +1445,7 @@ pub fn cropf(
 ) -> Image {
   let width = positive(width)
   let height = positive(height)
-  Crop(box_of_size(width, height), translate(img, 0.0 -. x, 0.0 -. y))
+  crop_settled(box_of_size(width, height), img, Pointf(0.0 -. x, 0.0 -. y)).0
 }
 
 pub fn crop(img: Image, x: Int, y: Int, width: Int, height: Int) -> Image {
@@ -1376,7 +1512,7 @@ pub fn above(a: Image, b: Image) -> Image {
 
 pub fn above_align(a: Image, x_place: XPlace, b: Image) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(a), widthf(b))
-  combination(translate(a, dxa, 0.0), translate(b, dxb, heightf(a)))
+  combination(a, Pointf(dxa, 0.0), b, Pointf(dxb, heightf(a)))
 }
 
 pub fn beside(a: Image, b: Image) -> Image {
@@ -1385,7 +1521,7 @@ pub fn beside(a: Image, b: Image) -> Image {
 
 pub fn beside_align(a: Image, y_place: YPlace, b: Image) -> Image {
   let #(dya, dyb) = y_place_dy(y_place, heightf(a), heightf(b))
-  combination(translate(a, 0.0, dya), translate(b, widthf(a), dyb))
+  combination(a, Pointf(0.0, dya), b, Pointf(widthf(a), dyb))
 }
 
 pub fn overlay(top: Image, bottom: Image) -> Image {
@@ -1398,14 +1534,31 @@ pub fn overlay_align(
   y_place: YPlace,
   bottom: Image,
 ) -> Image {
+  overlay_moved(top, x_place, y_place, origin, origin, bottom)
+}
+
+/// Draws `top` over `bottom` with the alignment of `x_place` and
+/// `y_place`, and then moves `top` by `top_by` and `bottom` by `bottom_by`.
+fn overlay_moved(
+  top: Image,
+  x_place: XPlace,
+  y_place: YPlace,
+  top_by: Pointf,
+  bottom_by: Pointf,
+  bottom: Image,
+) -> Image {
   let #(dxa, dxb) = x_place_dx(x_place, widthf(top), widthf(bottom))
   let #(dya, dyb) = y_place_dy(y_place, heightf(top), heightf(bottom))
-  combination(translate(bottom, dxb, dyb), translate(top, dxa, dya))
-  |> fix_position
+  combination(
+    bottom,
+    point_translate(bottom_by, dxb, dyb),
+    top,
+    point_translate(top_by, dxa, dya),
+  )
 }
 
 pub fn overlay_offsetf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
-  overlay(top, translate(bottom, x, y))
+  overlay_moved(top, Center, Middle, origin, Pointf(x, y), bottom)
 }
 
 pub fn overlay_offset(top: Image, x: Int, y: Int, bottom: Image) -> Image {
@@ -1420,7 +1573,7 @@ pub fn overlay_align_offsetf(
   y: Float,
   bottom: Image,
 ) -> Image {
-  overlay_align(top, x_place, y_place, translate(bottom, x, y))
+  overlay_moved(top, x_place, y_place, origin, Pointf(x, y), bottom)
 }
 
 pub fn overlay_align_offset(
@@ -1442,7 +1595,7 @@ pub fn overlay_align_offset(
 }
 
 pub fn overlay_xyf(top: Image, x: Float, y: Float, bottom: Image) -> Image {
-  combination(translate(bottom, x, y), top) |> fix_position
+  combination(bottom, Pointf(x, y), top, origin)
 }
 
 pub fn overlay_xy(top: Image, x: Int, y: Int, bottom: Image) -> Image {
@@ -1468,7 +1621,7 @@ pub fn underlay_offsetf(
   y: Float,
   top: Image,
 ) -> Image {
-  overlay(translate(top, x, y), bottom)
+  overlay_moved(top, Center, Middle, Pointf(x, y), origin, bottom)
 }
 
 pub fn underlay_offset(bottom: Image, x: Int, y: Int, top: Image) -> Image {
@@ -1483,7 +1636,7 @@ pub fn underlay_align_offsetf(
   y: Float,
   top: Image,
 ) -> Image {
-  underlay_align(bottom, x_place, y_place, translate(top, x, y))
+  overlay_moved(top, x_place, y_place, Pointf(x, y), origin, bottom)
 }
 
 pub fn underlay_align_offset(
@@ -1505,7 +1658,7 @@ pub fn underlay_align_offset(
 }
 
 pub fn underlay_xyf(bottom: Image, x: Float, y: Float, top: Image) -> Image {
-  combination(bottom, translate(top, x, y)) |> fix_position
+  combination(bottom, origin, top, Pointf(x, y))
 }
 
 pub fn underlay_xy(bottom: Image, x: Int, y: Int, top: Image) -> Image {
@@ -1559,9 +1712,7 @@ pub fn place_image_alignf(
     Middle -> heightf(img) /. -2.0
     Top -> 0.0
   }
-  combination(scene, translate(img, x +. dx, y +. dy))
-  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
-  |> fix_position
+  place(scene, img, Pointf(x +. dx, y +. dy))
 }
 
 pub fn place_image_align(
@@ -1646,12 +1797,11 @@ pub fn place_linef(
   y2: Float,
   style: Style,
 ) -> Image {
-  combination(
+  place(
     scene,
     path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+    origin,
   )
-  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
-  |> fix_position
 }
 
 pub fn place_line(
@@ -1677,9 +1827,7 @@ pub fn place_polygonf(
   points: List(Pointf),
   style: Style,
 ) -> Image {
-  combination(scene, points_to_path(points, style))
-  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
-  |> fix_position
+  place(scene, points_to_path(points, style), origin)
 }
 
 pub fn place_polygon(scene: Image, points: List(Point), style: Style) -> Image {
@@ -1699,16 +1847,15 @@ pub fn place_curvef(
   style: Style,
 ) -> Image {
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
-  combination(
+  place(
     scene,
     path(
       style,
       [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
       False,
     ),
+    origin,
   )
-  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
-  |> fix_position
 }
 
 pub fn place_curve(
@@ -1745,9 +1892,7 @@ pub fn place_wedgef(
   angle: Float,
   style: Style,
 ) -> Image {
-  combination(scene, translate(wedge_path(radius, angle, style), x, y))
-  |> cropf(0.0, 0.0, widthf(scene), heightf(scene))
-  |> fix_position
+  place(scene, wedge_path(radius, angle, style), Pointf(x, y))
 }
 
 pub fn place_wedge(
@@ -1790,9 +1935,10 @@ pub fn add_linef(
 ) -> Image {
   combination(
     img,
+    origin,
     path(style, [MoveTo(Pointf(x1, y1)), LineTo(Pointf(x2, y2))], False),
+    origin,
   )
-  |> fix_position
 }
 
 pub fn add_line(
@@ -1814,7 +1960,7 @@ pub fn add_line(
 }
 
 pub fn add_polygonf(img: Image, points: List(Pointf), style: Style) -> Image {
-  combination(img, points_to_path(points, style)) |> fix_position
+  combination(img, origin, points_to_path(points, style), origin)
 }
 
 pub fn add_polygon(img: Image, points: List(Point), style: Style) -> Image {
@@ -1836,13 +1982,14 @@ pub fn add_curvef(
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   combination(
     img,
+    origin,
     path(
       style,
       [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))],
       False,
     ),
+    origin,
   )
-  |> fix_position
 }
 
 pub fn add_curve(
@@ -1886,9 +2033,10 @@ pub fn add_solid_curvef(
   let #(c1, c2) = curve_controls(x1, y1, angle1, pull1, x2, y2, angle2, pull2)
   combination(
     img,
+    origin,
     path(style, [MoveTo(Pointf(x1, y1)), CubicTo(c1, c2, Pointf(x2, y2))], True),
+    origin,
   )
-  |> fix_position
 }
 
 pub fn add_solid_curve(
@@ -1925,8 +2073,7 @@ pub fn add_wedgef(
   angle: Float,
   style: Style,
 ) -> Image {
-  combination(img, translate(wedge_path(radius, angle, style), x, y))
-  |> fix_position
+  combination(img, origin, wedge_path(radius, angle, style), Pointf(x, y))
 }
 
 pub fn add_wedge(

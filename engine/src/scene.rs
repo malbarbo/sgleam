@@ -45,7 +45,7 @@ pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String
 /// nesting limit of sinteract drops nothing.
 fn draw(image: &Object, scene: &mut Scene) -> Result<()> {
     let mut runs = Vec::new();
-    walk(image, &None, &mut runs)?;
+    walk(image, (0.0, 0.0), &None, &mut runs)?;
     for (region, leaves) in runs {
         let Some(region) = region else {
             leaves.into_iter().for_each(|leaf| leaf.add_to(scene));
@@ -70,6 +70,10 @@ fn draw(image: &Object, scene: &mut Scene) -> Result<()> {
 /// nothing in it.
 type Region = Option<Vec<(f64, f64)>>;
 
+/// How far the nodes above an element move it, as the offsets of the
+/// children of `Combination` and `Crop` say.
+type Offset = (f64, f64);
+
 /// An element of the scene, before it goes into a clip.
 enum Leaf {
     Path(Path),
@@ -87,26 +91,42 @@ impl Leaf {
     }
 }
 
-/// Appends the elements of `image` to `runs`, which groups the elements in a
-/// row that share a region, in drawing order.
-fn walk(image: &Object, region: &Region, runs: &mut Vec<(Region, Vec<Leaf>)>) -> Result<()> {
+/// Appends the elements of `image`, moved by `at`, to `runs`, which groups
+/// the elements in a row that share a region, in drawing order.
+fn walk(
+    image: &Object,
+    at: Offset,
+    region: &Region,
+    runs: &mut Vec<(Region, Vec<Leaf>)>,
+) -> Result<()> {
     let leaf = match class(image)?.as_str() {
-        "Path" => path(image)?.map(Leaf::Path),
-        "Line" => Some(Leaf::Path(line(image)?)),
+        "Path" => path(image, at)?.map(Leaf::Path),
+        "Line" => Some(Leaf::Path(line(image, at)?)),
         "Combination" => {
-            walk(&image.get("a")?, region, runs)?;
-            walk(&image.get("b")?, region, runs)?;
+            walk(
+                &image.get("a")?,
+                moved(at, image.get("a_at")?)?,
+                region,
+                runs,
+            )?;
+            walk(
+                &image.get("b")?,
+                moved(at, image.get("b_at")?)?,
+                region,
+                runs,
+            )?;
             None
         }
         "Crop" => {
-            let corners = corners(affine(&image.get("box")?)?);
+            let corners = corners(affine(&image.get("box")?, at)?);
             let inside = intersect(region, &corners);
-            walk(&image.get("image")?, &inside, runs)?;
+            let inner = moved(at, image.get("at")?)?;
+            walk(&image.get("image")?, inner, &inside, runs)?;
             None
         }
-        "Text" => text(image)?.map(Leaf::Text),
+        "Text" => text(image, at)?.map(Leaf::Text),
         "Bitmap" => {
-            let transform = affine(&image.get("box")?)?;
+            let transform = affine(&image.get("box")?, at)?;
             let loaded: MaybeLoaded = image.get("image")?;
             loaded.map(|loaded| {
                 let image = loaded.borrow().0.clone();
@@ -130,6 +150,11 @@ fn walk(image: &Object, region: &Region, runs: &mut Vec<(Region, Vec<Leaf>)>) ->
         _ => runs.push((region.clone(), vec![leaf])),
     }
     Ok(())
+}
+
+/// `at` moved by the point `by`.
+fn moved(at: Offset, by: Object) -> Result<Offset> {
+    Ok((at.0 + float(&by, "x")?, at.1 + float(&by, "y")?))
 }
 
 /// The corners of the box of `m`, in the convention of
@@ -305,7 +330,7 @@ pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<Option<Sized<'
 
 /// The path of a `Path`, or `None` when its commands do not start with a
 /// move, which svg does not draw either.
-fn path(image: &Object) -> Result<Option<Path>> {
+fn path(image: &Object, at: Offset) -> Result<Option<Path>> {
     let style = Style::read(&image.get("style")?)?;
     let commands: Vec<Object> = list(image.get("commands")?)?;
     let Some((first, rest)) = commands.split_first() else {
@@ -314,7 +339,7 @@ fn path(image: &Object) -> Result<Option<Path>> {
     if class(first)? != "MoveTo" {
         return Ok(None);
     }
-    let point = pixel_point(&style);
+    let point = pixel_point(&style, at);
     let (x, y) = point(first.get("0")?)?;
     let mut path_style = style.path_style();
     path_style.closed = image.get("closed")?;
@@ -326,9 +351,9 @@ fn path(image: &Object) -> Result<Option<Path>> {
 }
 
 /// The path of a `Line`, from one end to the other.
-fn line(image: &Object) -> Result<Path> {
+fn line(image: &Object, at: Offset) -> Result<Path> {
     let style = Style::read(&image.get("style")?)?;
-    let point = pixel_point(&style);
+    let point = pixel_point(&style, at);
     let (x, y) = point(image.get("from")?)?;
     let (to_x, to_y) = point(image.get("to")?)?;
     Ok(Path::builder(style.path_style(), x, y)
@@ -336,11 +361,11 @@ fn line(image: &Object) -> Result<Path> {
         .build())
 }
 
-/// Reads a point for a path with `style`. A thin outline on a half pixel
-/// covers one row of pixels, and on a whole pixel it blurs over two, so an
-/// aligned style puts the point on the center of its pixel. The epsilon
-/// takes 9.999999999999998 as 10.
-fn pixel_point(style: &Style) -> impl Fn(Object) -> Result<(f32, f32)> + '_ {
+/// Reads a point for a path with `style`, moved by `at`. A thin outline on
+/// a half pixel covers one row of pixels, and on a whole pixel it blurs over
+/// two, so an aligned style puts the point on the center of its pixel. The
+/// epsilon takes 9.999999999999998 as 10.
+fn pixel_point(style: &Style, at: Offset) -> impl Fn(Object) -> Result<(f32, f32)> + '_ {
     let snap = |v: f64| {
         if style.aligned() {
             (v + FP_EPSILON).floor() + 0.5
@@ -348,7 +373,12 @@ fn pixel_point(style: &Style) -> impl Fn(Object) -> Result<(f32, f32)> + '_ {
             v
         }
     };
-    move |p: Object| Ok((snap(float(&p, "x")?) as f32, snap(float(&p, "y")?) as f32))
+    move |p: Object| {
+        Ok((
+            snap(float(&p, "x")? + at.0) as f32,
+            snap(float(&p, "y")? + at.1) as f32,
+        ))
+    }
 }
 
 /// `builder` with the segment of `cmd` appended.
@@ -461,11 +491,11 @@ fn arc_tolerance(radius: f64) -> f64 {
 }
 
 /// The text of a `Text`, or `None` when it draws nothing.
-fn text(image: &Object) -> Result<Option<Text>> {
+fn text(image: &Object, at: Offset) -> Result<Option<Text>> {
     let style = Style::read(&image.get("style")?)?;
     let font: Object = image.get("font")?;
     let spec = text_spec(image.get("text")?, &font)?;
-    let Some(mut text) = spec.fit_transform(affine(&image.get("box")?)?) else {
+    let Some(mut text) = spec.fit_transform(affine(&image.get("box")?, at)?) else {
         return Ok(None);
     };
     let path_style = style.path_style();
@@ -515,13 +545,14 @@ fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
 }
 
 /// The affine of a `Box`, which takes the unit square centred on the origin
-/// to the box.
-fn affine(b: &Object) -> Result<[f32; 6]> {
+/// to the box moved by `at`.
+fn affine(b: &Object, at: Offset) -> Result<[f32; 6]> {
     let point = |name: &str| -> Result<(f32, f32)> {
         let p: Object = b.get(name)?;
         Ok((float(&p, "x")? as f32, float(&p, "y")? as f32))
     };
-    let (cx, cy) = point("center")?;
+    let (cx, cy) = moved(at, b.get("center")?)?;
+    let (cx, cy) = (cx as f32, cy as f32);
     let (ux, uy) = point("x_axis")?;
     let (vx, vy) = point("y_axis")?;
     Ok([ux, uy, vx, vy, cx, cy])
