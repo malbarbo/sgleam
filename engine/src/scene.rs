@@ -92,6 +92,7 @@ impl Leaf {
 fn walk(image: &Object, region: &Region, runs: &mut Vec<(Region, Vec<Leaf>)>) -> Result<()> {
     let leaf = match class(image)?.as_str() {
         "Path" => path(image)?.map(Leaf::Path),
+        "Line" => Some(Leaf::Path(line(image)?)),
         "Combination" => {
             walk(&image.get("0")?, region, runs)?;
             walk(&image.get("1")?, region, runs)?;
@@ -297,18 +298,7 @@ fn path(image: &Object) -> Result<Option<Path>> {
     if class(first)? != "MoveTo" {
         return Ok(None);
     }
-    // A thin outline on a half pixel covers one row of pixels, and on a whole
-    // pixel it blurs over two. The epsilon takes 9.999999999999998 as 10.
-    let snap = |v: f64| {
-        if style.aligned() {
-            (v + FP_EPSILON).floor() + 0.5
-        } else {
-            v
-        }
-    };
-    let point = |p: Object| -> Result<(f32, f32)> {
-        Ok((snap(float(&p, "x")?) as f32, snap(float(&p, "y")?) as f32))
-    };
+    let point = pixel_point(&style);
     let (x, y) = point(first.get("0")?)?;
     let mut path_style = style.path_style();
     path_style.closed = image.get("closed")?;
@@ -317,6 +307,32 @@ fn path(image: &Object) -> Result<Option<Path>> {
         builder = segment(builder, cmd, &point)?;
     }
     Ok(Some(builder.build()))
+}
+
+/// The path of a `Line`, from one end to the other.
+fn line(image: &Object) -> Result<Path> {
+    let style = Style::read(&image.get("style")?)?;
+    let point = pixel_point(&style);
+    let (x, y) = point(image.get("from")?)?;
+    let (to_x, to_y) = point(image.get("to")?)?;
+    Ok(Path::builder(style.path_style(), x, y)
+        .line_to(to_x, to_y)
+        .build())
+}
+
+/// Reads a point for a path with `style`. A thin outline on a half pixel
+/// covers one row of pixels, and on a whole pixel it blurs over two, so an
+/// aligned style puts the point on the center of its pixel. The epsilon
+/// takes 9.999999999999998 as 10.
+fn pixel_point(style: &Style) -> impl Fn(Object) -> Result<(f32, f32)> + '_ {
+    let snap = |v: f64| {
+        if style.aligned() {
+            (v + FP_EPSILON).floor() + 0.5
+        } else {
+            v
+        }
+    };
+    move |p: Object| Ok((snap(float(&p, "x")?) as f32, snap(float(&p, "y")?) as f32))
 }
 
 /// `builder` with the segment of `cmd` appended.

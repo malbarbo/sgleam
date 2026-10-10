@@ -132,6 +132,7 @@ pub fn pathf(commands: List(PathCmd), closed: Bool, style: Style) -> Image {
 
 pub opaque type Image {
   Path(style: Style, commands: List(PathCmd), closed: Bool)
+  Line(style: Style, from: Pointf, to: Pointf)
   Combination(Image, Image)
   Crop(box: Box, image: Image)
   Text(style: Style, box: Box, text: String, font: Font)
@@ -153,6 +154,7 @@ pub fn variants() -> List(Image) {
   let box = box_of_size(0.0, 0.0)
   [
     empty,
+    Line(style.none, Pointf(0.0, 0.0), Pointf(0.0, 0.0)),
     Combination(empty, empty),
     Crop(box, empty),
     Text(style.none, box, "", font.default()),
@@ -247,6 +249,8 @@ fn translate(img: Image, dx: Float, dy: Float) -> Image {
   case img {
     Path(style:, commands:, closed:) ->
       Path(style, list.map(commands, cmd_translate(_, dx, dy)), closed)
+    Line(style:, from:, to:) ->
+      Line(style, point_translate(from, dx, dy), point_translate(to, dx, dy))
     Combination(a, b) -> Combination(translate(a, dx, dy), translate(b, dx, dy))
     Crop(box:, image:) ->
       Crop(box: box_translate(box, dx, dy), image: translate(image, dx, dy))
@@ -274,8 +278,8 @@ fn box(img: Image) -> #(Pointf, Pointf) {
   }
 }
 
-/// The box of what `img` draws, or `Error(Nil)` when `img` holds no path
-/// with commands. A part with nothing in it adds nothing to the box of a
+/// The box of what `img` draws, or `Error(Nil)` when `img` is made only of
+/// paths with no commands. A part with nothing in it adds nothing to the box of a
 /// combination, wherever a translation left it.
 fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
   case img {
@@ -284,6 +288,13 @@ fn drawn_box(img: Image) -> Result(#(Pointf, Pointf), Nil) {
       let #(min_x, min_y, max_x, max_y) = commands_box(commands)
       Ok(#(Pointf(min_x, min_y), Pointf(max_x, max_y)))
     }
+    // Half a pixel on each side is what a pen of width 1 covers, so the ends
+    // sit on the centers of pixels whatever the transformation.
+    Line(from:, to:, ..) ->
+      Ok(#(
+        Pointf(float.min(from.x, to.x) -. 0.5, float.min(from.y, to.y) -. 0.5),
+        Pointf(float.max(from.x, to.x) +. 0.5, float.max(from.y, to.y) +. 0.5),
+      ))
     Combination(a, b) ->
       case drawn_box(a), drawn_box(b) {
         Ok(#(amin, amax)), Ok(#(bmin, bmax)) ->
@@ -504,15 +515,8 @@ pub fn circle(radius: Int, style: Style) -> Image {
 
 pub fn linef(x: Float, y: Float, style: Style) -> Image {
   // As in 2htdp, a line takes one more column and one more row than the
-  // distance between its ends, so a thin line fits on the canvas. A move to
-  // the far corner gives the box that size and draws nothing.
-  let corner = Pointf(float.max(x, 0.0) +. 1.0, float.max(y, 0.0) +. 1.0)
-  Path(
-    style,
-    [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(x, y)), MoveTo(corner)],
-    False,
-  )
-  |> fix_position
+  // distance between its ends, so a thin line fits on the canvas.
+  Line(style, Pointf(0.0, 0.0), Pointf(x, y)) |> fix_position
 }
 
 pub fn line(x: Int, y: Int, style: Style) -> Image {
@@ -1098,6 +1102,12 @@ fn rotate_around(img: Image, center: Pointf, angle: Float) -> Image {
   case img {
     Path(style:, commands:, closed:) ->
       Path(style, list.map(commands, cmd_rotate(_, center, angle)), closed)
+    Line(style:, from:, to:) ->
+      Line(
+        style,
+        point_rotate(from, center, angle),
+        point_rotate(to, center, angle),
+      )
     Combination(a, b) ->
       Combination(
         rotate_around(a, center, angle),
@@ -1122,8 +1132,12 @@ pub fn scale(img: Image, factor: Int) -> Image {
 }
 
 pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
-  let x_factor = positive(x_factor)
-  let y_factor = positive(y_factor)
+  // The half pixel around a line keeps its size, so the scaled line no
+  // longer starts at 0.
+  scale_parts(img, positive(x_factor), positive(y_factor)) |> fix_position
+}
+
+fn scale_parts(img: Image, x_factor: Float, y_factor: Float) -> Image {
   case img {
     // The path takes the scale point by point, but its stroke has one
     // width and one dash, so they take the mean of the two factors, as the
@@ -1134,15 +1148,23 @@ pub fn scale_xyf(img: Image, x_factor: Float, y_factor: Float) -> Image {
         list.map(commands, cmd_scale(_, x_factor, y_factor)),
         closed,
       )
+    Line(style:, from:, to:) -> {
+      let scale = fn(p: Pointf) { Pointf(p.x *. x_factor, p.y *. y_factor) }
+      Line(
+        style.scale(style, { x_factor +. y_factor } /. 2.0),
+        scale(from),
+        scale(to),
+      )
+    }
     Combination(a, b) ->
       Combination(
-        scale_xyf(a, x_factor, y_factor),
-        scale_xyf(b, x_factor, y_factor),
+        scale_parts(a, x_factor, y_factor),
+        scale_parts(b, x_factor, y_factor),
       )
     Crop(box:, image:) ->
       Crop(
         box: box_scale(box, x_factor, y_factor),
-        image: scale_xyf(image, x_factor, y_factor),
+        image: scale_parts(image, x_factor, y_factor),
       )
     // The stroke of a text is as wide as the stroke of a path.
     Text(style:, box:, ..) ->
@@ -1171,6 +1193,7 @@ fn flip(img: Image, point_flip: fn(Pointf) -> Pointf) -> Image {
   case img {
     Path(style:, commands:, closed:) ->
       Path(style, list.map(commands, cmd_flip(_, point_flip)), closed)
+    Line(style:, from:, to:) -> Line(style, point_flip(from), point_flip(to))
     Combination(a, b) -> Combination(flip(a, point_flip), flip(b, point_flip))
     Crop(box:, image:) ->
       Crop(box: box_flip(box, point_flip), image: flip(image, point_flip))
