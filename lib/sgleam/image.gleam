@@ -158,7 +158,7 @@ pub fn variants() -> List(Image) {
     Combination(empty, empty),
     Crop(box, empty),
     Text(style.none, box, "", font.default()),
-    Bitmap(box, system.load_image("")),
+    Bitmap(box, system.no_image()),
   ]
 }
 
@@ -1121,8 +1121,12 @@ pub fn bitmap(path: String) -> Image {
   Bitmap(box_of_size(width, height), image)
 }
 
-pub fn bitmap_data_uri(data_uri: String, width: Float, height: Float) -> Image {
-  Bitmap(box_of_size(width, height), system.load_image(data_uri))
+/// A data URI that holds no image gives the empty image.
+pub fn bitmap_data_uri(data_uri: String) -> Image {
+  case system.load_image(data_uri) {
+    Ok(#(width, height, image)) -> Bitmap(box_of_size(width, height), image)
+    Error(Nil) -> empty
+  }
 }
 
 // **************************

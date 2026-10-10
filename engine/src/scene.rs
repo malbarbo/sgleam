@@ -250,17 +250,17 @@ impl<'js> JsClass<'js> for Loaded {
     }
 }
 
-/// The image of a bitmap, or `None` when it did not load.
+/// The image of a bitmap, or `None` for the one of `system.no_image`.
 type MaybeLoaded<'js> = Option<Class<'js, Loaded>>;
+
+/// The width and the height of an image, and the image.
+type Sized<'js> = List<(f64, f64, Class<'js, Loaded>)>;
 
 /// `system.load_bitmap` gives the width and the height of the image file at
 /// `path`, and its image. A file that does not load throws an error. An image
 /// larger than the limit of sinteract shrinks, and the size stays the one of
 /// the original.
-pub fn load_bitmap<'js>(
-    ctx: Ctx<'js>,
-    path: String,
-) -> Result<List<(f64, f64, Class<'js, Loaded>)>> {
+pub fn load_bitmap<'js>(ctx: Ctx<'js>, path: String) -> Result<Sized<'js>> {
     let fail = |reason: &dyn std::fmt::Display| {
         Exception::throw_message(&ctx, &format!("bitmap cannot read {path}: {reason}"))
     };
@@ -276,13 +276,24 @@ pub fn load_bitmap<'js>(
     )))
 }
 
-/// `system.load_image` gives the image in `data_uri`, or no image. An image
-/// larger than the limit of sinteract shrinks.
-pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<MaybeLoaded<'js>> {
-    match decode_data_uri(&data_uri).and_then(|blob| Image::load(blob).ok()) {
-        Some(image) => Ok(Some(Class::instance(ctx, Loaded(image))?)),
-        None => Ok(None),
+/// `system.load_image` gives the width and the height of the image in
+/// `data_uri`, and its image, or nothing when the data URI holds no image. An
+/// image larger than the limit of sinteract shrinks, and the size stays the
+/// one of the original.
+pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<Option<Sized<'js>>> {
+    let Some((image, head)) =
+        decode_data_uri(&data_uri).and_then(|blob| Image::load_with_head(blob).ok())
+    else {
+        return Ok(None);
+    };
+    if head.width == 0 || head.height == 0 {
+        return Ok(None);
     }
+    Ok(Some(List((
+        f64::from(head.width),
+        f64::from(head.height),
+        Class::instance(ctx, Loaded(image))?,
+    ))))
 }
 
 /// The path of a `Path`, or `None` when its commands do not start with a

@@ -24,7 +24,11 @@ pub type Loaded
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")
 pub fn load_bitmap(path: String) -> #(Float, Float, Loaded)
 
-/// Returns the image in `data_uri`. A data URI that does not load draws
-/// nothing.
+/// Returns #(width, height, image) for the image in `data_uri`, or an error
+/// when the data URI holds no image.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_image")
-pub fn load_image(data_uri: String) -> Loaded
+pub fn load_image(data_uri: String) -> Result(#(Float, Float, Loaded), Nil)
+
+/// An image that draws nothing, for a bitmap that only stands for its class.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "no_image")
+pub fn no_image() -> Loaded
