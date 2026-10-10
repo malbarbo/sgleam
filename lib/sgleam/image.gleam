@@ -596,10 +596,10 @@ fn triangle_from_sides_angle(
   |> fix_position
 }
 
-/// Returns `True` if two angles of a triangle leave a positive third one,
-/// `False` otherwise.
+/// Returns `True` if two angles of a triangle are not negative and leave a
+/// positive third one, `False` otherwise. An angle of 0 gives a flat triangle.
 fn triangle_angles(angle1: Float, angle2: Float) -> Bool {
-  angle1 >. 0.0 && angle2 >. 0.0 && angle1 +. angle2 <. 180.0
+  angle1 >=. 0.0 && angle2 >=. 0.0 && angle1 +. angle2 <. 180.0
 }
 
 // Solve triangle from two sides and included angle using law of cosines
@@ -711,8 +711,8 @@ pub fn triangle_ssa(
   )
 }
 
-/// Triangle by angle-angle-side (angle A, angle B, side c). Angles that do
-/// not form a triangle give the empty image.
+/// Triangle by angle-angle-side (angle A, angle B, side c). A negative
+/// angle, or two angles that add up to 180 or more, give the empty image.
 pub fn triangle_aasf(
   angle_a: Float,
   angle_b: Float,
@@ -768,8 +768,8 @@ pub fn triangle_ass(
   )
 }
 
-/// Triangle by angle-side-angle (angle A, side b, angle C). Angles that do
-/// not form a triangle give the empty image.
+/// Triangle by angle-side-angle (angle A, side b, angle C). A negative
+/// angle, or two angles that add up to 180 or more, give the empty image.
 pub fn triangle_asaf(
   angle_a: Float,
   side_b: Float,
@@ -798,8 +798,8 @@ pub fn triangle_asa(
   )
 }
 
-/// Triangle by side-angle-angle (side a, angle B, angle C). Angles that do
-/// not form a triangle give the empty image.
+/// Triangle by side-angle-angle (side a, angle B, angle C). A negative
+/// angle, or two angles that add up to 180 or more, give the empty image.
 pub fn triangle_saaf(
   side_a: Float,
   angle_b: Float,
