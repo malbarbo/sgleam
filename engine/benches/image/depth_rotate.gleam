@@ -3,12 +3,10 @@ import gleam/list
 import sgleam/fill
 import sgleam/image
 
-/// A row of `n` squares is a tree `n` levels deep. The largest size shows
-/// how deep a tree can go before the stack runs out.
+/// A row of `n` squares is a tree `n` levels deep. The last size that
+/// prints shows how deep a tree can go before the stack runs out.
 pub fn main() {
-  let sizes = [5000, 10_000, 20_000]
-  bench.run("build a deep row", sizes, row)
-  bench.run_on("to_svg of a deep row", sizes, row, image.to_svg)
+  let sizes = [1000, 2000, 4000, 8000, 16_000]
   bench.run_on("rotate a deep row", sizes, row, image.rotate(_, 90))
 }
 

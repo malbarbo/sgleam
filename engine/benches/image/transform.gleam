@@ -4,7 +4,7 @@ import sgleam/fill
 import sgleam/image
 
 pub fn main() {
-  let sizes = [1000, 2000, 4000]
+  let sizes = [125, 250, 500]
   bench.run_on("rotate a row", sizes, row, image.rotate(_, 30))
   bench.run_on("scale a row", sizes, row, image.scale(_, 2))
   bench.run_on("flip_horizontal a row", sizes, row, image.flip_horizontal)
