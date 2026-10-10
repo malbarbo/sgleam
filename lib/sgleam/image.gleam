@@ -2,6 +2,7 @@ import gleam/bool
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/result
 import sgleam/color.{type Color}
 import sgleam/font.{type Font, Font}
 import sgleam/math.{atan2, cos, cos_deg, pi, sin, sin_deg, sqrt}
@@ -1116,8 +1117,10 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 // * Bitmap
 // **************************
 
-pub fn bitmap(path: String) -> Image {
-  let #(width, height, image) = system.load_bitmap(path)
+/// Returns the image in the file at `path`, or an error that says why the
+/// file does not load.
+pub fn bitmap(path: String) -> Result(Image, String) {
+  use #(width, height, image) <- result.map(system.load_bitmap(path))
   Bitmap(box_of_size(width, height), image)
 }
 
