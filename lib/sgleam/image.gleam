@@ -849,6 +849,7 @@ pub fn rhombus(side_length: Int, angle: Int, style: Style) -> Image {
   rhombusf(int.to_float(side_length), int.to_float(angle), style)
 }
 
+/// A side count below 3 gives the empty image.
 pub fn regular_polygonf(
   side_length: Float,
   side_count: Int,
@@ -873,15 +874,20 @@ pub fn polygon(points: List(Point), style: Style) -> Image {
   polygonf(list.map(points, point_to_pointf), style)
 }
 
+/// A side count below 3, a step count below 1, or counts with a common
+/// divisor give the empty image. Counts with a common divisor visit only
+/// some of the vertices.
 pub fn star_polygonf(
   side_length: Float,
   side_count: Int,
   step_count: Int,
   style: Style,
 ) -> Image {
-  let side_count = int.max(1, side_count)
+  use <- bool.guard(
+    side_count < 3 || step_count < 1 || gcd(side_count, step_count) != 1,
+    empty,
+  )
   let side_countf = int.to_float(side_count)
-  let step_count = int.max(1, step_count)
   let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
   let alpha = case int.is_even(side_count) {
     True -> 90.0 +. 180.0 /. side_countf
@@ -907,6 +913,13 @@ pub fn star_polygon(
   star_polygonf(int.to_float(side_length), side_count, step_count, style)
 }
 
+fn gcd(a: Int, b: Int) -> Int {
+  case b {
+    0 -> a
+    _ -> gcd(b, a % b)
+  }
+}
+
 pub fn starf(side_length: Float, style: Style) -> Image {
   star_polygonf(side_length, 5, 2, style)
 }
@@ -915,13 +928,14 @@ pub fn star(side_length: Int, style: Style) -> Image {
   starf(int.to_float(side_length), style)
 }
 
+/// A point count below 2 gives the empty image.
 pub fn radial_starf(
   point_count: Int,
   inner_radius: Float,
   outer_radius: Float,
   style: Style,
 ) -> Image {
-  let point_count = int.max(2, point_count)
+  use <- bool.guard(point_count < 2, empty)
   let inner_radius = positive(inner_radius)
   let outer_radius = positive(outer_radius)
   let alpha = case int.is_even(point_count) {
@@ -959,6 +973,7 @@ pub fn radial_star(
   )
 }
 
+/// A side count below 3 gives the empty image.
 pub fn pulled_regular_polygonf(
   side_length: Float,
   side_count: Int,
@@ -966,7 +981,7 @@ pub fn pulled_regular_polygonf(
   angle: Float,
   style: Style,
 ) -> Image {
-  let side_count = int.max(3, side_count)
+  use <- bool.guard(side_count < 3, empty)
   let side_countf = int.to_float(side_count)
   let radius = positive(side_length) /. { 2.0 *. sin_deg(180.0 /. side_countf) }
   let alpha = case int.is_even(side_count) {
