@@ -33,6 +33,19 @@ pub use target::draw_svg;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::print_scene;
 
+/// Shows a frame of a world in a window, or in the terminal when no window
+/// opens. The first frame of a run opens the display with its own size.
+/// Returns `true` if the frame went out, `false` if neither opened or the
+/// frame failed. The browser draws an svg instead, so it has no such
+/// function.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::show_scene;
+
+/// Closes the display of the frames, so the run that comes next opens its
+/// own.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::close_frames;
+
 /// `system.get_key_event` gives the kind of the event waiting in the page, the
 /// name of the key and the modifiers that are on, or nothing when no event
 /// waits. Only the browser reads keys, so a native run has no such function.

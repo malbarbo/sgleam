@@ -157,6 +157,14 @@ fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), Sgl
 }
 
 fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
+    let result = eval_script(context, source);
+    // A world that ended, or that Ctrl-C stopped, leaves its display open.
+    #[cfg(not(target_arch = "wasm32"))]
+    crate::host::close_frames();
+    result
+}
+
+fn eval_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     context.with(|ctx| {
         let mut options = EvalOptions::default();
         options.global = false;
@@ -223,7 +231,10 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
         set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
     }
     #[cfg(not(target_arch = "wasm32"))]
-    set_fn(&sgleam, "print_image", crate::scene::print_image)?;
+    {
+        set_fn(&sgleam, "print_image", crate::scene::print_image)?;
+        set_fn(&sgleam, "show_image", crate::scene::show_image)?;
+    }
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;

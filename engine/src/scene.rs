@@ -51,6 +51,14 @@ pub fn print_image<'js>(image: Object<'js>, width: f64, height: f64) -> Result<b
     Ok(crate::host::print_scene(&to_scene(&image, width, height)?))
 }
 
+/// Shows `image` as a frame of a world, on a canvas of `width` by `height`.
+/// Returns `true` if the frame went out, `false` otherwise, and then the world
+/// prints the word `Image`.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn show_image<'js>(image: Object<'js>, width: f64, height: f64) -> Result<bool> {
+    Ok(crate::host::show_scene(to_scene(&image, width, height)?))
+}
+
 /// `image` drawn on a canvas of `width` by `height`.
 fn to_scene(image: &Object, width: f64, height: f64) -> Result<Scene> {
     let mut scene = Scene::new(width as f32, height as f32);
