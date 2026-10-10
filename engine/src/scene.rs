@@ -34,14 +34,20 @@ const FP_EPSILON: f64 = 1.0e-10;
 
 /// The svg of `image` on a canvas of `width` by `height`.
 pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String> {
-    let mut scene = Scene::new(width as f32, height as f32);
-    draw(leaves(&image)?, &mut scene);
+    let scene = to_scene(&image, width, height)?;
     let prefix = format!("s{}-", NEXT_SVG.fetch_add(1, Ordering::Relaxed));
     let mut renderer = SvgRenderer::with_id_prefix(&prefix)
         .expect("a valid id prefix")
         .keep_image_formats();
     let Ok(svg) = renderer.render(&scene);
     Ok(svg.to_owned())
+}
+
+/// `image` drawn on a canvas of `width` by `height`.
+fn to_scene(image: &Object, width: f64, height: f64) -> Result<Scene> {
+    let mut scene = Scene::new(width as f32, height as f32);
+    draw(leaves(image)?, &mut scene);
+    Ok(scene)
 }
 
 /// `same_pixels` of `sgleam/image` returns `true` if `a` and `b` draw the
