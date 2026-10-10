@@ -9,7 +9,7 @@ pub fn animate(create_image: fn(Int) -> Image) -> Nil {
 }
 
 fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) {
-  frame |> create_image |> image.to_svg |> system.show_svg
+  frame |> create_image |> show_image
   system.sleep(delay)
   animate_loop(create_image, delay, frame + 1)
 }
@@ -144,7 +144,7 @@ pub fn on_key_up(world: World(a), handler: OnKey(a)) -> World(a) {
 }
 
 pub fn run(world: World(a)) {
-  world.state |> world.to_image |> image.to_svg |> system.show_svg
+  show(world)
   let period = ms_per_second / world.rate
   run_loop(world, system.now_ms() + period)
 }
@@ -193,7 +193,7 @@ fn run_loop(world: World(a), next_tick_at: Int) {
     _, _ -> #(world, False)
   }
   case ticked || h1 || h2 || h3 {
-    True -> show_svg(world)
+    True -> show(world)
     False -> Nil
   }
   case world.stop_when |> option.map(fn(f) { f(world.state) }) {
@@ -210,9 +210,12 @@ fn run_loop(world: World(a), next_tick_at: Int) {
   }
 }
 
-fn show_svg(world: World(a)) {
-  world.state |> world.to_image |> image.to_svg |> system.show_svg
+fn show(world: World(a)) {
+  world.state |> world.to_image |> show_image
 }
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "show_image")
+fn show_image(image: Image) -> Nil
 
 fn get_key_event() -> Option(KeyEvent) {
   let event = system.get_key_event()
