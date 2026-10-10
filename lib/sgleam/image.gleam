@@ -261,6 +261,30 @@ pub fn dimension(img: Image) -> #(Int, Int) {
   #(float.round(width), float.round(height))
 }
 
+/// Returns `True` if `a` and `b` have the same size and draw the same
+/// pixels, `False` otherwise. Two images that `==` takes as equal are the
+/// same, and two that it takes as different may still be the same, such as
+/// a square and the square turned by 90 degrees. The canvas has one more
+/// column and row, as in the repl, so an outline on the edge counts.
+pub fn same(a: Image, b: Image) -> Bool {
+  let #(width, height) = dimension(a)
+  #(width, height) == dimension(b)
+  && {
+    a == b
+    || same_pixels(
+      a,
+      b,
+      int.to_float(width) +. 1.0,
+      int.to_float(height) +. 1.0,
+    )
+  }
+}
+
+/// sinteract draws `a` and `b` on a canvas of `width` by `height` and
+/// compares the pixels.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "same_pixels")
+fn same_pixels(a: Image, b: Image, width: Float, height: Float) -> Bool
+
 pub fn centerf(img: Image) -> Pointf {
   let #(min, max) = box(img)
   Pointf(mid(max.x, min.x), mid(max.y, min.y))

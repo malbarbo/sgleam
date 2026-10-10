@@ -1,0 +1,9 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Running tests...
+  check_image_same.gleam/not_same_examples
+  check_image_same.gleam/same_examples
+10 tests, 10 successes, 0 failures and 0 errors.
+STDERR
