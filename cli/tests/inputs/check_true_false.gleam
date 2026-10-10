@@ -6,3 +6,7 @@ pub fn eq_examples() {
   check.false(2 == 1 + 1)
   check.false(2 == 1 + 1 + 1)
 }
+
+pub fn and_examples() {
+  check.true(2 == 1 + 1) && check.false(2 == 1 + 1)
+}
