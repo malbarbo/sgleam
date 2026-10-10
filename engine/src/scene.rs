@@ -37,7 +37,9 @@ pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String
     let mut scene = Scene::new(width as f32, height as f32);
     draw(leaves(&image)?, &mut scene);
     let prefix = format!("s{}-", NEXT_SVG.fetch_add(1, Ordering::Relaxed));
-    let mut renderer = SvgRenderer::with_id_prefix(&prefix).expect("a valid id prefix");
+    let mut renderer = SvgRenderer::with_id_prefix(&prefix)
+        .expect("a valid id prefix")
+        .keep_image_formats();
     let Ok(svg) = renderer.render(&scene);
     Ok(svg.to_owned())
 }
