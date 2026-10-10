@@ -5,6 +5,7 @@
 //! The size of a text comes from here too, so the text measures with the
 //! face that draws it, and so does the box of a path.
 
+use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use kurbo::{BezPath, ParamCurveExtrema, Point, Rect, SvgArc, Vec2};
@@ -92,62 +93,61 @@ impl Leaf {
 }
 
 /// Appends the elements of `image`, moved by `at`, to `runs`, which groups
-/// the elements in a row that share a region, in drawing order.
-fn walk(
-    image: &Object,
+/// the elements in a row that share a region, in drawing order. The nodes
+/// wait on a stack of their own, so a deep image does not overflow the stack
+/// of the thread.
+fn walk<'js>(
+    image: &Object<'js>,
     at: Offset,
     region: &Region,
     runs: &mut Vec<(Region, Vec<Leaf>)>,
 ) -> Result<()> {
-    let leaf = match class(image)?.as_str() {
-        "Path" => path(image, at)?.map(Leaf::Path),
-        "Line" => Some(Leaf::Path(line(image, at)?)),
-        "Combination" => {
-            walk(
-                &image.get("a")?,
-                moved(at, image.get("a_at")?)?,
-                region,
-                runs,
-            )?;
-            walk(
-                &image.get("b")?,
-                moved(at, image.get("b_at")?)?,
-                region,
-                runs,
-            )?;
-            None
-        }
-        "Crop" => {
-            let corners = corners(affine(&image.get("box")?, at)?);
-            let inside = intersect(region, &corners);
-            let inner = moved(at, image.get("at")?)?;
-            walk(&image.get("image")?, inner, &inside, runs)?;
-            None
-        }
-        "Text" => text(image, at)?.map(Leaf::Text),
-        "Bitmap" => {
-            let transform = affine(&image.get("box")?, at)?;
-            let loaded: MaybeLoaded = image.get("image")?;
-            loaded.map(|loaded| {
-                let image = loaded.borrow().0.clone();
-                Leaf::Bitmap(Bitmap {
-                    image,
-                    transform,
-                    sampling: Sampling::Smooth,
+    let mut pending = vec![(image.clone(), at, Rc::new(region.clone()))];
+    while let Some((image, at, region)) = pending.pop() {
+        let leaf = match class(&image)?.as_str() {
+            "Path" => path(&image, at)?.map(Leaf::Path),
+            "Line" => Some(Leaf::Path(line(&image, at)?)),
+            "Combination" => {
+                // The stack gives back the last node first, and `a` draws
+                // before `b`.
+                let b_at = moved(at, image.get("b_at")?)?;
+                pending.push((image.get("b")?, b_at, region.clone()));
+                let a_at = moved(at, image.get("a_at")?)?;
+                pending.push((image.get("a")?, a_at, region.clone()));
+                None
+            }
+            "Crop" => {
+                let corners = corners(affine(&image.get("box")?, at)?);
+                let inside = intersect(&region, &corners);
+                let inner = moved(at, image.get("at")?)?;
+                pending.push((image.get("image")?, inner, Rc::new(inside)));
+                None
+            }
+            "Text" => text(&image, at)?.map(Leaf::Text),
+            "Bitmap" => {
+                let transform = affine(&image.get("box")?, at)?;
+                let loaded: MaybeLoaded = image.get("image")?;
+                loaded.map(|loaded| {
+                    let image = loaded.borrow().0.clone();
+                    Leaf::Bitmap(Bitmap {
+                        image,
+                        transform,
+                        sampling: Sampling::Smooth,
+                    })
                 })
-            })
+            }
+            other => return Err(type_error(image.ctx(), &format!("cannot draw a {other}"))),
+        };
+        let Some(leaf) = leaf else {
+            continue;
+        };
+        if region.as_ref().as_ref().is_some_and(Vec::is_empty) {
+            continue;
         }
-        other => return Err(type_error(image.ctx(), &format!("cannot draw a {other}"))),
-    };
-    let Some(leaf) = leaf else {
-        return Ok(());
-    };
-    if region.as_ref().is_some_and(Vec::is_empty) {
-        return Ok(());
-    }
-    match runs.last_mut() {
-        Some((last, leaves)) if last == region => leaves.push(leaf),
-        _ => runs.push((region.clone(), vec![leaf])),
+        match runs.last_mut() {
+            Some((last, leaves)) if last == region.as_ref() => leaves.push(leaf),
+            _ => runs.push((region.as_ref().clone(), vec![leaf])),
+        }
     }
     Ok(())
 }
