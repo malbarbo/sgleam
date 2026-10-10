@@ -1,6 +1,7 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 53
 ---
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="30" height="30" viewBox="0 0 30 30">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="31" height="31" viewBox="0 0 31 31">
   <path d="M0.5 0.5 L30.5 30.5" fill="none" stroke="#000000" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10"/>
 </svg>

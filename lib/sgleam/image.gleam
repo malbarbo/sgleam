@@ -503,7 +503,15 @@ pub fn circle(radius: Int, style: Style) -> Image {
 }
 
 pub fn linef(x: Float, y: Float, style: Style) -> Image {
-  Path(style, [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(x, y))], False)
+  // As in 2htdp, a line takes one more column and one more row than the
+  // distance between its ends, so a thin line fits on the canvas. A move to
+  // the far corner gives the box that size and draws nothing.
+  let corner = Pointf(float.max(x, 0.0) +. 1.0, float.max(y, 0.0) +. 1.0)
+  Path(
+    style,
+    [MoveTo(Pointf(0.0, 0.0)), LineTo(Pointf(x, y)), MoveTo(corner)],
+    False,
+  )
   |> fix_position
 }
 
