@@ -1,0 +1,23 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Running tests...
+  check_as_value.gleam/argument_examples
+    Failure at line 12
+      Actual  : False
+      Expected: True
+  check_as_value.gleam/constant_examples
+    Failure at check_as_value.gleam
+      Actual  : 1
+      Expected: 2
+  check_as_value.gleam/unqualified_examples
+    Failure at line 8
+      Actual  : 1
+      Expected: 2
+  check_as_value.gleam/variable_examples
+    Failure at line 16
+      Actual  : True
+      Expected: False
+6 tests, 2 successes, 4 failures and 0 errors.
+STDERR
