@@ -14,7 +14,8 @@ pub use target::init;
 /// first check.
 pub use target::check_interrupt;
 
-/// `system.sleep` holds the program for `ms` milliseconds.
+/// `system.sleep` holds the program for `ms` milliseconds. An interruption may
+/// end it early.
 pub use target::sleep;
 
 /// The bytes of the image file at the path, or the reason the file cannot be

@@ -6,6 +6,7 @@ use std::sync::{
     OnceLock,
     atomic::{AtomicBool, Ordering},
 };
+use std::time::{Duration, Instant};
 
 use sinteract::display::{Display, Printer, TerminalOptions, open_native};
 use sinteract::scene::Scene;
@@ -37,7 +38,15 @@ pub fn check_interrupt() -> bool {
 }
 
 pub fn sleep(ms: u64) {
-    std::thread::sleep(std::time::Duration::from_millis(ms));
+    let end = Instant::now() + Duration::from_millis(ms);
+    // Short slices, so an interruption ends a long sleep at once.
+    loop {
+        let now = Instant::now();
+        if now >= end || STOP.load(Ordering::Relaxed) {
+            return;
+        }
+        std::thread::sleep((end - now).min(Duration::from_millis(10)));
+    }
 }
 
 pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {

@@ -11,7 +11,7 @@ use rquickjs::{
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
-    qjs::{JS_GetRuntime, JS_IsUncatchableError, JS_SetMaxStackSize},
+    qjs::{JS_GetRuntime, JS_IsUncatchableError, JS_SetMaxStackSize, JS_SetUncatchableError},
 };
 
 use crate::{
@@ -19,7 +19,7 @@ use crate::{
     engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
-    host::{check_interrupt, init, now_ms, sleep},
+    host::{self, check_interrupt, init, now_ms},
     swriteln,
 };
 
@@ -254,6 +254,22 @@ where
         name,
         Function::new(object.ctx().clone(), f)?.with_name(name)?,
     )
+}
+
+/// `system.sleep`, which stops the program when an interruption arrives. The
+/// interrupt handler runs only after many operations, and a loop that mostly
+/// sleeps runs few of them.
+fn sleep(ctx: Ctx<'_>, ms: u64) -> Result<()> {
+    host::sleep(ms);
+    if !check_interrupt() {
+        return Ok(());
+    }
+    // The handler stops a program with an error that no catch takes, and
+    // is_interrupt looks for that mark.
+    let error = Exception::from_message(ctx.clone(), "interrupted")?;
+    // SAFETY: the error is a live object of this context.
+    unsafe { JS_SetUncatchableError(ctx.as_raw().as_ptr(), error.as_value().as_raw()) };
+    Err(ctx.throw(error.into_value()))
 }
 
 fn getline() -> Option<String> {
