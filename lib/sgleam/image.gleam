@@ -596,6 +596,12 @@ fn triangle_from_sides_angle(
   |> fix_position
 }
 
+/// Returns `True` if two angles of a triangle leave a positive third one,
+/// `False` otherwise.
+fn triangle_angles(angle1: Float, angle2: Float) -> Bool {
+  angle1 >. 0.0 && angle2 >. 0.0 && angle1 +. angle2 <. 180.0
+}
+
 // Solve triangle from two sides and included angle using law of cosines
 fn solve_side(a: Float, b: Float, angle_c: Float) -> Float {
   sqrt(a *. a +. b *. b -. 2.0 *. a *. b *. cos_deg(angle_c))
@@ -614,7 +620,8 @@ fn solve_angle(opposite: Float, adj1: Float, adj2: Float) -> Float {
   atan2(sqrt(1.0 -. cos_val *. cos_val), cos_val) *. 180.0 /. pi
 }
 
-/// Triangle by three side lengths.
+/// Triangle by three side lengths. Sides where one is longer than the sum of
+/// the other two give the empty image.
 pub fn triangle_sssf(
   side_a: Float,
   side_b: Float,
@@ -624,6 +631,12 @@ pub fn triangle_sssf(
   let side_a = positive(side_a)
   let side_b = positive(side_b)
   let side_c = positive(side_c)
+  use <- bool.guard(
+    side_a >. side_b +. side_c
+      || side_b >. side_a +. side_c
+      || side_c >. side_a +. side_b,
+    empty,
+  )
   let angle_a = solve_angle(side_a, side_b, side_c)
   triangle_from_sides_angle(side_b, side_c, angle_a, style)
 }
@@ -698,13 +711,15 @@ pub fn triangle_ssa(
   )
 }
 
-/// Triangle by angle-angle-side (angle A, angle B, side c).
+/// Triangle by angle-angle-side (angle A, angle B, side c). Angles that do
+/// not form a triangle give the empty image.
 pub fn triangle_aasf(
   angle_a: Float,
   angle_b: Float,
   side_c: Float,
   style: Style,
 ) -> Image {
+  use <- bool.guard(!triangle_angles(angle_a, angle_b), empty)
   let side_c = positive(side_c)
   let angle_c = 180.0 -. angle_a -. angle_b
   // Law of sines: side / sin(angle) = side_c / sin(angle_c)
@@ -753,13 +768,15 @@ pub fn triangle_ass(
   )
 }
 
-/// Triangle by angle-side-angle (angle A, side b, angle C).
+/// Triangle by angle-side-angle (angle A, side b, angle C). Angles that do
+/// not form a triangle give the empty image.
 pub fn triangle_asaf(
   angle_a: Float,
   side_b: Float,
   angle_c: Float,
   style: Style,
 ) -> Image {
+  use <- bool.guard(!triangle_angles(angle_a, angle_c), empty)
   let side_b = positive(side_b)
   let angle_b = 180.0 -. angle_a -. angle_c
   let ratio = side_b /. sin_deg(angle_b)
@@ -781,13 +798,15 @@ pub fn triangle_asa(
   )
 }
 
-/// Triangle by side-angle-angle (side a, angle B, angle C).
+/// Triangle by side-angle-angle (side a, angle B, angle C). Angles that do
+/// not form a triangle give the empty image.
 pub fn triangle_saaf(
   side_a: Float,
   angle_b: Float,
   angle_c: Float,
   style: Style,
 ) -> Image {
+  use <- bool.guard(!triangle_angles(angle_b, angle_c), empty)
   let side_a = positive(side_a)
   let angle_a = 180.0 -. angle_b -. angle_c
   let ratio = side_a /. sin_deg(angle_a)
