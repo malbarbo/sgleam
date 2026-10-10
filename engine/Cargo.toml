@@ -38,3 +38,7 @@ tar = "0.4.41"
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ctrlc = "3.4.6"
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
+
+[[bench]]
+name = "image"
+harness = false
