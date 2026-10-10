@@ -7,4 +7,4 @@ error: Module does not have a main function
 
 `user` does not have a main function so the module can not be run.
 
-Hint: Add a public `main` function to `src/user.gleam`.
+Hint: Add a public `main` function to `user.gleam`.

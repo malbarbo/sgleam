@@ -24,7 +24,15 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
         path: program.clone(),
     })?;
 
-    let main = get_main(module)?;
+    let main = get_main(module).map_err(|err| match err {
+        SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
+            SgleamError::NoMainFunction {
+                module,
+                path: program.clone(),
+            }
+        }
+        err => err,
+    })?;
     JsEngine::new(project.fs.clone())?.run_main(&module.name, main)?;
 
     Ok(())

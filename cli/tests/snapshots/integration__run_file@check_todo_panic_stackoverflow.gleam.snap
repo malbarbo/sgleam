@@ -34,4 +34,4 @@ error: Module does not have a main function
 module can not be run.
 
 Hint: Add a public `main` function to
-`src/check_todo_panic_stackoverflow.gleam`.
+`check_todo_panic_stackoverflow.gleam`.

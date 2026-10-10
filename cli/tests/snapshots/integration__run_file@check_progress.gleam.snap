@@ -8,4 +8,4 @@ error: Module does not have a main function
 `check_progress` does not have a main function so the module can not be
 run.
 
-Hint: Add a public `main` function to `src/check_progress.gleam`.
+Hint: Add a public `main` function to `check_progress.gleam`.

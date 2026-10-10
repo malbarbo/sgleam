@@ -8,4 +8,4 @@ error: Module does not have a main function
 `check_as_value` does not have a main function so the module can not be
 run.
 
-Hint: Add a public `main` function to `src/check_as_value.gleam`.
+Hint: Add a public `main` function to `check_as_value.gleam`.

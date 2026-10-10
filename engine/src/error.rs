@@ -2,6 +2,7 @@ use std::io::{IsTerminal as _, Write as _};
 
 use camino::Utf8PathBuf;
 use ecow::EcoString;
+use gleam_core::build::Origin;
 use gleam_core::diagnostic::{Diagnostic, Level};
 use indoc::formatdoc;
 use termcolor::{BufferWriter, ColorChoice};
@@ -23,6 +24,14 @@ pub enum SgleamError {
     #[error("path is not within the current directory")]
     PathNotInCurrentDir {
         current_dir: Utf8PathBuf,
+        path: Utf8PathBuf,
+    },
+
+    /// A module to run that has neither `main` nor `smain`. The compiler
+    /// reports this too, but its hint names the path inside the project.
+    #[error("module does not have a main function")]
+    NoMainFunction {
+        module: EcoString,
         path: Utf8PathBuf,
     },
 
@@ -112,6 +121,18 @@ pub fn show_error(err: &SgleamError) {
             "Change the current directory or specify another path.".into(),
         )
         .write(&mut buffer),
+
+        SgleamError::NoMainFunction { module, path } => {
+            let mut diags = gleam_core::Error::ModuleDoesNotHaveMainFunction {
+                module: module.clone(),
+                origin: Origin::Src,
+            }
+            .to_diagnostics();
+            for diag in &mut diags {
+                diag.hint = Some(format!("Add a public `main` function to `{path}`."));
+            }
+            write_diagnostics(&mut buffer, &mut diags);
+        }
 
         SgleamError::PathIsADirectory { path } => error_diagnostic(
             "path is a directory",
