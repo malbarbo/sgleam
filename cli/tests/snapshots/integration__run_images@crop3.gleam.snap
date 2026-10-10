@@ -2,7 +2,7 @@
 source: cli/tests/integration.rs
 assertion_line: 53
 ---
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="110" height="110" viewBox="0 0 110 110">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="109" height="109" viewBox="0 0 109 109">
   <defs>
     <clipPath id="s0-c0"><path d="M0 40 L34.641018 19.999998 L54.641018 54.641014 L20 74.641014"/></clipPath>
     <clipPath id="s0-c1"><path d="M34.641014 20 L69.282036 0 L89.282036 34.641018 L54.641014 54.641018"/></clipPath>

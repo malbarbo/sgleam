@@ -1903,13 +1903,9 @@ pub fn to_repl_svg(img: Image) -> String {
 fn svg_with_margin(img: Image, margin: Float) -> String {
   image_to_svg(
     img,
-    float.ceiling(round2(widthf(img))) +. margin,
-    float.ceiling(round2(heightf(img))) +. margin,
+    int.to_float(width(img)) +. margin,
+    int.to_float(height(img)) +. margin,
   )
-}
-
-fn round2(v: Float) -> Float {
-  int.to_float(float.round(v *. 100.0)) /. 100.0
 }
 
 /// sinteract draws `img` on a canvas of `width` by `height`.

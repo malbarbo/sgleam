@@ -1,7 +1,7 @@
 ---
 source: cli/tests/integration.rs
 ---
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="72" height="68" viewBox="0 0 72 68">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="71" height="68" viewBox="0 0 71 68">
   <path d="M35.59675 0 L71.1935 25.86255 L57.59675 67.70904 L13.596747 67.70904 L0 25.86255 Z" fill="#fafaff"/>
   <path d="M35.59675 4.616525 L66.33939 26.952364 L54.59675 63.092514 L16.596748 63.092514 L4.854102 26.952364 Z" fill="#c8c8ff"/>
   <path d="M35.59675 9.23305 L61.48529 28.04218 L51.59675 58.475986 L19.596748 58.475986 L9.708204 28.04218 Z" fill="#9696ff"/>
