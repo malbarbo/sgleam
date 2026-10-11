@@ -1,5 +1,5 @@
-//! The operating system answers. Ctrl-C stops a program, the file system holds
-//! an image.
+//! The operating system answers. Ctrl-C stops a program, and a window or the
+//! terminal shows a world.
 
 use std::cell::RefCell;
 use std::sync::{
@@ -47,10 +47,6 @@ pub fn sleep(ms: u64) {
         }
         std::thread::sleep((end - now).min(Duration::from_millis(10)));
     }
-}
-
-pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
-    std::fs::read(path).map_err(|err| err.to_string())
 }
 
 /// Where the frames of a world and the images of the repl go.

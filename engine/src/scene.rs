@@ -12,8 +12,8 @@ use kurbo::{BezPath, ParamCurveExtrema, Point, Rect, SvgArc, Vec2};
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
 use rquickjs::function::This;
 use rquickjs::{
-    Class, Constructor, Ctx, Exception, FromJs, Function, IntoJs, JsLifetime, Object, Result,
-    Value, convert::List,
+    Class, Constructor, Ctx, Exception, FromJs, Function, JsLifetime, Object, Result, Value,
+    convert::List,
 };
 use sinteract::asset::{ImageHead, decode_data_uri};
 use sinteract::renderer::Renderer;
@@ -363,33 +363,6 @@ type MaybeLoaded<'js> = Option<Class<'js, Loaded>>;
 
 /// The width and the height of an image, and the image.
 type Sized<'js> = List<(f64, f64, Class<'js, Loaded>)>;
-
-/// `system.load_bitmap` gives the width and the height of the image file at
-/// `path`, and its image, or a string that says why the file does not load.
-/// An image larger than the limit of sinteract shrinks, and the size stays the
-/// one of the original.
-pub fn load_bitmap<'js>(ctx: Ctx<'js>, path: String) -> Result<Value<'js>> {
-    let loaded = crate::host::load_bitmap(&path).and_then(|blob| {
-        Image::load_with_head(blob)
-            .map_err(|err| err.to_string())
-            .and_then(|(image, head)| {
-                if head.width == 0 || head.height == 0 {
-                    Err("the image has no pixels".to_string())
-                } else {
-                    Ok((image, head))
-                }
-            })
-    });
-    match loaded {
-        Ok((image, head)) => List((
-            f64::from(head.width),
-            f64::from(head.height),
-            Class::instance(ctx.clone(), Loaded::new(image, head))?,
-        ))
-        .into_js(&ctx),
-        Err(reason) => format!("cannot read {path}: {reason}").into_js(&ctx),
-    }
-}
 
 /// `system.load_image` gives the width and the height of the image in
 /// `data_uri`, and its image, or nothing when the data URI holds no image. An

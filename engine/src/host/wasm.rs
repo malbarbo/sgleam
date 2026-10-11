@@ -36,10 +36,6 @@ pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }
 
-pub fn load_bitmap(_path: &str) -> Result<Vec<u8>, String> {
-    Err("the web version has no files".into())
-}
-
 /// The page shows each world in a session, the only display it has.
 pub(super) fn stage_options() -> StageOptions {
     StageOptions::default()

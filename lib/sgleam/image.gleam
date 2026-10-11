@@ -1274,13 +1274,6 @@ pub fn text(text: String, size: Int, style: Style) -> Image {
 // * Bitmap
 // **************************
 
-/// Returns the image in the file at `path`, or an error that says why the
-/// file does not load.
-pub fn bitmap(path: String) -> Result(Image, String) {
-  use #(width, height, image) <- result.map(system.load_bitmap(path))
-  Bitmap(box_of_size(width, height), image)
-}
-
 /// A data URI that holds no image gives the empty image.
 pub fn bitmap_data_uri(data_uri: String) -> Image {
   case system.load_image(data_uri) {

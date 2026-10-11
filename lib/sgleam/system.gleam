@@ -16,11 +16,6 @@ pub fn text_metrics(text: String, font: Font) -> #(Float, Float)
 /// An image that the engine holds, which a bitmap draws.
 pub type Loaded
 
-/// Returns #(width, height, image) for a bitmap file, or an error that says
-/// why the file does not load.
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "load_bitmap")
-pub fn load_bitmap(path: String) -> Result(#(Float, Float, Loaded), String)
-
 /// Returns #(width, height, image) for the image in `data_uri`, or an error
 /// when the data URI holds no image.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "load_image")
