@@ -308,9 +308,7 @@ pub fn move(p: Pos, key: world.Key) -> Pos {
 
 // A world with a handler for every kind of key event but keydown. What it
 // prints says which handler ran, and for which key.
-const KEY_HANDLERS = `import gleam/io
-import gleam/string
-import sgleam/image
+const KEY_HANDLERS = `import sgleam/image
 import sgleam/stroke
 import sgleam/world
 
@@ -328,7 +326,7 @@ pub fn draw(_handled: Int) -> image.Image {
 
 fn handler(name: String) -> fn(Int, world.Key) -> Int {
   fn(handled, key) {
-    io.println(name <> " " <> string.inspect(key))
+    echo key as name
     handled + 1
   }
 }
@@ -376,16 +374,14 @@ const KEY_NAMES = [
 // A world that prints the key of every keydown it is given, and stops once it
 // has seen `count` of them.
 function keyNamesProgram(count: number): string {
-  return `import gleam/io
-import gleam/string
-import sgleam/image
+  return `import sgleam/image
 import sgleam/stroke
 import sgleam/world
 
 pub fn main() {
   world.create(0, draw)
   |> world.on_key_down(fn(seen, key) {
-    io.println(string.inspect(key))
+    echo key
     seen + 1
   })
   |> world.stop_when(fn(seen) { seen == ${count} })
@@ -398,15 +394,13 @@ pub fn draw(_seen: Int) -> image.Image {
 `;
 }
 
-const ANIMATE = `import gleam/int
-import gleam/io
-import sgleam/image
+const ANIMATE = `import sgleam/image
 import sgleam/stroke
 import sgleam/world
 
 pub fn main() {
   world.animate(fn(frame) {
-    io.println("frame " <> int.to_string(frame))
+    echo frame as "frame"
     image.circle(10 + frame, stroke.red)
   })
 }
@@ -641,7 +635,10 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
   });
   const r = run(ctx, "main()");
   // The last line is the repl echoing what main() gave back.
-  assertEquals(r.stdout, 'press Char("a")\nup Enter\nNil\n');
+  assertEquals(
+    r.stdout,
+    'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\nNil\n',
+  );
   // The first state and one per handled event.
   assertEquals(r.svgs.length, 3, `stderr:\n${r.stderr}`);
   destroy(ctx);
@@ -656,7 +653,7 @@ Deno.test("a close ends world.run", async () => {
     ],
   });
   const r = run(ctx, "main()");
-  assertEquals(r.stdout, 'press Char("a")\nNil\n');
+  assertEquals(r.stdout, 'user.gleam:19 press\nChar("a")\nNil\n');
   destroy(ctx);
 });
 
@@ -670,7 +667,7 @@ Deno.test("a close ends world.animate", async () => {
   });
   const r = run(ctx, "main()");
   // The key goes unused, so the first frame is the only one.
-  assertEquals(r.stdout, "frame 0\nNil\n");
+  assertEquals(r.stdout, "user.gleam:7 frame\n0\nNil\n");
   assertEquals(r.svgs.length, 1, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
@@ -682,9 +679,9 @@ Deno.test("every key name decodes to its Key", async () => {
     keyEvents: keys.map((key) => ({ type: KEYDOWN, key })),
   });
   const r = run(ctx, "main()");
-  const expected = [...KEY_NAMES, 'Char("a")', "Nil"]
-    .map((k) => `${k}\n`)
-    .join("");
+  const expected = [...KEY_NAMES, 'Char("a")']
+    .map((k) => `user.gleam:8\n${k}\n`)
+    .join("") + "Nil\n";
   assertEquals(r.stdout, expected, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
@@ -694,7 +691,9 @@ Deno.test("animate draws a frame per number", async () => {
   const ctx = await newRepl(ANIMATE, { interruptAfter: 20 });
   const r = run(ctx, "main()");
   assertEquals(
-    r.stdout.startsWith("frame 0\nframe 1\nframe 2\n"),
+    r.stdout.startsWith(
+      [0, 1, 2].map((n) => `user.gleam:7 frame\n${n}\n`).join(""),
+    ),
     true,
     `stdout:\n${r.stdout}`,
   );
