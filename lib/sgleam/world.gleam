@@ -35,7 +35,6 @@ pub type KeyEvent {
     ctrl: Bool,
     shift: Bool,
     meta: Bool,
-    repeat: Bool,
   )
 }
 
@@ -302,6 +301,5 @@ fn new_key_event(
     ctrl: list.contains(modifiers, "ctrl"),
     shift: list.contains(modifiers, "shift"),
     meta: list.contains(modifiers, "meta"),
-    repeat: list.contains(modifiers, "repeat"),
   )
 }
