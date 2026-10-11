@@ -1,14 +1,18 @@
 import bench
 import gleam/list
+import gleam/string
 import sgleam/fill
 import sgleam/image
 
-pub fn main() {
+pub fn smain() {
   let sizes = [100, 200, 400]
-  bench.run("place_image scene", sizes, scene)
-  bench.run_on("to_svg of the scene", sizes, scene, image.to_svg)
-  bench.run("place_image text scene", sizes, text_scene)
-  bench.run_on("to_svg of the text scene", sizes, text_scene, image.to_svg)
+  [
+    bench.run("place_image scene", sizes, scene),
+    bench.run_on("to_svg of the scene", sizes, scene, image.to_svg),
+    bench.run("place_image text scene", sizes, text_scene),
+    bench.run_on("to_svg of the text scene", sizes, text_scene, image.to_svg),
+  ]
+  |> string.join("\n")
 }
 
 fn scene(n: Int) -> image.Image {

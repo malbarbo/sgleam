@@ -1,14 +1,14 @@
 import gleam/float
 import gleam/int
-import gleam/io
 import gleam/list
+import gleam/pair
 import gleam/string
 import sgleam/system
 
-/// Runs `work` for each size in `sizes` and prints the time of one run. The
-/// factor is the time over the time of the size before, so a size that
-/// doubles shows 2 for linear work and 4 for quadratic work.
-pub fn run(name: String, sizes: List(Int), work: fn(Int) -> a) -> Nil {
+/// Runs `work` for each size in `sizes` and returns a line per size with the
+/// time of one run. The factor is the time over the time of the size before,
+/// so a size that doubles shows 2 for linear work and 4 for quadratic work.
+pub fn run(name: String, sizes: List(Int), work: fn(Int) -> a) -> String {
   run_on(name, sizes, fn(size) { size }, work)
 }
 
@@ -18,24 +18,24 @@ pub fn run_on(
   sizes: List(Int),
   setup: fn(Int) -> s,
   work: fn(s) -> a,
-) -> Nil {
-  list.fold(sizes, 0.0, fn(before, size) {
+) -> String {
+  list.map_fold(sizes, 0.0, fn(before, size) {
     let input = setup(size)
     let ms = time(fn() { work(input) })
     let factor = case before >. 0.0 {
       True -> "x" <> show(ms /. before)
       False -> ""
     }
-    io.println(
+    let line =
       string.pad_end(name, 28, " ")
       <> string.pad_start(int.to_string(size), 7, " ")
       <> string.pad_start(show(ms), 11, " ")
       <> " ms  "
-      <> factor,
-    )
-    ms
+      <> factor
+    #(ms, line)
   })
-  Nil
+  |> pair.second
+  |> string.join("\n")
 }
 
 /// The time of one run of `work` in milliseconds. A fast `work` runs again

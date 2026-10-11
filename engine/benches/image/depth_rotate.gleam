@@ -1,13 +1,17 @@
 import bench
 import gleam/list
+import gleam/string
 import sgleam/fill
 import sgleam/image
 
 /// A row of `n` squares is a tree `n` levels deep. The last size that
 /// prints shows how deep a tree can go before the stack runs out.
-pub fn main() {
+pub fn smain() {
   let sizes = [1000, 2000, 4000, 8000, 16_000]
-  bench.run_on("rotate a deep row", sizes, row, image.rotate(_, 90))
+  [
+    bench.run_on("rotate a deep row", sizes, row, image.rotate(_, 90)),
+  ]
+  |> string.join("\n")
 }
 
 fn row(n: Int) -> image.Image {

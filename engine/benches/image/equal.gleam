@@ -1,15 +1,19 @@
 import bench
 import gleam/list
+import gleam/string
 import sgleam/fill
 import sgleam/image
 
-pub fn main() {
-  bench.run_on(
-    "== of equal rows",
-    [1000, 2000, 4000],
-    fn(n) { #(row(n), row(n)) },
-    fn(pair) { pair.0 == pair.1 },
-  )
+pub fn smain() {
+  [
+    bench.run_on(
+      "== of equal rows",
+      [1000, 2000, 4000],
+      fn(n) { #(row(n), row(n)) },
+      fn(pair) { pair.0 == pair.1 },
+    ),
+  ]
+  |> string.join("\n")
 }
 
 fn row(n: Int) -> image.Image {
