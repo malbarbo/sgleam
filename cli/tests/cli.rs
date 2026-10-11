@@ -2500,7 +2500,7 @@ fn world_run_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     sgleam()
         .current_dir(&root)
-        .args(["repl", "-q", "cli/tests/images/world1.gleam"])
+        .args(["repl", "-q", "-d", "none", "cli/tests/images/world1.gleam"])
         .write_stdin("main()\n")
         .assert()
         .success();
@@ -2511,7 +2511,14 @@ fn world_run_in_repl_number() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     sgleam()
         .current_dir(&root)
-        .args(["repl", "-n", "-q", "cli/tests/images/world1.gleam"])
+        .args([
+            "repl",
+            "-n",
+            "-q",
+            "-d",
+            "none",
+            "cli/tests/images/world1.gleam",
+        ])
         .write_stdin("main()\n")
         .assert()
         .success();
