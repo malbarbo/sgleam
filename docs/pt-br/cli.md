@@ -71,6 +71,19 @@ dobro.gleam:3
 ```
 
 
+# Imagens e mundos
+
+Um mundo, ou uma animação, mostra seus quadros em uma janela, e fechar a janela encerra o programa. Quando nenhuma janela abre, como em uma sessão ssh, os quadros aparecem no terminal, e `Ctrl+c` encerra o programa. Se o terminal também não mostra imagens, cada quadro é impresso como `Image`. O REPL mostra uma imagem no terminal, ou imprime `Image` quando o terminal não mostra imagens.
+
+Enquanto um mundo aparece no terminal, o que o programa imprime, como um `echo`{.gleam}, vai para as cinco linhas abaixo do quadro. Quando o mundo termina, o último quadro fica na tela com essas linhas embaixo.
+
+A opção `-d` escolhe onde as imagens aparecem. `-d window` usa apenas uma janela. `-d kitty`, `-d sixel` e `-d blocks` usam apenas o terminal, com os gráficos do Kitty, com Sixel ou com blocos coloridos, que qualquer terminal com true color mostra. `-d none` não mostra imagens e imprime `Image` no lugar delas.
+
+```sh
+sgleam -d blocks bola.gleam
+```
+
+
 # Modo interativo (REPL)
 
 Para entrar no modo interativo:
@@ -252,5 +265,6 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 | Opção | Descrição |
 |-------|-----------|
 | `-n` | Usar Number ao invés de BigInt para inteiros |
+| `-d MODO` | Mostrar imagens em `window`, `kitty`, `sixel`, `blocks` ou `none` |
 | `-q` | Não exibir mensagem de boas-vindas no REPL |
 | `--version` | Exibir versão |

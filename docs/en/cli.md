@@ -71,6 +71,19 @@ double.gleam:3
 ```
 
 
+# Images and worlds
+
+A world, or an animation, shows its frames in a window, and closing the window ends the program. When no window opens, as over ssh, the frames show in the terminal, and `Ctrl+c` ends the program. If the terminal shows no images either, each frame prints as `Image`. The REPL shows an image in the terminal, or prints `Image` when the terminal shows no images.
+
+While a world shows in the terminal, what the program prints, such as an `echo`{.gleam}, goes to the five lines under the frame. When the world ends, the last frame stays on the screen with those lines below it.
+
+The `-d` option chooses where images show. `-d window` uses only a window. `-d kitty`, `-d sixel` and `-d blocks` use only the terminal, through the graphics of Kitty, through Sixel, or through colored blocks, which any terminal with true color shows. `-d none` shows no image and prints `Image` in its place.
+
+```sh
+sgleam -d blocks bounce.gleam
+```
+
+
 # Interactive mode (REPL)
 
 To enter interactive mode:
@@ -250,5 +263,6 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 | Option | Description |
 |--------|-------------|
 | `-n` | Use Number instead of BigInt for integers |
+| `-d MODE` | Show images in `window`, `kitty`, `sixel`, `blocks` or `none` |
 | `-q` | Don't print welcome message in REPL |
 | `--version` | Print version |
