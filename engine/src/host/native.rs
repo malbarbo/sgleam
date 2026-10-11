@@ -3,12 +3,12 @@
 
 use std::cell::RefCell;
 use std::sync::{
-    OnceLock,
+    Mutex, OnceLock,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant};
 
-use sinteract::display::{Display, Printer, Terminal, TerminalOptions, Window};
+use sinteract::display::{Backend, Display, Printer, Terminal, TerminalOptions, Window};
 use sinteract::event::{Event, InputEvent, Interrupt, KeyEvent, KeyKind};
 use sinteract::scene::Scene;
 
@@ -54,11 +54,59 @@ pub fn load_bitmap(path: &str) -> Result<Vec<u8>, String> {
     std::fs::read(path).map_err(|err| err.to_string())
 }
 
+/// Where the frames of a world and the images of the repl go.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum DisplayMode {
+    /// A window when one opens, else the terminal with the backend it shows.
+    #[default]
+    Auto,
+    /// Only a window. The images of the repl go as in `Auto`.
+    Window,
+    // Only the terminal, through the backend of the same name. The images of
+    // the repl go through it as well.
+    Kitty,
+    Sixel,
+    Blocks,
+    /// No display at all, so each image prints as the word `Image`.
+    None,
+}
+
+static DISPLAY_MODE: Mutex<DisplayMode> = Mutex::new(DisplayMode::Auto);
+
+pub fn set_display(mode: DisplayMode) {
+    *DISPLAY_MODE.lock().unwrap_or_else(|e| e.into_inner()) = mode;
+}
+
+fn display_mode() -> DisplayMode {
+    *DISPLAY_MODE.lock().unwrap_or_else(|e| e.into_inner())
+}
+
+/// The backend of the terminal that `mode` asks for, or `None` to ask the
+/// terminal.
+fn backend(mode: DisplayMode) -> Option<Backend> {
+    match mode {
+        DisplayMode::Kitty => Some(Backend::Kitty),
+        DisplayMode::Sixel => Some(Backend::Sixel),
+        DisplayMode::Blocks => Some(Backend::HalfBlocks),
+        DisplayMode::Auto | DisplayMode::Window | DisplayMode::None => None,
+    }
+}
+
+fn new_printer() -> Option<Printer> {
+    match display_mode() {
+        DisplayMode::None => None,
+        mode => match backend(mode) {
+            Some(backend) => Some(Printer::with_backend(backend)),
+            None => Printer::new().ok(),
+        },
+    }
+}
+
 pub fn print_scene(scene: &Scene) -> bool {
     thread_local! {
         // The first print probes the terminal, so a run that prints no image
         // never asks it anything.
-        static PRINTER: RefCell<Option<Printer>> = RefCell::new(Printer::new().ok());
+        static PRINTER: RefCell<Option<Printer>> = RefCell::new(new_printer());
     }
     PRINTER.with_borrow_mut(|printer| printer.as_mut().is_some_and(|p| p.print(scene).is_ok()))
 }
@@ -106,16 +154,26 @@ pub fn show_scene(scene: Scene) -> bool {
 }
 
 fn open_frames(width: f32, height: f32) -> Frames {
+    let mode = display_mode();
     let options = TerminalOptions {
         // Raw mode turns Ctrl-C into a key, so the reader of the terminal
         // stops the program in place of the signal.
         on_interrupt: Some(Box::new(interrupt)),
         keep_last_frame: true,
         footer_rows: FOOTER_ROWS,
-        backend: None,
+        backend: backend(mode),
     };
-    if let Ok(window) = Window::open("sgleam", width, height) {
-        return Frames::Window(window);
+    match mode {
+        DisplayMode::None => return Frames::Unavailable,
+        DisplayMode::Auto | DisplayMode::Window => {
+            if let Ok(window) = Window::open("sgleam", width, height) {
+                return Frames::Window(window);
+            }
+            if mode == DisplayMode::Window {
+                return Frames::Unavailable;
+            }
+        }
+        DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => {}
     }
     match Terminal::open_with(options) {
         Ok(terminal) => Frames::Terminal(terminal, vec![]),

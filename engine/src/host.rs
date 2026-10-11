@@ -47,6 +47,12 @@ pub use target::print_scene;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::show_scene;
 
+/// The choice of the display for the frames of a world and the images of the
+/// repl. `set_display` makes it before a run, and `Auto` stands until then.
+/// The browser always draws on the page, so it has no such choice.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::{DisplayMode, set_display};
+
 /// Closes the display of the frames, so the run that comes next opens its
 /// own.
 #[cfg(not(target_arch = "wasm32"))]
