@@ -1,17 +1,15 @@
-import gleam/io
 import gleam/list
 import sgleam/color
 import sgleam/fill
 import sgleam/image
 import sgleam/yplace
 
-pub fn main() {
+pub fn smain() {
   color.all
   |> list.sized_chunk(21)
   |> list.map(stamp)
   |> list.fold(image.empty, fn(a, b) { image.beside_align(a, yplace.Top, b) })
   |> image.to_svg()
-  |> io.println()
 }
 
 fn stamp(colors) {
