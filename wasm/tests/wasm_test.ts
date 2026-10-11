@@ -660,6 +660,21 @@ Deno.test("a close ends world.run", async () => {
   destroy(ctx);
 });
 
+Deno.test("a close ends world.animate", async () => {
+  const ctx = await newRepl(ANIMATE, {
+    interruptAfter: 200_000,
+    keyEvents: [
+      { type: KEYPRESS, key: "a" },
+      { type: EVENT_CLOSE, key: "" },
+    ],
+  });
+  const r = run(ctx, "main()");
+  // The key goes unused, so the first frame is the only one.
+  assertEquals(r.stdout, "frame 0\nNil\n");
+  assertEquals(r.svgs.length, 1, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
 Deno.test("every key name decodes to its Key", async () => {
   const keys = [...KEY_NAMES, "a"];
   const ctx = await newRepl(keyNamesProgram(keys.length), {

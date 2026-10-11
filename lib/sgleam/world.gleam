@@ -6,12 +6,25 @@ import sgleam/system
 
 pub fn animate(create_image: fn(Int) -> Image) -> Nil {
   animate_loop(create_image, 1000 / 28, 0)
+  close_display()
 }
 
-fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) {
+fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) -> Nil {
   frame |> create_image |> show_image
-  system.sleep(delay)
-  animate_loop(create_image, delay, frame + 1)
+  case closed_before(system.now_ms() + delay) {
+    True -> Nil
+    False -> animate_loop(create_image, delay, frame + 1)
+  }
+}
+
+/// Returns `True` if the display closes before `deadline`, `False` otherwise.
+/// The keys that arrive meanwhile go unused.
+fn closed_before(deadline: Int) -> Bool {
+  case system.wait_event(int.max(deadline - system.now_ms(), 0)) {
+    ["close"] -> True
+    [] -> False
+    _ -> closed_before(deadline)
+  }
 }
 
 pub type KeyEvent {
