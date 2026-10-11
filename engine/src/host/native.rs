@@ -112,6 +112,7 @@ fn open_frames(width: f32, height: f32) -> Frames {
         on_interrupt: Some(Box::new(interrupt)),
         keep_last_frame: true,
         footer_rows: FOOTER_ROWS,
+        backend: None,
     };
     if let Ok(window) = Window::open("sgleam", width, height) {
         return Frames::Window(window);
