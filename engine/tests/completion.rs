@@ -84,12 +84,12 @@ fn completion_after_import_alias() {
 #[test]
 fn completion_after_import_new_module() {
     let mut repl = new_repl();
-    assert!(completions_matching(&repl, "io.input").is_empty());
-    run(&mut repl, "import sgleam/io");
-    let c = completions_matching(&repl, "io.input");
+    assert!(completions_matching(&repl, "system.now_ms").is_empty());
+    run(&mut repl, "import sgleam/system");
+    let c = completions_matching(&repl, "system.now_ms");
     assert!(
-        c.contains(&"io.input".to_string()),
-        "expected io.input after importing sgleam/io, got: {c:?}"
+        c.contains(&"system.now_ms".to_string()),
+        "expected system.now_ms after importing sgleam/system, got: {c:?}"
     );
 }
 

@@ -220,7 +220,6 @@ fn add_console(ctx: &Ctx) -> Result<()> {
 fn add_sgleam(ctx: &Ctx) -> Result<()> {
     let sgleam = Object::new(ctx.clone())?;
     set_fn(&sgleam, "getline", getline)?;
-    set_fn(&sgleam, "print", print_no_newline)?;
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
     set_fn(&sgleam, "wait_event", wait_event)?;
@@ -306,12 +305,6 @@ fn getline() -> Option<String> {
 
 fn log(value: Coerced<String>) {
     println!("{}", value.0);
-}
-
-fn print_no_newline(s: String) {
-    print!("{s}");
-    use std::io::Write;
-    let _ = std::io::stdout().flush();
 }
 
 #[derive(Debug)]
