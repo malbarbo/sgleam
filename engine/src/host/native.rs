@@ -9,6 +9,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use sinteract::display::{Display, Printer, TerminalOptions, open_native};
+use sinteract::event::{Event, InputEvent, Interrupt, KeyEvent, KeyKind};
 use sinteract::scene::Scene;
 
 use crate::error::SgleamError;
@@ -104,4 +105,51 @@ fn open_frames(width: f32, height: f32) -> Frames {
 pub fn close_frames() {
     // Dropping the display closes it.
     FRAMES.with_borrow_mut(|frames| *frames = Frames::Closed);
+}
+
+pub fn wait_event(ms: u64) -> Vec<String> {
+    let end = Instant::now() + Duration::from_millis(ms);
+    FRAMES.with_borrow_mut(|frames| {
+        let Frames::Open(display) = frames else {
+            sleep(ms);
+            return vec![];
+        };
+        // Short slices, so an interruption ends a long wait at once.
+        loop {
+            let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
+            match display.wait_event(Some(deadline)) {
+                Ok(Event::Input(InputEvent::Key(key))) => return key_event(key),
+                // A world has no use for ticks, the mouse or the size of the
+                // display.
+                Ok(_) | Err(Interrupt::Timeout | Interrupt::Wake) => {}
+                Err(Interrupt::Close | Interrupt::Read(_)) => return vec!["close".into()],
+            }
+            if Instant::now() >= end || STOP.load(Ordering::Relaxed) {
+                return vec![];
+            }
+        }
+    })
+}
+
+/// The kind first, then the name of the key, then one name per modifier that
+/// is on.
+fn key_event(key: KeyEvent) -> Vec<String> {
+    let kind = match key.kind {
+        KeyKind::Press => "keypress",
+        KeyKind::Down => "keydown",
+        KeyKind::Up => "keyup",
+    };
+    let mut event = vec![kind.to_string(), key.key];
+    let modifiers = key.modifiers;
+    for (on, name) in [
+        (modifiers.alt, "alt"),
+        (modifiers.ctrl, "ctrl"),
+        (modifiers.shift, "shift"),
+        (modifiers.meta, "meta"),
+    ] {
+        if on {
+            event.push(name.into());
+        }
+    }
+    event
 }

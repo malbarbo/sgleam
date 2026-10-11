@@ -96,6 +96,7 @@ async function loadWasm(
     sleep: (_ms: bigint): void => {},
     draw_svg: (): void => {},
     get_key_event: (): number => 3, // EVENT_NONE
+    wait_event: (): number => 4, // EVENT_NONE
   };
 
   const instance = await WebAssembly.instantiate(module, {

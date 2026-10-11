@@ -16,6 +16,12 @@ mod ffi {
         /// bytes of it, and one bool per modifier into `modifiers`, which
         /// holds five, in the order alt, ctrl, shift, meta and repeat.
         pub fn get_key_event(key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
+
+        /// Waits at most `ms` milliseconds for an event, and returns its kind
+        /// as an index into keypress, keydown, keyup and close. Any other
+        /// value says that no event came. Writes a key as `get_key_event`
+        /// does.
+        pub fn wait_event(ms: u64, key: *mut u8, len: usize, modifiers: *mut bool) -> usize;
     }
 }
 
@@ -37,18 +43,34 @@ pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }
 
-/// The kind first, then the name of the key, then one name per modifier that
-/// is on.
 pub fn get_key_event() -> Vec<String> {
     let mut key = [0u8; 32];
     let mut modifiers = [false; 5];
     let result = unsafe { ffi::get_key_event(key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
-    let Some(type_) = ["keypress", "keydown", "keyup"].get(result) else {
+    let Some(kind) = ["keypress", "keydown", "keyup"].get(result) else {
         return vec![];
     };
+    key_event(kind, &key, &modifiers)
+}
+
+/// The kind first, then the name of the key, then one name per modifier that
+/// is on. A close is the kind alone.
+pub fn wait_event(ms: u64) -> Vec<String> {
+    let mut key = [0u8; 32];
+    let mut modifiers = [false; 5];
+    let result =
+        unsafe { ffi::wait_event(ms, key.as_mut_ptr(), key.len(), modifiers.as_mut_ptr()) };
+    match ["keypress", "keydown", "keyup", "close"].get(result) {
+        Some(&"close") => vec!["close".into()],
+        Some(kind) => key_event(kind, &key, &modifiers),
+        None => vec![],
+    }
+}
+
+fn key_event(kind: &str, key: &[u8], modifiers: &[bool]) -> Vec<String> {
     let mut ret = vec![
-        (*type_).into(),
-        String::from_utf8_lossy(&key)
+        kind.into(),
+        String::from_utf8_lossy(key)
             .trim_matches(char::from(0))
             .to_string(),
     ];

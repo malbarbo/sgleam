@@ -57,6 +57,7 @@ const KEYPRESS = 0;
 const KEYDOWN = 1;
 const KEYUP = 2;
 const KEYNONE = 3;
+const EVENT_NONE = 4;
 
 interface EnvKeyEvent {
   type: number;
@@ -108,27 +109,50 @@ function makeEnv(
       if (!event) {
         return KEYNONE;
       }
-      const b = new Uint8Array(getBuffer() as ArrayBuffer);
-      const key = encoder.encode(event.key);
-      const writeStart = Math.max(0, ptr);
-      const writeEnd = Math.min(b.length, ptr + Math.max(0, len));
-      if (writeStart < writeEnd) {
-        b.fill(0, writeStart, writeEnd);
-        const keyLen = Math.min(key.length, writeEnd - writeStart);
-        for (let i = 0; i < keyLen; i++) {
-          b[writeStart + i] = key[i];
-        }
+      return writeKeyEvent(event, ptr, len, mods);
+    },
+    // A wait with no event takes all of its time.
+    wait_event: (
+      ms: bigint,
+      ptr: number,
+      len: number,
+      mods: number,
+    ): number => {
+      const event = keyEvents.shift();
+      if (!event) {
+        clock.ms += ms;
+        return EVENT_NONE;
       }
-      if (mods >= 0 && mods + 4 < b.length) {
-        b[mods + 0] = event.alt ? 1 : 0;
-        b[mods + 1] = event.ctrl ? 1 : 0;
-        b[mods + 2] = event.shift ? 1 : 0;
-        b[mods + 3] = event.meta ? 1 : 0;
-        b[mods + 4] = event.repeat ? 1 : 0;
-      }
-      return event.type;
+      return writeKeyEvent(event, ptr, len, mods);
     },
   };
+
+  function writeKeyEvent(
+    event: EnvKeyEvent,
+    ptr: number,
+    len: number,
+    mods: number,
+  ): number {
+    const b = new Uint8Array(getBuffer() as ArrayBuffer);
+    const key = encoder.encode(event.key);
+    const writeStart = Math.max(0, ptr);
+    const writeEnd = Math.min(b.length, ptr + Math.max(0, len));
+    if (writeStart < writeEnd) {
+      b.fill(0, writeStart, writeEnd);
+      const keyLen = Math.min(key.length, writeEnd - writeStart);
+      for (let i = 0; i < keyLen; i++) {
+        b[writeStart + i] = key[i];
+      }
+    }
+    if (mods >= 0 && mods + 4 < b.length) {
+      b[mods + 0] = event.alt ? 1 : 0;
+      b[mods + 1] = event.ctrl ? 1 : 0;
+      b[mods + 2] = event.shift ? 1 : 0;
+      b[mods + 3] = event.meta ? 1 : 0;
+      b[mods + 4] = event.repeat ? 1 : 0;
+    }
+    return event.type;
+  }
 }
 
 // --- WASM loader ---

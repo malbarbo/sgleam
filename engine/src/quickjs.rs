@@ -223,6 +223,7 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "print", print_no_newline)?;
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
+    set_fn(&sgleam, "wait_event", wait_event)?;
     // Only the browser draws and reads keys. The library asks whether the
     // property is there, so a native run simply has neither.
     #[cfg(target_arch = "wasm32")]
@@ -262,6 +263,18 @@ where
 /// sleeps runs few of them.
 fn sleep(ctx: Ctx<'_>, ms: u64) -> Result<()> {
     host::sleep(ms);
+    stop_on_interrupt(&ctx)
+}
+
+/// `system.wait_event`, which stops the program on an interruption, as `sleep`
+/// does.
+fn wait_event(ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
+    let event = host::wait_event(ms);
+    stop_on_interrupt(&ctx)?;
+    Ok(event)
+}
+
+fn stop_on_interrupt(ctx: &Ctx<'_>) -> Result<()> {
     if !check_interrupt() {
         return Ok(());
     }

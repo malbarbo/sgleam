@@ -53,6 +53,11 @@ pub use target::close_frames;
 #[cfg(target_arch = "wasm32")]
 pub use target::get_key_event;
 
+/// `system.wait_event` waits at most `ms` milliseconds for a key or for the
+/// display to close. It gives the kind of the event, then for a key its name
+/// and the modifiers that are on, or nothing when the time runs out.
+pub use target::wait_event;
+
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]
 mod target;
