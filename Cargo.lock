@@ -3766,6 +3766,7 @@ dependencies = [
  "insta",
  "libc",
  "rustyline",
+ "stacker",
  "tempfile",
 ]
 

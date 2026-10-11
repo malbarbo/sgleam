@@ -120,22 +120,15 @@ fn main() {
     engine::panic::add_handler();
     engine::logger::initialise_logger();
 
-    let run_thread = std::thread::Builder::new()
-        .stack_size(engine::STACK_SIZE)
-        .name("run".into())
-        .spawn(|| run().inspect_err(show_error).is_err());
-
-    let failed = match run_thread {
-        Err(err) => {
-            eprintln!("Could not start the run thread: {err}");
-            true
-        }
-        Ok(thread) => thread
-            .join()
-            // an Err is a panic, which the hook already reported; a release
-            // build aborts instead of unwinding, so only a debug build has one
-            .unwrap_or(true),
-    };
+    // The program runs on the main thread, where macOS lets a window open,
+    // on a stack as large as student recursion needs. A panic unwinds only in
+    // a debug build, and the hook already reported it.
+    let failed = std::panic::catch_unwind(|| {
+        stacker::grow(engine::STACK_SIZE, || {
+            run().inspect_err(show_error).is_err()
+        })
+    })
+    .unwrap_or(true);
 
     if failed {
         std::process::exit(1)
