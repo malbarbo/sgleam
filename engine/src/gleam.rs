@@ -72,10 +72,16 @@ impl Project {
     /// The path the compiled JavaScript uses for a source file: relative to the
     /// project root, so `repl1.gleam` is `src/repl1.gleam`.
     pub fn source_path(name: &str) -> Utf8PathBuf {
-        Project::source()
+        Project::source_file(name)
             .strip_prefix(Project::root())
             .expect("The source root is under the project root")
-            .join(name)
+            .to_path_buf()
+    }
+
+    /// The path of the file `name` under the source root. It separates with
+    /// `/`, as `echo` and the runtime expect, and `join` gives `\` on Windows.
+    pub fn source_file(name: &str) -> Utf8PathBuf {
+        format!("{}/{name}", Project::source()).into()
     }
 
     fn prelude() -> &'static Utf8Path {
@@ -90,7 +96,7 @@ impl Project {
             is_module_path(name),
             "`{name}` is not under the source root"
         );
-        let path = Project::source().join(name);
+        let path = Project::source_file(name);
         self.fs
             .write(&path, content)
             .expect("Write a file in memory");

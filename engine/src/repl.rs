@@ -511,7 +511,7 @@ impl<E: Engine> Repl<E> {
                 lines: src.input_lines(),
             });
         }
-        self.generated.push((Project::source().join(&file), src));
+        self.generated.push((Project::source_file(&file), src));
     }
 
     /// `code` with what it reads of the session written in front of it.
