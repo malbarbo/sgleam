@@ -4628,6 +4628,7 @@ dependencies = [
  "camino",
  "engine",
  "gleam-core",
+ "sinteract",
 ]
 
 [[package]]

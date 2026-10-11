@@ -16,3 +16,5 @@ camino = "1.1.9"
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
+# The fonts that the frames of a world draw with, which the page registers.
+sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false }

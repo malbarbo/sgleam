@@ -15,7 +15,10 @@ use std::{
     alloc,
     ffi::CString,
     ptr,
-    sync::atomic::{AtomicBool, Ordering},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
 };
 
 static INIT: AtomicBool = AtomicBool::new(false);
@@ -230,4 +233,30 @@ pub unsafe extern "C" fn format(ptr: *mut u8, len: usize) -> *mut std::ffi::c_ch
 pub extern "C" fn version() -> *mut std::ffi::c_char {
     init();
     to_cstr(engine::version())
+}
+
+/// Face `i` of the fonts that the frames of a world draw with, for the canvas
+/// of the page. It gives the pointer and the length of the bytes, the pointer
+/// and the length of the family name, the weight, and 1 for italic. Past the
+/// last face it gives null. See ENGINE.md in simplecode.
+#[unsafe(no_mangle)]
+pub extern "C" fn font_face(i: u32) -> *const [u32; 6] {
+    static FACES: OnceLock<Vec<[u32; 6]>> = OnceLock::new();
+    let faces = FACES.get_or_init(|| {
+        sinteract::text::embedded_faces()
+            .map(|face| {
+                [
+                    face.bytes.as_ptr() as u32,
+                    face.bytes.len() as u32,
+                    face.family.as_ptr() as u32,
+                    face.family.len() as u32,
+                    u32::from(face.weight),
+                    u32::from(face.italic),
+                ]
+            })
+            .collect()
+    });
+    faces
+        .get(i as usize)
+        .map_or(ptr::null(), |face| face as *const [u32; 6])
 }
