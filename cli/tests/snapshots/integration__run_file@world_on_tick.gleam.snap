@@ -3,10 +3,13 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Image
-tick 1
+world_on_tick.gleam:10 tick
+1
 Image
-tick 2
+world_on_tick.gleam:10 tick
+2
 Image
-tick 3
+world_on_tick.gleam:10 tick
+3
 Image
 STDERR

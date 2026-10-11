@@ -8,8 +8,10 @@ Image
 Image
 Image
 Image
-max: True
+world_tick_rate.gleam:14 max
+True
 Image
 Image
-min: True
+world_tick_rate.gleam:16 min
+True
 STDERR

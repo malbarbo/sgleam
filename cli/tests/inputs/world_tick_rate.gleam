@@ -1,5 +1,3 @@
-import gleam/bool
-import gleam/io
 import sgleam/image
 import sgleam/stroke
 import sgleam/system
@@ -13,9 +11,9 @@ pub fn draw(_state: Int) -> image.Image {
 /// taken as given would not: unclamped, both of these run in no time at all.
 pub fn main() {
   // 1000 is clamped to 100: 5 ticks of 10ms.
-  io.println("max: " <> bool.to_string(elapsed(1000, 5) >= 40))
+  echo elapsed(1000, 5) >= 40 as "max"
   // 0 is clamped to 1: a tick of a second, and not a division by zero.
-  io.println("min: " <> bool.to_string(elapsed(0, 1) >= 900))
+  echo elapsed(0, 1) >= 900 as "min"
 }
 
 fn elapsed(rate: Int, ticks: Int) -> Int {

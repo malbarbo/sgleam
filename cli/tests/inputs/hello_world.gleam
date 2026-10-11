@@ -1,5 +1,3 @@
-import gleam/io
-
-pub fn main() {
-  io.println("Hello world!")
+pub fn smain() {
+  "Hello world!"
 }

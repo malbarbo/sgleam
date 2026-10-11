@@ -1,4 +1,3 @@
-import gleam/io
 import sgleam/image
 import sgleam/stroke
 import sgleam/world
@@ -8,8 +7,7 @@ pub fn draw(_state: Int) -> image.Image {
 }
 
 pub fn tick(state: Int) -> Int {
-  io.println("tick")
-  state + 1
+  echo state + 1 as "tick"
 }
 
 // A tick a second, so the stop is what the first pass of the loop finds.

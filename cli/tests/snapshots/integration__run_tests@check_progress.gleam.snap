@@ -4,9 +4,10 @@ source: cli/tests/integration.rs
 STDOUT
 Running tests...
   check_progress.gleam/first_examples
-during the first test
+check_progress.gleam:5
+"during the first test"
   check_progress.gleam/second_examples
-    Failure at line 11
+    Failure at line 10
       Actual  : 4
       Expected: 5
 2 tests, 1 success, 1 failure and 0 errors.

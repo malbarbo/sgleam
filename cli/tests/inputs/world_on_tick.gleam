@@ -1,5 +1,3 @@
-import gleam/int
-import gleam/io
 import sgleam/image
 import sgleam/stroke
 import sgleam/world
@@ -9,8 +7,7 @@ pub fn draw(state: Int) -> image.Image {
 }
 
 pub fn tick(state: Int) -> Int {
-  io.println("tick " <> int.to_string(state + 1))
-  state + 1
+  echo state + 1 as "tick"
 }
 
 pub fn main() {
