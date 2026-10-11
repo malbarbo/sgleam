@@ -96,6 +96,7 @@ jobs:
         run: ${{ matrix.setup }}
 
       - name: Run tests
+        shell: bash
         run: |
           cargo test --target ${{ matrix.target }}
           cargo test --target ${{ matrix.target }} -- --ignored
