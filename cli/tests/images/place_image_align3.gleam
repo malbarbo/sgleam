@@ -9,15 +9,45 @@ import sgleam/yplace
 pub fn smain() {
   [
     rectangle(32, 32, stroke.black)
-      |> place_image_align(0, 0, xplace.Center, yplace.Middle, circle(8, fill.tomato)),
+      |> place_image_align(
+        0,
+        0,
+        xplace.Center,
+        yplace.Middle,
+        circle(8, fill.tomato),
+      ),
     rectangle(32, 32, stroke.black)
-      |> place_image_align(8, 8, xplace.Center, yplace.Middle, circle(8, fill.tomato)),
+      |> place_image_align(
+        8,
+        8,
+        xplace.Center,
+        yplace.Middle,
+        circle(8, fill.tomato),
+      ),
     rectangle(32, 32, stroke.black)
-      |> place_image_align(16, 16, xplace.Center, yplace.Middle, circle(8, fill.tomato)),
+      |> place_image_align(
+        16,
+        16,
+        xplace.Center,
+        yplace.Middle,
+        circle(8, fill.tomato),
+      ),
     rectangle(32, 32, stroke.black)
-      |> place_image_align(24, 24, xplace.Center, yplace.Middle, circle(8, fill.tomato)),
+      |> place_image_align(
+        24,
+        24,
+        xplace.Center,
+        yplace.Middle,
+        circle(8, fill.tomato),
+      ),
     rectangle(32, 32, stroke.black)
-      |> place_image_align(32, 32, xplace.Center, yplace.Middle, circle(8, fill.tomato)),
+      |> place_image_align(
+        32,
+        32,
+        xplace.Center,
+        yplace.Middle,
+        circle(8, fill.tomato),
+      ),
   ]
   |> combine(beside)
   |> to_svg

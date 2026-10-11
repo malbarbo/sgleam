@@ -1,5 +1,5 @@
-import sgleam/image.{to_svg, wedge}
 import sgleam/fill
+import sgleam/image.{to_svg, wedge}
 
 pub fn smain() {
   wedge(40, 90, fill.red)

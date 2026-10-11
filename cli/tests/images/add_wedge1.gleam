@@ -1,5 +1,5 @@
-import sgleam/image.{add_wedge, circle, to_svg}
 import sgleam/fill
+import sgleam/image.{add_wedge, circle, to_svg}
 import sgleam/stroke
 
 pub fn smain() {

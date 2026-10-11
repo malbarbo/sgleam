@@ -7,13 +7,19 @@ import sgleam/yplace
 pub fn smain() {
   square(50, style.join([fill.seagreen, fill.opacityf(0.25)]))
   |> underlay_align(
-    xplace.Left, yplace.Middle, square(40, style.join([fill.seagreen, fill.opacityf(0.25)])),
+    xplace.Left,
+    yplace.Middle,
+    square(40, style.join([fill.seagreen, fill.opacityf(0.25)])),
   )
   |> underlay_align(
-    xplace.Left, yplace.Middle, square(30, style.join([fill.seagreen, fill.opacityf(0.25)])),
+    xplace.Left,
+    yplace.Middle,
+    square(30, style.join([fill.seagreen, fill.opacityf(0.25)])),
   )
   |> underlay_align(
-    xplace.Left, yplace.Middle, square(20, style.join([fill.seagreen, fill.opacityf(0.25)])),
+    xplace.Left,
+    yplace.Middle,
+    square(20, style.join([fill.seagreen, fill.opacityf(0.25)])),
   )
   |> to_svg
 }
