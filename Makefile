@@ -76,7 +76,7 @@ check:
 	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
 	cargo fmt -- --check
 	cargo run -- format --check lib/sgleam/*.gleam
-	deno fmt --check wasm/tests/ wasm/sgleam.ts
+	deno fmt --check wasm/tests/ wasm/sgleam.ts lib/sgleam/sgleam_ffi.mjs
 
 docs:
 	bash docs/build-docs.sh
