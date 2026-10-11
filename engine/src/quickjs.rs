@@ -234,6 +234,7 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     {
         set_fn(&sgleam, "print_image", crate::scene::print_image)?;
         set_fn(&sgleam, "show_image", crate::scene::show_image)?;
+        set_fn(&sgleam, "close_display", crate::host::close_frames)?;
     }
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;

@@ -147,6 +147,7 @@ pub fn run(world: World(a)) {
   show(world)
   let period = ms_per_second / world.rate
   run_loop(world, system.now_ms() + period)
+  close_display()
 }
 
 fn run_loop(world: World(a), next_tick_at: Int) {
@@ -216,6 +217,9 @@ fn show(world: World(a)) {
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "show_image")
 fn show_image(image: Image) -> Nil
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "close_display")
+fn close_display() -> Nil
 
 fn get_key_event() -> Option(KeyEvent) {
   let event = system.get_key_event()
