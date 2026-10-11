@@ -3827,7 +3827,7 @@ checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 [[package]]
 name = "sinteract"
 version = "0.1.0"
-source = "git+https://github.com/malbarbo/sinteract.git?branch=master#053450f119d56224f1d21661ebaf78872e9c00b7"
+source = "git+https://github.com/malbarbo/sinteract.git?branch=master#56e0444f897d5073dae1c774dafafdeeb2fc5fbb"
 dependencies = [
  "base64 0.22.1",
  "capnp",
