@@ -1,6 +1,5 @@
 ---
 source: cli/tests/cli.rs
-expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/io.{{println}}\n        import sgleam/io\n        import gleam/io\n        io.println(\"hello\")\"#})"
+expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/int.{{to_string}}\n        import gleam/float as int\n        import gleam/int\n        int.to_string(1)\"#})"
 ---
-hello
-Nil
+"1"

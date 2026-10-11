@@ -155,18 +155,18 @@ fn repl_import() {
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
-            import gleam/io.{{println}}
-            import sgleam/io
-            io.input("") <> "ok""#
+            import gleam/int.{{to_string}}
+            import gleam/float as int
+            int.to_string(1.5)"#
         }),
-        r#""ok""#
+        r#""1.5""#
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
-            import sgleam/io as sio
-            sio.input("") <> "ok""#
+            import sgleam/system as sys
+            sys.now_ms() > 0"#
         }),
-        r#""ok""#
+        "True"
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
@@ -224,19 +224,19 @@ fn repl_import_of_the_input_is_in_scope_for_its_definitions() {
 #[test]
 fn repl_import_unqualified_survives_alias_shadow() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
-        import gleam/io.{{println}}
-        import sgleam/io
-        println("hello")"#
+        import gleam/int.{{to_string}}
+        import gleam/float as int
+        to_string(1)"#
     }));
 }
 
 #[test]
 fn repl_import_re_import_restores_name() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
-        import gleam/io.{{println}}
-        import sgleam/io
-        import gleam/io
-        io.println("hello")"#
+        import gleam/int.{{to_string}}
+        import gleam/float as int
+        import gleam/int
+        int.to_string(1)"#
     }));
 }
 
@@ -246,8 +246,8 @@ fn repl_import_shadow_debug() {
         &["repl", "-q"],
         Some(&formatdoc! {r#"
             :debug
-            import sgleam/io
-            io.input("") <> "ok""#
+            import sgleam/system
+            system.now_ms() > 0"#
         }),
     );
     assert_snapshot!(strip_repl_suffix(&out));
@@ -276,12 +276,12 @@ fn repl_import_const_shadows_unqualified() {
 #[test]
 fn repl_import_fn_shadows_alias_then_reimport() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
-        import gleam/io
-        io.println("before")
-        fn io() {{ 1 }}
-        io()
-        import gleam/io
-        io.println("restored")"#}));
+        import gleam/int
+        int.to_string(1)
+        fn int() {{ 1 }}
+        int()
+        import gleam/int
+        int.to_string(2)"#}));
 }
 
 #[test]
@@ -298,10 +298,10 @@ fn repl_import_let_shadows_alias() {
 #[test]
 fn repl_import_alias_shadows_module() {
     assert_snapshot!(repl_exec(&formatdoc! {r#"
-        import gleam/io
-        io.println("before")
-        import gleam/int as io
-        io.to_string(1)"#}));
+        import gleam/float
+        float.to_string(1.5)
+        import gleam/int as float
+        float.to_string(1)"#}));
 }
 
 #[test]
@@ -324,15 +324,17 @@ fn repl_import_discard_alias() {
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q"],
         Some(&formatdoc! {r#"
-            import gleam/io
-            import sgleam/io.{{input}} as _
-            io.println("kept")
-            :type input
-            io.input("")"#
+            import gleam/float.{{round}} as _
+            round(1.5)
+            :type round
+            float.round(1.5)"#
         }),
     );
-    assert_eq!(out, "kept\nNil\nfn(String) -> String\n");
-    assert!(err.contains("does not have a `input` value"), "{err}");
+    assert_eq!(out, "2\nfn(Float) -> Int\n");
+    assert!(
+        err.contains("No module has been found with the name `float`"),
+        "{err}"
+    );
 }
 
 #[test]
@@ -1150,13 +1152,12 @@ fn repl_value_in_guard() {
 fn repl_stored_value_runs_once() {
     assert_eq!(
         repl_exec(&formatdoc! {r#"
-            import gleam/io
-            let x = io.println("side")
+            let x = echo "side"
             x
             fn f() {{ x }}
             f()"#
         }),
-        "side\nNil\nNil\nNil"
+        "<repl>:1\n\"side\"\n\"side\"\n\"side\"\n\"side\""
     );
 }
 
@@ -1727,8 +1728,8 @@ fn repl_type_cmd() {
         "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
     assert_eq!(
-        repl_exec("import gleam/io\n:type { io.println(\"\") Ok(1) }"),
-        "Result(Int, b)", // without the io.println side effect
+        repl_exec(":type { echo 1 Ok(1) }"),
+        "Result(Int, b)", // without the echo side effect
     );
 }
 
@@ -1833,8 +1834,8 @@ fn repl_reads_to_the_end_of_the_item() {
     assert_eq!(repl_exec("1 + 1 // {\n5\n6"), "2\n5\n6");
     assert_eq!(repl_exec("fn f(x) {\n  x + 1\n}\nf(1)"), "2");
     assert_eq!(
-        repl_exec("import gleam/io\nio.println(\"a\nb\")"),
-        "a\nb\nNil"
+        repl_exec("import gleam/string\nstring.length(\"a\nb\")"),
+        "3"
     );
     assert_eq!(repl_exec("[1,\n2]"), "[1, 2]");
     assert_eq!(repl_exec(":type case Ok(1) {\n  _ -> 2\n}"), "Int");
@@ -1918,14 +1919,11 @@ fn a_reader_that_went_away_is_not_a_crash() {
     std::fs::write(
         dir.path().join("count.gleam"),
         indoc! {"
-            import gleam/int
-            import gleam/io
-
             pub fn count(n: Int) -> Nil {
               case n {
                 0 -> Nil
                 _ -> {
-                  io.println(int.to_string(n))
+                  echo n
                   count(n - 1)
                 }
               }

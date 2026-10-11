@@ -1,9 +1,7 @@
 ---
 source: cli/tests/cli.rs
-expression: "repl_exec(&formatdoc!\n{r#\"\n        io.println(\"before\")\n        fn io() {{ 1 }}\n        io()\n        import gleam/io\n        io.println(\"restored\")\"#})"
+expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/int\n        int.to_string(1)\n        fn int() {{ 1 }}\n        int()\n        import gleam/int\n        int.to_string(2)\"#})"
 ---
-before
-Nil
+"1"
 1
-restored
-Nil
+"2"

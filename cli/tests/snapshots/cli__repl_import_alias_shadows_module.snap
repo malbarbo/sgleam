@@ -1,7 +1,6 @@
 ---
 source: cli/tests/cli.rs
-expression: "repl_exec(&formatdoc!\n{r#\"\n        io.println(\"before\")\n        import gleam/int as io\n        io.to_string(1)\"#})"
+expression: "repl_exec(&formatdoc!\n{r#\"\n        import gleam/float\n        float.to_string(1.5)\n        import gleam/int as float\n        float.to_string(1)\"#})"
 ---
-before
-Nil
+"1.5"
 "1"

@@ -10,11 +10,11 @@ pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a
 
-import sgleam/io
+import sgleam/system
 ---
 --- repl1_1.mjs ---
-import * as $io from "./sgleam/io.mjs";
 import { repl_memo as repl_memo_XXXXXXXX, repl_print as repl_print_XXXXXXXX } from "./sgleam/sgleam_ffi.mjs";
+import * as $system from "./sgleam/system.mjs";
 
 export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX };
 ---
@@ -25,20 +25,20 @@ pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
 pub fn repl_print_XXXXXXXX(value: a) -> a
 
-import sgleam/io
+import sgleam/system
 
 pub fn repl_main_XXXXXXXX() {
-  repl_print_XXXXXXXX({ io.input("") <> "ok" })
+  repl_print_XXXXXXXX({ system.now_ms() > 0 })
 }
 ---
 --- repl2_1.mjs ---
-import * as $io from "./sgleam/io.mjs";
 import { repl_memo as repl_memo_XXXXXXXX, repl_print as repl_print_XXXXXXXX } from "./sgleam/sgleam_ffi.mjs";
+import * as $system from "./sgleam/system.mjs";
 
 export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX };
 
 export function repl_main_XXXXXXXX() {
-  return repl_print_XXXXXXXX(($io.input("") + "ok"));
+  return repl_print_XXXXXXXX(($system.now_ms() > 0n));
 }
 ---
-"ok"
+True
