@@ -8,8 +8,10 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use sinteract::display::{Backend, Display, Printer, Terminal, TerminalOptions, Window};
-use sinteract::event::{Event, InputEvent, Interrupt, KeyEvent, KeyKind};
+use sinteract::display::{
+    Backend, FrameEvent, Frames, Native, Printer, StageOptions, TerminalOptions,
+};
+use sinteract::event::{KeyEvent, KeyKind};
 use sinteract::scene::Scene;
 
 use crate::error::SgleamError;
@@ -111,116 +113,67 @@ pub fn print_scene(scene: &Scene) -> bool {
     PRINTER.with_borrow_mut(|printer| printer.as_mut().is_some_and(|p| p.print(scene).is_ok()))
 }
 
-/// The display of the frames of a run.
-enum Frames {
-    /// No run showed a frame yet, or the last run ended.
-    Closed,
-    Window(Window),
-    /// The terminal hides what the program prints, so the last lines show
-    /// under the frame, and stay on screen after it closes.
-    Terminal(Terminal, Vec<String>),
-    /// Neither a window nor the terminal opened, so the run does not try again
-    /// at each frame.
-    Unavailable,
-}
-
-impl Frames {
-    fn display(&mut self) -> Option<&mut dyn Display> {
-        match self {
-            Frames::Window(window) => Some(window),
-            Frames::Terminal(terminal, _) => Some(terminal),
-            Frames::Closed | Frames::Unavailable => None,
-        }
-    }
-}
-
 /// The rows under a frame in the terminal, for the last lines the program
 /// printed. An `echo` takes two of them.
 const FOOTER_ROWS: u16 = 5;
 
+fn stage_options() -> StageOptions {
+    let mode = display_mode();
+    StageOptions {
+        display: match mode {
+            DisplayMode::Auto | DisplayMode::None => Native::Auto,
+            DisplayMode::Window => Native::Window,
+            DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
+        },
+        terminal: TerminalOptions {
+            // Raw mode turns Ctrl-C into a key, so the reader of the terminal
+            // stops the program in place of the signal.
+            on_interrupt: Some(Box::new(interrupt)),
+            keep_last_frame: true,
+            footer_rows: FOOTER_ROWS,
+            backend: backend(mode),
+        },
+    }
+}
+
 thread_local! {
-    static FRAMES: RefCell<Frames> = const { RefCell::new(Frames::Closed) };
+    static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", stage_options));
 }
 
 pub fn show_scene(scene: Scene) -> bool {
-    FRAMES.with_borrow_mut(|frames| {
-        if let Frames::Closed = frames {
-            *frames = open_frames(scene.width(), scene.height());
-        }
-        frames
-            .display()
-            .is_some_and(|display| display.present(scene).is_ok())
-    })
-}
-
-fn open_frames(width: f32, height: f32) -> Frames {
-    let mode = display_mode();
-    let options = TerminalOptions {
-        // Raw mode turns Ctrl-C into a key, so the reader of the terminal
-        // stops the program in place of the signal.
-        on_interrupt: Some(Box::new(interrupt)),
-        keep_last_frame: true,
-        footer_rows: FOOTER_ROWS,
-        backend: backend(mode),
-    };
-    match mode {
-        DisplayMode::None => return Frames::Unavailable,
-        DisplayMode::Auto | DisplayMode::Window => {
-            if let Ok(window) = Window::open("sgleam", width, height) {
-                return Frames::Window(window);
-            }
-            if mode == DisplayMode::Window {
-                return Frames::Unavailable;
-            }
-        }
-        DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => {}
+    if display_mode() == DisplayMode::None {
+        return false;
     }
-    match Terminal::open_with(options) {
-        Ok(terminal) => Frames::Terminal(terminal, vec![]),
-        Err(_) => Frames::Unavailable,
-    }
+    FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
 }
 
 pub fn close_frames() {
-    let frames = FRAMES.replace(Frames::Closed);
-    if let Frames::Terminal(terminal, lines) = frames {
-        // Dropping the terminal prints the last frame, and the lines of the
-        // footer go under it.
-        drop(terminal);
-        for line in lines {
-            println!("{line}");
-        }
+    // The frame stays on screen, and the lines of the footer go under it.
+    for line in FRAMES.with_borrow_mut(Frames::close) {
+        println!("{line}");
     }
 }
 
 pub fn print_line(line: &str) {
-    FRAMES.with_borrow_mut(|frames| match frames {
-        Frames::Terminal(terminal, lines) => {
-            lines.extend(line.split('\n').map(String::from));
-            let excess = lines.len().saturating_sub(FOOTER_ROWS.into());
-            lines.drain(..excess);
-            let _ = terminal.set_footer(lines);
-        }
-        Frames::Closed | Frames::Window(_) | Frames::Unavailable => println!("{line}"),
-    })
+    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
+        println!("{line}");
+    }
 }
 
 pub fn wait_event(ms: u64) -> Vec<String> {
     let end = Instant::now() + Duration::from_millis(ms);
     FRAMES.with_borrow_mut(|frames| {
-        let Some(display) = frames.display() else {
+        if !frames.is_open() {
             sleep(ms);
             return vec![];
-        };
+        }
         // Short slices, so an interruption ends a long wait at once.
         loop {
             let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
-            match display.wait_event(Some(deadline)) {
-                Ok(Event::Input(InputEvent::Key(key))) => return key_event(key),
-                // A world has no use for ticks, the mouse or the size of the
-                // display.
-                Ok(_) | Err(Interrupt::Timeout | Interrupt::Wake) => {}
-                Err(Interrupt::Close | Interrupt::Read(_)) => return vec!["close".into()],
+            match frames.wait_event(deadline, |err| tracing::warn!("{err}")) {
+                FrameEvent::Key(key) => return key_event(key),
+                FrameEvent::Close => return vec!["close".into()],
+                FrameEvent::Timeout => {}
             }
             if Instant::now() >= end || STOP.load(Ordering::Relaxed) {
                 return vec![];
