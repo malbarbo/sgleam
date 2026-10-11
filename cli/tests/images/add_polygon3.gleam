@@ -1,8 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{Point, add_polygon, square, to_svg}
 
-pub fn main() {
+pub fn smain() {
   square(50, fill.lightblue)
   |> add_polygon(
     [
@@ -14,5 +13,4 @@ pub fn main() {
     fill.pink,
   )
   |> to_svg
-  |> io.println
 }

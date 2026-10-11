@@ -1,9 +1,7 @@
-import gleam/io
 import sgleam/image.{to_svg, wedge}
 import sgleam/fill
 
-pub fn main() {
+pub fn smain() {
   wedge(40, 90, fill.red)
   |> to_svg
-  |> io.println
 }

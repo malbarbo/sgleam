@@ -1,9 +1,8 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{Point, place_polygon, square, to_svg}
 import sgleam/stroke
 
-pub fn main() {
+pub fn smain() {
   square(180, fill.yellow)
   |> place_polygon(
     [
@@ -17,5 +16,4 @@ pub fn main() {
     stroke.darkblue,
   )
   |> to_svg
-  |> io.println
 }

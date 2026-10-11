@@ -1,8 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{above, beside, circle, crop, rotate, to_svg}
 
-pub fn main() {
+pub fn smain() {
   above(
     beside(
       circle(40, fill.palevioletred) |> crop(40, 40, 40, 40),
@@ -15,5 +14,4 @@ pub fn main() {
   )
   |> rotate(30)
   |> to_svg
-  |> io.println
 }

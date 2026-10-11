@@ -1,10 +1,9 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{Point, place_images_align, rectangle, to_svg, triangle}
 import sgleam/xplace
 import sgleam/yplace
 
-pub fn main() {
+pub fn smain() {
   rectangle(64, 64, fill.goldenrod)
   |> place_images_align(
     [Point(64, 64), Point(64, 48), Point(64, 32)],
@@ -17,5 +16,4 @@ pub fn main() {
     ],
   )
   |> to_svg
-  |> io.println
 }

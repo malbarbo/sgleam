@@ -1,9 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{square, to_svg}
 
-pub fn main() {
+pub fn smain() {
   square(40, fill.slateblue)
   |> to_svg
-  |> io.println
 }

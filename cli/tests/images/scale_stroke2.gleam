@@ -1,9 +1,8 @@
-import gleam/io
 import sgleam/image.{beside, rectangle, scale, scale_xy, to_svg}
 import sgleam/stroke
 import sgleam/style
 
-pub fn main() {
+pub fn smain() {
   let dashed =
     rectangle(
       20,
@@ -12,5 +11,4 @@ pub fn main() {
     )
   beside(beside(dashed, scale(dashed, 3)), scale_xy(dashed, 4, 1))
   |> to_svg
-  |> io.println
 }

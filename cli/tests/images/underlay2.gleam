@@ -1,8 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{combine, ellipse, to_svg, underlay}
 
-pub fn main() {
+pub fn smain() {
   [
     ellipse(10, 60, fill.red),
     ellipse(20, 50, fill.black),
@@ -13,5 +12,4 @@ pub fn main() {
   ]
   |> combine(underlay)
   |> to_svg
-  |> io.println
 }

@@ -1,10 +1,9 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{add_line, rectangle, to_svg}
 import sgleam/stroke
 import sgleam/style
 
-pub fn main() {
+pub fn smain() {
   rectangle(100, 100, fill.darkolivegreen)
   |> add_line(
     25,
@@ -19,5 +18,4 @@ pub fn main() {
     ]),
   )
   |> to_svg
-  |> io.println
 }

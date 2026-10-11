@@ -1,9 +1,9 @@
-import gleam/io
 import gleam/list
+import gleam/string
 import sgleam/image.{flip_horizontal, line, rotate, scale, scalef, to_svg}
 import sgleam/stroke
 
-pub fn main() {
+pub fn smain() {
   let l = line(6, 0, stroke.black)
   [
     rotate(l, 45),
@@ -14,5 +14,6 @@ pub fn main() {
     scalef(l, 0.5),
     flip_horizontal(scale(line(6, 4, stroke.black), 2)),
   ]
-  |> list.each(fn(img) { img |> to_svg |> io.println })
+  |> list.map(to_svg)
+  |> string.join("\n")
 }

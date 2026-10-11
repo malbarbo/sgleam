@@ -1,12 +1,10 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{beside_align, rotate, square, to_svg}
 import sgleam/yplace
 
-pub fn main() {
+pub fn smain() {
   koch_curve(5)
   |> to_svg
-  |> io.println
 }
 
 fn koch_curve(n) {

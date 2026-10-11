@@ -1,8 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{Point, polygon, to_svg}
 
-pub fn main() {
+pub fn smain() {
   polygon(
     [
       Point(0, 0),
@@ -17,5 +16,4 @@ pub fn main() {
     fill.plum,
   )
   |> to_svg
-  |> io.println
 }

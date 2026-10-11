@@ -1,10 +1,9 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{above, beside, circle, crop_align, to_svg}
 import sgleam/xplace
 import sgleam/yplace
 
-pub fn main() {
+pub fn smain() {
   above(
     beside(
       circle(40, fill.palevioletred)
@@ -20,5 +19,4 @@ pub fn main() {
     ),
   )
   |> to_svg
-  |> io.println
 }

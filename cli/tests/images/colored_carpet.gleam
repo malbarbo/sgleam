@@ -1,9 +1,8 @@
-import gleam/io
 import sgleam/color
 import sgleam/fill
 import sgleam/image.{above, beside, combine, square, to_svg}
 
-pub fn main() {
+pub fn smain() {
   [
     color.rgb(51, 0, 255),
     color.rgb(102, 0, 255),
@@ -14,7 +13,6 @@ pub fn main() {
   ]
   |> colored_carpet
   |> to_svg
-  |> io.println
 }
 
 fn colored_carpet(colors) {

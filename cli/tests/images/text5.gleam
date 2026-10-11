@@ -1,9 +1,8 @@
-import gleam/io
 import sgleam/fill
 import sgleam/font.{Bold, Font, Italic}
 import sgleam/image.{text_font, to_svg}
 
-pub fn main() {
+pub fn smain() {
   text_font(
     "Bold Italic Underline",
     Font(
@@ -16,5 +15,4 @@ pub fn main() {
     fill.black,
   )
   |> to_svg
-  |> io.println
 }

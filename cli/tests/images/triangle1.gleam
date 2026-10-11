@@ -1,9 +1,7 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{to_svg, triangle}
 
-pub fn main() {
+pub fn smain() {
   triangle(40, fill.tan)
   |> to_svg
-  |> io.println
 }

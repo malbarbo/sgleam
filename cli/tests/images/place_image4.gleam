@@ -1,11 +1,9 @@
-import gleam/io
 import sgleam/fill
 import sgleam/image.{type Image, circle, empty_scene, place_image, to_svg}
 
-pub fn main() {
+pub fn smain() {
   place(empty_scene(84, 12), 0)
   |> to_svg
-  |> io.println
 }
 
 fn place(scene: Image, i: Int) -> Image {
