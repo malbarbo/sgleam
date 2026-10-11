@@ -8,6 +8,9 @@ import { Room } from "sinteract/room.ts";
 import type { SessionPipe } from "./wasi.ts";
 
 const FRAME_MS = 16n;
+// A world that runs this long on the clock of the room never ends, and the
+// test fails instead of running forever.
+const LIMIT_MS = 600_000n;
 
 export type KeyType = "press" | "down" | "up";
 
@@ -64,6 +67,9 @@ export class FakeRoom {
     if (until !== null && until < this.#nextFrame) {
       this.ms = until > this.ms ? until : this.ms;
       return;
+    }
+    if (this.#nextFrame > LIMIT_MS) {
+      throw new Error("the world did not end in ten minutes of its clock");
     }
     this.ms = this.#nextFrame;
     this.#nextFrame += FRAME_MS;
