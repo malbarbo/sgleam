@@ -14,6 +14,7 @@ use engine::{
     error::{SgleamError, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
+    host::{DisplayMode, set_display},
     quickjs::QuickJsEngine,
     repl::Repl,
     run::{run_check, run_main, run_test},
@@ -32,6 +33,22 @@ fn number_arg() -> impl bpaf::Parser<bool> {
         .switch()
 }
 
+fn display_arg() -> impl bpaf::Parser<DisplayMode> {
+    bpaf::short('d')
+        .long("display")
+        .help("Show images in window, kitty, sixel, blocks or none")
+        .argument::<String>("MODE")
+        .parse(|mode| match mode.as_str() {
+            "window" => Ok(DisplayMode::Window),
+            "kitty" => Ok(DisplayMode::Kitty),
+            "sixel" => Ok(DisplayMode::Sixel),
+            "blocks" => Ok(DisplayMode::Blocks),
+            "none" => Ok(DisplayMode::None),
+            _ => Err("expected window, kitty, sixel, blocks or none"),
+        })
+        .fallback(DisplayMode::Auto)
+}
+
 #[derive(Debug, Clone, Bpaf)]
 enum Command {
     /// Start interactive REPL (default).
@@ -39,6 +56,8 @@ enum Command {
     Repl {
         #[bpaf(external(number_arg))]
         number: bool,
+        #[bpaf(external(display_arg))]
+        display: DisplayMode,
         /// Suppress welcome message.
         #[bpaf(short)]
         quiet: bool,
@@ -51,6 +70,8 @@ enum Command {
     Run {
         #[bpaf(external(number_arg))]
         number: bool,
+        #[bpaf(external(display_arg))]
+        display: DisplayMode,
         /// Gleam file to run.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -60,6 +81,8 @@ enum Command {
     Test {
         #[bpaf(external(number_arg))]
         number: bool,
+        #[bpaf(external(display_arg))]
+        display: DisplayMode,
         /// Gleam file to test.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -94,8 +117,13 @@ enum Command {
 
 fn cli() -> bpaf::OptionParser<Option<Command>> {
     let number = number_arg();
+    let display = display_arg();
     let file = bpaf::positional::<String>("FILE");
-    let file_as_run = bpaf::construct!(Command::Run { number, file });
+    let file_as_run = bpaf::construct!(Command::Run {
+        number,
+        display,
+        file
+    });
     let cmd = bpaf::construct!([command(), file_as_run]).optional();
     bpaf::construct!(cmd)
         .to_options()
@@ -154,6 +182,7 @@ fn run() -> Result<(), SgleamError> {
     };
     let command = command.unwrap_or(Command::Repl {
         number: false,
+        display: DisplayMode::Auto,
         file: None,
         quiet: false,
     });
@@ -167,6 +196,13 @@ fn run() -> Result<(), SgleamError> {
     );
 
     set_bigint_enabled(!number);
+
+    if let Command::Repl { display, .. }
+    | Command::Run { display, .. }
+    | Command::Test { display, .. } = &command
+    {
+        set_display(*display);
+    }
 
     match command {
         Command::Help { command: None } => {
