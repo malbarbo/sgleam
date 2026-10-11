@@ -47,12 +47,6 @@ pub use target::show_scene;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::close_frames;
 
-/// `system.get_key_event` gives the kind of the event waiting in the page, the
-/// name of the key and the modifiers that are on, or nothing when no event
-/// waits. Only the browser reads keys, so a native run has no such function.
-#[cfg(target_arch = "wasm32")]
-pub use target::get_key_event;
-
 /// `system.wait_event` waits at most `ms` milliseconds for a key or for the
 /// display to close. It gives the kind of the event, then for a key its name
 /// and the modifiers that are on, or nothing when the time runs out.

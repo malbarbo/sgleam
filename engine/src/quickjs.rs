@@ -224,13 +224,10 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
     set_fn(&sgleam, "wait_event", wait_event)?;
-    // Only the browser draws and reads keys. The library asks whether the
-    // property is there, so a native run simply has neither.
+    // Only the browser draws an svg. The library asks whether the property is
+    // there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
-    {
-        set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
-        set_fn(&sgleam, "get_key_event", crate::host::get_key_event)?;
-    }
+    set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
     #[cfg(not(target_arch = "wasm32"))]
     {
         set_fn(&sgleam, "print_image", crate::scene::print_image)?;

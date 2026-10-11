@@ -72,7 +72,6 @@ async function run(module: WebAssembly.Module, source: string) {
     check_interrupt: () => 0,
     sleep: () => {},
     draw_svg: () => {},
-    get_key_event: () => 3,
     wait_event: () => 4,
   };
   const instance = await WebAssembly.instantiate(module, {

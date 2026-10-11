@@ -56,7 +56,6 @@ function readCstr(exports: WasmExports, ptr: number): string {
 const KEYPRESS = 0;
 const KEYDOWN = 1;
 const KEYUP = 2;
-const KEYNONE = 3;
 const EVENT_CLOSE = 3;
 const EVENT_NONE = 4;
 
@@ -104,13 +103,6 @@ function makeEnv(
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
-    },
-    get_key_event: (ptr: number, len: number, mods: number): number => {
-      const event = keyEvents.shift();
-      if (!event) {
-        return KEYNONE;
-      }
-      return writeKeyEvent(event, ptr, len, mods);
     },
     // A wait with no event takes all of its time.
     wait_event: (

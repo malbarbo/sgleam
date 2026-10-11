@@ -95,7 +95,6 @@ async function loadWasm(
     check_interrupt: (): number => 0,
     sleep: (_ms: bigint): void => {},
     draw_svg: (): void => {},
-    get_key_event: (): number => 3, // EVENT_NONE
     wait_event: (): number => 4, // EVENT_NONE
   };
 
