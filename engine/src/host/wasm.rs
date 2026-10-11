@@ -34,6 +34,10 @@ pub fn sleep(ms: u64) {
     unsafe { ffi::sleep(ms) };
 }
 
+pub fn print_line(line: &str) {
+    println!("{line}");
+}
+
 pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
 }

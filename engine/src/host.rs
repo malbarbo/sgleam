@@ -18,6 +18,11 @@ pub use target::check_interrupt;
 /// end it early.
 pub use target::sleep;
 
+/// `console.log` prints a line, and so does `echo`. While the terminal shows
+/// the frames of a world, the line shows under the frame and prints when the
+/// frames close.
+pub use target::print_line;
+
 /// The bytes of the image file at the path, or the reason the file cannot be
 /// read. The browser has no files, so there it always gives the reason.
 pub use target::load_bitmap;

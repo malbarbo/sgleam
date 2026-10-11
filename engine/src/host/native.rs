@@ -8,7 +8,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use sinteract::display::{Display, Printer, TerminalOptions, open_native};
+use sinteract::display::{Display, Printer, Terminal, TerminalOptions, Window};
 use sinteract::event::{Event, InputEvent, Interrupt, KeyEvent, KeyKind};
 use sinteract::scene::Scene;
 
@@ -67,11 +67,28 @@ pub fn print_scene(scene: &Scene) -> bool {
 enum Frames {
     /// No run showed a frame yet, or the last run ended.
     Closed,
-    Open(Box<dyn Display>),
+    Window(Window),
+    /// The terminal hides what the program prints, so the last lines show
+    /// under the frame, and stay on screen after it closes.
+    Terminal(Terminal, Vec<String>),
     /// Neither a window nor the terminal opened, so the run does not try again
     /// at each frame.
     Unavailable,
 }
+
+impl Frames {
+    fn display(&mut self) -> Option<&mut dyn Display> {
+        match self {
+            Frames::Window(window) => Some(window),
+            Frames::Terminal(terminal, _) => Some(terminal),
+            Frames::Closed | Frames::Unavailable => None,
+        }
+    }
+}
+
+/// The rows under a frame in the terminal, for the last lines the program
+/// printed. An `echo` takes two of them.
+const FOOTER_ROWS: u16 = 5;
 
 thread_local! {
     static FRAMES: RefCell<Frames> = const { RefCell::new(Frames::Closed) };
@@ -82,10 +99,9 @@ pub fn show_scene(scene: Scene) -> bool {
         if let Frames::Closed = frames {
             *frames = open_frames(scene.width(), scene.height());
         }
-        match frames {
-            Frames::Open(display) => display.present(scene).is_ok(),
-            Frames::Closed | Frames::Unavailable => false,
-        }
+        frames
+            .display()
+            .is_some_and(|display| display.present(scene).is_ok())
     })
 }
 
@@ -95,22 +111,45 @@ fn open_frames(width: f32, height: f32) -> Frames {
         // stops the program in place of the signal.
         on_interrupt: Some(Box::new(interrupt)),
         keep_last_frame: true,
+        footer_rows: FOOTER_ROWS,
     };
-    match open_native("sgleam", width, height, options) {
-        Ok(display) => Frames::Open(display),
+    if let Ok(window) = Window::open("sgleam", width, height) {
+        return Frames::Window(window);
+    }
+    match Terminal::open_with(options) {
+        Ok(terminal) => Frames::Terminal(terminal, vec![]),
         Err(_) => Frames::Unavailable,
     }
 }
 
 pub fn close_frames() {
-    // Dropping the display closes it.
-    FRAMES.with_borrow_mut(|frames| *frames = Frames::Closed);
+    let frames = FRAMES.replace(Frames::Closed);
+    if let Frames::Terminal(terminal, lines) = frames {
+        // Dropping the terminal prints the last frame, and the lines of the
+        // footer go under it.
+        drop(terminal);
+        for line in lines {
+            println!("{line}");
+        }
+    }
+}
+
+pub fn print_line(line: &str) {
+    FRAMES.with_borrow_mut(|frames| match frames {
+        Frames::Terminal(terminal, lines) => {
+            lines.extend(line.split('\n').map(String::from));
+            let excess = lines.len().saturating_sub(FOOTER_ROWS.into());
+            lines.drain(..excess);
+            let _ = terminal.set_footer(lines);
+        }
+        Frames::Closed | Frames::Window(_) | Frames::Unavailable => println!("{line}"),
+    })
 }
 
 pub fn wait_event(ms: u64) -> Vec<String> {
     let end = Instant::now() + Duration::from_millis(ms);
     FRAMES.with_borrow_mut(|frames| {
-        let Frames::Open(display) = frames else {
+        let Some(display) = frames.display() else {
             sleep(ms);
             return vec![];
         };

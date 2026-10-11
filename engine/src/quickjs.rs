@@ -304,7 +304,7 @@ fn getline() -> Option<String> {
 }
 
 fn log(value: Coerced<String>) {
-    println!("{}", value.0);
+    host::print_line(&value.0);
 }
 
 #[derive(Debug)]
