@@ -104,14 +104,14 @@ fn completion_after_import_unqualified() {
 #[test]
 fn completion_fn_with_module_name() {
     let mut repl = new_repl();
-    run(&mut repl, "import gleam/io");
-    run(&mut repl, "fn io() { 1 }");
-    let c = completions_matching(&repl, "io.");
+    run(&mut repl, "import gleam/int");
+    run(&mut repl, "fn int() { 1 }");
+    let c = completions_matching(&repl, "int.");
     assert!(
-        c.contains(&"io.println".to_string()),
-        "expected io.* completions after fn io(), got: {c:?}"
+        c.contains(&"int.to_string".to_string()),
+        "expected int.* completions after fn int(), got: {c:?}"
     );
-    assert!(repl.completions().contains(&"io".to_string()));
+    assert!(repl.completions().contains(&"int".to_string()));
 }
 
 #[test]

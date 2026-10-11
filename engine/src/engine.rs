@@ -16,7 +16,7 @@ pub struct ReplFile {
     /// the input. For the input `fn f(x) {\n  echo x\n}` written as
     ///
     /// ```text
-    /// 1  import gleam/io    the repl
+    /// 1  import gleam/int   the repl
     /// 2  pub fn f(x) {      input line 1
     /// 3  let a = a()        the repl
     /// 4    echo x           input line 2

@@ -152,12 +152,33 @@ fn create_tar(outdir: &Path, name: &str, hash: &str) {
     let tar_file = fs::File::create(&tar).expect("create tar file");
     let encoder = GzEncoder::new(tar_file, Compression::best());
     let mut archive = tar::Builder::new(encoder);
-    archive
-        .append_dir_all(".", &stdlib_src)
-        .expect("append stdlib to tar");
+    append_dir(&mut archive, &stdlib_src, Path::new("."));
     archive
         .into_inner()
         .expect("finish tar")
         .finish()
         .expect("finish gzip");
+}
+
+/// Students print with `echo`, so gleam/io stays out of the stdlib.
+const LEFT_OUT: &[&str] = &["./gleam/io.gleam"];
+
+/// Appends the files under `dir` to `archive` at `name`, except the ones in
+/// [`LEFT_OUT`].
+fn append_dir<W: std::io::Write>(archive: &mut tar::Builder<W>, dir: &Path, name: &Path) {
+    for entry in fs::read_dir(dir).expect("read stdlib dir") {
+        let entry = entry.expect("read stdlib entry");
+        let path = entry.path();
+        let name = name.join(entry.file_name());
+        if path.is_dir() {
+            archive
+                .append_dir(&name, &path)
+                .expect("append stdlib dir to tar");
+            append_dir(archive, &path, &name);
+        } else if !LEFT_OUT.iter().any(|left_out| name == Path::new(left_out)) {
+            archive
+                .append_path_with_name(&path, &name)
+                .expect("append stdlib file to tar");
+        }
+    }
 }
