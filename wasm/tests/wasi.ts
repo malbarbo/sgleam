@@ -24,6 +24,48 @@ export interface WasiOptions {
    * the realtime and the monotonic one when given -- a clock stopped for the
    * engine has to be stopped whichever it asks for. */
   now?: () => bigint;
+  /** Moves the clock of `now` on, to at most `until` milliseconds, or as far
+   * as the next thing that happens when `until` is null. A wait of
+   * `poll_oneoff` calls it instead of sleeping, so a test runs on its own
+   * time. Without it, a wait takes the real time. */
+  advance?: (until: bigint | null) => void;
+  /** The session of sinteract on fd 3 and fd 4. Without it, both are bad
+   * descriptors. */
+  session?: SessionPipe;
+}
+
+/** The host of a session: what the engine writes on fd 4 and reads on fd 3. */
+export interface SessionPipe {
+  write(bytes: Uint8Array): void;
+  /** At most `max` bytes, and none at the end of the stream. Only called
+   * when `readable` says so. */
+  read(max: number): Uint8Array;
+  /** Returns `true` if a read of fd 3 has bytes or the end, `false`
+   * otherwise. */
+  readable(): boolean;
+  close(fd: number): void;
+}
+
+const SESSION_IN = 3;
+const SESSION_OUT = 4;
+
+const EVENTTYPE_CLOCK = 0;
+const EVENTTYPE_FD_READ = 1;
+const SUBSCRIPTION_BYTES = 48;
+const EVENT_BYTES = 32;
+const SUBCLOCKFLAGS_ABSTIME = 1;
+
+interface Subscription {
+  userdata: bigint;
+  tag: number;
+  fd: number;
+  // In nanoseconds of the clock, for a clock.
+  deadline: bigint;
+}
+
+// Blocks the thread for `ms` of real time.
+function realSleep(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 }
 
 export function makeWasi(options: WasiOptions) {
@@ -122,6 +164,18 @@ export function makeWasi(options: WasiOptions) {
       iovsLen: number,
       nwrittenPtr: number,
     ): number => {
+      if (fd === SESSION_OUT && options.session) {
+        const dataView = new DataView(buf());
+        let total = 0;
+        for (let i = 0; i < iovsLen; i++) {
+          const ptr = dataView.getInt32(iovsPtr + i * 8, true);
+          const len = dataView.getInt32(iovsPtr + i * 8 + 4, true);
+          options.session.write(new Uint8Array(buf(), ptr, len).slice());
+          total += len;
+        }
+        dataView.setInt32(nwrittenPtr, total, true);
+        return WASI_ESUCCESS;
+      }
       if (fd !== STDOUT && fd !== STDERR) {
         console.error("fd_write: unsupported file descriptor:", fd);
         return WASI_EBADF;
@@ -151,6 +205,23 @@ export function makeWasi(options: WasiOptions) {
       iovsLen: number,
       nreadPtr: number,
     ): number => {
+      if (fd === SESSION_IN && options.session) {
+        const session = options.session;
+        // A read with nothing to read blocks until the room writes.
+        while (!session.readable()) options.advance?.(null);
+        const dataView = new DataView(buf());
+        let total = 0;
+        for (let i = 0; i < iovsLen; i++) {
+          const ptr = dataView.getInt32(iovsPtr + i * 8, true);
+          const len = dataView.getInt32(iovsPtr + i * 8 + 4, true);
+          const bytes = session.read(len);
+          new Uint8Array(buf()).set(bytes, ptr);
+          total += bytes.length;
+          if (bytes.length < len) break;
+        }
+        dataView.setInt32(nreadPtr, total, true);
+        return WASI_ESUCCESS;
+      }
       if (fd !== 0 || !options.readStdin) return WASI_EBADF;
       try {
         const text = options.readStdin();
@@ -184,7 +255,81 @@ export function makeWasi(options: WasiOptions) {
         return WASI_ENOSYS;
       }
     },
-    fd_close: (): number => 0,
+    fd_close: (fd: number): number => {
+      if (fd === SESSION_IN || fd === SESSION_OUT) options.session?.close(fd);
+      return WASI_ESUCCESS;
+    },
+    poll_oneoff: (
+      inPtr: number,
+      outPtr: number,
+      nsubscriptions: number,
+      neventsPtr: number,
+    ): number => {
+      const view = () => new DataView(buf());
+      const nowNs = () =>
+        options.now
+          ? options.now() * 1_000_000n
+          : BigInt(Math.round(performance.now() * 1_000_000));
+      const start = nowNs();
+      const subs: Subscription[] = [];
+      for (let i = 0; i < nsubscriptions; i++) {
+        const at = inPtr + i * SUBSCRIPTION_BYTES;
+        const tag = view().getUint8(at + 8);
+        const sub = {
+          userdata: view().getBigUint64(at, true),
+          tag,
+          fd: view().getUint32(at + 16, true),
+          deadline: 0n,
+        };
+        if (tag === EVENTTYPE_CLOCK) {
+          const timeout = view().getBigUint64(at + 24, true);
+          const abstime = view().getUint16(at + 40, true) &
+            SUBCLOCKFLAGS_ABSTIME;
+          sub.deadline = abstime ? timeout : start + timeout;
+        }
+        subs.push(sub);
+      }
+      const ready = (sub: Subscription) => {
+        if (sub.tag === EVENTTYPE_CLOCK) return nowNs() >= sub.deadline;
+        if (sub.tag === EVENTTYPE_FD_READ && sub.fd === SESSION_IN) {
+          return options.session?.readable() ?? true;
+        }
+        return true;
+      };
+      const clocks = subs.filter((sub) => sub.tag === EVENTTYPE_CLOCK);
+      const deadline = clocks.length
+        ? clocks.reduce((a, b) => (a.deadline < b.deadline ? a : b)).deadline
+        : null;
+      let fired = subs.filter((sub) =>
+        sub.tag !== EVENTTYPE_CLOCK && ready(sub)
+      );
+      while (fired.length === 0) {
+        if (deadline !== null && nowNs() >= deadline) {
+          fired = clocks.filter(ready);
+          break;
+        }
+        const untilMs = deadline === null
+          ? null
+          : (deadline + 999_999n) / 1_000_000n;
+        if (options.advance) options.advance(untilMs);
+        else if (untilMs !== null) {
+          realSleep(Number(untilMs - nowNs() / 1_000_000n));
+        } else return WASI_EINVAL;
+        fired = subs.filter((sub) => sub.tag !== EVENTTYPE_CLOCK && ready(sub));
+      }
+      new Uint8Array(buf()).fill(
+        0,
+        outPtr,
+        outPtr + fired.length * EVENT_BYTES,
+      );
+      fired.forEach((sub, i) => {
+        const at = outPtr + i * EVENT_BYTES;
+        view().setBigUint64(at, sub.userdata, true);
+        view().setUint8(at + 10, sub.tag);
+      });
+      view().setUint32(neventsPtr, fired.length, true);
+      return WASI_ESUCCESS;
+    },
     fd_fdstat_get: (fd: number, statPtr: number): number => {
       if (fd === STDOUT || fd === STDERR) {
         // Zero the entire fdstat struct (24 bytes) then set fs_filetype.
@@ -194,6 +339,9 @@ export function makeWasi(options: WasiOptions) {
         mem.fill(0, statPtr, statPtr + 24);
         // 2 = CHARACTER_DEVICE (TTY), 4 = REGULAR_FILE (not a TTY)
         mem[statPtr] = isTty ? 2 : 4;
+      } else if (fd === SESSION_IN || fd === SESSION_OUT) {
+        if (!options.session) return WASI_EBADF;
+        new Uint8Array(buf()).fill(0, statPtr, statPtr + 24);
       }
       return WASI_ESUCCESS;
     },

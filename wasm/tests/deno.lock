@@ -1,0 +1,42 @@
+{
+  "version": "5",
+  "specifiers": {
+    "jsr:@std/assert@*": "1.0.19",
+    "jsr:@std/internal@^1.0.12": "1.0.14",
+    "npm:capnp-es@0.0.16": "0.0.16"
+  },
+  "jsr": {
+    "@std/assert@1.0.19": {
+      "integrity": "eaada96ee120cb980bc47e040f82814d786fe8162ecc53c91d8df60b8755991e",
+      "dependencies": [
+        "jsr:@std/internal"
+      ]
+    },
+    "@std/internal@1.0.14": {
+      "integrity": "291516b3d4c35024d6ffbc0a9df5bf4c64116e05b50012cf846710152d2ffdf7"
+    }
+  },
+  "npm": {
+    "capnp-es@0.0.16": {
+      "integrity": "sha512-pqhhnRqGfDdgHa+rz4JVO9j1jnkyqsHRYrD4RBtIwxCknYSRG7Mjs+x3IRfd20u+ZGS0IhW2L7cDv9ZcIkCYhQ==",
+      "bin": true
+    }
+  },
+  "remote": {
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/capnp/event.ts": "51a8572a99353576b9f366824a10d06ef0dbefb4e3d9b2be83aadc494272d391",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/capnp/protocol.ts": "c8520fd60d0fcc8c07c42895d26e5c247f31f616abd72e704f5241d73ee018c7",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/input.ts": "e3353be45d9b1fc5a694236ced57f9913626502cb418d53a295995b3f154efd2",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/protocol.ts": "e5d99724e76ef9095783c150566c690d552e225af1631598fd45265b0b4b037a",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/reader.ts": "6f7e2ef70dff4cef8f93bccacd718cfc505b4538f0932dba5d119c7bee18a372",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/render.ts": "1a5ce741a95559ea2ef247f7003157444cbeb473eebc91c2fd8c68c341e2a861",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/room.ts": "f9284d484c8f7f24e51fa09a04729579167a47ef38e7d53c64dc9986dcaaa128",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/scene.ts": "ed6c745b950b6c222b50329e43d6a6d370cc2368630415c28db05280cbaf1f26",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/screen.ts": "c00cf7fc59aba543244127b176c7f9c18c536201ecbd1d7f42ce58d9472e7722",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/23319ca6fd7e197331b7316c72d681e2c852809e/web/src/view.ts": "bcf1ea03edc03dfeb6d4a33bb334465ee671f12a2375b7e8c18a773e6725da72"
+  },
+  "workspace": {
+    "dependencies": [
+      "npm:capnp-es@0.0.16"
+    ]
+  }
+}

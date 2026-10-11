@@ -159,7 +159,6 @@ fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), Sgl
 fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     let result = eval_script(context, source);
     // A world that ended, or that Ctrl-C stopped, leaves its display open.
-    #[cfg(not(target_arch = "wasm32"))]
     crate::host::close_frames();
     result
 }
@@ -223,16 +222,14 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
     set_fn(&sgleam, "wait_event", wait_event)?;
-    // Only the browser draws an svg. The library asks whether the property is
-    // there, so a native run simply has none.
+    // Only the browser draws an svg in the repl. The library asks whether the
+    // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
     set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
     #[cfg(not(target_arch = "wasm32"))]
-    {
-        set_fn(&sgleam, "print_image", crate::scene::print_image)?;
-        set_fn(&sgleam, "show_image", crate::scene::show_image)?;
-        set_fn(&sgleam, "close_display", crate::host::close_frames)?;
-    }
+    set_fn(&sgleam, "print_image", crate::scene::print_image)?;
+    set_fn(&sgleam, "show_image", crate::scene::show_image)?;
+    set_fn(&sgleam, "close_display", crate::host::close_frames)?;
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_bitmap", crate::scene::load_bitmap)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;

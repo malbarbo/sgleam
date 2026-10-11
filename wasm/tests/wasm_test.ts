@@ -1,4 +1,5 @@
 import { assertEquals, assertMatch } from "jsr:@std/assert";
+import { FakeRoom, type Step } from "./room.ts";
 import { makeWasi } from "./wasi.ts";
 
 // --- WASM exports interface ---
@@ -53,99 +54,28 @@ function readCstr(exports: WasmExports, ptr: number): string {
 
 // --- Mock env ---
 
-const KEYPRESS = 0;
-const KEYDOWN = 1;
-const KEYUP = 2;
-const EVENT_CLOSE = 3;
-const EVENT_NONE = 4;
-
-interface EnvKeyEvent {
-  type: number;
-  key: string;
-  alt?: boolean;
-  ctrl?: boolean;
-  shift?: boolean;
-  meta?: boolean;
-  repeat?: boolean;
-}
-
 interface EnvOptions {
   interruptAfter?: number;
-  keyEvents?: EnvKeyEvent[];
-}
-
-// Fake clock, advanced by sleep so the world loop's scheduling fires ticks
-// deterministically without burning real wall-clock time. The engine reads
-// the time through WASI, so this is handed to both sides: `sleep` here moves
-// it, `makeWasi` reads it.
-interface FakeClock {
-  ms: bigint;
 }
 
 function makeEnv(
   getBuffer: () => ArrayBufferLike,
   svgs: string[],
-  clock: FakeClock,
   options: EnvOptions = {},
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
   const interruptAfter = options.interruptAfter ?? Infinity;
-  const keyEvents = [...(options.keyEvents ?? [])];
 
   return {
     check_interrupt: (): number => {
       interruptCount++;
       return interruptCount >= interruptAfter ? 1 : 0;
     },
-    sleep: (ms: bigint): void => {
-      clock.ms += ms;
-    },
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
     },
-    // A wait with no event takes all of its time.
-    wait_event: (
-      ms: bigint,
-      ptr: number,
-      len: number,
-      mods: number,
-    ): number => {
-      const event = keyEvents.shift();
-      if (!event) {
-        clock.ms += ms;
-        return EVENT_NONE;
-      }
-      return writeKeyEvent(event, ptr, len, mods);
-    },
   };
-
-  function writeKeyEvent(
-    event: EnvKeyEvent,
-    ptr: number,
-    len: number,
-    mods: number,
-  ): number {
-    const b = new Uint8Array(getBuffer() as ArrayBuffer);
-    const key = encoder.encode(event.key);
-    const writeStart = Math.max(0, ptr);
-    const writeEnd = Math.min(b.length, ptr + Math.max(0, len));
-    if (writeStart < writeEnd) {
-      b.fill(0, writeStart, writeEnd);
-      const keyLen = Math.min(key.length, writeEnd - writeStart);
-      for (let i = 0; i < keyLen; i++) {
-        b[writeStart + i] = key[i];
-      }
-    }
-    if (mods >= 0 && mods + 4 < b.length) {
-      b[mods + 0] = event.alt ? 1 : 0;
-      b[mods + 1] = event.ctrl ? 1 : 0;
-      b[mods + 2] = event.shift ? 1 : 0;
-      b[mods + 3] = event.meta ? 1 : 0;
-      b[mods + 4] = event.repeat ? 1 : 0;
-    }
-    return event.type;
-  }
 }
 
 // --- WASM loader ---
@@ -155,12 +85,15 @@ interface WasmContext {
   stdout: string[];
   stderr: string[];
   svgs: string[];
+  // The frames of the worlds, which go to the room of a session.
+  room: FakeRoom;
 }
 
 interface LoadOptions {
   bigint?: boolean;
   interruptAfter?: number;
-  keyEvents?: EnvKeyEvent[];
+  // What the player does in a world.
+  steps?: Step[];
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
@@ -177,7 +110,9 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   let exports: WasmExports;
 
-  const clock: FakeClock = { ms: 0n };
+  // The engine reads the time through WASI, and a wait moves it on, so a
+  // world runs its ticks without burning wall-clock time.
+  const room = new FakeRoom(options.steps);
 
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
@@ -186,17 +121,15 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
       else stdout.push(text);
     },
     env: ["RUST_BACKTRACE=1"],
-    now: () => clock.ms,
+    now: () => room.ms,
+    advance: (until) => room.advance(until),
+    session: room.pipe,
   });
 
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
-    clock,
-    {
-      interruptAfter: options.interruptAfter,
-      keyEvents: options.keyEvents,
-    },
+    { interruptAfter: options.interruptAfter },
   );
 
   const instance = await WebAssembly.instantiate(module, {
@@ -206,7 +139,7 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   exports = instance.exports as unknown as WasmExports;
 
-  return { exports, stdout, stderr, svgs };
+  return { exports, stdout, stderr, svgs, room };
 }
 
 // --- Helper ---
@@ -232,10 +165,17 @@ async function newRepl(
 function run(
   ctx: ReplContext,
   input: string,
-): { result: number; stdout: string; stderr: string; svgs: string[] } {
+): {
+  result: number;
+  stdout: string;
+  stderr: string;
+  svgs: string[];
+  frames: Uint8Array[];
+} {
   ctx.stdout.length = 0;
   ctx.stderr.length = 0;
   ctx.svgs.length = 0;
+  ctx.room.frames.length = 0;
   const [ptr, len] = encodeString(ctx.exports, input);
   const result = ctx.exports.repl_run(ctx.repl, ptr, len);
   ctx.exports.string_deallocate(ptr, len);
@@ -244,6 +184,7 @@ function run(
     stdout: ctx.stdout.join(""),
     stderr: ctx.stderr.join(""),
     svgs: [...ctx.svgs],
+    frames: [...ctx.room.frames],
   };
 }
 
@@ -610,14 +551,12 @@ Deno.test("move_square loads without crash", async () => {
   destroy(ctx);
 });
 
-// Regression: the WASM import for sleep must not collide with the POSIX
-// sleep symbol. The wasm32-wasip1 linker replaces an unresolved "sleep"
-// with a signature_mismatch stub that traps.
-Deno.test("world.run does not crash (sleep regression)", async () => {
+Deno.test("world.run shows its frames in a session", async () => {
   const ctx = await newRepl(MOVE_SQUARE, { interruptAfter: 50 });
   assertEquals(ctx.repl !== 0, true);
   const r = run(ctx, "main()");
-  assertEquals(r.svgs.length > 0, true, "expected SVG frames from world.run");
+  assertEquals(r.frames.length > 0, true, "expected frames from world.run");
+  assertEquals(r.svgs.length, 0, "a world draws no svg");
   // check_interrupt fires here, so stderr says "Interrupted."
   destroy(ctx);
 });
@@ -627,10 +566,10 @@ Deno.test("world.run does not crash (sleep regression)", async () => {
 Deno.test("on_key_press and on_key_up take their own events", async () => {
   const ctx = await newRepl(KEY_HANDLERS, {
     interruptAfter: 200_000,
-    keyEvents: [
-      { type: KEYDOWN, key: "ArrowLeft" },
-      { type: KEYPRESS, key: "a" },
-      { type: KEYUP, key: "Enter" },
+    steps: [
+      { type: "down", key: "ArrowLeft" },
+      { type: "press", key: "a" },
+      { type: "up", key: "Enter" },
     ],
   });
   const r = run(ctx, "main()");
@@ -640,17 +579,14 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
     'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\nNil\n',
   );
   // The first state and one per handled event.
-  assertEquals(r.svgs.length, 3, `stderr:\n${r.stderr}`);
+  assertEquals(r.frames.length, 3, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 
 Deno.test("a close ends world.run", async () => {
   const ctx = await newRepl(KEY_HANDLERS, {
     interruptAfter: 200_000,
-    keyEvents: [
-      { type: KEYPRESS, key: "a" },
-      { type: EVENT_CLOSE, key: "" },
-    ],
+    steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
   assertEquals(r.stdout, 'user.gleam:19 press\nChar("a")\nNil\n');
@@ -660,15 +596,12 @@ Deno.test("a close ends world.run", async () => {
 Deno.test("a close ends world.animate", async () => {
   const ctx = await newRepl(ANIMATE, {
     interruptAfter: 200_000,
-    keyEvents: [
-      { type: KEYPRESS, key: "a" },
-      { type: EVENT_CLOSE, key: "" },
-    ],
+    steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
   // The key goes unused, so the first frame is the only one.
   assertEquals(r.stdout, "user.gleam:7 frame\n0\nNil\n");
-  assertEquals(r.svgs.length, 1, `stderr:\n${r.stderr}`);
+  assertEquals(r.frames.length, 1, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 
@@ -676,7 +609,7 @@ Deno.test("every key name decodes to its Key", async () => {
   const keys = [...KEY_NAMES, "a"];
   const ctx = await newRepl(keyNamesProgram(keys.length), {
     interruptAfter: 200_000,
-    keyEvents: keys.map((key) => ({ type: KEYDOWN, key })),
+    steps: keys.map((key) => ({ type: "down", key })),
   });
   const r = run(ctx, "main()");
   const expected = [...KEY_NAMES, 'Char("a")']
@@ -697,9 +630,13 @@ Deno.test("animate draws a frame per number", async () => {
     true,
     `stdout:\n${r.stdout}`,
   );
-  assertEquals(r.svgs.length >= 3, true, `got ${r.svgs.length} frames`);
+  assertEquals(r.frames.length >= 3, true, `got ${r.frames.length} frames`);
   // The frame is what the image is drawn from, so no two frames are alike.
-  assertEquals(r.svgs[0] !== r.svgs[1], true, "expected the frames to differ");
+  assertEquals(
+    r.frames[0].join() !== r.frames[1].join(),
+    true,
+    "expected the frames to differ",
+  );
   destroy(ctx);
 });
 
@@ -878,20 +815,20 @@ Deno.test("move_square survives many frames", async () => {
   // handlers run. Feed ArrowRight events (move clamps, so the square
   // sits at the right edge after a few presses without triggering
   // stop_when). Each press renders, so N events => N frames.
-  const keyEvents = Array.from({ length: 150 }, () => ({
-    type: KEYDOWN,
+  const steps = Array.from({ length: 150 }, (): Step => ({
+    type: "down",
     key: "ArrowRight",
   }));
   const ctx = await newRepl(MOVE_SQUARE, {
     interruptAfter: 15_000,
-    keyEvents,
+    steps,
   });
   assertEquals(ctx.repl !== 0, true);
   const r = run(ctx, "main()");
   assertEquals(
-    r.svgs.length > 100,
+    r.frames.length > 100,
     true,
-    `expected many SVG frames, got ${r.svgs.length}`,
+    `expected many frames, got ${r.frames.length}`,
   );
   destroy(ctx);
 });

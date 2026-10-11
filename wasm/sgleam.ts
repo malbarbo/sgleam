@@ -93,9 +93,7 @@ async function loadWasm(
 
   const env: WebAssembly.ModuleImports = {
     check_interrupt: (): number => 0,
-    sleep: (_ms: bigint): void => {},
     draw_svg: (): void => {},
-    wait_event: (): number => 4, // EVENT_NONE
   };
 
   const instance = await WebAssembly.instantiate(module, {

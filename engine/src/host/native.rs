@@ -8,10 +8,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use sinteract::display::{
-    Backend, FrameEvent, Frames, Native, Printer, StageOptions, TerminalOptions,
-};
-use sinteract::event::{KeyEvent, KeyKind};
+use sinteract::display::{Backend, Native, Printer, StageOptions, TerminalOptions};
 use sinteract::scene::Scene;
 
 use crate::error::SgleamError;
@@ -117,7 +114,7 @@ pub fn print_scene(scene: &Scene) -> bool {
 /// printed. An `echo` takes two of them.
 const FOOTER_ROWS: u16 = 5;
 
-fn stage_options() -> StageOptions {
+pub(super) fn stage_options() -> StageOptions {
     let mode = display_mode();
     StageOptions {
         display: match mode {
@@ -136,71 +133,14 @@ fn stage_options() -> StageOptions {
     }
 }
 
-thread_local! {
-    static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", stage_options));
+/// Returns `true` if a world shows its frames, `false` if `-d none` asked
+/// for none.
+pub(super) fn shows_frames() -> bool {
+    display_mode() != DisplayMode::None
 }
 
-pub fn show_scene(scene: Scene) -> bool {
-    if display_mode() == DisplayMode::None {
-        return false;
-    }
-    FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
-}
-
-pub fn close_frames() {
-    // The frame stays on screen, and the lines of the footer go under it.
-    for line in FRAMES.with_borrow_mut(Frames::close) {
-        println!("{line}");
-    }
-}
-
-pub fn print_line(line: &str) {
-    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
-        println!("{line}");
-    }
-}
-
-pub fn wait_event(ms: u64) -> Vec<String> {
-    let end = Instant::now() + Duration::from_millis(ms);
-    FRAMES.with_borrow_mut(|frames| {
-        if !frames.is_open() {
-            sleep(ms);
-            return vec![];
-        }
-        // Short slices, so an interruption ends a long wait at once.
-        loop {
-            let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
-            match frames.wait_event(deadline, |err| tracing::warn!("{err}")) {
-                FrameEvent::Key(key) => return key_event(key),
-                FrameEvent::Close => return vec!["close".into()],
-                FrameEvent::Timeout => {}
-            }
-            if Instant::now() >= end || STOP.load(Ordering::Relaxed) {
-                return vec![];
-            }
-        }
-    })
-}
-
-/// The kind first, then the name of the key, then one name per modifier that
-/// is on.
-fn key_event(key: KeyEvent) -> Vec<String> {
-    let kind = match key.kind {
-        KeyKind::Press => "keypress",
-        KeyKind::Down => "keydown",
-        KeyKind::Up => "keyup",
-    };
-    let mut event = vec![kind.to_string(), key.key];
-    let modifiers = key.modifiers;
-    for (on, name) in [
-        (modifiers.alt, "alt"),
-        (modifiers.ctrl, "ctrl"),
-        (modifiers.shift, "shift"),
-        (modifiers.meta, "meta"),
-    ] {
-        if on {
-            event.push(name.into());
-        }
-    }
-    event
+/// Returns `true` if an interruption is waiting, `false` otherwise, and
+/// leaves it waiting.
+pub(super) fn stopping() -> bool {
+    STOP.load(Ordering::Relaxed)
 }

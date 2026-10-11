@@ -4,6 +4,14 @@
 //! Each target provides every function re-exported below, under the name and
 //! with the meaning written here. A `cfg` on a re-export says that only one
 //! target has the function, and whatever asks for it says the same `cfg`.
+//! The frames of a world are the same on both, over `Frames` of sinteract.
+
+use std::cell::RefCell;
+use std::time::{Duration, Instant};
+
+use sinteract::display::{FrameEvent, Frames};
+use sinteract::event::{KeyEvent, KeyKind};
+use sinteract::scene::Scene;
 
 /// Makes the world ready to answer. An engine calls it as it is built. The
 /// first call does the work and a later one gives back its result.
@@ -17,11 +25,6 @@ pub use target::check_interrupt;
 /// `system.sleep` holds the program for `ms` milliseconds. An interruption may
 /// end it early.
 pub use target::sleep;
-
-/// `console.log` prints a line, and so does `echo`. While the terminal shows
-/// the frames of a world, the line shows under the frame and prints when the
-/// frames close.
-pub use target::print_line;
 
 /// The bytes of the image file at the path, or the reason the file cannot be
 /// read. The browser has no files, so there it always gives the reason.
@@ -39,29 +42,11 @@ pub use target::draw_svg;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::print_scene;
 
-/// Shows a frame of a world in a window, or in the terminal when no window
-/// opens. The first frame of a run opens the display with its own size.
-/// Returns `true` if the frame went out, `false` if neither opened or the
-/// frame failed. The browser draws an svg instead, so it has no such
-/// function.
-#[cfg(not(target_arch = "wasm32"))]
-pub use target::show_scene;
-
 /// The choice of the display for the frames of a world and the images of the
 /// repl. `set_display` makes it before a run, and `Auto` stands until then.
 /// The browser always draws on the page, so it has no such choice.
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::{DisplayMode, set_display};
-
-/// Closes the display of the frames, so the run that comes next opens its
-/// own.
-#[cfg(not(target_arch = "wasm32"))]
-pub use target::close_frames;
-
-/// `system.wait_event` waits at most `ms` milliseconds for a key or for the
-/// display to close. It gives the kind of the event, then for a key its name
-/// and the modifiers that are on, or nothing when the time runs out.
-pub use target::wait_event;
 
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]
@@ -69,6 +54,86 @@ mod target;
 #[cfg(not(target_arch = "wasm32"))]
 #[path = "host/native.rs"]
 mod target;
+
+thread_local! {
+    static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", target::stage_options));
+}
+
+/// Shows a frame of a world, in a window or the terminal, or in a session of
+/// sinteract on the page. The first frame of a world opens the display with
+/// its own size, and the frame goes out at the next tick of the display.
+/// Returns `true` if the display is open, `false` if it did not open.
+pub fn show_scene(scene: Scene) -> bool {
+    target::shows_frames() && FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
+}
+
+/// Closes the display of the frames, so the world that comes next opens its
+/// own. The last frame stays on screen.
+pub fn close_frames() {
+    // The terminal shows the lines of `print_line` under the frame, and they
+    // print under it after the close.
+    for line in FRAMES.with_borrow_mut(Frames::close) {
+        println!("{line}");
+    }
+}
+
+/// `console.log` prints a line, and so does `echo`. While the terminal shows
+/// the frames of a world, the line shows under the frame and prints when the
+/// frames close.
+pub fn print_line(line: &str) {
+    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
+        println!("{line}");
+    }
+}
+
+/// `system.wait_event` waits at most `ms` milliseconds for a key or for the
+/// display to close. It gives the kind of the event, then for a key its name
+/// and the modifiers that are on, or nothing when the time runs out. With no
+/// display open, it sleeps.
+pub fn wait_event(ms: u64) -> Vec<String> {
+    let end = Instant::now() + Duration::from_millis(ms);
+    FRAMES.with_borrow_mut(|frames| {
+        if !frames.is_open() {
+            sleep(ms);
+            return vec![];
+        }
+        // Short slices, so an interruption ends a long wait at once.
+        loop {
+            let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
+            match frames.wait_event(deadline, |err| tracing::warn!("{err}")) {
+                FrameEvent::Key(key) => return key_event(key),
+                FrameEvent::Close => return vec!["close".into()],
+                FrameEvent::Timeout => {}
+            }
+            if Instant::now() >= end || target::stopping() {
+                return vec![];
+            }
+        }
+    })
+}
+
+/// The kind first, then the name of the key, then one name per modifier that
+/// is on.
+fn key_event(key: KeyEvent) -> Vec<String> {
+    let kind = match key.kind {
+        KeyKind::Press => "keypress",
+        KeyKind::Down => "keydown",
+        KeyKind::Up => "keyup",
+    };
+    let mut event = vec![kind.to_string(), key.key];
+    let modifiers = key.modifiers;
+    for (on, name) in [
+        (modifiers.alt, "alt"),
+        (modifiers.ctrl, "ctrl"),
+        (modifiers.shift, "shift"),
+        (modifiers.meta, "meta"),
+    ] {
+        if on {
+            event.push(name.into());
+        }
+    }
+    event
+}
 
 /// `system.now_ms` gives milliseconds since the epoch, and `world` times its
 /// ticks by it.

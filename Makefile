@@ -62,7 +62,7 @@ test-rs:
 	cargo test
 
 test-wasm: wasm
-	deno test --allow-read wasm/tests/
+	deno test --config wasm/tests/deno.json --allow-read wasm/tests/
 
 # Runs the CLI integration tests against both the native binary and the Deno
 # WASM wrapper, asserting both backends produce identical output. Requires
