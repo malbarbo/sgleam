@@ -38,19 +38,18 @@ To run a program, give it the file:
 sgleam hello.gleam
 ```
 
-sgleam calls the `main` function of the file. A program that reads from stdin
-defines `smain` instead, and gets the input as one `String` or as a
-`List(String)` of lines:
+sgleam calls the `main` function of the file. A program that computes a result
+defines `smain` instead, and sgleam prints what it returns. `smain` may also
+take the input from stdin, as one `String` or as a `List(String)` of lines:
 
 ```gleam
-import gleam/io
 import gleam/list
 import gleam/string
 
 pub fn smain(lines: List(String)) {
   lines
   |> list.map(string.reverse)
-  |> list.each(io.println)
+  |> string.join("\n")
 }
 ```
 

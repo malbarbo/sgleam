@@ -6,14 +6,12 @@ To run a Gleam file:
 sgleam file.gleam
 ```
 
-Sgleam looks for a `main`{.gleam} or `smain`{.gleam} function in the file. The `main`{.gleam} function takes no arguments:
+Sgleam looks for a `smain`{.gleam} or `main`{.gleam} function in the file. Sgleam prints what `smain`{.gleam} returns. A `String`{.gleam} prints as it is, and any other value prints as Gleam writes it:
 
 ```gleam
 // hello.gleam
-import gleam/io
-
-pub fn main() {
-  io.println("Hello world!")
+pub fn smain() {
+  "Hello world!"
 }
 ```
 
@@ -22,30 +20,12 @@ $ sgleam hello.gleam
 Hello world!
 ```
 
-The `smain`{.gleam} function has three possible signatures. Without arguments, it works like `main`{.gleam}:
-
-```gleam
-// greeting.gleam
-import gleam/io
-
-pub fn smain() {
-  io.println("Hello!")
-}
-```
-
-```sh
-$ sgleam greeting.gleam
-Hello!
-```
-
-Receiving a `String`{.gleam}, the function receives all user input:
+The `smain`{.gleam} function may also take the input of the user. Receiving a `String`{.gleam}, the function receives all of the input:
 
 ```gleam
 // echo.gleam
-import gleam/io
-
 pub fn smain(input: String) {
-  io.println("You typed: " <> input)
+  "You typed: " <> input
 }
 ```
 
@@ -59,17 +39,35 @@ Receiving a `List(String)`{.gleam}, the function receives the input split into l
 ```gleam
 // count.gleam
 import gleam/int
-import gleam/io
 import gleam/list
 
 pub fn smain(lines: List(String)) {
-  io.println("Lines: " <> int.to_string(list.length(lines)))
+  "Lines: " <> int.to_string(list.length(lines))
 }
 ```
 
 ```sh
 $ printf "a\nb\nc" | sgleam count.gleam
 Lines: 3
+```
+
+The `main`{.gleam} function takes no arguments, and sgleam does not print what it returns. It fits a program that shows images or runs a world.
+
+To see a value in the middle of a program, use `echo`{.gleam}. It prints the file and the line, then the value:
+
+```gleam
+// double.gleam
+pub fn smain() {
+  let x = echo 2 * 3
+  x * 2
+}
+```
+
+```sh
+$ sgleam double.gleam
+double.gleam:3
+6
+12
 ```
 
 

@@ -6,14 +6,12 @@ Para executar um arquivo Gleam:
 sgleam arquivo.gleam
 ```
 
-O sgleam procura uma função `main`{.gleam} ou `smain`{.gleam} no arquivo. A função `main`{.gleam} não recebe argumentos:
+O sgleam procura uma função `smain`{.gleam} ou `main`{.gleam} no arquivo. O sgleam imprime o que a `smain`{.gleam} devolve. Uma `String`{.gleam} sai como está, e qualquer outro valor sai como o Gleam o escreve:
 
 ```gleam
 // ola.gleam
-import gleam/io
-
-pub fn main() {
-  io.println("Olá mundo!")
+pub fn smain() {
+  "Olá mundo!"
 }
 ```
 
@@ -22,30 +20,12 @@ $ sgleam ola.gleam
 Olá mundo!
 ```
 
-A função `smain`{.gleam} possui três assinaturas possíveis. Sem argumentos, funciona como `main`{.gleam}:
-
-```gleam
-// saudacao.gleam
-import gleam/io
-
-pub fn smain() {
-  io.println("Olá!")
-}
-```
-
-```sh
-$ sgleam saudacao.gleam
-Olá!
-```
-
-Recebendo uma `String`{.gleam}, a função recebe toda a entrada do usuário:
+A função `smain`{.gleam} também pode receber a entrada do usuário. Recebendo uma `String`{.gleam}, a função recebe toda a entrada:
 
 ```gleam
 // eco.gleam
-import gleam/io
-
 pub fn smain(entrada: String) {
-  io.println("Você digitou: " <> entrada)
+  "Você digitou: " <> entrada
 }
 ```
 
@@ -59,17 +39,35 @@ Recebendo uma `List(String)`{.gleam}, a função recebe a entrada dividida em li
 ```gleam
 // conta.gleam
 import gleam/int
-import gleam/io
 import gleam/list
 
 pub fn smain(linhas: List(String)) {
-  io.println("Linhas: " <> int.to_string(list.length(linhas)))
+  "Linhas: " <> int.to_string(list.length(linhas))
 }
 ```
 
 ```sh
 $ printf "a\nb\nc" | sgleam conta.gleam
 Linhas: 3
+```
+
+A função `main`{.gleam} não recebe argumentos, e o sgleam não imprime o que ela devolve. Ela serve para um programa que mostra imagens ou executa um mundo.
+
+Para ver um valor no meio de um programa, use `echo`{.gleam}. Ele imprime o arquivo e a linha, e depois o valor:
+
+```gleam
+// dobro.gleam
+pub fn smain() {
+  let x = echo 2 * 3
+  x * 2
+}
+```
+
+```sh
+$ sgleam dobro.gleam
+dobro.gleam:3
+6
+12
 ```
 
 
