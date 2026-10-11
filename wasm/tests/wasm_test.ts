@@ -57,6 +57,7 @@ const KEYPRESS = 0;
 const KEYDOWN = 1;
 const KEYUP = 2;
 const KEYNONE = 3;
+const EVENT_CLOSE = 3;
 const EVENT_NONE = 4;
 
 interface EnvKeyEvent {
@@ -651,6 +652,19 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
   assertEquals(r.stdout, 'press Char("a")\nup Enter\nNil\n');
   // The first state and one per handled event.
   assertEquals(r.svgs.length, 3, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("a close ends world.run", async () => {
+  const ctx = await newRepl(KEY_HANDLERS, {
+    interruptAfter: 200_000,
+    keyEvents: [
+      { type: KEYPRESS, key: "a" },
+      { type: EVENT_CLOSE, key: "" },
+    ],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.stdout, 'press Char("a")\nNil\n');
   destroy(ctx);
 });
 

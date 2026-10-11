@@ -91,8 +91,6 @@ const default_tick_rate = 28
 
 const ms_per_second = 1000
 
-const key_event_polling_delay = 10
-
 pub opaque type World(a) {
   World(
     state: a,
@@ -150,7 +148,28 @@ pub fn run(world: World(a)) {
   close_display()
 }
 
-fn run_loop(world: World(a), next_tick_at: Int) {
+fn run_loop(world: World(a), next_tick_at: Int) -> Nil {
+  case world.stop_when |> option.map(fn(f) { f(world.state) }) {
+    Some(True) -> Nil
+    _ ->
+      case system.wait_event(int.max(next_tick_at - system.now_ms(), 0)) {
+        ["close"] -> Nil
+        event -> {
+          let #(world, next_tick_at) =
+            turn(world, key_event(event), next_tick_at)
+          run_loop(world, next_tick_at)
+        }
+      }
+  }
+}
+
+/// Handles a tick when one is due and `event`, and draws once if any handler
+/// ran. Returns the world and the time of the next tick.
+fn turn(
+  world: World(a),
+  event: Option(KeyEvent),
+  next_tick_at: Int,
+) -> #(World(a), Int) {
   let now = system.now_ms()
   let #(world, ticked, next_tick_at) = case now >= next_tick_at {
     True -> {
@@ -171,7 +190,6 @@ fn run_loop(world: World(a), next_tick_at: Int) {
     }
     False -> #(world, False, next_tick_at)
   }
-  let event = get_key_event()
   let #(world, h1) = case world.on_key_down, event {
     Some(handler), Some(event) if event.event_type == KeyDown -> #(
       World(..world, state: handler(world.state, event.key)),
@@ -197,18 +215,7 @@ fn run_loop(world: World(a), next_tick_at: Int) {
     True -> show(world)
     False -> Nil
   }
-  case world.stop_when |> option.map(fn(f) { f(world.state) }) {
-    Some(True) -> Nil
-    _ -> {
-      let wait =
-        int.min(next_tick_at - system.now_ms(), key_event_polling_delay)
-      case wait > 0 {
-        True -> system.sleep(wait)
-        False -> Nil
-      }
-      run_loop(world, next_tick_at)
-    }
-  }
+  #(world, next_tick_at)
 }
 
 fn show(world: World(a)) {
@@ -221,8 +228,7 @@ fn show_image(image: Image) -> Nil
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "close_display")
 fn close_display() -> Nil
 
-fn get_key_event() -> Option(KeyEvent) {
-  let event = system.get_key_event()
+fn key_event(event: List(String)) -> Option(KeyEvent) {
   case event {
     ["keypress", key, ..modifiers] ->
       Some(new_key_event(KeyPress, key, modifiers))
