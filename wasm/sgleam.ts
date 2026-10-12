@@ -313,6 +313,8 @@ function unknownArg(arg: string): ParsedArgs {
   };
 }
 
+const DISPLAY_MODES = ["window", "kitty", "sixel", "blocks", "none"];
+
 function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) {
     return { command: "welcome", quiet: false, number: false, file: null };
@@ -338,10 +340,18 @@ function parseArgs(argv: string[]): ParsedArgs {
   let quiet = false;
   let number = false;
   let file: string | null = null;
-  for (const arg of rest) {
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i];
     if (arg === "-q") quiet = true;
     else if (arg === "-n") number = true;
-    else if (arg.startsWith("-")) return unknownArg(arg);
+    else if (
+      (arg === "-d" || arg === "--display") && command !== "check" &&
+      command !== "format"
+    ) {
+      // The wrapper has no display, so every mode shows what `none` shows.
+      const mode = rest[++i];
+      if (!DISPLAY_MODES.includes(mode)) return unknownArg(mode ?? arg);
+    } else if (arg.startsWith("-")) return unknownArg(arg);
     else if (file === null) file = arg;
     else return unknownArg(arg);
   }
