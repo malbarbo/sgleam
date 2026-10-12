@@ -533,6 +533,7 @@ impl ConditionalEventHandler for AutoDedent {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
     use rustyline::validate::ValidationResult;
     use rustyline::{Cmd, Movement};
 
@@ -562,7 +563,10 @@ mod tests {
         assert!(incomplete("todo as"));
 
         assert!(incomplete("case 1 {"));
-        assert!(incomplete("pub fn f() {\n  1"));
+        assert!(incomplete(indoc! {"
+            pub fn f() {
+              1"
+        }));
         assert!(incomplete("io.println("));
         assert!(incomplete("[1, 2"));
         assert!(incomplete("import gleam/io.{"));
@@ -608,7 +612,10 @@ mod tests {
         // With a bracket open it is a blank line inside the input, which is
         // how the user writes a function with two statements.
         assert!(incomplete("case 1 {\n  "));
-        assert!(incomplete("pub fn f() {\n  let x = 1\n"));
+        assert!(incomplete(indoc! {"
+            pub fn f() {
+              let x = 1
+        "}));
     }
 
     #[test]
@@ -616,7 +623,11 @@ mod tests {
         assert!(!incomplete("4 + 3 * { [4] - 2 }"));
         assert!(!incomplete("\"ca\\\"sa\""));
         assert!(!incomplete(""));
-        assert!(!incomplete("pub fn f() {\n  1\n}"));
+        assert!(!incomplete(indoc! {"
+            pub fn f() {
+              1
+            }"
+        }));
     }
 
     #[test]

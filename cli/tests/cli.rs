@@ -82,7 +82,13 @@ fn repl_constructor_types() {
         let a = Ok(10)
         a"
     };
-    assert_eq!(repl_exec(&lit), "Ok(10)\nOk(10)");
+    assert_eq!(
+        repl_exec(&lit),
+        indoc! {"
+            Ok(10)
+            Ok(10)"
+        }
+    );
 }
 
 #[test]
@@ -111,8 +117,10 @@ fn repl_import() {
             add(1, 2)
             to_string(1.0)"
         }),
-        r#"3
-"1.0""#
+        indoc! {r#"
+            3
+            "1.0""#
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
@@ -143,7 +151,10 @@ fn repl_import() {
             let x: Option(Int) = option.Some(1)
             x"
         }),
-        "Some(1)\nSome(1)"
+        indoc! {"
+            Some(1)
+            Some(1)"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -175,8 +186,10 @@ fn repl_import() {
             i.to_string(1)
             f.to_string(1.0)"#
         }),
-        r#""1"
-"1.0""#
+        indoc! {r#"
+            "1"
+            "1.0""#
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
@@ -192,8 +205,10 @@ fn repl_import() {
             i.to_string(1)
             j.to_string(2)"#
         }),
-        r#""1"
-"2""#
+        indoc! {r#"
+            "1"
+            "2""#
+        }
     );
 }
 
@@ -316,7 +331,13 @@ fn repl_import_two_aliases_for_one_module() {
         }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "\"1\"\n\"2\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            "1"
+            "2"
+        "#}
+    );
 }
 
 #[test]
@@ -330,7 +351,13 @@ fn repl_import_discard_alias() {
             float.round(1.5)"#
         }),
     );
-    assert_eq!(out, "2\nfn(Float) -> Int\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            2
+            fn(Float) -> Int
+        "}
+    );
     assert!(
         err.contains("No module has been found with the name `float`"),
         "{err}"
@@ -368,7 +395,10 @@ fn repl_import_unqualified_type_and_value() {
             let u: Uri = Uri(None, None, None, None, "/", None, None)
             u.path"#
         }),
-        "Uri(scheme: None, userinfo: None, host: None, port: None, path: \"/\", query: None, fragment: None)\n\"/\""
+        indoc! {r#"
+            Uri(scheme: None, userinfo: None, host: None, port: None, path: "/", query: None, fragment: None)
+            "/""#
+        }
     );
 }
 
@@ -394,7 +424,10 @@ fn repl_import_type_again_keeps_the_value() {
             let o: Option(Int) = Some(1)
             o"
         }),
-        "Some(1)\nSome(1)"
+        indoc! {"
+            Some(1)
+            Some(1)"
+        }
     );
 }
 
@@ -407,33 +440,77 @@ fn repl_type_and_imported_value_with_same_name() {
             let b: Foo = Bar
             Foo(1)"
         }),
-        "Bar\nSome(1)"
+        indoc! {"
+            Bar
+            Some(1)"
+        }
     );
 }
 
 #[test]
 fn repl_const_shadows_module_name() {
     assert_eq!(
-        repl_exec("import gleam/list\nconst list = 1\nlist\nlist.length([1, 2])"),
-        "1\n2"
+        repl_exec(indoc! {"
+            import gleam/list
+            const list = 1
+            list
+            list.length([1, 2])"
+        }),
+        indoc! {"
+            1
+            2"
+        }
     );
 }
 
 #[test]
 fn repl_let() {
-    assert_eq!(repl_exec("let x = 10\nx + 1"), "10\n11");
+    assert_eq!(
+        repl_exec(indoc! {"
+            let x = 10
+            x + 1"
+        }),
+        indoc! {"
+            10
+            11"
+        }
+    );
     assert_eq!(repl_exec("let repl_main = 10"), "10");
     assert_eq!(
-        repl_exec("let #(repl_main, b) = #(1, 2)\nrepl_main\nb"),
-        "#(1, 2)\n1\n2"
+        repl_exec(indoc! {"
+            let #(repl_main, b) = #(1, 2)
+            repl_main
+            b"
+        }),
+        indoc! {"
+            #(1, 2)
+            1
+            2"
+        }
     );
 }
 
 #[test]
 fn repl_let_annotation() {
-    assert_eq!(repl_exec("let e: List(Int) = []\n:type e"), "[]\nList(Int)");
+    assert_eq!(
+        repl_exec(indoc! {"
+            let e: List(Int) = []
+            :type e"
+        }),
+        indoc! {"
+            []
+            List(Int)"
+        }
+    );
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let w: Float = 1"));
-    assert!(err.contains("Expected type:\n\n    Float"), "{err}");
+    assert!(
+        err.contains(indoc! {"
+            Expected type:
+
+                Float"
+        }),
+        "{err}"
+    );
     assert_eq!(out, "");
 }
 
@@ -445,8 +522,20 @@ fn repl_let_discard() {
 #[test]
 fn repl_let_pattern() {
     assert_eq!(repl_exec("let #(a, b) = #(True, 1)"), "#(True, 1)");
-    assert_eq!(repl_exec("let #(a, b) = #(True, 1) a"), "#(True, 1)\nTrue");
-    assert_eq!(repl_exec("let #(a, b) = #(True, 1) b"), "#(True, 1)\n1");
+    assert_eq!(
+        repl_exec("let #(a, b) = #(True, 1) a"),
+        indoc! {"
+            #(True, 1)
+            True"
+        }
+    );
+    assert_eq!(
+        repl_exec("let #(a, b) = #(True, 1) b"),
+        indoc! {"
+            #(True, 1)
+            1"
+        }
+    );
 }
 
 #[test]
@@ -457,15 +546,24 @@ fn repl_let_nested_pattern() {
     );
     assert_eq!(
         repl_exec("let assert #([f, ..r], a) = #([True], 1) f"),
-        "#([True], 1)\nTrue"
+        indoc! {"
+            #([True], 1)
+            True"
+        }
     );
     assert_eq!(
         repl_exec("let assert #([f, ..r], a) = #([True], 1) r"),
-        "#([True], 1)\n[]"
+        indoc! {"
+            #([True], 1)
+            []"
+        }
     );
     assert_eq!(
         repl_exec("let assert #([f, ..r], a) = #([True], 1) a"),
-        "#([True], 1)\n1"
+        indoc! {"
+            #([True], 1)
+            1"
+        }
     );
 }
 
@@ -473,11 +571,18 @@ fn repl_let_nested_pattern() {
 fn repl_let_string_prefix_pattern() {
     assert_eq!(
         repl_exec("let assert \"a\" <> rest = \"abc\" rest"),
-        "\"abc\"\n\"bc\""
+        indoc! {r#"
+            "abc"
+            "bc""#
+        }
     );
     assert_eq!(
         repl_exec("let assert \"a\" as p <> rest = \"abc\" p rest"),
-        "\"abc\"\n\"a\"\n\"bc\""
+        indoc! {r#"
+            "abc"
+            "a"
+            "bc""#
+        }
     );
     assert_eq!(repl_exec("let assert \"a\" <> _ = \"abc\""), "\"abc\"");
 }
@@ -493,7 +598,13 @@ fn repl_input_stops_at_the_first_error() {
             z"#
         }),
     );
-    assert_eq!(out, "1\n1\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            1
+            1
+        "}
+    );
     assert_eq!(err.matches("Type mismatch").count(), 1, "got: {err}");
     assert_eq!(err.matches("is not in scope").count(), 2, "got: {err}");
 }
@@ -508,7 +619,15 @@ fn repl_input_stops_at_a_runtime_error() {
             b"#
         }),
     );
-    assert_eq!(out, "1\nError at <repl>:1\n  boom\n1\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            1
+            Error at <repl>:1
+              boom
+            1
+        "}
+    );
     assert!(err.contains("`b` is not in scope"), "got: {err}");
 }
 
@@ -522,10 +641,19 @@ fn repl_input_stops_at_a_runtime_error() {
 fn repl_stack_overflow_shows_the_frames() {
     let (out, err) = run_native(
         &["repl", "-q"],
-        Some("pub fn f(x: Int) -> Int { 1 + f(x + 1) }\nf(1)"),
+        Some(indoc! {"
+            pub fn f(x: Int) -> Int { 1 + f(x + 1) }
+            f(1)"
+        }),
     );
     let frames = "  at f (/build/repl1.mjs:6:21)\n".repeat(8);
-    assert_eq!(out, format!("Stack overflow\n{frames}  ...\n"));
+    assert_eq!(
+        out,
+        formatdoc! {"
+            Stack overflow
+            {frames}  ...
+        "}
+    );
     assert_eq!(err, "");
 }
 
@@ -533,13 +661,25 @@ fn repl_stack_overflow_shows_the_frames() {
 #[test]
 fn repl_panic_saying_interrupted_is_still_a_panic() {
     let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(r#"panic as "interrupted""#));
-    assert_eq!(out, "Error at <repl>:1\n  interrupted\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            Error at <repl>:1
+              interrupted
+        "}
+    );
     assert_eq!(err, "");
 }
 
 #[test]
 fn repl_rollback_failed_fn() {
-    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn g(a) { a + \"x\" }\nlet y = 2"));
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {r#"
+            fn g(a) { a + "x" }
+            let y = 2"#
+        }),
+    );
     assert_eq!(err.matches("Type mismatch").count(), 1, "got: {err}");
     assert_eq!(out.trim(), "2");
 }
@@ -552,7 +692,11 @@ fn repl_rollback_drops_the_values_it_saved() {
             let c = 5
             c + 1"#
         }),
-        "\"hello\"\n5\n6"
+        indoc! {r#"
+            "hello"
+            5
+            6"#
+        }
     );
 }
 
@@ -566,7 +710,14 @@ fn repl_binding_that_did_not_run_is_not_bound() {
             b"#
         }),
     );
-    assert_eq!(out, "1\nError at <repl>:1\n  boom\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            1
+            Error at <repl>:1
+              boom
+        "}
+    );
     assert!(err.contains("`b` is not in scope"), "got: {err}");
 }
 
@@ -580,14 +731,27 @@ fn repl_binding_that_raised_frees_its_slot_for_the_next() {
             y
             x"#
         }),
-        "1\nError at <repl>:1\n  boom\n10\n10\n1"
+        indoc! {"
+            1
+            Error at <repl>:1
+              boom
+            10
+            10
+            1"
+        }
     );
 }
 
 #[test]
 fn repl_let_assert() {
     assert_eq!(repl_exec("let assert 2 = 1 + 1"), "2");
-    assert_eq!(repl_exec("let assert 2 as var = 1 + 1 var"), "2\n2");
+    assert_eq!(
+        repl_exec("let assert 2 as var = 1 + 1 var"),
+        indoc! {"
+            2
+            2"
+        }
+    );
 }
 
 #[test]
@@ -599,8 +763,11 @@ fn repl_let_assert_message() {
     );
     assert!(message(r#"let assert Ok(_) = Error(1) as "discarded""#).contains("  discarded"));
     assert!(
-        message("let m = \"from a let\"\nlet assert Ok(v) = Error(1) as m")
-            .contains("  from a let")
+        message(indoc! {r#"
+            let m = "from a let"
+            let assert Ok(v) = Error(1) as m"#
+        })
+        .contains("  from a let")
     );
 }
 
@@ -614,7 +781,12 @@ fn repl_fn_replace_let() {
             let a = 3
             a"
         }),
-        "1\n2\n3\n3"
+        indoc! {"
+            1
+            2
+            3
+            3"
+        }
     );
 }
 
@@ -655,7 +827,11 @@ fn repl_type_redefine() {
             x
             :type x"
         }),
-        "A(42)\nA(42)\nrepl1.Val"
+        indoc! {"
+            A(42)
+            A(42)
+            repl1.Val"
+        }
     );
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
@@ -697,7 +873,10 @@ fn repl_type_redefine_keeps_the_old() {
             let v = MkA(1)
             :type v"
         }),
-        "MkA(1)\nrepl1.A(Int)"
+        indoc! {"
+            MkA(1)
+            repl1.A(Int)"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -724,7 +903,11 @@ fn repl_type_redefine_keeps_the_old() {
             v
             f()"
         }),
-        "A(1)\nA(1)\nA"
+        indoc! {"
+            A(1)
+            A(1)
+            A"
+        }
     );
 }
 
@@ -738,7 +921,10 @@ fn repl_fn_redefine_keeps_the_old() {
             h()
             g()"
         }),
-        "10\n100"
+        indoc! {"
+            10
+            100"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -775,7 +961,10 @@ fn repl_the_module_of_an_input_needs_no_import() {
             let y: repl1.T = repl1.A
             y"
         }),
-        "A\nA"
+        indoc! {"
+            A
+            A"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -783,7 +972,11 @@ fn repl_the_module_of_an_input_needs_no_import() {
             let x = 2
             #(repl1.x(), x)"
         }),
-        "1\n2\n#(1, 2)"
+        indoc! {"
+            1
+            2
+            #(1, 2)"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -791,7 +984,11 @@ fn repl_the_module_of_an_input_needs_no_import() {
             let x = 2
             #(repl1_1_vals.x(), x)"
         }),
-        "1\n2\n#(1, 2)"
+        indoc! {"
+            1
+            2
+            #(1, 2)"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -799,7 +996,11 @@ fn repl_the_module_of_an_input_needs_no_import() {
             let x = 2
             #(repl1_2_vals.x(), x)"
         }),
-        "1\n2\n#(1, 2)"
+        indoc! {"
+            1
+            2
+            #(1, 2)"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -823,7 +1024,10 @@ fn doc_a_value_outlives_the_type_it_holds() {
             type T {{ C }}
             :type x"
         }),
-        "A\nrepl1.T"
+        indoc! {"
+            A
+            repl1.T"
+        }
     );
 }
 
@@ -862,7 +1066,11 @@ fn doc_a_redefinition_does_not_reach_back() {
             let x = 100
             f(1)"
         }),
-        "1\n100\n2"
+        indoc! {"
+            1
+            100
+            2"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -891,7 +1099,13 @@ fn doc_mutual_recursion_across_inputs_is_unbound() {
 
 #[test]
 fn doc_a_fn_cannot_read_a_let_of_its_own_input() {
-    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1 fn f() { x }\nx"));
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            let x = 1 fn f() { x }
+            x"
+        }),
+    );
     assert_eq!(out, "");
     assert_eq!(err.matches("is not in scope").count(), 2, "got: {err}");
 }
@@ -910,7 +1124,10 @@ fn repl_const_replace_let() {
             const x = 2
             x"
         }),
-        "1\n2"
+        indoc! {"
+            1
+            2"
+        }
     );
 }
 
@@ -922,7 +1139,10 @@ fn repl_let_replace_const() {
             let x = 2
             x"
         }),
-        "2\n2"
+        indoc! {"
+            2
+            2"
+        }
     );
 }
 
@@ -939,7 +1159,14 @@ fn repl_let_shadows_a_const_another_const_uses() {
         }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "5\n1\n5\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            5
+            1
+            5
+        "}
+    );
 }
 
 #[test]
@@ -955,7 +1182,14 @@ fn repl_let_shadows_an_import_a_const_uses() {
         }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "5\n\"1\"\n5\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            5
+            "1"
+            5
+        "#}
+    );
 }
 
 #[test]
@@ -971,7 +1205,13 @@ fn repl_const_redefined_keeps_the_value_of_who_used_it() {
         }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "1\n99\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            1
+            99
+        "}
+    );
 }
 
 #[test]
@@ -1008,7 +1248,10 @@ fn repl_const_survives_a_name_taken_over() {
             const c = b
             c"
         }),
-        "5\n2"
+        indoc! {"
+            5
+            2"
+        }
     );
 }
 
@@ -1023,7 +1266,10 @@ fn repl_const_redefine_keeps_the_others() {
             d
             a"
         }),
-        "2\n9"
+        indoc! {"
+            2
+            9"
+        }
     );
 }
 
@@ -1046,8 +1292,11 @@ fn repl_const_cannot_reference_a_runtime_value() {
     });
     assert_eq!(
         out,
-        "1\n`y` is a variable, not a constant. A constant can only use \
-         literals, other constants and functions.\n1"
+        indoc! {"
+            1
+            `y` is a variable, not a constant. A constant can only use literals, other constants and functions.
+            1"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -1056,13 +1305,22 @@ fn repl_const_cannot_reference_a_runtime_value() {
             const c = option.None
             c"
         }),
-        "1\nNone"
+        indoc! {"
+            1
+            None"
+        }
     );
 }
 
 #[test]
 fn repl_fn() {
-    assert_eq!(repl_exec("fn f(a) { a + 1 }\nf(1)"), "2");
+    assert_eq!(
+        repl_exec(indoc! {"
+            fn f(a) { a + 1 }
+            f(1)"
+        }),
+        "2"
+    );
 }
 
 #[test]
@@ -1075,7 +1333,10 @@ fn repl_fn_redefine() {
             g()
             f()"
         }),
-        "1\n2"
+        indoc! {"
+            1
+            2"
+        }
     );
 }
 
@@ -1119,7 +1380,10 @@ fn repl_fn_external() {
             @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print") fn p(a: Int) -> Int
             p(7)"#
         }),
-        "7\n7"
+        indoc! {"
+            7
+            7"
+        }
     );
 }
 
@@ -1144,7 +1408,11 @@ fn repl_value_in_guard() {
             f(5)
             f(1)"
         }),
-        "5\n1\n0"
+        indoc! {"
+            5
+            1
+            0"
+        }
     );
 }
 
@@ -1157,7 +1425,13 @@ fn repl_stored_value_runs_once() {
             fn f() {{ x }}
             f()"#
         }),
-        "<repl>:1\n\"side\"\n\"side\"\n\"side\"\n\"side\""
+        indoc! {r#"
+            <repl>:1
+            "side"
+            "side"
+            "side"
+            "side""#
+        }
     );
 }
 
@@ -1171,7 +1445,11 @@ fn repl_a_name_a_body_already_has_is_not_bound_again() {
             fn g() {{ let x = 2 x }}
             g()"
         }),
-        "1\n9\n2"
+        indoc! {"
+            1
+            9
+            2"
+        }
     );
 }
 
@@ -1179,7 +1457,13 @@ fn repl_a_name_a_body_already_has_is_not_bound_again() {
 fn repl_warns_inside_a_body_it_wrote_into() {
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
-        Some("let z = 5\nfn f() {\n  let a = 1\n  z\n}"),
+        Some(indoc! {"
+            let z = 5
+            fn f() {
+              let a = 1
+              z
+            }"
+        }),
     );
     assert_snapshot!(strip_repl_suffix(&err));
 }
@@ -1193,7 +1477,10 @@ fn repl_const_in_guard_reaches_what_it_names() {
             let y = A
             case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}"
         }),
-        "A\n\"eq\""
+        indoc! {r#"
+            A
+            "eq""#
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -1204,7 +1491,10 @@ fn repl_const_in_guard_reaches_what_it_names() {
             let y = P(A)
             case y {{ z if z == d -> \"eq\" _ -> \"ne\" }}"
         }),
-        "P(A)\n\"eq\""
+        indoc! {r#"
+            P(A)
+            "eq""#
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -1214,7 +1504,10 @@ fn repl_const_in_guard_reaches_what_it_names() {
             let y = repl1.A
             case y {{ z if z == c -> \"eq\" _ -> \"ne\" }}"
         }),
-        "A\n\"eq\""
+        indoc! {r#"
+            A
+            "eq""#
+        }
     );
 }
 
@@ -1223,7 +1516,13 @@ fn repl_const_update_in_guard_reaches_its_constructor() {
     let out = out_in_dir(
         &[(
             "u.gleam",
-            "pub type P {\n  P(a: Int, b: Int)\n}\n\npub const base = P(1, 2)\n",
+            indoc! {"
+                pub type P {
+                  P(a: Int, b: Int)
+                }
+
+                pub const base = P(1, 2)
+            "},
         )],
         &["repl", "-q", "u.gleam"],
         Some(&formatdoc! {"
@@ -1234,7 +1533,13 @@ fn repl_const_update_in_guard_reaches_its_constructor() {
         "}),
     );
 
-    assert_eq!(out, "P(a: 1, b: 3)\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            P(a: 1, b: 3)
+            "eq"
+        "#}
+    );
 }
 
 #[test]
@@ -1242,7 +1547,13 @@ fn repl_const_of_a_user_module_in_guard() {
     let out = out_in_dir(
         &[(
             "v.gleam",
-            "pub type P {\n  P(Int)\n}\n\npub const c = P(1)\n",
+            indoc! {"
+                pub type P {
+                  P(Int)
+                }
+
+                pub const c = P(1)
+            "},
         )],
         &["repl", "-q", "v.gleam"],
         Some(&formatdoc! {"
@@ -1251,7 +1562,13 @@ fn repl_const_of_a_user_module_in_guard() {
         "}),
     );
 
-    assert_eq!(out, "P(1)\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            P(1)
+            "eq"
+        "#}
+    );
 }
 
 // The inlined value of a const names its record constructors as the module
@@ -1264,8 +1581,23 @@ fn repl_const_of_a_user_module_in_guard() {
 fn repl_const_naming_a_qualified_value_in_guard() {
     let out = out_in_dir(
         &[
-            ("q.gleam", "pub type T {\n  A\n  B\n}\n"),
-            ("wq.gleam", "import q\n\npub const o = q.A\n"),
+            (
+                "q.gleam",
+                indoc! {"
+                    pub type T {
+                      A
+                      B
+                    }
+                "},
+            ),
+            (
+                "wq.gleam",
+                indoc! {"
+                    import q
+
+                    pub const o = q.A
+                "},
+            ),
         ],
         &["repl", "-q", "wq.gleam"],
         Some(&formatdoc! {"
@@ -1274,15 +1606,35 @@ fn repl_const_naming_a_qualified_value_in_guard() {
         "}),
     );
 
-    assert_eq!(out, "A\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            A
+            "eq"
+        "#}
+    );
 }
 
 #[test]
 fn repl_const_naming_a_value_the_session_cannot_reach_in_guard() {
     let out = out_in_dir(
         &[
-            ("w.gleam", "pub type P {\n  P(Int)\n}\n"),
-            ("wu.gleam", "import w.{P}\n\npub const c = P(1)\n"),
+            (
+                "w.gleam",
+                indoc! {"
+                    pub type P {
+                      P(Int)
+                    }
+                "},
+            ),
+            (
+                "wu.gleam",
+                indoc! {"
+                    import w.{P}
+
+                    pub const c = P(1)
+                "},
+            ),
         ],
         &["repl", "-q", "wu.gleam"],
         Some(&formatdoc! {"
@@ -1291,15 +1643,38 @@ fn repl_const_naming_a_value_the_session_cannot_reach_in_guard() {
         "}),
     );
 
-    assert_eq!(out, "P(1)\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            P(1)
+            "eq"
+        "#}
+    );
 }
 
 #[test]
 fn repl_const_naming_a_constant_of_another_module_in_guard() {
     let out = out_in_dir(
         &[
-            ("k.gleam", "pub type T {\n  A\n  B\n}\n\npub const a = A\n"),
-            ("wk.gleam", "import k\n\npub const c = k.a\n"),
+            (
+                "k.gleam",
+                indoc! {"
+                    pub type T {
+                      A
+                      B
+                    }
+
+                    pub const a = A
+                "},
+            ),
+            (
+                "wk.gleam",
+                indoc! {"
+                    import k
+
+                    pub const c = k.a
+                "},
+            ),
         ],
         &["repl", "-q", "wk.gleam"],
         Some(&formatdoc! {"
@@ -1308,7 +1683,13 @@ fn repl_const_naming_a_constant_of_another_module_in_guard() {
         "}),
     );
 
-    assert_eq!(out, "A\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            A
+            "eq"
+        "#}
+    );
 }
 
 #[test]
@@ -1316,7 +1697,16 @@ fn repl_const_naming_a_private_constant_of_another_module_in_guard() {
     let out = out_in_dir(
         &[(
             "p.gleam",
-            "pub type T {\n  A\n  B\n}\n\nconst a = A\n\npub const c = a\n",
+            indoc! {"
+                pub type T {
+                  A
+                  B
+                }
+
+                const a = A
+
+                pub const c = a
+            "},
         )],
         &["repl", "-q", "p.gleam"],
         Some(&formatdoc! {"
@@ -1325,7 +1715,13 @@ fn repl_const_naming_a_private_constant_of_another_module_in_guard() {
         "}),
     );
 
-    assert_eq!(out, "A\n\"eq\"\n");
+    assert_eq!(
+        out,
+        indoc! {r#"
+            A
+            "eq"
+        "#}
+    );
 }
 
 #[test]
@@ -1334,25 +1730,51 @@ fn repl_loads_the_modules_the_file_imports() {
         &[
             (
                 "util/mat.gleam",
-                "pub fn double(x: Int) -> Int {\n  x * 2\n}\n",
+                indoc! {"
+                    pub fn double(x: Int) -> Int {
+                      x * 2
+                    }
+                "},
             ),
             (
                 "main.gleam",
-                "import util/mat\n\npub fn main() {\n  mat.double(21)\n}\n",
+                indoc! {"
+                    import util/mat
+
+                    pub fn main() {
+                      mat.double(21)
+                    }
+                "},
             ),
         ],
         &["repl", "-q", "main.gleam"],
-        Some("main()\nimport util/mat\nmat.double(1)\n"),
+        Some(indoc! {"
+            main()
+            import util/mat
+            mat.double(1)
+        "}),
     );
 
-    assert_eq!(out, "42\n2\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            42
+            2
+        "}
+    );
 }
 
 #[test]
 fn repl_imports_only_what_the_input_writes() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],
-        Some(":debug\nfn untouched() { 1 }\nlet x = 2\nx + 1\nuntouched()"),
+        Some(indoc! {"
+            :debug
+            fn untouched() { 1 }
+            let x = 2
+            x + 1
+            untouched()"
+        }),
     );
     let expr = debug_module(&out, "repl3_1");
     assert!(expr.contains("import repl2.{x}"), "{expr}");
@@ -1364,7 +1786,12 @@ fn repl_imports_only_what_the_input_writes() {
 fn repl_imports_only_the_types_the_input_writes() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],
-        Some(":debug\ntype T { A }\ntype U { B }\nlet x: T = A"),
+        Some(indoc! {"
+            :debug
+            type T { A }
+            type U { B }
+            let x: T = A"
+        }),
     );
     let expr = debug_module(&out, "repl3_1");
     assert!(expr.contains("import repl1.{type T}"), "{expr}");
@@ -1382,27 +1809,49 @@ fn repl_fn_calling_fn() {
         "12"
     );
     assert_eq!(
-        repl_exec(
-            "fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }\nis_even(4)\nis_odd(3)"
-        ),
-        "True\nTrue"
+        repl_exec(indoc! {"
+            fn is_even(n) { case n { 0 -> True _ -> is_odd(n - 1) } } fn is_odd(n) { case n { 0 -> False _ -> is_even(n - 1) } }
+            is_even(4)
+            is_odd(3)"
+        }),
+        indoc! {"
+            True
+            True"
+        }
     );
 }
 
 #[test]
 fn repl_fn_main() {
-    assert_eq!(repl_exec("fn main() { 10 }\nmain()"), "10");
+    assert_eq!(
+        repl_exec(indoc! {"
+            fn main() { 10 }
+            main()"
+        }),
+        "10"
+    );
 }
 
 #[test]
 fn repl_generic_fn() {
     assert_eq!(
-        repl_exec("import gleam/list\nfn keep(_) { True }\nlist.filter([1, 2], keep)"),
+        repl_exec(indoc! {"
+            import gleam/list
+            fn keep(_) { True }
+            list.filter([1, 2], keep)"
+        }),
         "[1, 2]"
     );
     assert_eq!(
-        repl_exec("import gleam/list\nlet keep = fn (_) { True }\nlist.filter([1, 2], keep)"),
-        "//fn(a) { ... }\n[1, 2]"
+        repl_exec(indoc! {"
+            import gleam/list
+            let keep = fn (_) { True }
+            list.filter([1, 2], keep)"
+        }),
+        indoc! {"
+            //fn(a) { ... }
+            [1, 2]"
+        }
     );
 }
 
@@ -1423,25 +1872,43 @@ fn repl_fn_capture() {
             fun(10)
             "#
         }),
-        "1\n2\n12"
+        indoc! {"
+            1
+            2
+            12"
+        }
     );
 }
 
 #[test]
 fn repl_use() {
     assert_eq!(
-        repl_exec("import gleam/result\nuse x <- result.try(Ok(10))\nOk(x)"),
+        repl_exec(indoc! {"
+            import gleam/result
+            use x <- result.try(Ok(10))
+            Ok(x)"
+        }),
         "use statements are not supported outside blocks."
     );
     assert_eq!(
-        repl_exec("import gleam/result\n{use x <- result.try(Ok(10))\nOk(x)}"),
+        repl_exec(indoc! {"
+            import gleam/result
+            {use x <- result.try(Ok(10))
+            Ok(x)}"
+        }),
         "Ok(10)"
     );
 }
 
 #[test]
 fn repl_quit() {
-    assert_eq!(repl_exec(":quit\n10"), "");
+    assert_eq!(
+        repl_exec(indoc! {"
+            :quit
+            10"
+        }),
+        ""
+    );
 }
 
 #[test]
@@ -1529,13 +1996,26 @@ fn repl_error_points_into_the_input_as_typed() {
 
 #[test]
 fn repl_unknown_command() {
-    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":typ x\n:type\n:quit now"));
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            :typ x
+            :type
+            :quit now"
+        }),
+    );
     assert_snapshot!(strip_repl_suffix(&out));
 }
 
 #[test]
 fn repl_input_the_file_ends_in_the_middle_of() {
-    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let x = 1\ncase x {"));
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            let x = 1
+            case x {"
+        }),
+    );
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
@@ -1547,21 +2027,44 @@ fn repl_input_the_file_ends_in_the_middle_of() {
 /// the brackets are balanced and `1 +` is unfinished.
 #[test]
 fn repl_input_that_ends_with_no_bracket_open() {
-    assert_eq!(repl_exec("1 +\n2"), "3");
+    assert_eq!(
+        repl_exec(indoc! {"
+            1 +
+            2"
+        }),
+        "3"
+    );
 }
 
 /// The way out of an input that will not close. Without it the input above
 /// swallows the `1 + 1` below, which never runs.
 #[test]
 fn repl_blank_line_ends_an_input_with_nothing_open() {
-    assert_eq!(repl_exec("let x =\n\n1 + 1"), "2");
+    assert_eq!(
+        repl_exec(indoc! {"
+            let x =
+
+            1 + 1"
+        }),
+        "2"
+    );
 }
 
 /// And with a bracket open it is a blank line inside the input, which is how
 /// the user writes a function with two statements.
 #[test]
 fn repl_blank_line_inside_a_block_is_part_of_the_input() {
-    assert_eq!(repl_exec("pub fn f() {\n  let x = 1\n\n  x\n}\nf()"), "1");
+    assert_eq!(
+        repl_exec(indoc! {"
+            pub fn f() {
+              let x = 1
+
+              x
+            }
+            f()"
+        }),
+        "1"
+    );
 }
 
 #[test]
@@ -1620,13 +2123,27 @@ fn repl_warning() {
 
 #[test]
 fn repl_warns_about_what_the_user_wrote() {
-    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("fn f() {\n  let a = 1\n  todo\n}"));
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            fn f() {
+              let a = 1
+              todo
+            }"
+        }),
+    );
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
 #[test]
 fn repl_warns_once_about_a_pattern_it_copies() {
-    let (_, err) = run_sgleam_cmd(&["repl", "-q"], Some("let assert x = 1\nx"));
+    let (_, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            let assert x = 1
+            x"
+        }),
+    );
     assert_snapshot!(strip_repl_suffix(&err));
 }
 
@@ -1634,7 +2151,12 @@ fn repl_warns_once_about_a_pattern_it_copies() {
 fn repl_does_not_warn_about_its_own_scaffolding() {
     let (_, err) = run_sgleam_cmd(
         &["repl", "-q"],
-        Some("import gleam/int\nimport gleam/list.{length}\nlet x = 1\nx"),
+        Some(indoc! {"
+            import gleam/int
+            import gleam/list.{length}
+            let x = 1
+            x"
+        }),
     );
     assert_eq!(err, "");
 }
@@ -1658,14 +2180,22 @@ fn repl_no_collision_with_internal_names() {
             let repl_print = 10
             repl_print
             1 + 2"}),
-        "10\n10\n3"
+        indoc! {"
+            10
+            10
+            3"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
             let repl_save = 10
             let x = 1
             x"}),
-        "10\n1\n1"
+        indoc! {"
+            10
+            1
+            1"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -1673,7 +2203,16 @@ fn repl_no_collision_with_internal_names() {
             repl_print(10)"}),
         "11"
     );
-    assert_eq!(repl_exec("let repl_main = 42\nrepl_main"), "42\n42");
+    assert_eq!(
+        repl_exec(indoc! {"
+            let repl_main = 42
+            repl_main"
+        }),
+        indoc! {"
+            42
+            42"
+        }
+    );
 }
 
 #[test]
@@ -1691,7 +2230,12 @@ fn repl_error_multiline_expr() {
 fn repl_debug() {
     let (out, _) = run_sgleam_cmd(
         &["repl", "-q"],
-        Some(":debug\nlet x = 1\n:debug\nlet y = 2"),
+        Some(indoc! {"
+            :debug
+            let x = 1
+            :debug
+            let y = 2"
+        }),
     );
     assert!(
         out.contains("--- repl1_1.gleam ---"),
@@ -1713,18 +2257,30 @@ fn repl_debug() {
 fn repl_type_cmd() {
     assert_eq!(repl_exec(":type 10"), "Int");
     assert_eq!(repl_exec(":type let a = True"), "Bool");
-    let (out, err) = run_sgleam_cmd(&["repl", "-q"], Some(":type let x = 10\nx"));
+    let (out, err) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            :type let x = 10
+            x"
+        }),
+    );
     assert_eq!(out.trim(), "Int");
     assert!(
         err.contains("is not in scope"),
         "expected error for undefined x, got: {err}"
     );
     assert_eq!(
-        repl_exec("import gleam/int\n:type int.add"),
+        repl_exec(indoc! {"
+            import gleam/int
+            :type int.add"
+        }),
         "fn(Int, Int) -> Int"
     );
     assert_eq!(
-        repl_exec("import gleam/list\n:type list.filter_map"),
+        repl_exec(indoc! {"
+            import gleam/list
+            :type list.filter_map"
+        }),
         "fn(List(b), fn(b) -> Result(c, d)) -> List(c)"
     );
     assert_eq!(
@@ -1751,7 +2307,13 @@ fn repl_type_cmd_def() {
 
 #[test]
 fn repl_time_cmd() {
-    let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time let x = 10\nx"));
+    let (out, _) = run_sgleam_cmd(
+        &["repl", "-q"],
+        Some(indoc! {"
+            :time let x = 10
+            x"
+        }),
+    );
     let lines: Vec<_> = out.lines().collect();
     let [bound, time, read, ..] = lines.as_slice() else {
         panic!("got: {out}");
@@ -1764,7 +2326,13 @@ fn repl_time_cmd() {
 #[test]
 fn repl_time_cmd_error() {
     let (out, _) = run_sgleam_cmd(&["repl", "-q"], Some(":time panic as \"boom\""));
-    assert_eq!(out, "Error at <repl>:1\n  boom\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            Error at <repl>:1
+              boom
+        "}
+    );
 }
 
 #[test]
@@ -1798,7 +2366,11 @@ fn repl_time_cmd_def() {
 #[test]
 fn repl_type_module() {
     assert_eq!(
-        repl_exec("import gleam/list\ntype List {}\n:type list.map"),
+        repl_exec(indoc! {"
+            import gleam/list
+            type List {}
+            :type list.map"
+        }),
         "fn(gleam.List(b), fn(b) -> c) -> gleam.List(c)"
     );
 }
@@ -1822,7 +2394,16 @@ fn repl_user_module_import() {
                 "
             })
         ),
-        "1\n2\nNum3\nPair(1, 2)\n2\n\"self\"\n7\n2\n"
+        indoc! {r#"
+            1
+            2
+            Num3
+            Pair(1, 2)
+            2
+            "self"
+            7
+            2
+        "#}
     );
 }
 
@@ -1831,14 +2412,50 @@ fn repl_user_module_import() {
 /// waits forever, swallowing every line after it.
 #[test]
 fn repl_reads_to_the_end_of_the_item() {
-    assert_eq!(repl_exec("1 + 1 // {\n5\n6"), "2\n5\n6");
-    assert_eq!(repl_exec("fn f(x) {\n  x + 1\n}\nf(1)"), "2");
     assert_eq!(
-        repl_exec("import gleam/string\nstring.length(\"a\nb\")"),
+        repl_exec(indoc! {"
+            1 + 1 // {
+            5
+            6"
+        }),
+        indoc! {"
+            2
+            5
+            6"
+        }
+    );
+    assert_eq!(
+        repl_exec(indoc! {"
+            fn f(x) {
+              x + 1
+            }
+            f(1)"
+        }),
+        "2"
+    );
+    assert_eq!(
+        repl_exec(indoc! {r#"
+            import gleam/string
+            string.length("a
+            b")"#
+        }),
         "3"
     );
-    assert_eq!(repl_exec("[1,\n2]"), "[1, 2]");
-    assert_eq!(repl_exec(":type case Ok(1) {\n  _ -> 2\n}"), "Int");
+    assert_eq!(
+        repl_exec(indoc! {"
+            [1,
+            2]"
+        }),
+        "[1, 2]"
+    );
+    assert_eq!(
+        repl_exec(indoc! {"
+            :type case Ok(1) {
+              _ -> 2
+            }"
+        }),
+        "Int"
+    );
 }
 
 #[test]
@@ -1848,7 +2465,10 @@ fn repl_error_in_a_module_that_ran_nothing() {
             fn f() {{ panic as "boom" }}
             f()"#
         }),
-        "Error at <repl>:1\n  boom"
+        indoc! {"
+            Error at <repl>:1
+              boom"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {r#"
@@ -1858,17 +2478,46 @@ fn repl_error_in_a_module_that_ran_nothing() {
             fn h() {{ g() }}
             h()"#
         }),
-        "Error at <repl>:2\n  old"
+        indoc! {"
+            Error at <repl>:2
+              old"
+        }
     );
 }
 
 #[test]
 fn repl_echo_is_located_in_the_input() {
-    assert_eq!(repl_exec("echo 42"), "<repl>:1\n42\n42");
-    assert_eq!(repl_exec(r#"echo 42 as "nota""#), "<repl>:1 nota\n42\n42");
     assert_eq!(
-        repl_exec("fn g(x) {\n  echo x\n  echo x * 2\n}\ng(5)"),
-        "<repl>:2\n5\n<repl>:3\n10\n10"
+        repl_exec("echo 42"),
+        indoc! {"
+            <repl>:1
+            42
+            42"
+        }
+    );
+    assert_eq!(
+        repl_exec(r#"echo 42 as "nota""#),
+        indoc! {"
+            <repl>:1 nota
+            42
+            42"
+        }
+    );
+    assert_eq!(
+        repl_exec(indoc! {"
+            fn g(x) {
+              echo x
+              echo x * 2
+            }
+            g(5)"
+        }),
+        indoc! {"
+            <repl>:2
+            5
+            <repl>:3
+            10
+            10"
+        }
     );
 }
 
@@ -1883,7 +2532,11 @@ fn repl_echo_of_an_earlier_input_is_still_located() {
             import gleam/float
             g(5)"
         }),
-        "<repl>:2\n5\n5"
+        indoc! {"
+            <repl>:2
+            5
+            5"
+        }
     );
     assert_eq!(
         repl_exec(&formatdoc! {"
@@ -1891,7 +2544,12 @@ fn repl_echo_of_an_earlier_input_is_still_located() {
             import gleam/list
             f()"
         }),
-        "//fn() { ... }\n<repl>:1\n7\n7"
+        indoc! {"
+            //fn() { ... }
+            <repl>:1
+            7
+            7"
+        }
     );
 }
 
@@ -1900,13 +2558,26 @@ fn user_module_echo_keeps_the_location() {
     let out = out_in_dir(
         &[(
             "eu.gleam",
-            "pub fn main() {\n  echo 42\n  echo 7 as \"nota\"\n}\n",
+            indoc! {r#"
+                pub fn main() {
+                  echo 42
+                  echo 7 as "nota"
+                }
+            "#},
         )],
         &["eu.gleam"],
         None,
     );
 
-    assert_eq!(out, "eu.gleam:2\n42\neu.gleam:3 nota\n7\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            eu.gleam:2
+            42
+            eu.gleam:3 nota
+            7
+        "}
+    );
 }
 
 /// `sgleam run x.gleam | head` leaves the program printing to a pipe no one
@@ -1953,18 +2624,48 @@ fn a_reader_that_went_away_is_not_a_crash() {
 
 #[test]
 fn repl_runtime_error_is_located_in_the_input() {
-    assert_eq!(repl_exec(r#"panic as "boom""#), "Error at <repl>:1\n  boom");
     assert_eq!(
-        repl_exec("fn f(x) {\n  let y = x + 1\n  panic as \"deep\"\n}\nf(1)"),
-        "Error at <repl>:3\n  deep"
+        repl_exec(r#"panic as "boom""#),
+        indoc! {"
+            Error at <repl>:1
+              boom"
+        }
+    );
+    assert_eq!(
+        repl_exec(indoc! {r#"
+            fn f(x) {
+              let y = x + 1
+              panic as "deep"
+            }
+            f(1)"#
+        }),
+        indoc! {"
+            Error at <repl>:3
+              deep"
+        }
     );
     assert_eq!(
         repl_exec("let assert Ok(v) = Error(1)"),
-        "Error at <repl>:1\n  Pattern match failed, no pattern matched the value.\n  value: Error(1)"
+        indoc! {"
+            Error at <repl>:1
+              Pattern match failed, no pattern matched the value.
+              value: Error(1)"
+        }
     );
     assert_eq!(
-        repl_exec("fn f() {\n  assert 1 == 2\n}\nf()"),
-        "Error at <repl>:2\n  Assertion failed.\n  operator: ==\n  left: 1\n  right: 2"
+        repl_exec(indoc! {"
+            fn f() {
+              assert 1 == 2
+            }
+            f()"
+        }),
+        indoc! {"
+            Error at <repl>:2
+              Assertion failed.
+              operator: ==
+              left: 1
+              right: 2"
+        }
     );
 }
 
@@ -1983,7 +2684,12 @@ fn repl_user_module_error_keeps_the_location() {
     );
     assert_eq!(
         out,
-        "Error at tests/inputs/user.gleam (boom:29)\n  boom\nError at <repl>:1\n  here\n"
+        indoc! {"
+            Error at tests/inputs/user.gleam (boom:29)
+              boom
+            Error at <repl>:1
+              here
+        "}
     );
 }
 
@@ -1991,12 +2697,30 @@ fn repl_user_module_error_keeps_the_location() {
 fn repl_user_module_named_like_a_generated_one_keeps_the_location() {
     for name in ["repl0.gleam", "repl1.gleam"] {
         let out = out_in_dir(
-            &[(name, "pub fn boom() {\n  panic as \"boom\"\n}\n")],
+            &[(
+                name,
+                indoc! {r#"
+                    pub fn boom() {
+                      panic as "boom"
+                    }
+                "#},
+            )],
             &["repl", "-q", name],
-            Some("fn g() { 7 }\ng()\nboom()\n"),
+            Some(indoc! {"
+                fn g() { 7 }
+                g()
+                boom()
+            "}),
         );
 
-        assert_eq!(out, format!("7\nError at {name} (boom:2)\n  boom\n"));
+        assert_eq!(
+            out,
+            formatdoc! {"
+                7
+                Error at {name} (boom:2)
+                  boom
+            "}
+        );
     }
 }
 
@@ -2005,25 +2729,61 @@ fn repl_let_of_a_type_from_a_module_out_of_scope() {
     let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/user.gleam");
     let (out, err) = run_sgleam_cmd(
         &["repl", "-q", input],
-        Some("let x = maybe()\n:type x\nlet y = x\ny"),
+        Some(indoc! {"
+            let x = maybe()
+            :type x
+            let y = x
+            y"
+        }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "None\noption.Option(Int)\nNone\nNone\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            None
+            option.Option(Int)
+            None
+            None
+        "}
+    );
 }
 
 #[test]
 fn repl_let_of_a_shadowed_prelude_type() {
     assert_eq!(
-        repl_exec("type List { L }\nlet x = [1]\n:type x\nx\nlet y = L\ny"),
-        "[1]\ngleam.List(Int)\n[1]\nL\nL"
+        repl_exec(indoc! {"
+            type List { L }
+            let x = [1]
+            :type x
+            x
+            let y = L
+            y"
+        }),
+        indoc! {"
+            [1]
+            gleam.List(Int)
+            [1]
+            L
+            L"
+        }
     );
 }
 
 #[test]
 fn repl_let_of_a_type_whose_module_name_the_user_took() {
     assert_eq!(
-        repl_exec("import gleam/int as gleam\ntype List { L }\nlet x = [1]\nx\n:type x"),
-        "[1]\n[1]\ngleam.List(Int)"
+        repl_exec(indoc! {"
+            import gleam/int as gleam
+            type List { L }
+            let x = [1]
+            x
+            :type x"
+        }),
+        indoc! {"
+            [1]
+            [1]
+            gleam.List(Int)"
+        }
     );
 }
 
@@ -2032,14 +2792,36 @@ fn repl_let_of_two_types_whose_modules_share_a_name() {
     let out = out_in_dir(
         &[(
             "option.gleam",
-            "import gleam/option as opt\n\npub type Mine {\n  Mine\n}\n\n\
-             pub fn mine() {\n  Mine\n}\n\npub fn maybe() -> opt.Option(Int) {\n  opt.None\n}\n",
+            indoc! {"
+                import gleam/option as opt
+
+                pub type Mine {
+                  Mine
+                }
+
+                pub fn mine() {
+                  Mine
+                }
+
+                pub fn maybe() -> opt.Option(Int) {
+                  opt.None
+                }
+            "},
         )],
         &["repl", "-q", "option.gleam"],
-        Some("let t = #(mine(), maybe())\nt\n"),
+        Some(indoc! {"
+            let t = #(mine(), maybe())
+            t
+        "}),
     );
 
-    assert_eq!(out, "#(Mine, None)\n#(Mine, None)\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            #(Mine, None)
+            #(Mine, None)
+        "}
+    );
 }
 
 #[test]
@@ -2058,7 +2840,14 @@ fn repl_user_module_shadow() {
         }),
     );
     assert_eq!(err, "");
-    assert_eq!(out, "Num0\n22\n11\n");
+    assert_eq!(
+        out,
+        indoc! {"
+            Num0
+            22
+            11
+        "}
+    );
 }
 
 #[test]
@@ -2096,8 +2885,16 @@ fn a_directory_where_a_module_is_asked_for() {
 }
 
 /// The indentation `format` fixes, and what it turns into.
-const UNFORMATTED: &str = "fn main() {\n   1\n}\n";
-const FORMATTED: &str = "fn main() {\n  1\n}\n";
+const UNFORMATTED: &str = indoc! {"
+    fn main() {
+       1
+    }
+"};
+const FORMATTED: &str = indoc! {"
+    fn main() {
+      1
+    }
+"};
 
 fn file_in(dir: &tempfile::TempDir, name: &str) -> String {
     std::fs::read_to_string(dir.path().join(name)).expect("read the formatted file")
@@ -2245,7 +3042,13 @@ fn smain_string() {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/inputs/smain_string.gleam"
     );
-    let (out, err) = run_sgleam_cmd_native_only(&["run", input], Some("hello\nworld"));
+    let (out, err) = run_sgleam_cmd_native_only(
+        &["run", input],
+        Some(indoc! {"
+            hello
+            world"
+        }),
+    );
     assert_snapshot!(formatdoc! {"
         STDOUT
         {out}
