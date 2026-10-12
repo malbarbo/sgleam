@@ -1141,6 +1141,7 @@ dependencies = [
  "rquickjs",
  "rust-embed",
  "sinteract",
+ "stacker",
  "tar",
  "termcolor",
  "thiserror 2.0.18",
@@ -3759,7 +3760,6 @@ dependencies = [
  "insta",
  "libc",
  "rustyline",
- "stacker",
  "tempfile",
 ]
 

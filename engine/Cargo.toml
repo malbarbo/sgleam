@@ -40,6 +40,7 @@ tar = "0.4.41"
 # page shows the svg.
 sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false, features = ["terminal", "window"] }
 ctrlc = "3.4.6"
+stacker = "0.1.23"
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
 
 [[bench]]

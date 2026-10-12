@@ -10,7 +10,10 @@ use rquickjs::{
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
-    qjs::{JS_GetRuntime, JS_IsUncatchableError, JS_SetMaxStackSize, JS_SetUncatchableError},
+    qjs::{
+        JS_GetRuntime, JS_IsUncatchableError, JS_SetMaxStackSize, JS_SetUncatchableError,
+        JS_UpdateStackTop,
+    },
 };
 
 use crate::{
@@ -71,7 +74,7 @@ fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
     let context = Context::full(&runtime)?;
     // `Runtime::set_max_stack_size` would not do. Since rquickjs 0.12 it
     // disables the check above 16 MiB, and student recursion needs the whole
-    // thread.
+    // stack of `eval_script`.
     context.with(|ctx| unsafe {
         JS_SetMaxStackSize(
             JS_GetRuntime(ctx.as_raw().as_ptr()),
@@ -162,8 +165,24 @@ fn run_script(context: &Context, source: String) -> std::result::Result<(), Sgle
     result
 }
 
+/// Student recursion needs a stack larger than the one the thread has. Only
+/// the JavaScript gets it, so the compiler overflows on the stack of the
+/// thread, where std reports the overflow.
+#[cfg(not(target_arch = "wasm32"))]
 fn eval_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
+    stacker::grow(STACK_SIZE, || eval_script_here(context, source))
+}
+
+#[cfg(target_arch = "wasm32")]
+fn eval_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
+    eval_script_here(context, source)
+}
+
+fn eval_script_here(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     context.with(|ctx| {
+        // The runtime measures its limit from the stack it was created on.
+        // SAFETY: the runtime is alive while `ctx` is.
+        unsafe { JS_UpdateStackTop(JS_GetRuntime(ctx.as_raw().as_ptr())) };
         let mut options = EvalOptions::default();
         options.global = false;
         // The script imports its neighbors, so it takes the name of one of
