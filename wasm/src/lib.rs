@@ -8,6 +8,7 @@ use engine::{
     input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
+    run::run_module,
     shell::{self, Shell},
 };
 use gleam_core::build::Module;
@@ -143,6 +144,40 @@ fn has_examples(module: &Module) -> bool {
                 .map(|(_, name)| name.ends_with("_examples"))
                 .unwrap_or(false)
     })
+}
+
+/// Runs the `main` or the `smain` of `code`, as `sgleam run` does. Returns 0
+/// if the program ran to the end, 1 otherwise.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn run(
+    code_ptr: *mut u8,
+    code_len: usize,
+    config_ptr: *mut u8,
+    config_len: usize,
+) -> u32 {
+    init();
+
+    let source = new_string(code_ptr, code_len);
+    let config = new_string(config_ptr, config_len);
+
+    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
+
+    let mut project = Project::default();
+    project.write_source("user.gleam", &source);
+    let result = project
+        .compile(false)
+        .map_err(error::SgleamError::Gleam)
+        .and_then(|modules| {
+            let module = get_module(&modules, "user").expect("the module of user.gleam");
+            run_module(&project, module, "user.gleam".into())
+        });
+    match result {
+        Ok(()) => 0,
+        Err(err) => {
+            show_error(&err);
+            1
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
