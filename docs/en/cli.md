@@ -77,7 +77,7 @@ A world, or an animation, shows its frames in a window, and closing the window e
 
 While a world shows in the terminal, what the program prints, such as an `echo`{.gleam}, goes to the five lines under the frame. When the world ends, the last frame stays on the screen with those lines below it.
 
-The `-d` option chooses where images show. `-d window` uses only a window. `-d kitty`, `-d sixel` and `-d blocks` use only the terminal, through the graphics of Kitty, through Sixel, or through colored blocks, which any terminal with true color shows. `-d none` shows no image and prints `Image` in its place.
+The `-d` option chooses where images show. `-d window` shows the frames of a world only in a window, and the REPL still shows its images in the terminal. `-d kitty`, `-d sixel` and `-d blocks` use only the terminal, through the graphics of Kitty, through Sixel, or through colored blocks, which any terminal with true color shows. `-d none` shows no image and prints `Image` in its place.
 
 ```sh
 sgleam -d blocks bounce.gleam
