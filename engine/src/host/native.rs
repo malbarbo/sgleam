@@ -124,9 +124,10 @@ pub(super) fn stage_options() -> StageOptions {
     let mode = display_mode();
     StageOptions {
         display: match mode {
-            DisplayMode::Auto | DisplayMode::None => Native::Auto,
+            DisplayMode::Auto => Native::Auto,
             DisplayMode::Window => Native::Window,
             DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
+            DisplayMode::None => Native::None,
         },
         terminal: TerminalOptions {
             // Raw mode turns Ctrl-C into a key, so the reader of the terminal
@@ -137,12 +138,6 @@ pub(super) fn stage_options() -> StageOptions {
             backend: backend(mode),
         },
     }
-}
-
-/// Returns `true` if a world shows its frames, `false` if `-d none` asked
-/// for none.
-pub(super) fn shows_frames() -> bool {
-    display_mode() != DisplayMode::None
 }
 
 /// Returns `true` if an interruption is waiting, `false` otherwise, and

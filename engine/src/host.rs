@@ -60,7 +60,7 @@ thread_local! {
 /// its own size, and the frame goes out at the next tick of the display.
 /// Returns `true` if the display is open, `false` if it did not open.
 pub fn show_scene(scene: Scene) -> bool {
-    target::shows_frames() && FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
+    FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
 }
 
 /// Closes the display of the frames, so the world that comes next opens its

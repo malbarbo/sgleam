@@ -41,10 +41,6 @@ pub(super) fn stage_options() -> StageOptions {
     StageOptions::default()
 }
 
-pub(super) fn shows_frames() -> bool {
-    true
-}
-
 pub(super) fn stopping() -> bool {
     check_interrupt()
 }
