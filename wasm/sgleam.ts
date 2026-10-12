@@ -333,8 +333,6 @@ function parseArgs(argv: string[]): ParsedArgs {
   ) {
     command = first;
     rest = argv.slice(1);
-  } else if (first.startsWith("-")) {
-    return unknownArg(first);
   } else {
     // Treat bare file as `run FILE`
     command = "run";
