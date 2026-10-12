@@ -3,8 +3,8 @@
 
 use std::cell::RefCell;
 use std::sync::{
-    Mutex, OnceLock,
-    atomic::{AtomicBool, Ordering},
+    OnceLock,
+    atomic::{AtomicBool, AtomicU8, Ordering},
 };
 use std::time::{Duration, Instant};
 
@@ -66,14 +66,24 @@ pub enum DisplayMode {
     None,
 }
 
-static DISPLAY_MODE: Mutex<DisplayMode> = Mutex::new(DisplayMode::Auto);
+static DISPLAY_MODE: AtomicU8 = AtomicU8::new(DisplayMode::Auto as u8);
 
 pub fn set_display(mode: DisplayMode) {
-    *DISPLAY_MODE.lock().unwrap_or_else(|e| e.into_inner()) = mode;
+    DISPLAY_MODE.store(mode as u8, Ordering::Relaxed);
 }
 
 fn display_mode() -> DisplayMode {
-    *DISPLAY_MODE.lock().unwrap_or_else(|e| e.into_inner())
+    let mode = DISPLAY_MODE.load(Ordering::Relaxed);
+    [
+        DisplayMode::Window,
+        DisplayMode::Kitty,
+        DisplayMode::Sixel,
+        DisplayMode::Blocks,
+        DisplayMode::None,
+    ]
+    .into_iter()
+    .find(|m| *m as u8 == mode)
+    .unwrap_or(DisplayMode::Auto)
 }
 
 /// The backend of the terminal that `mode` asks for, or `None` to ask the
