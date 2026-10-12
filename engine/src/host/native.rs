@@ -37,6 +37,10 @@ pub fn check_interrupt() -> bool {
     STOP.swap(false, Ordering::Relaxed)
 }
 
+pub fn clear_interrupt() {
+    STOP.store(false, Ordering::Relaxed);
+}
+
 pub fn sleep(ms: u64) {
     let end = Instant::now() + Duration::from_millis(ms);
     // Short slices, so an interruption ends a long sleep at once.

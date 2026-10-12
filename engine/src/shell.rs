@@ -122,6 +122,7 @@ impl<E: Engine> Shell<E> {
     }
 
     pub fn run(&mut self, input: &str) -> Status {
+        crate::host::clear_interrupt();
         let Some((name, arg)) = split(input) else {
             return status(self.repl.run(input));
         };

@@ -27,6 +27,9 @@ pub fn check_interrupt() -> bool {
     unsafe { ffi::check_interrupt() }
 }
 
+/// The page clears the request itself when the run starts.
+pub fn clear_interrupt() {}
+
 /// The page ends the wait of `poll_oneoff` when the user presses Stop.
 pub fn sleep(ms: u64) {
     std::thread::sleep(Duration::from_millis(ms));

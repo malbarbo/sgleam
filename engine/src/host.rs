@@ -22,6 +22,10 @@ pub use target::init;
 /// first check.
 pub use target::check_interrupt;
 
+/// Drops a waiting interruption, so the input about to run does not stop at
+/// its first check.
+pub use target::clear_interrupt;
+
 /// `system.sleep` holds the program for `ms` milliseconds. An interruption may
 /// end it early.
 pub use target::sleep;
