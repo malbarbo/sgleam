@@ -7,14 +7,12 @@ import { makeWasi } from "../tests/wasi.ts";
 
 interface WasmExports {
   memory: WebAssembly.Memory;
-  repl_new(
+  run(
     code_ptr: number,
     code_len: number,
     config_ptr: number,
     config_len: number,
   ): number;
-  repl_run(repl: number, ptr: number, len: number): number;
-  repl_destroy(repl: number): void;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
 }
@@ -42,22 +40,6 @@ function encode(exports: WasmExports, text: string): [number, number] {
   return [ptr, bytes.length];
 }
 
-// The REPL shows the lines that `smain()` gives as a Gleam string, so the
-// quotes and the escapes come off before they are printed.
-function unquote(text: string): string {
-  const escapes: Record<string, string> = {
-    n: "\n",
-    r: "\r",
-    t: "\t",
-    f: "\f",
-  };
-  return text.trimEnd().slice(1, -1).replace(
-    /\\(u\{([0-9a-fA-F]+)\}|.)/g,
-    (_, escape, hex) =>
-      hex ? String.fromCodePoint(parseInt(hex, 16)) : escapes[escape] ?? escape,
-  ) + "\n";
-}
-
 // The case and the helper as one module. The imports of both go to the top
 // once each, and `bench.run` becomes `run`.
 function merge(helper: string, source: string): string {
@@ -77,8 +59,7 @@ async function run(module: WebAssembly.Module, source: string) {
   let exports!: WasmExports;
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
-    write: (fd, text) =>
-      write(fd, fd === 1 && text.startsWith('"') ? unquote(text) : text),
+    write,
     readStdin: () => "",
     args: ["sgleam", "run"],
     env: [],
@@ -96,10 +77,7 @@ async function run(module: WebAssembly.Module, source: string) {
 
   const [code, codeLen] = encode(exports, source);
   const [config, configLen] = encode(exports, "bigint=true");
-  const repl = exports.repl_new(code, codeLen, config, configLen);
-  if (repl === 0) return;
-  const [main, mainLen] = encode(exports, "smain()");
-  exports.repl_run(repl, main, mainLen);
+  exports.run(code, codeLen, config, configLen);
 }
 
 const filter = Deno.args;
