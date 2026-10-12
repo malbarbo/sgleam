@@ -55,17 +55,12 @@ function readCstr(exports: WasmExports, ptr: number): string {
 
 // --- Mock env ---
 
-interface EnvOptions {
-  interruptAfter?: number;
-}
-
 function makeEnv(
   getBuffer: () => ArrayBufferLike,
   svgs: string[],
-  options: EnvOptions = {},
+  interruptAfter = Infinity,
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
-  const interruptAfter = options.interruptAfter ?? Infinity;
 
   return {
     check_interrupt: (): number => {
@@ -130,7 +125,7 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
-    { interruptAfter: options.interruptAfter },
+    options.interruptAfter,
   );
 
   const instance = await WebAssembly.instantiate(module, {
