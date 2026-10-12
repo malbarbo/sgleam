@@ -42,6 +42,22 @@ function encode(exports: WasmExports, text: string): [number, number] {
   return [ptr, bytes.length];
 }
 
+// The REPL shows the lines that `smain()` gives as a Gleam string, so the
+// quotes and the escapes come off before they are printed.
+function unquote(text: string): string {
+  const escapes: Record<string, string> = {
+    n: "\n",
+    r: "\r",
+    t: "\t",
+    f: "\f",
+  };
+  return text.trimEnd().slice(1, -1).replace(
+    /\\(u\{([0-9a-fA-F]+)\}|.)/g,
+    (_, escape, hex) =>
+      hex ? String.fromCodePoint(parseInt(hex, 16)) : escapes[escape] ?? escape,
+  ) + "\n";
+}
+
 // The case and the helper as one module. The imports of both go to the top
 // once each, and `bench.run` becomes `run`.
 function merge(helper: string, source: string): string {
@@ -61,8 +77,8 @@ async function run(module: WebAssembly.Module, source: string) {
   let exports!: WasmExports;
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
-    // The REPL shows the `Nil` that `main()` gives.
-    write: (fd, text) => text === "Nil\n" || write(fd, text),
+    write: (fd, text) =>
+      write(fd, fd === 1 && text.startsWith('"') ? unquote(text) : text),
     readStdin: () => "",
     args: ["sgleam", "run"],
     env: [],
@@ -82,7 +98,7 @@ async function run(module: WebAssembly.Module, source: string) {
   const [config, configLen] = encode(exports, "bigint=true");
   const repl = exports.repl_new(code, codeLen, config, configLen);
   if (repl === 0) return;
-  const [main, mainLen] = encode(exports, "main()");
+  const [main, mainLen] = encode(exports, "smain()");
   exports.repl_run(repl, main, mainLen);
 }
 
