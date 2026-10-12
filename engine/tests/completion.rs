@@ -8,6 +8,7 @@ use engine::{
     repl::Repl,
     shell::Shell,
 };
+use indoc::indoc;
 
 fn new_repl() -> Repl<QuickJsEngine> {
     Repl::new(Project::default(), None).expect("start the repl")
@@ -116,7 +117,13 @@ fn completion_fn_with_module_name() {
 
 #[test]
 fn completion_user_module_names() {
-    let repl = new_repl_with_source("pub const one = 1\n\npub type Three {\n  Num3\n}\n");
+    let repl = new_repl_with_source(indoc! {"
+        pub const one = 1
+
+        pub type Three {
+          Num3
+        }
+    "});
     let c = repl.completions();
     assert!(c.contains(&"one".to_string()));
     assert!(c.contains(&"Three".to_string()));

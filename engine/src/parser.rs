@@ -142,6 +142,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     #[test]
     fn an_input_that_stops_where_it_asked_for_more() {
@@ -227,26 +228,27 @@ mod tests {
     /// input stopped, so this holds the count it reaches.
     #[test]
     fn most_of_a_valid_input_read_as_unfinished() {
-        let src = r#"import gleam/int
+        let src = indoc! {r#"
+            import gleam/int
 
-pub type Shape {
-  Circle(r: Float)
-  Square(side: Float)
-}
+            pub type Shape {
+              Circle(r: Float)
+              Square(side: Float)
+            }
 
-pub fn area(shape: Shape) -> Float {
-  case shape {
-    Circle(r) -> 3.14 *. r *. r
-    Square(s) -> s *. s
-  }
-}
+            pub fn area(shape: Shape) -> Float {
+              case shape {
+                Circle(r) -> 3.14 *. r *. r
+                Square(s) -> s *. s
+              }
+            }
 
-pub fn main() {
-  let shapes = [Circle(1.0), Square(2.0)]
-  let total = shapes |> list.map(area) |> float.sum
-  io.println(int.to_string(total) <> " units")
-}
-"#;
+            pub fn main() {
+              let shapes = [Circle(1.0), Square(2.0)]
+              let total = shapes |> list.map(area) |> float.sum
+              io.println(int.to_string(total) <> " units")
+            }
+        "#};
         let ends: Vec<u32> = lexer::make_tokenizer(src)
             .flatten()
             .map(|(_, _, end)| end)

@@ -155,6 +155,7 @@ impl fmt::Write for Source {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     fn span(start: u32, end: u32) -> SrcSpan {
         SrcSpan { start, end }
@@ -177,9 +178,19 @@ mod tests {
         let mut src = Source::new();
         src.write("pub fn main() {\n");
         copy_all(&mut src, "1 + 1");
-        src.write("\n}\n");
+        src.write(indoc! {"
 
-        assert_eq!(src.as_str(), "pub fn main() {\n1 + 1\n}\n");
+            }
+        "});
+
+        assert_eq!(
+            src.as_str(),
+            indoc! {"
+                pub fn main() {
+                1 + 1
+                }
+            "}
+        );
         assert!(src.locate(span(0, 3)).is_none());
         assert!(src.locate(span(21, 24)).is_none());
         assert_eq!(locate(&src, span(16, 21)).span, span(0, 5));
@@ -196,7 +207,13 @@ mod tests {
         src.write("let x = x()\n");
         src.copy(&input, span(8, 12));
 
-        assert_eq!(src.as_str(), "pub fn f() {let x = x()\n 1 }");
+        assert_eq!(
+            src.as_str(),
+            indoc! {"
+                pub fn f() {let x = x()
+                 1 }"
+            }
+        );
         // The head, as the compiler reports it: `pub fn f()`.
         assert_eq!(locate(&src, span(0, 10)).span, span(0, 6));
         assert_eq!(locate(&src, span(0, 28)).span, span(0, 12));
@@ -214,7 +231,12 @@ mod tests {
 
     #[test]
     fn the_input_line_of_every_generated_line() {
-        let input: Rc<str> = "fn f(x) {\n  echo x\n}".into();
+        let input: Rc<str> = indoc! {"
+            fn f(x) {
+              echo x
+            }"
+        }
+        .into();
         let mut src = Source::new();
         src.write("import gleam/io\npub ");
         src.copy(&input, span(0, 10));
@@ -223,7 +245,13 @@ mod tests {
 
         assert_eq!(
             src.as_str(),
-            "import gleam/io\npub fn f(x) {\nlet a = a()\n  echo x\n}"
+            indoc! {"
+                import gleam/io
+                pub fn f(x) {
+                let a = a()
+                  echo x
+                }"
+            }
         );
         // Index by line: 0 stands for no line, and a line the repl wrote for
         // itself came from none of the input.
@@ -240,19 +268,38 @@ mod tests {
         src.write("import gleam/io\n");
         src.append(&body);
 
-        assert_eq!(src.as_str(), "import gleam/io\necho x");
+        assert_eq!(
+            src.as_str(),
+            indoc! {"
+                import gleam/io
+                echo x"
+            }
+        );
         assert_eq!(locate(&src, span(21, 22)).input.as_ref(), "x");
     }
 
     #[test]
     fn a_definition_split_around_what_the_repl_writes() {
-        let input: Rc<str> = "fn f(a) {\n  a + x\n}".into();
+        let input: Rc<str> = indoc! {"
+            fn f(a) {
+              a + x
+            }"
+        }
+        .into();
         let mut src = Source::new();
         src.copy(&input, span(0, 10));
         src.write("let x = x()\n");
         src.copy(&input, span(10, 19));
 
-        assert_eq!(src.as_str(), "fn f(a) {\nlet x = x()\n  a + x\n}");
+        assert_eq!(
+            src.as_str(),
+            indoc! {"
+                fn f(a) {
+                let x = x()
+                  a + x
+                }"
+            }
+        );
         // `x` of the second half, which the input has at 16.
         assert_eq!(locate(&src, span(28, 29)).span, span(16, 17));
         assert!(src.locate(span(14, 15)).is_none());

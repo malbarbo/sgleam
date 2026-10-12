@@ -111,6 +111,7 @@ fn is_break_char(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use indoc::indoc;
 
     /// The cursor at the end of the input, which is where the tests written
     /// before there was a cursor put it.
@@ -161,7 +162,16 @@ mod tests {
 
     #[test]
     fn a_finished_input_is_run() {
-        for input in ["1 + 1", "", "let x = 1", "pub fn f() {\n  1\n}"] {
+        for input in [
+            "1 + 1",
+            "",
+            "let x = 1",
+            indoc! {"
+                pub fn f() {
+                  1
+                }"
+            },
+        ] {
             assert_eq!(ready_state(input), -1, "{input:?}");
         }
     }
@@ -178,9 +188,22 @@ mod tests {
         assert_eq!(ready_state("let x = [1,"), 2);
         assert_eq!(ready_state("let x = #(1,"), 2);
         assert_eq!(ready_state("let x = <<1,"), 2);
-        assert_eq!(ready_state("pub fn f() {\n  case x {"), 4);
+        assert_eq!(
+            ready_state(indoc! {"
+                pub fn f() {
+                  case x {"
+            }),
+            4
+        );
         // And one that is closed is worth none.
-        assert_eq!(ready_state("pub fn f() {\n  f(1)\n  ["), 4);
+        assert_eq!(
+            ready_state(indoc! {"
+                pub fn f() {
+                  f(1)
+                  ["
+            }),
+            4
+        );
     }
 
     #[test]
@@ -188,23 +211,48 @@ mod tests {
         assert_eq!(at_cursor("let x = |1"), -1);
         // Several lines with the cursor back in them: the key opens a line,
         // finished or not.
-        assert_eq!(at_cursor("let x = 1\nlet y = |2"), 0);
+        assert_eq!(
+            at_cursor(indoc! {"
+                let x = 1
+                let y = |2"
+            }),
+            0
+        );
     }
 
     #[test]
     fn the_line_goes_as_deep_as_the_brackets_above_and_the_code_below() {
         // Nothing under the cursor but the closing brace: the depth at the
         // cursor is the whole answer, and it is the canonical one.
-        assert_eq!(at_cursor("pub fn f() {\n  let x = 1|\n}"), 2);
+        assert_eq!(
+            at_cursor(indoc! {"
+                pub fn f() {
+                  let x = 1|
+                }"
+            }),
+            2
+        );
         // Code written further in than that is not brought back out by the
         // line the cursor opens: it would leave the line under nothing.
         assert_eq!(
-            at_cursor("pub fn f() {\n    let x = 1|\n    let y = 2\n}"),
+            at_cursor(indoc! {"
+                pub fn f() {
+                    let x = 1|
+                    let y = 2
+                }"
+            }),
             4
         );
         // A blank line and a comment say nothing about where the block is.
         assert_eq!(
-            at_cursor("pub fn f() {\n    let x = 1|\n\n    // nota\n    let y = 2\n}"),
+            at_cursor(indoc! {"
+                pub fn f() {
+                    let x = 1|
+
+                    // nota
+                    let y = 2
+                }"
+            }),
             4
         );
         // And a cursor past the end is the end.
@@ -223,15 +271,34 @@ mod tests {
         assert_eq!(ready_state("let x =\n"), -1);
         assert_eq!(ready_state("let x = \"abc\n"), -1);
         // A line with something on it is not one of these.
-        assert_eq!(ready_state("1 +\n  2 +"), 0);
+        assert_eq!(
+            ready_state(indoc! {"
+                1 +
+                  2 +"
+            }),
+            0
+        );
     }
 
     #[test]
     fn a_blank_line_inside_brackets_is_part_of_the_input() {
         // A function is written with blank lines between its statements, and
         // reading one as the end of the input cuts it in half.
-        assert_eq!(ready_state("pub fn f() {\n  let x = 1\n"), 2);
+        assert_eq!(
+            ready_state(indoc! {"
+                pub fn f() {
+                  let x = 1
+            "}),
+            2
+        );
         assert_eq!(ready_state("case x {\n  "), 2);
-        assert_eq!(ready_state("let x = [\n  1,\n\n"), 2);
+        assert_eq!(
+            ready_state(indoc! {"
+                let x = [
+                  1,
+
+            "}),
+            2
+        );
     }
 }

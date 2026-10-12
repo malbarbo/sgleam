@@ -320,6 +320,7 @@ mod tests {
     use super::*;
     use crate::parser::{self, ReplItem};
     use gleam_core::ast::Definition;
+    use indoc::indoc;
 
     fn imports(scope: &Scope, code: Option<&str>) -> String {
         imports_skipping(scope, code, &Defined::default())
@@ -435,7 +436,10 @@ mod tests {
         // names it brought.
         assert_eq!(
             imports(&scope, None),
-            "import gleam/int as i\nimport gleam/int.{max} as _\n"
+            indoc! {"
+                import gleam/int as i
+                import gleam/int.{max} as _
+            "}
         );
     }
 
