@@ -50,8 +50,7 @@ export class FakeRoom {
       return first.subarray(0, max);
     },
     readable: () => this.#hungUp || this.#toEngine.length > 0,
-    close: (fd) => {
-      if (fd !== 4) return;
+    end: () => {
       this.#room?.end();
       this.#room = null;
       this.#callback = null;

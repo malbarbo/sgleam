@@ -45,7 +45,8 @@ export interface SessionPipe {
   /** Returns `true` if a read of fd 3 has bytes or the end, `false`
    * otherwise. */
   readable(): boolean;
-  close(fd: number): void;
+  /** Called when the engine closes fd 4. */
+  end(): void;
 }
 
 const SESSION_IN = 3;
@@ -243,7 +244,7 @@ export function makeWasi(options: WasiOptions) {
       }
     },
     fd_close: (fd: number): number => {
-      if (fd === SESSION_IN || fd === SESSION_OUT) options.session?.close(fd);
+      if (fd === SESSION_OUT) options.session?.end();
       return WASI_ESUCCESS;
     },
     poll_oneoff: (
