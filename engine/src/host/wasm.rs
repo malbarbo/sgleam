@@ -22,7 +22,6 @@ pub fn init() -> Result<(), SgleamError> {
     Ok(())
 }
 
-/// The page clears the request itself when the next run starts.
 pub fn check_interrupt() -> bool {
     unsafe { ffi::check_interrupt() }
 }
@@ -42,8 +41,4 @@ pub fn draw_svg(str: String) {
 /// The page shows each world in a session, the only display it has.
 pub(super) fn stage_options() -> StageOptions {
     StageOptions::default()
-}
-
-pub(super) fn stopping() -> bool {
-    check_interrupt()
 }

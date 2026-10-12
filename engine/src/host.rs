@@ -17,9 +17,9 @@ use sinteract::scene::Scene;
 /// first call does the work and a later one gives back its result.
 pub use target::init;
 
-/// Returns `true` if an interruption is waiting, `false` otherwise. Reading the
-/// request clears it, so the run after an interrupted one does not stop at its
-/// first check.
+/// Returns `true` if an interruption is waiting, `false` otherwise. The
+/// request stays until the next input starts, so every check of the run sees
+/// it.
 pub use target::check_interrupt;
 
 /// Drops a waiting interruption, so the input about to run does not stop at
@@ -105,7 +105,7 @@ pub fn wait_event(ms: u64) -> Vec<String> {
                 FrameEvent::Close => return vec!["close".into()],
                 FrameEvent::Timeout => {}
             }
-            if Instant::now() >= end || target::stopping() {
+            if Instant::now() >= end || target::check_interrupt() {
                 return vec![];
             }
         }

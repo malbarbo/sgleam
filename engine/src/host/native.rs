@@ -34,7 +34,7 @@ pub fn init() -> Result<(), SgleamError> {
 }
 
 pub fn check_interrupt() -> bool {
-    STOP.swap(false, Ordering::Relaxed)
+    STOP.load(Ordering::Relaxed)
 }
 
 pub fn clear_interrupt() {
@@ -46,7 +46,7 @@ pub fn sleep(ms: u64) {
     // Short slices, so an interruption ends a long sleep at once.
     loop {
         let now = Instant::now();
-        if now >= end || STOP.load(Ordering::Relaxed) {
+        if now >= end || check_interrupt() {
             return;
         }
         std::thread::sleep((end - now).min(Duration::from_millis(10)));
@@ -133,10 +133,4 @@ pub(super) fn stage_options() -> StageOptions {
             backend: backend(mode),
         },
     }
-}
-
-/// Returns `true` if an interruption is waiting, `false` otherwise, and
-/// leaves it waiting.
-pub(super) fn stopping() -> bool {
-    STOP.load(Ordering::Relaxed)
 }
