@@ -1,4 +1,4 @@
-// The page's side of a session of sinteract, on a clock of its own: the
+// The page's side of a session of sinteract, on a clock of its own. The
 // room of sinteract plays the server, and a frame of the display comes
 // every FRAME_MS of that clock. A wait of the engine moves the clock on
 // instead of sleeping, so a world runs its ticks at once.
