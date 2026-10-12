@@ -1,4 +1,4 @@
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 
 use gleam_core::{
     build::{Module, Origin, Target},
@@ -23,12 +23,17 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
+    run_module(&project, module, program)
+}
 
+/// Runs the `main` or the `smain` of `module`, which `project` built. An
+/// error names the module by `path`.
+pub fn run_module(project: &Project, module: &Module, path: &Utf8Path) -> Result<(), SgleamError> {
     let main = get_main(module).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
                 module,
-                path: program.clone(),
+                path: path.into(),
             }
         }
         err => err,
