@@ -178,6 +178,9 @@ export function makeWasi(options: WasiOptions) {
         dataView.setInt32(nwrittenPtr, total, true);
         return WASI_ESUCCESS;
       }
+      // A world writes to the session to open it, and the error tells it that
+      // there is none.
+      if (fd === SESSION_OUT) return WASI_EBADF;
       if (fd !== STDOUT && fd !== STDERR) {
         console.error("fd_write: unsupported file descriptor:", fd);
         return WASI_EBADF;
