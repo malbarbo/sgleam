@@ -64,7 +64,7 @@ pub fn show_scene(scene: Scene) -> bool {
 }
 
 /// Closes the display of the frames, so the world that comes next opens its
-/// own. The last frame stays on screen.
+/// own. A window goes away, and the terminal keeps the last frame on screen.
 pub fn close_frames() {
     // The terminal shows the lines of `print_line` under the frame, and they
     // print under it after the close.
