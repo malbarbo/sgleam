@@ -12,6 +12,12 @@ interface WasmExports {
     config_ptr: number,
     config_len: number,
   ): number;
+  run(
+    code_ptr: number,
+    code_len: number,
+    config_ptr: number,
+    config_len: number,
+  ): number;
   repl_run(repl: number, ptr: number, len: number): number;
   repl_ready(repl: number, ptr: number, len: number, cursor: number): number;
   repl_destroy(repl: number): void;
@@ -268,15 +274,13 @@ async function runFile(opts: {
     stdin,
   );
   const { exports } = ctx;
-
-  const repl = newRepl(exports, source, opts.number);
-  if (repl === 0) return 1;
-
-  const [ptr, len] = encodeString(exports, "main()");
-  const status = exports.repl_run(repl, ptr, len);
-  exports.string_deallocate(ptr, len);
-  exports.repl_destroy(repl);
-  return status === REPL_ERROR ? 1 : 0;
+  const config = opts.number ? "" : "bigint=true";
+  const [codePtr, codeLen] = encodeString(exports, source);
+  const [cfgPtr, cfgLen] = encodeString(exports, config);
+  const status = exports.run(codePtr, codeLen, cfgPtr, cfgLen);
+  exports.string_deallocate(codePtr, codeLen);
+  exports.string_deallocate(cfgPtr, cfgLen);
+  return status;
 }
 
 // `test` and `check` need no export of their own: `repl_new` compiles, prints
