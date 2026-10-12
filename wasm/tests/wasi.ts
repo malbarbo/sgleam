@@ -27,10 +27,12 @@ export interface WasiOptions {
   /** Moves the clock of `now` on, to at most `until` milliseconds, or as far
    * as the next thing that happens when `until` is null. A wait of
    * `poll_oneoff` calls it instead of sleeping, so a test runs on its own
-   * time. Without it, a wait takes the real time. */
+   * time. It comes with `now`, and without both a wait takes the real
+   * time. */
   advance?: (until: bigint | null) => void;
   /** The session of sinteract on fd 3 and fd 4. Without it, both are bad
-   * descriptors. */
+   * descriptors. It needs `now` and `advance`, which a read uses to wait for
+   * the room. */
   session?: SessionPipe;
 }
 
@@ -75,6 +77,23 @@ export function makeWasi(options: WasiOptions) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const buf = () => options.getBuffer();
+  // A wait on a stopped clock, or on a session with nothing to move it on,
+  // would never end.
+  if (!options.now !== !options.advance) {
+    throw new Error("makeWasi: `now` and `advance` go together");
+  }
+  if (options.session && !options.advance) {
+    throw new Error("makeWasi: `session` needs `now` and `advance`");
+  }
+
+  // Nanoseconds of the clock `clockId`, or null for a clock WASI does not
+  // have.
+  const clockNs = (clockId: number): bigint | null => {
+    if (clockId > 3) return null;
+    if (options.now) return options.now() * 1_000_000n;
+    if (clockId === 0) return BigInt(Date.now()) * 1_000_000n;
+    return BigInt(Math.round(performance.now() * 1_000_000));
+  };
 
   // Total size of the buffer args_get/environ_get write into: every string
   // null terminated, one after the other.
@@ -105,26 +124,9 @@ export function makeWasi(options: WasiOptions) {
       timePtr: number,
     ): number => {
       try {
-        const dataView = new DataView(buf());
-        const now = options.now;
-        let timestamp: bigint;
-        switch (clockId) {
-          case 0: // CLOCK_REALTIME
-            timestamp = now
-              ? now() * 1_000_000n
-              : BigInt(Date.now()) * 1_000_000n;
-            break;
-          case 1:
-          case 2:
-          case 3:
-            timestamp = now
-              ? now() * 1_000_000n
-              : BigInt(Math.round(performance.now() * 1_000_000));
-            break;
-          default:
-            return WASI_EINVAL;
-        }
-        dataView.setBigUint64(timePtr, timestamp, true);
+        const timestamp = clockNs(clockId);
+        if (timestamp === null) return WASI_EINVAL;
+        new DataView(buf()).setBigUint64(timePtr, timestamp, true);
         return WASI_ESUCCESS;
       } catch {
         console.error("clock_time_get failed");
@@ -208,7 +210,7 @@ export function makeWasi(options: WasiOptions) {
       if (fd === SESSION_IN && options.session) {
         const session = options.session;
         // A read with nothing to read blocks until the room writes.
-        while (!session.readable()) options.advance?.(null);
+        while (!session.readable()) options.advance!(null);
         const dataView = new DataView(buf());
         let total = 0;
         for (let i = 0; i < iovsLen; i++) {
@@ -266,11 +268,6 @@ export function makeWasi(options: WasiOptions) {
       neventsPtr: number,
     ): number => {
       const view = () => new DataView(buf());
-      const nowNs = () =>
-        options.now
-          ? options.now() * 1_000_000n
-          : BigInt(Math.round(performance.now() * 1_000_000));
-      const start = nowNs();
       const subs: Subscription[] = [];
       for (let i = 0; i < nsubscriptions; i++) {
         const at = inPtr + i * SUBSCRIPTION_BYTES;
@@ -278,42 +275,50 @@ export function makeWasi(options: WasiOptions) {
         const sub = {
           userdata: view().getBigUint64(at, true),
           tag,
+          // The clock, for a clock.
           fd: view().getUint32(at + 16, true),
           deadline: 0n,
         };
         if (tag === EVENTTYPE_CLOCK) {
+          const now = clockNs(sub.fd);
+          if (now === null) return WASI_EINVAL;
           const timeout = view().getBigUint64(at + 24, true);
           const abstime = view().getUint16(at + 40, true) &
             SUBCLOCKFLAGS_ABSTIME;
-          sub.deadline = abstime ? timeout : start + timeout;
+          sub.deadline = abstime ? timeout : now + timeout;
         }
         subs.push(sub);
       }
       const ready = (sub: Subscription) => {
-        if (sub.tag === EVENTTYPE_CLOCK) return nowNs() >= sub.deadline;
         if (sub.tag === EVENTTYPE_FD_READ && sub.fd === SESSION_IN) {
           return options.session?.readable() ?? true;
         }
         return true;
       };
+      // Nanoseconds until the first clock fires, or null with no clock.
       const clocks = subs.filter((sub) => sub.tag === EVENTTYPE_CLOCK);
-      const deadline = clocks.length
-        ? clocks.reduce((a, b) => (a.deadline < b.deadline ? a : b)).deadline
-        : null;
+      const wait = () =>
+        clocks.length
+          ? clocks
+            .map((sub) => sub.deadline - clockNs(sub.fd)!)
+            .reduce((a, b) => (a < b ? a : b))
+          : null;
       let fired = subs.filter((sub) =>
         sub.tag !== EVENTTYPE_CLOCK && ready(sub)
       );
       while (fired.length === 0) {
-        if (deadline !== null && nowNs() >= deadline) {
-          fired = clocks.filter(ready);
+        const ns = wait();
+        if (ns !== null && ns <= 0n) {
+          fired = clocks.filter((sub) => sub.deadline <= clockNs(sub.fd)!);
           break;
         }
-        const untilMs = deadline === null
-          ? null
-          : (deadline + 999_999n) / 1_000_000n;
-        if (options.advance) options.advance(untilMs);
-        else if (untilMs !== null) {
-          realSleep(Number(untilMs - nowNs() / 1_000_000n));
+        if (options.advance) {
+          // With `now`, every clock reads the same time.
+          options.advance(
+            ns === null ? null : (clockNs(0)! + ns + 999_999n) / 1_000_000n,
+          );
+        } else if (ns !== null) {
+          realSleep(Math.ceil(Number(ns) / 1_000_000));
         } else return WASI_EINVAL;
         fired = subs.filter((sub) => sub.tag !== EVENTTYPE_CLOCK && ready(sub));
       }
