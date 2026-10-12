@@ -43,7 +43,7 @@ impl Default for Project {
             fs: InMemoryFileSystem::new(),
         };
 
-        extract_tar(&mut project.fs, GLEAM_STDLIB, Project::source()).expect("Extract stdlib");
+        extract_tar(&mut project.fs, GLEAM_STDLIB).expect("Extract stdlib");
 
         for path in crate::SgleamLib::iter() {
             let file = crate::SgleamLib::get(&path).expect("Read an embedded sgleam file");
@@ -397,7 +397,7 @@ fn validate_path(path: &Utf8Path) -> bool {
     true
 }
 
-fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], to: &Utf8Path) -> Result<(), Error> {
+fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8]) -> Result<(), Error> {
     let decoder = GzDecoder::new(data);
     let mut arch = Archive::new(decoder);
     let mut buf = vec![];
@@ -406,7 +406,7 @@ fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], to: &Utf8Path) -> Resul
         let is_dir = entry.header().entry_type().is_dir();
         let entry_path = entry.path().map_err(to_error_stdio)?.into_owned();
         let entry_path = Utf8PathBuf::from_path_buf(entry_path).map_err(to_error_nonutf8_path)?;
-        let path = Utf8PathBuf::from(format!("{to}/{entry_path}"));
+        let path = Project::source_file(entry_path.as_str());
         if is_dir {
             fs.mkdir(&path)?;
         } else {
