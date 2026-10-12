@@ -236,6 +236,8 @@ pub extern "C" fn version() -> *mut std::ffi::c_char {
 /// of the page. It gives the pointer and the length of the bytes, the pointer
 /// and the length of the family name, the weight, and 1 for italic. Past the
 /// last face it gives null. See ENGINE.md in simplecode.
+// The records hold 32-bit pointers, which only wasm32 has.
+#[cfg(target_arch = "wasm32")]
 #[unsafe(no_mangle)]
 pub extern "C" fn font_face(i: u32) -> *const [u32; 6] {
     sinteract::text::face_record(i).map_or(ptr::null(), |face| face as *const [u32; 6])
