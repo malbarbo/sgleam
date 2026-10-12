@@ -77,6 +77,14 @@ export function makeWasi(options: WasiOptions) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   const buf = () => options.getBuffer();
+  // The buffers of a WASI iovec array, as [ptr, len] pairs of 8 bytes each.
+  const iovecs = (iovsPtr: number, iovsLen: number): [number, number][] => {
+    const dataView = new DataView(buf());
+    return Array.from({ length: iovsLen }, (_, i) => [
+      dataView.getInt32(iovsPtr + i * 8, true),
+      dataView.getInt32(iovsPtr + i * 8 + 4, true),
+    ]);
+  };
   // A wait on a stopped clock, or on a session with nothing to move it on,
   // would never end.
   if (!options.now !== !options.advance) {
@@ -167,15 +175,12 @@ export function makeWasi(options: WasiOptions) {
       nwrittenPtr: number,
     ): number => {
       if (fd === SESSION_OUT && options.session) {
-        const dataView = new DataView(buf());
         let total = 0;
-        for (let i = 0; i < iovsLen; i++) {
-          const ptr = dataView.getInt32(iovsPtr + i * 8, true);
-          const len = dataView.getInt32(iovsPtr + i * 8 + 4, true);
+        for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
           options.session.write(new Uint8Array(buf(), ptr, len).slice());
           total += len;
         }
-        dataView.setInt32(nwrittenPtr, total, true);
+        new DataView(buf()).setInt32(nwrittenPtr, total, true);
         return WASI_ESUCCESS;
       }
       // A world writes to the session to open it, and the error tells it that
@@ -186,17 +191,12 @@ export function makeWasi(options: WasiOptions) {
         return WASI_EBADF;
       }
       try {
-        const dataView = new DataView(buf());
-        let totalBytesWritten = 0;
-        for (let i = 0; i < iovsLen; i++) {
-          const iovPtr = iovsPtr + i * 8; // iovec is 8 bytes (ptr + len)
-          const bufPtr = dataView.getInt32(iovPtr, true);
-          const bufLen = dataView.getInt32(iovPtr + 4, true);
-          const chunk = new Uint8Array(buf(), bufPtr, bufLen);
-          options.write(fd, decoder.decode(chunk));
-          totalBytesWritten += bufLen;
+        let total = 0;
+        for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
+          options.write(fd, decoder.decode(new Uint8Array(buf(), ptr, len)));
+          total += len;
         }
-        dataView.setInt32(nwrittenPtr, totalBytesWritten, true);
+        new DataView(buf()).setInt32(nwrittenPtr, total, true);
         return WASI_ESUCCESS;
       } catch {
         console.error("fd_write failed");
@@ -214,47 +214,29 @@ export function makeWasi(options: WasiOptions) {
         const session = options.session;
         // A read with nothing to read blocks until the room writes.
         while (!session.readable()) options.advance!(null);
-        const dataView = new DataView(buf());
         let total = 0;
-        for (let i = 0; i < iovsLen; i++) {
-          const ptr = dataView.getInt32(iovsPtr + i * 8, true);
-          const len = dataView.getInt32(iovsPtr + i * 8 + 4, true);
+        for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
           const bytes = session.read(len);
           new Uint8Array(buf()).set(bytes, ptr);
           total += bytes.length;
           if (bytes.length < len) break;
         }
-        dataView.setInt32(nreadPtr, total, true);
+        new DataView(buf()).setInt32(nreadPtr, total, true);
         return WASI_ESUCCESS;
       }
       if (fd !== 0 || !options.readStdin) return WASI_EBADF;
       try {
         const text = options.readStdin();
         const encoded = encoder.encode(text);
-        const dataView = new DataView(buf());
         const memory = new Uint8Array(buf());
-        let totalRead = 0;
-        let srcOffset = 0;
-        for (
-          let i = 0;
-          i < iovsLen && srcOffset < encoded.length;
-          i++
-        ) {
-          const iovPtr = iovsPtr + i * 8;
-          const bufPtr = dataView.getInt32(iovPtr, true);
-          const bufLen = dataView.getInt32(iovPtr + 4, true);
-          const toCopy = Math.min(
-            bufLen,
-            encoded.length - srcOffset,
-          );
-          memory.set(
-            encoded.subarray(srcOffset, srcOffset + toCopy),
-            bufPtr,
-          );
-          srcOffset += toCopy;
-          totalRead += toCopy;
+        let total = 0;
+        for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
+          if (total === encoded.length) break;
+          const toCopy = Math.min(len, encoded.length - total);
+          memory.set(encoded.subarray(total, total + toCopy), ptr);
+          total += toCopy;
         }
-        dataView.setInt32(nreadPtr, totalRead, true);
+        new DataView(buf()).setInt32(nreadPtr, total, true);
         return WASI_ESUCCESS;
       } catch {
         return WASI_ENOSYS;
