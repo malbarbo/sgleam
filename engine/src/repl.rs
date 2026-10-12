@@ -483,7 +483,7 @@ impl<E: Engine> Repl<E> {
         let mut modules = result?;
 
         if self.debug {
-            let js_path = Project::out().join(format!("{module_name}.mjs"));
+            let js_path = Project::out_file(&format!("{module_name}.mjs"));
             if let Ok(js) = self.project.fs.read(&js_path) {
                 println!("--- {module_name}.mjs ---\n{js}---");
             }

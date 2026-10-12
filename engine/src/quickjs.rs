@@ -1,8 +1,7 @@
 use gleam_core::io::{FileSystemReader, memory::InMemoryFileSystem};
 use indoc::formatdoc;
-use path_clean::clean;
 
-use std::{fmt::Write as _, path::Path};
+use std::fmt::Write as _;
 
 use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
@@ -170,7 +169,7 @@ fn eval_script(context: &Context, source: String) -> std::result::Result<(), Sgl
         // The script imports its neighbors, so it takes the name of one of
         // them, minus the extension. Only a loadable module carries that
         // extension, and without it no import can ever find the script.
-        options.filename = Some(Project::out().join("eval_script").into_string());
+        options.filename = Some(Project::out_file("eval_script").into_string());
         // The error rquickjs leaves from an exception only says that there
         // was one, so this catches the exception here. The top level of every
         // module the script imports runs inside this call and never reaches
@@ -314,14 +313,34 @@ impl Resolver for FileResolver {
         name: &str,
         _attributes: Option<ImportAttributes<'js>>,
     ) -> Result<String> {
-        let dir = Path::new(base).parent().ok_or_else(|| {
+        resolve_path(base, name).ok_or_else(|| {
             Error::new_resolving_message(base, name, format!("no parent for {base}"))
-        })?;
-        // The generated modules import each other through `..`, and the file
-        // system does not resolve that. It looks a path up component by
-        // component, exactly as the import writes the path.
-        Ok(clean(dir.join(name)).to_string_lossy().into())
+        })
     }
+}
+
+/// The path that `name`, imported from the module at `base`, names, or `None`
+/// if `base` has no directory. The generated modules import each other through
+/// `..`, and the file system does not resolve that. It looks a path up
+/// component by component, exactly as the import writes the path. The path
+/// separates with `/` on every system, as a stack trace shows it to the user.
+fn resolve_path(base: &str, name: &str) -> Option<String> {
+    let (dir, _) = base.rsplit_once('/')?;
+    // An absolute name stands on its own, as the prelude is imported.
+    let dir = if name.starts_with('/') { "" } else { dir };
+    let mut parts: Vec<&str> = dir.split('/').collect();
+    for part in name.split('/') {
+        match part {
+            "" | "." => {}
+            ".." => {
+                if parts.len() > 1 {
+                    parts.pop();
+                }
+            }
+            part => parts.push(part),
+        }
+    }
+    Some(parts.join("/"))
 }
 
 struct ScriptLoader {
@@ -341,5 +360,27 @@ impl Loader for ScriptLoader {
             .read(path.into())
             .map_err(|err| Error::new_loading_message(path, err.to_string()))?;
         Module::declare(ctx.clone(), path, src)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_path;
+
+    #[test]
+    fn an_import_resolves_to_a_path_separated_with_slashes() {
+        let resolve = |base, name| resolve_path(base, name).unwrap();
+        assert_eq!(resolve("/build/eval_script", "./b.mjs"), "/build/b.mjs");
+        assert_eq!(
+            resolve("/build/sub/d.mjs", "../gleam/list.mjs"),
+            "/build/gleam/list.mjs"
+        );
+        assert_eq!(
+            resolve("/build/b.mjs", "/build/prelude.mjs"),
+            "/build/prelude.mjs"
+        );
+        // A `..` does not climb above the root.
+        assert_eq!(resolve("/build/b.mjs", "../../x.mjs"), "/x.mjs");
+        assert_eq!(resolve_path("eval_script", "./b.mjs"), None);
     }
 }

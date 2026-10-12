@@ -84,6 +84,12 @@ impl Project {
         format!("{}/{name}", Project::source()).into()
     }
 
+    /// The path of the file `name` under the output root, separated with `/`
+    /// as `source_file` is.
+    pub fn out_file(name: &str) -> Utf8PathBuf {
+        format!("{}/{name}", Project::out()).into()
+    }
+
     fn prelude() -> &'static Utf8Path {
         "/build/prelude.mjs".into()
     }
@@ -118,7 +124,7 @@ impl Project {
     }
 
     pub fn write_out(&mut self, name: &str, content: &str) {
-        let path = Project::out().join(name);
+        let path = Project::out_file(name);
         self.fs
             .write(&path, content)
             .expect("Write a file in memory");
@@ -400,7 +406,7 @@ fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], to: &Utf8Path) -> Resul
         let is_dir = entry.header().entry_type().is_dir();
         let entry_path = entry.path().map_err(to_error_stdio)?.into_owned();
         let entry_path = Utf8PathBuf::from_path_buf(entry_path).map_err(to_error_nonutf8_path)?;
-        let path = to.join(entry_path);
+        let path = Utf8PathBuf::from(format!("{to}/{entry_path}"));
         if is_dir {
             fs.mkdir(&path)?;
         } else {

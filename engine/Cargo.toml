@@ -16,7 +16,6 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
 gleam-format = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8" }
 im = "15.1.0"
 indoc = "2.0.5"
-path-clean = "1.0.1"
 # The box of a path, with each arc as the cubics that sinteract draws.
 kurbo = { version = "0.13", default-features = false, features = ["std"] }
 rquickjs = { version = "0.12.2", features = ["loader"] }
