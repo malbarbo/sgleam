@@ -14,7 +14,7 @@ const LIMIT_MS = 600_000n;
 
 export type KeyType = "press" | "down" | "up";
 
-/** What the player does, one step every `every` frames of the display. */
+/** What the player does, one step each frame of the display. */
 export type Step = { key: string; type: KeyType } | "close";
 
 export class FakeRoom {
@@ -23,17 +23,14 @@ export class FakeRoom {
   /** The scenes of the frames that the room showed, in order. */
   readonly frames: Uint8Array[] = [];
   readonly #steps: Step[];
-  readonly #every: number;
   #room: Room | null = null;
   #toEngine: Uint8Array[] = [];
   #hungUp = false;
   #nextFrame = FRAME_MS;
   #callback: ((now: number) => void) | null = null;
-  #count = 0;
 
-  constructor(steps: Step[] = [], every = 1) {
+  constructor(steps: Step[] = []) {
     this.#steps = [...steps];
-    this.#every = every;
   }
 
   readonly pipe: SessionPipe = {
@@ -103,7 +100,7 @@ export class FakeRoom {
     const callback = this.#callback;
     this.#callback = null;
     callback?.(Number(this.ms));
-    if (!this.#room || ++this.#count % this.#every !== 0) return;
+    if (!this.#room) return;
     const step = this.#steps.shift();
     if (step === undefined) return;
     if (step === "close") {
