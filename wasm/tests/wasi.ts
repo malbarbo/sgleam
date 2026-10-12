@@ -288,10 +288,10 @@ export function makeWasi(options: WasiOptions) {
             .map((sub) => sub.deadline - clockNs(sub.fd)!)
             .reduce((a, b) => (a < b ? a : b))
           : null;
-      let fired = subs.filter((sub) =>
-        sub.tag !== EVENTTYPE_CLOCK && ready(sub)
-      );
-      while (fired.length === 0) {
+      let fired: Subscription[];
+      for (;;) {
+        fired = subs.filter((sub) => sub.tag !== EVENTTYPE_CLOCK && ready(sub));
+        if (fired.length > 0) break;
         const ns = wait();
         if (ns !== null && ns <= 0n) {
           fired = clocks.filter((sub) => sub.deadline <= clockNs(sub.fd)!);
@@ -305,7 +305,6 @@ export function makeWasi(options: WasiOptions) {
         } else if (ns !== null) {
           realSleep(Math.ceil(Number(ns) / 1_000_000));
         } else return WASI_EINVAL;
-        fired = subs.filter((sub) => sub.tag !== EVENTTYPE_CLOCK && ready(sub));
       }
       new Uint8Array(buf()).fill(
         0,
