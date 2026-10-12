@@ -4,7 +4,7 @@
 use std::cell::RefCell;
 use std::sync::{
     OnceLock,
-    atomic::{AtomicBool, AtomicU8, Ordering},
+    atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant};
 
@@ -66,24 +66,15 @@ pub enum DisplayMode {
     None,
 }
 
-static DISPLAY_MODE: AtomicU8 = AtomicU8::new(DisplayMode::Auto as u8);
+static DISPLAY_MODE: OnceLock<DisplayMode> = OnceLock::new();
 
 pub fn set_display(mode: DisplayMode) {
-    DISPLAY_MODE.store(mode as u8, Ordering::Relaxed);
+    let first = DISPLAY_MODE.set(mode);
+    debug_assert!(first.is_ok(), "the display is chosen once");
 }
 
 fn display_mode() -> DisplayMode {
-    let mode = DISPLAY_MODE.load(Ordering::Relaxed);
-    [
-        DisplayMode::Window,
-        DisplayMode::Kitty,
-        DisplayMode::Sixel,
-        DisplayMode::Blocks,
-        DisplayMode::None,
-    ]
-    .into_iter()
-    .find(|m| *m as u8 == mode)
-    .unwrap_or(DisplayMode::Auto)
+    DISPLAY_MODE.get().copied().unwrap_or_default()
 }
 
 /// The backend of the terminal that `mode` asks for, or `None` to ask the
