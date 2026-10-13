@@ -61,10 +61,14 @@ pub enum DisplayMode {
     Auto,
     /// Only a window. The images of the repl go as in `Auto`.
     Window,
-    // Only the terminal, through the backend of the same name. The images of
-    // the repl go through it as well.
+    /// Only the terminal, through the graphics of Kitty, for the frames and
+    /// the images of the repl alike.
     Kitty,
+    /// Only the terminal, through Sixel, for the frames and the images of the
+    /// repl alike.
     Sixel,
+    /// Only the terminal, through blocks in true color, for the frames and the
+    /// images of the repl alike.
     Blocks,
     /// No display at all, so each image prints as the word `Image`.
     None,
