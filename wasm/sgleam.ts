@@ -358,13 +358,14 @@ function parseArgs(argv: string[]): ParsedArgs {
   let file: string | null = null;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
+    const display = displayFlag(arg);
     if (arg === "-q" && command === "repl") quiet = true;
     else if (arg === "-n") number = true;
     else if (
-      displayFlag(arg) !== null && command !== "check" && command !== "format"
+      display !== null && command !== "check" && command !== "format"
     ) {
       // The wrapper has no display, so every mode shows what `none` shows.
-      const mode = displayFlag(arg) ?? rest[++i];
+      const mode = display ?? rest[++i];
       if (!DISPLAY_MODES.includes(mode)) return unknownArg(mode || arg);
     } else if (arg.startsWith("-")) return unknownArg(arg);
     else if (file === null) file = arg;
