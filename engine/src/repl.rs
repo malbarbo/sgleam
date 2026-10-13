@@ -27,6 +27,9 @@ use crate::{
     swrite, swriteln,
 };
 
+/// The path that a diagnostic and a runtime error give for an input.
+pub const REPL_PATH: &str = "<repl>";
+
 /// Why the repl compiled a module. Only a module compiled to run reaches the
 /// runtime. A module that answers `:type` never runs, and nothing even names
 /// the module that only declares the scope to check an import. That last one
@@ -611,7 +614,7 @@ impl<E: Engine> Repl<E> {
         };
 
         loc.src = located.input.as_ref().into();
-        loc.path = "<repl>".into();
+        loc.path = REPL_PATH.into();
         loc.label.span = located.span;
         // An extra label that points at another file stays as it is. One that
         // points at this file stays only while it still says something about
@@ -927,7 +930,7 @@ impl<E: Engine> Repl<E> {
 /// already points at it.
 fn parse(input: &str) -> Result<Vec<ReplItem>, Error> {
     parser::parse_repl(input).map_err(|error| Error::Parse {
-        path: "<repl>".into(),
+        path: REPL_PATH.into(),
         src: input.into(),
         error: error.into(),
     })
