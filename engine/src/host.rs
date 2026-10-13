@@ -36,9 +36,10 @@ pub use target::sleep;
 pub use target::draw_svg;
 
 /// Prints a scene in the terminal at the cursor. Returns `true` if the scene
-/// went out, `false` if stdout is not a terminal that shows images or the
-/// print failed. The browser draws an svg instead, so it has no such
-/// function.
+/// went out, `false` otherwise. With `-d none` nothing goes out. A backend
+/// that `-d` names prints to stdout whatever it is, and otherwise the scene
+/// goes out only if stdout is a terminal that shows images. The browser draws
+/// an svg instead, so it has no such function.
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::print_scene;
 

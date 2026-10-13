@@ -104,8 +104,8 @@ fn new_printer() -> Option<Printer> {
 
 pub fn print_scene(scene: &Scene) -> bool {
     thread_local! {
-        // The first print probes the terminal, so a run that prints no image
-        // never asks it anything.
+        // The first print makes the printer, so a run that prints no image
+        // never asks the terminal anything.
         static PRINTER: RefCell<Option<Printer>> = RefCell::new(new_printer());
     }
     PRINTER.with_borrow_mut(|printer| printer.as_mut().is_some_and(|p| p.print(scene).is_ok()))
