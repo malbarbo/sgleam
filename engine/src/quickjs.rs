@@ -268,6 +268,10 @@ fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
     set_fn(&sgleam, "source_location", move |path, line, column| {
         source_location(&fs, path, line, column).map(List)
     })?;
+    // The compiled JavaScript names a source file by its path from the project
+    // root, and the library takes this prefix off to show the path the user
+    // gave.
+    sgleam.set("source_prefix", format!("{}/", Project::source_path("")))?;
     ctx.globals().set("sgleam", sgleam)
 }
 
