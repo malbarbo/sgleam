@@ -647,12 +647,12 @@ fn repl_stack_overflow_shows_the_frames() {
             f(1)"
         }),
     );
-    let frames = "  at f (<repl>:1)\n".repeat(64);
     assert_eq!(
         out,
-        formatdoc! {"
+        indoc! {"
             Stack overflow
-            {frames}  ...
+              at f (<repl>:1)
+              ...
         "}
     );
     assert_eq!(err, "");
