@@ -52,6 +52,22 @@ function encodeString(exports: WasmExports, str: string): [number, number] {
   return [ptr, encoded.length];
 }
 
+// Calls `entry`, as `repl_new` or `run`, with `source` and `config`, and
+// frees both strings after it.
+function withSource(
+  exports: WasmExports,
+  source: string,
+  config: string,
+  entry: (code: number, codeLen: number, cfg: number, cfgLen: number) => number,
+): number {
+  const [codePtr, codeLen] = encodeString(exports, source);
+  const [cfgPtr, cfgLen] = encodeString(exports, config);
+  const result = entry(codePtr, codeLen, cfgPtr, cfgLen);
+  exports.string_deallocate(codePtr, codeLen);
+  exports.string_deallocate(cfgPtr, cfgLen);
+  return result;
+}
+
 function readCstr(exports: WasmExports, ptr: number): string {
   const buffer = new Uint8Array(exports.memory.buffer);
   let end = ptr;
@@ -155,12 +171,8 @@ async function newRepl(
   options: LoadOptions = {},
 ): Promise<ReplContext> {
   const ctx = await loadWasm(options);
-  const [codePtr, codeLen] = encodeString(ctx.exports, source);
   const config = options.bigint !== false ? "bigint=true" : "";
-  const [cfgPtr, cfgLen] = encodeString(ctx.exports, config);
-  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  ctx.exports.string_deallocate(codePtr, codeLen);
-  ctx.exports.string_deallocate(cfgPtr, cfgLen);
+  const repl = withSource(ctx.exports, source, config, ctx.exports.repl_new);
   return { ...ctx, repl };
 }
 
