@@ -8,7 +8,7 @@ pub struct Config {
 
 fn config_path() -> Option<PathBuf> {
     dirs::config_dir().map(|mut p| {
-        p.push("sgleam");
+        p.push(crate::NAME);
         p.push("config");
         p
     })

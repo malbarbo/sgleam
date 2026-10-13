@@ -12,7 +12,6 @@ use rustyline::{
     validate::{ValidationContext, ValidationResult, Validator},
 };
 
-const HISTORY_DIR: &str = "sgleam";
 const HISTORY_FILE: &str = "history";
 
 pub struct ReplReader {
@@ -147,7 +146,7 @@ fn take_pending(editor: &Editor<InputHelper, FileHistory>) -> String {
 
 fn history_path() -> Option<PathBuf> {
     dirs::data_dir().map(|mut p| {
-        p.push(HISTORY_DIR);
+        p.push(crate::NAME);
         let _ = std::fs::create_dir_all(&p);
         p.push(HISTORY_FILE);
         p

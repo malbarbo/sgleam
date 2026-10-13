@@ -8,6 +8,10 @@ compile_error!(
 mod config;
 mod repl_reader;
 
+/// The name of the program in its help and in its directories for data and
+/// config.
+const NAME: &str = env!("CARGO_PKG_NAME");
+
 use bpaf::{Bpaf, Parser};
 use camino::Utf8PathBuf;
 use engine::{
@@ -160,14 +164,14 @@ fn main() {
 
 /// Print what `parser` answers to `args`, which ask it for its help.
 fn show_help<T>(parser: bpaf::OptionParser<T>, args: &[&str]) {
-    if let Err(err) = parser.run_inner(bpaf::Args::from(args).set_name("sgleam")) {
+    if let Err(err) = parser.run_inner(bpaf::Args::from(args).set_name(NAME)) {
         err.print_message(80);
     }
 }
 
 fn run() -> Result<(), SgleamError> {
     // The name of the executable ends in .exe on Windows.
-    let args = bpaf::Args::current_args().set_name("sgleam");
+    let args = bpaf::Args::current_args().set_name(NAME);
     let command = match cli().run_inner(args) {
         Ok(command) => command,
         Err(err) => {
