@@ -443,11 +443,7 @@ Deno.test("error output contains ansi codes", async () => {
 Deno.test("load with errors returns null", async () => {
   const ctx = await loadWasm();
   const source = "pub fn f(x) { x + 1 }\npub fn g() { unknown }";
-  const [codePtr, codeLen] = encodeString(ctx.exports, source);
-  const [cfgPtr, cfgLen] = encodeString(ctx.exports, "");
-  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  ctx.exports.string_deallocate(codePtr, codeLen);
-  ctx.exports.string_deallocate(cfgPtr, cfgLen);
+  const repl = withSource(ctx.exports, source, "", ctx.exports.repl_new);
   assertEquals(repl, 0, "repl_new should return null for code with errors");
 });
 
@@ -473,11 +469,7 @@ pub fn add_examples() {
 }
 `;
   const ctx = await loadWasm();
-  const [codePtr, codeLen] = encodeString(ctx.exports, source);
-  const [cfgPtr, cfgLen] = encodeString(ctx.exports, "");
-  const repl = ctx.exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  ctx.exports.string_deallocate(codePtr, codeLen);
-  ctx.exports.string_deallocate(cfgPtr, cfgLen);
+  const repl = withSource(ctx.exports, source, "", ctx.exports.repl_new);
   assertEquals(repl !== 0, true);
   const stdout = ctx.stdout.join("");
   assertEquals(
@@ -912,12 +904,13 @@ Deno.test("pub on a line of its own", async () => {
 
 Deno.test("run prints the String of smain as it is", async () => {
   const ctx = await loadWasm();
-  const [codePtr, codeLen] = encodeString(
+  const source = 'pub fn smain() { "a\\nb" }';
+  const result = withSource(
     ctx.exports,
-    'pub fn smain() { "a\\nb" }',
+    source,
+    "bigint=true",
+    ctx.exports.run,
   );
-  const [cfgPtr, cfgLen] = encodeString(ctx.exports, "bigint=true");
-  const result = ctx.exports.run(codePtr, codeLen, cfgPtr, cfgLen);
   assertEquals(result, 0);
   assertEquals(ctx.stdout.join(""), "a\nb\n");
 });
