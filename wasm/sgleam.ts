@@ -348,7 +348,7 @@ function parseArgs(argv: string[]): ParsedArgs {
   let file: string | null = null;
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
-    if (arg === "-q") quiet = true;
+    if (arg === "-q" && command === "repl") quiet = true;
     else if (arg === "-n") number = true;
     else if (
       (arg === "-d" || arg === "--display") && command !== "check" &&
