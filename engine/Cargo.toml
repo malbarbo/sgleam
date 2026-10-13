@@ -25,6 +25,7 @@ rust-embed = { version = "8.7.2", features = ["debug-embed"] }
 # The header and the data URI of a bitmap, the measure of a text, and the
 # pixels of an image that image.same compares.
 sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false, features = ["pixmap"] }
+sourcemap = "9.3.2"
 tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"

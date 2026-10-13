@@ -1141,6 +1141,7 @@ dependencies = [
  "rquickjs",
  "rust-embed",
  "sinteract",
+ "sourcemap",
  "stacker",
  "tar",
  "termcolor",

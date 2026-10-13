@@ -1,5 +1,7 @@
+use camino::Utf8Path;
 use gleam_core::io::{FileSystemReader, memory::InMemoryFileSystem};
 use indoc::formatdoc;
+use sourcemap::SourceMap;
 
 use std::fmt::Write as _;
 
@@ -7,6 +9,7 @@ use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
     Promise, Result, Runtime, Value,
     context::EvalOptions,
+    convert::List,
     function::IntoJsFunc,
     loader::{ImportAttributes, Loader, Resolver},
     module::Declared,
@@ -81,12 +84,12 @@ fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
             (STACK_SIZE - 1024 * 1024) as _,
         );
     });
-    runtime.set_loader(FileResolver, ScriptLoader { fs });
+    runtime.set_loader(FileResolver, ScriptLoader { fs: fs.clone() });
     context
         .with(|ctx| {
             seed_bigint_flag(&ctx)?;
             add_console(&ctx)?;
-            add_sgleam(&ctx)
+            add_sgleam(&ctx, fs)
         })
         .map(|_| context)
 }
@@ -234,7 +237,7 @@ fn add_console(ctx: &Ctx) -> Result<()> {
     ctx.globals().set("console", console)
 }
 
-fn add_sgleam(ctx: &Ctx) -> Result<()> {
+fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
     let sgleam = Object::new(ctx.clone())?;
     set_fn(&sgleam, "getline", getline)?;
     set_fn(&sgleam, "sleep", sleep)?;
@@ -253,7 +256,32 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "image_to_svg", crate::scene::to_svg)?;
     set_fn(&sgleam, "path_box", crate::scene::path_box)?;
     set_fn(&sgleam, "same_pixels", crate::scene::same_pixels)?;
+    set_fn(&sgleam, "source_location", move |path, line, column| {
+        source_location(&fs, path, line, column).map(List)
+    })?;
     ctx.globals().set("sgleam", sgleam)
+}
+
+/// `sgleam.source_location` gives the Gleam file and line of a position in a
+/// generated module. The line and the column count from 1, as in a frame of
+/// a stack trace. The file is under the source root, as the file of a runtime
+/// error is. A module without a map, such as the prelude, gives nothing.
+fn source_location(
+    fs: &InMemoryFileSystem,
+    path: String,
+    line: u32,
+    column: u32,
+) -> Option<(String, u32)> {
+    let module = Utf8Path::new(&path)
+        .strip_prefix(Project::out())
+        .ok()?
+        .as_str()
+        .strip_suffix(".mjs")?;
+    let map = fs.read(format!("{path}.map").as_str().into()).ok()?;
+    let map = SourceMap::from_slice(map.as_bytes()).ok()?;
+    let token = map.lookup_token(line.checked_sub(1)?, column.checked_sub(1)?)?;
+    let file = Project::source_path(&format!("{module}.gleam"));
+    Some((file.into_string(), token.get_src_line() + 1))
 }
 
 /// Sets `name` on `object` to `f`, and names the function `name` as well. A
@@ -384,7 +412,8 @@ impl Loader for ScriptLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::resolve_path;
+    use super::{resolve_path, source_location};
+    use crate::gleam::Project;
 
     #[test]
     fn an_import_resolves_to_a_path_separated_with_slashes() {
@@ -401,5 +430,22 @@ mod tests {
         // A `..` does not climb above the root.
         assert_eq!(resolve("/build/b.mjs", "../../x.mjs"), "/x.mjs");
         assert_eq!(resolve_path("eval_script", "./b.mjs"), None);
+    }
+
+    #[test]
+    fn a_frame_gives_the_gleam_file_and_line() {
+        let mut project = Project::default();
+        project.write_source(
+            "sub/a.gleam",
+            "pub fn main() {\n  f()\n}\n\nfn f() {\n  1 + f()\n}\n",
+        );
+        project.compile(false).unwrap();
+        let at = |path: &str, line, column| source_location(&project.fs, path.into(), line, column);
+        // The `f()` in `return 1 + f();`, under the line of the map.
+        assert_eq!(
+            at("/build/sub/a.mjs", 3, 15),
+            Some(("src/sub/a.gleam".into(), 6))
+        );
+        assert_eq!(at("/build/prelude.mjs", 1, 1), None);
     }
 }
