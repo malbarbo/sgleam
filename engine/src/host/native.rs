@@ -99,10 +99,9 @@ fn backend(mode: DisplayMode) -> Option<Backend> {
 fn new_printer() -> Option<Printer> {
     match display_mode() {
         DisplayMode::None => None,
-        mode => match backend(mode) {
-            Some(backend) => Some(Printer::with_backend(backend)),
-            None => Printer::new().ok(),
-        },
+        mode => backend(mode)
+            .map(Printer::with_backend)
+            .or_else(|| Printer::new().ok()),
     }
 }
 
