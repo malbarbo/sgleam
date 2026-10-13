@@ -636,7 +636,8 @@ fn repl_input_stops_at_a_runtime_error() {
 ///
 /// Native only: `update_stack_limit` in quickjs.c leaves the limit at zero
 /// under `__wasi__`, so the wasm build never raises this itself. The recursion
-/// runs until the host stack is gone and the module traps, printing nothing.
+/// runs until the stack of the host is gone, and the host throws a RangeError
+/// out of the module.
 #[test]
 fn repl_stack_overflow_shows_the_frames() {
     let (out, err) = run_native(
