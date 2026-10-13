@@ -82,19 +82,13 @@ fn to_cstr(s: String) -> *mut std::ffi::c_char {
     }
 }
 
-fn parse_config_bigint(config: &str) -> bool {
-    config.split_whitespace().any(|entry| {
-        entry
-            .split_once('=')
-            .is_some_and(|(k, v)| k == "bigint" && v == "true")
-    })
-}
-
 /// Applies the config the page passed. Only `bigint=true` means anything, and
 /// it turns the bigints on.
 fn configure(ptr: *mut u8, len: usize) {
-    let config = new_string(ptr, len);
-    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
+    let bigint = new_string(ptr, len)
+        .split_whitespace()
+        .any(|entry| entry == "bigint=true");
+    gleam_core::javascript::set_bigint_enabled(bigint);
 }
 
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
