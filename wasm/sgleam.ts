@@ -192,18 +192,29 @@ async function runFormat(): Promise<number> {
   return 0;
 }
 
+// Calls `entry` with the source and the config in the memory of the wasm,
+// and frees both after it returns.
+function withSource(
+  exports: WasmExports,
+  source: string,
+  number: boolean,
+  entry: (code: number, codeLen: number, cfg: number, cfgLen: number) => number,
+): number {
+  const config = number ? "" : "bigint=true";
+  const [codePtr, codeLen] = encodeString(exports, source);
+  const [cfgPtr, cfgLen] = encodeString(exports, config);
+  const result = entry(codePtr, codeLen, cfgPtr, cfgLen);
+  exports.string_deallocate(codePtr, codeLen);
+  exports.string_deallocate(cfgPtr, cfgLen);
+  return result;
+}
+
 function newRepl(
   exports: WasmExports,
   source: string,
   number: boolean,
 ): number {
-  const config = number ? "" : "bigint=true";
-  const [codePtr, codeLen] = encodeString(exports, source);
-  const [cfgPtr, cfgLen] = encodeString(exports, config);
-  const repl = exports.repl_new(codePtr, codeLen, cfgPtr, cfgLen);
-  exports.string_deallocate(codePtr, codeLen);
-  exports.string_deallocate(cfgPtr, cfgLen);
-  return repl;
+  return withSource(exports, source, number, exports.repl_new);
 }
 
 function writeWelcome(exports: WasmExports) {
@@ -273,14 +284,7 @@ async function runFile(opts: {
     ["sgleam", "run", opts.file],
     stdin,
   );
-  const { exports } = ctx;
-  const config = opts.number ? "" : "bigint=true";
-  const [codePtr, codeLen] = encodeString(exports, source);
-  const [cfgPtr, cfgLen] = encodeString(exports, config);
-  const status = exports.run(codePtr, codeLen, cfgPtr, cfgLen);
-  exports.string_deallocate(codePtr, codeLen);
-  exports.string_deallocate(cfgPtr, cfgLen);
-  return status;
+  return withSource(ctx.exports, source, opts.number, ctx.exports.run);
 }
 
 // `test` and `check` need no export of their own: `repl_new` compiles, prints
