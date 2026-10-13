@@ -26,7 +26,8 @@ pub fn check_interrupt() -> bool {
     unsafe { ffi::check_interrupt() }
 }
 
-/// The page clears the request itself when the run starts.
+/// The page clears the request as a run starts, before it formats the code of
+/// a program, so a Stop pressed during the format still stops the program.
 pub fn clear_interrupt() {}
 
 /// The page ends the wait of `poll_oneoff` when the user presses Stop.
