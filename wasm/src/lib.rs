@@ -86,6 +86,13 @@ fn parse_config_bigint(config: &str) -> bool {
     })
 }
 
+/// Applies the config the page passed. Only `bigint=true` means anything, and
+/// it turns the bigints on.
+fn configure(ptr: *mut u8, len: usize) {
+    let config = new_string(ptr, len);
+    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
+}
+
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     Repl::new(Project::default(), None)
 }
@@ -110,9 +117,7 @@ pub unsafe extern "C" fn repl_new(
     init();
 
     let source = new_string(code_ptr, code_len);
-    let config = new_string(config_ptr, config_len);
-
-    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
+    configure(config_ptr, config_len);
 
     if source.trim().is_empty() {
         return leak_shell(default_repl());
@@ -158,9 +163,7 @@ pub unsafe extern "C" fn run(
     init();
 
     let source = new_string(code_ptr, code_len);
-    let config = new_string(config_ptr, config_len);
-
-    gleam_core::javascript::set_bigint_enabled(parse_config_bigint(&config));
+    configure(config_ptr, config_len);
 
     let mut project = Project::default();
     project.write_source("user.gleam", &source);
