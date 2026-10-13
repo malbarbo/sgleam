@@ -323,6 +323,16 @@ function unknownArg(arg: string): ParsedArgs {
 
 const DISPLAY_MODES = ["window", "kitty", "sixel", "blocks", "none"];
 
+// The mode written in the flag itself, as in `-dnone` or `--display=none`, or
+// `undefined` when the mode is the next argument. Returns `null` if `arg` is
+// not the display flag.
+function displayFlag(arg: string): string | undefined | null {
+  if (arg === "-d" || arg === "--display") return undefined;
+  if (arg.startsWith("--display=")) return arg.slice("--display=".length);
+  if (arg.startsWith("-d")) return arg.slice(2);
+  return null;
+}
+
 function parseArgs(argv: string[]): ParsedArgs {
   if (argv.length === 0) {
     return { command: "welcome", quiet: false, number: false, file: null };
@@ -351,12 +361,11 @@ function parseArgs(argv: string[]): ParsedArgs {
     if (arg === "-q" && command === "repl") quiet = true;
     else if (arg === "-n") number = true;
     else if (
-      (arg === "-d" || arg === "--display") && command !== "check" &&
-      command !== "format"
+      displayFlag(arg) !== null && command !== "check" && command !== "format"
     ) {
       // The wrapper has no display, so every mode shows what `none` shows.
-      const mode = rest[++i];
-      if (!DISPLAY_MODES.includes(mode)) return unknownArg(mode ?? arg);
+      const mode = displayFlag(arg) ?? rest[++i];
+      if (!DISPLAY_MODES.includes(mode)) return unknownArg(mode || arg);
     } else if (arg.startsWith("-")) return unknownArg(arg);
     else if (file === null) file = arg;
     else return unknownArg(arg);
