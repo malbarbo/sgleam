@@ -3,13 +3,13 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Stack overflow
-  at g (/build/main_stackoverflow_mutual.mjs:3:15)
-  at f (/build/main_stackoverflow_mutual.mjs:7:15)
-  at g (/build/main_stackoverflow_mutual.mjs:3:15)
-  at f (/build/main_stackoverflow_mutual.mjs:7:15)
-  at g (/build/main_stackoverflow_mutual.mjs:3:15)
-  at f (/build/main_stackoverflow_mutual.mjs:7:15)
-  at g (/build/main_stackoverflow_mutual.mjs:3:15)
-  at f (/build/main_stackoverflow_mutual.mjs:7:15)
+  at g (main_stackoverflow_mutual.gleam:10)
+  at f (main_stackoverflow_mutual.gleam:6)
+  at g (main_stackoverflow_mutual.gleam:10)
+  at f (main_stackoverflow_mutual.gleam:6)
+  at g (main_stackoverflow_mutual.gleam:10)
+  at f (main_stackoverflow_mutual.gleam:6)
+  at g (main_stackoverflow_mutual.gleam:10)
+  at f (main_stackoverflow_mutual.gleam:6)
   ...
 STDERR
