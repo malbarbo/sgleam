@@ -11,5 +11,14 @@ Stack overflow
   at floop (main_stackoverflow_stdlib.gleam:8)
   at floop (main_stackoverflow_stdlib.gleam:8)
   at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
+  at floop (main_stackoverflow_stdlib.gleam:8)
   ...
 STDERR

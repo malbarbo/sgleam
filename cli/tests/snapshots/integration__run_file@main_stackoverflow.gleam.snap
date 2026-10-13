@@ -11,5 +11,14 @@ Stack overflow
   at f (main_stackoverflow.gleam:6)
   at f (main_stackoverflow.gleam:6)
   at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
+  at f (main_stackoverflow.gleam:6)
   ...
 STDERR

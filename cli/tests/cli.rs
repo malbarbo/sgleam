@@ -647,7 +647,7 @@ fn repl_stack_overflow_shows_the_frames() {
             f(1)"
         }),
     );
-    let frames = "  at f (<repl>:1)\n".repeat(8);
+    let frames = "  at f (<repl>:1)\n".repeat(17);
     assert_eq!(
         out,
         formatdoc! {"

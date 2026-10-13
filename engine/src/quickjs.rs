@@ -88,6 +88,7 @@ fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
     context
         .with(|ctx| {
             seed_bigint_flag(&ctx)?;
+            raise_stack_trace_limit(&ctx)?;
             add_console(&ctx)?;
             add_sgleam(&ctx, fs)
         })
@@ -97,6 +98,14 @@ fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
 fn seed_bigint_flag(ctx: &Ctx) -> Result<()> {
     let flag = gleam_core::javascript::is_bigint_enabled();
     ctx.globals().set("__sgleam_bigint", flag)
+}
+
+/// A stack overflow shows the cycle of the recursion, and the 10 frames of
+/// the default hold only a short one. QuickJS keeps 64 frames at most.
+fn raise_stack_trace_limit(ctx: &Ctx) -> Result<()> {
+    ctx.globals()
+        .get::<_, Object>("Error")?
+        .set("stackTraceLimit", 64)
 }
 
 fn run_main(
