@@ -175,26 +175,24 @@ export function makeWasi(options: WasiOptions) {
       iovsLen: number,
       nwrittenPtr: number,
     ): number => {
-      if (fd === SESSION_OUT && options.session) {
-        let total = 0;
-        for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
-          options.session.write(new Uint8Array(buf(), ptr, len).slice());
-          total += len;
-        }
-        new DataView(buf()).setInt32(nwrittenPtr, total, true);
-        return WASI_ESUCCESS;
-      }
-      // A world writes to the session to open it, and the error tells it that
-      // there is none.
-      if (fd === SESSION_OUT) return WASI_EBADF;
-      if (fd !== STDOUT && fd !== STDERR) {
+      const session = options.session;
+      let write: (bytes: Uint8Array) => void;
+      if (fd === SESSION_OUT && session) {
+        write = (bytes) => session.write(bytes.slice());
+      } else if (fd === SESSION_OUT) {
+        // A world writes to the session to open it, and the error tells it
+        // that there is none.
+        return WASI_EBADF;
+      } else if (fd === STDOUT || fd === STDERR) {
+        write = (bytes) => options.write(fd, decoder.decode(bytes));
+      } else {
         console.error("fd_write: unsupported file descriptor:", fd);
         return WASI_EBADF;
       }
       try {
         let total = 0;
         for (const [ptr, len] of iovecs(iovsPtr, iovsLen)) {
-          options.write(fd, decoder.decode(new Uint8Array(buf(), ptr, len)));
+          write(new Uint8Array(buf(), ptr, len));
           total += len;
         }
         new DataView(buf()).setInt32(nwrittenPtr, total, true);
