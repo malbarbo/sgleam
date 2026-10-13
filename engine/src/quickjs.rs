@@ -272,6 +272,7 @@ fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
     // root, and the library takes this prefix off to show the path the user
     // gave.
     sgleam.set("source_prefix", format!("{}/", Project::source_path("")))?;
+    sgleam.set("repl_path", crate::repl::REPL_PATH)?;
     ctx.globals().set("sgleam", sgleam)
 }
 
