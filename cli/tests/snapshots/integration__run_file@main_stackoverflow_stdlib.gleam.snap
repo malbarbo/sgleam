@@ -3,13 +3,13 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Stack overflow
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
-  at floop (/build/main_stackoverflow_stdlib.mjs:5:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
+  at floop (/build/main_stackoverflow_stdlib.mjs:6:20)
   ...
 STDERR

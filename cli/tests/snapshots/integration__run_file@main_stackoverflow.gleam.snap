@@ -3,13 +3,13 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Stack overflow
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
-  at f (/build/main_stackoverflow.mjs:2:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
+  at f (/build/main_stackoverflow.mjs:3:15)
   ...
 STDERR
