@@ -19,6 +19,10 @@ use std::{
     sync::atomic::{AtomicBool, Ordering},
 };
 
+/// The module that holds the code of the page.
+const USER: &str = "user";
+const USER_FILE: &str = "user.gleam";
+
 static INIT: AtomicBool = AtomicBool::new(false);
 
 fn init() {
@@ -124,7 +128,7 @@ pub unsafe extern "C" fn repl_new(
     }
 
     let mut project = Project::default();
-    project.write_source("user.gleam", &source);
+    project.write_source(USER_FILE, &source);
     let modules = match project.compile(true) {
         Err(err) => {
             show_error(&error::SgleamError::Gleam(err));
@@ -132,11 +136,11 @@ pub unsafe extern "C" fn repl_new(
         }
         Ok(modules) => modules,
     };
-    let module = get_module(&modules, "user");
+    let module = get_module(&modules, USER);
     if module.map(has_examples).unwrap_or(false)
         && let Ok(engine) = QuickJsEngine::new(project.fs.clone())
     {
-        let _ = engine.run_tests(&["user"]);
+        let _ = engine.run_tests(&[USER]);
     }
     leak_shell(Repl::new(project, module))
 }
@@ -166,13 +170,13 @@ pub unsafe extern "C" fn run(
     configure(config_ptr, config_len);
 
     let mut project = Project::default();
-    project.write_source("user.gleam", &source);
+    project.write_source(USER_FILE, &source);
     let result = project
         .compile(false)
         .map_err(error::SgleamError::Gleam)
         .and_then(|modules| {
-            let module = get_module(&modules, "user").expect("the module of user.gleam");
-            run_module(&project, module, "user.gleam".into())
+            let module = get_module(&modules, USER).expect("the module of the page");
+            run_module(&project, module, USER_FILE.into())
         });
     match result {
         Ok(()) => 0,
