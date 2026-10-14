@@ -335,6 +335,15 @@ export function makeWasi(options: WasiOptions) {
       }
       return WASI_ESUCCESS;
     },
+    // Rust 1.95 asks for this import while initializing its WASI file
+    // descriptors. The test pipes are synchronous and need no flag change.
+    fd_fdstat_set_flags: (fd: number, _flags: number): number => {
+      if (
+        fd === 0 || fd === STDOUT || fd === STDERR ||
+        ((fd === SESSION_IN || fd === SESSION_OUT) && options.session)
+      ) return WASI_ESUCCESS;
+      return WASI_EBADF;
+    },
     args_sizes_get: (
       argcPtr: number,
       argvBufSizePtr: number,

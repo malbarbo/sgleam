@@ -221,6 +221,8 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
     set_fn(&sgleam, "wait_event", wait_event)?;
+    set_fn(&sgleam, "open_mworld", open_mworld)?;
+    set_fn(&sgleam, "wait_mworld_event", wait_mworld_event)?;
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
@@ -228,6 +230,11 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     #[cfg(not(target_arch = "wasm32"))]
     set_fn(&sgleam, "print_image", crate::scene::print_image)?;
     set_fn(&sgleam, "show_image", crate::scene::show_image)?;
+    set_fn(
+        &sgleam,
+        "show_player_image",
+        crate::scene::show_player_image,
+    )?;
     set_fn(&sgleam, "close_display", crate::host::close_frames)?;
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;
@@ -261,6 +268,23 @@ fn sleep(ctx: Ctx<'_>, ms: u64) -> Result<()> {
 /// does.
 fn wait_event(ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
     let event = host::wait_event(ms);
+    stop_on_interrupt(&ctx)?;
+    Ok(event)
+}
+
+fn open_mworld(
+    ctx: Ctx<'_>,
+    width: f32,
+    height: f32,
+    min_players: u32,
+    max_players: u32,
+) -> Result<Vec<String>> {
+    host::open_mworld(width, height, min_players, max_players)
+        .map_err(|error| Exception::throw_message(&ctx, &error))
+}
+
+fn wait_mworld_event(ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
+    let event = host::wait_mworld_event(ms);
     stop_on_interrupt(&ctx)?;
     Ok(event)
 }

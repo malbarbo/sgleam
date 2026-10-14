@@ -23,14 +23,16 @@ export class FakeRoom {
   /** The scenes of the frames that the room showed, in order. */
   readonly frames: Uint8Array[] = [];
   readonly #steps: Step[];
+  readonly #nickname: string;
   #room: Room | null = null;
   #toEngine: Uint8Array[] = [];
   #hungUp = false;
   #nextFrame = FRAME_MS;
   #callback: ((now: number) => void) | null = null;
 
-  constructor(steps: Step[] = []) {
+  constructor(steps: Step[] = [], nickname = "") {
     this.#steps = [...steps];
+    this.#nickname = nickname;
   }
 
   readonly pipe: SessionPipe = {
@@ -77,6 +79,7 @@ export class FakeRoom {
     this.#hungUp = false;
     const room = new Room({
       write: (bytes) => this.#toEngine.push(bytes.slice()),
+      nickname: this.#nickname,
       onError: (e) => {
         throw e;
       },

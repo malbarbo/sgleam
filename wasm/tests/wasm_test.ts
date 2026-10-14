@@ -96,6 +96,7 @@ interface LoadOptions {
   interruptAfter?: number;
   // What the player does in a world.
   steps?: Step[];
+  nickname?: string;
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
@@ -114,7 +115,7 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   // The engine reads the time through WASI, and a wait moves it on, so a
   // world runs its ticks without burning wall-clock time.
-  const room = new FakeRoom(options.steps);
+  const room = new FakeRoom(options.steps, options.nickname);
 
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
@@ -346,6 +347,26 @@ pub fn main() {
     echo frame as "frame"
     image.circle(10 + frame, stroke.red)
   })
+}
+`;
+
+const MULTIPLAYER_COUNTER = `import sgleam/fill
+import sgleam/image
+import sgleam/mworld
+
+pub fn main() {
+  mworld.create(0, min: 1, max: 1, to_image: draw)
+  |> mworld.on_pad_down(fn(count, player, input) {
+    echo #(mworld.player_index(player), mworld.player_nickname(player), input)
+    count + 1
+  })
+  |> mworld.stop_when(fn(count) { count == 1 })
+  |> mworld.run()
+}
+
+fn draw(count: Int, player: mworld.Player) -> image.Image {
+  echo #(mworld.player_index(player), mworld.player_nickname(player), count)
+  image.square(20 + count, fill.red)
 }
 `;
 
@@ -586,6 +607,28 @@ Deno.test("world.run shows its frames in a session", async () => {
   assertEquals(r.frames.length > 0, true, "expected frames from world.run");
   assertEquals(r.svgs.length, 0, "a world draws no svg");
   // check_interrupt fires here, so stderr says "Interrupted."
+  destroy(ctx);
+});
+
+Deno.test("mworld fixes the player and maps keys to pad input", async () => {
+  const ctx = await newRepl(MULTIPLAYER_COUNTER, {
+    interruptAfter: 200_000,
+    nickname: "Ana",
+    steps: [{ type: "down", key: "ArrowRight" }],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}`);
+  assertEquals(
+    r.stdout.includes('#(1, "Ana", Right)'),
+    true,
+    `expected the fixed player and pad input in:\n${r.stdout}`,
+  );
+  assertEquals(
+    r.stdout.includes('#(1, "Ana", 1)'),
+    true,
+    `expected the per-player final view in:\n${r.stdout}`,
+  );
+  assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 
