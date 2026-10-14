@@ -633,6 +633,11 @@ Deno.test("mworld fixes the player and maps keys to pad input", async () => {
     true,
     `expected the per-player final view in:\n${r.stdout}`,
   );
+  assertEquals(
+    r.stdout.includes('#(1, "", 0)'),
+    false,
+    `the drawing function received a provisional player:\n${r.stdout}`,
+  );
   assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });

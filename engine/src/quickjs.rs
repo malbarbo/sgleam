@@ -222,6 +222,7 @@ fn add_sgleam(ctx: &Ctx) -> Result<()> {
     set_fn(&sgleam, "now_ms", now_ms)?;
     set_fn(&sgleam, "wait_event", wait_event)?;
     set_fn(&sgleam, "open_mworld", open_mworld)?;
+    set_fn(&sgleam, "mworld_uses_session", host::mworld_uses_session)?;
     set_fn(&sgleam, "wait_mworld_event", wait_mworld_event)?;
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.

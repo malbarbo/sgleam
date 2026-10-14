@@ -133,15 +133,21 @@ pub fn on_pad_up(world: MultiWorld(a), handler: OnPad(a)) -> MultiWorld(a) {
 
 /// Runs one shared state and draws its current view for every fixed player.
 pub fn run(world: MultiWorld(a)) {
-  let preview_player = Player(1, "")
-  let preview = world.to_image(world.state, preview_player)
+  let preview = case mworld_uses_session(), world.min_players {
+    False, 1 -> Some(world.to_image(world.state, Player(1, "")))
+    _, _ -> None
+  }
+  let #(width, height) = case preview {
+    Some(preview) -> #(image.width(preview), image.height(preview))
+    None -> #(0, 0)
+  }
   let players =
-    open_mworld(preview, world.min_players, world.max_players)
+    open_mworld(width, height, world.min_players, world.max_players)
     |> players_from_start
   let world = MultiWorld(..world, players:)
-  case world.reuse_preview, players {
-    True, [player] -> show_player_image(player.index, preview)
-    _, _ -> show_players(world)
+  case world.reuse_preview, players, preview {
+    True, [player], Some(preview) -> show_player_image(player.index, preview)
+    _, _, _ -> show_players(world)
   }
   let period = ms_per_second / world.rate
   run_loop(world, system.now_ms() + period)
@@ -341,10 +347,14 @@ fn find_player(players: List(Player), index: Int) -> Option(Player) {
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "open_mworld")
 fn open_mworld(
-  preview: Image,
+  width: Int,
+  height: Int,
   min_players: Int,
   max_players: Int,
 ) -> List(String)
+
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "mworld_uses_session")
+fn mworld_uses_session() -> Bool
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "show_player_image")
 fn show_player_image(player: Int, image: Image) -> Nil

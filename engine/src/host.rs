@@ -79,6 +79,12 @@ pub fn open_mworld(
     MULTI_FRAMES.with_borrow_mut(|frames| frames.open(width, height, min_players, max_players))
 }
 
+/// Returns `true` if a multiplayer world uses the session of a server,
+/// `false` if it opens a display of this process.
+pub fn mworld_uses_session() -> bool {
+    cfg!(target_arch = "wasm32") || std::env::var_os(sinteract::session::SESSION_VAR).is_some()
+}
+
 /// Keeps the latest scene for one player until the next stage tick.
 pub fn show_player_scene(player: u32, scene: Scene) -> bool {
     MULTI_FRAMES.with_borrow_mut(|frames| frames.show(player, scene))
