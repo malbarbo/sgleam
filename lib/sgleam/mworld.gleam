@@ -19,11 +19,6 @@ pub fn player_nickname(player: Player) -> String {
   player.nickname
 }
 
-/// Whether two player values identify the same participant.
-pub fn same_player(first: Player, second: Player) -> Bool {
-  first.index == second.index
-}
-
 pub type Key {
   ArrowLeft
   ArrowRight
