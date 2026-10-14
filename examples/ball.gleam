@@ -2,6 +2,7 @@ import gleam/int
 import sgleam/check
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/world
 
 const width = 600
@@ -45,17 +46,17 @@ fn tick(ball: Ball) -> Ball {
   Ball(x, y, vx, vy)
 }
 
-fn on_key(ball: Ball, key: world.Key) -> Ball {
-  case key {
-    world.ArrowRight if ball.vx > 0 -> Ball(..ball, vx: ball.vx + 1)
-    world.ArrowRight -> Ball(..ball, vx: ball.vx - 1)
-    world.ArrowLeft if ball.vx > 0 -> Ball(..ball, vx: ball.vx - 1)
-    world.ArrowLeft -> Ball(..ball, vx: ball.vx + 1)
-    world.ArrowUp if ball.vy > 0 -> Ball(..ball, vy: ball.vy + 1)
-    world.ArrowUp -> Ball(..ball, vy: ball.vy - 1)
-    world.ArrowDown if ball.vy > 0 -> Ball(..ball, vy: ball.vy - 1)
-    world.ArrowDown -> Ball(..ball, vy: ball.vy + 1)
-    world.Char("r") -> init()
+fn on_key(ball: Ball, event: key.Event) -> Ball {
+  case event {
+    key.ArrowRight if ball.vx > 0 -> Ball(..ball, vx: ball.vx + 1)
+    key.ArrowRight -> Ball(..ball, vx: ball.vx - 1)
+    key.ArrowLeft if ball.vx > 0 -> Ball(..ball, vx: ball.vx - 1)
+    key.ArrowLeft -> Ball(..ball, vx: ball.vx + 1)
+    key.ArrowUp if ball.vy > 0 -> Ball(..ball, vy: ball.vy + 1)
+    key.ArrowUp -> Ball(..ball, vy: ball.vy - 1)
+    key.ArrowDown if ball.vy > 0 -> Ball(..ball, vy: ball.vy - 1)
+    key.ArrowDown -> Ball(..ball, vy: ball.vy + 1)
+    key.Char("r") -> init()
     _ -> ball
   }
 }

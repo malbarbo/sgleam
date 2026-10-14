@@ -206,6 +206,7 @@ const REPL_QUIT = 2;
 const MOVE_SQUARE = `import gleam/int
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/stroke
 import sgleam/style
 import sgleam/world
@@ -238,12 +239,12 @@ pub fn draw(p: Pos) -> image.Image {
   )
 }
 
-pub fn move(p: Pos, key: world.Key) -> Pos {
-  let p = case key {
-    world.ArrowLeft -> Pos(..p, column: p.column - 1)
-    world.ArrowRight -> Pos(..p, column: p.column + 1)
-    world.ArrowDown -> Pos(..p, line: p.line + 1)
-    world.ArrowUp -> Pos(..p, line: p.line - 1)
+pub fn move(p: Pos, event: key.Event) -> Pos {
+  let p = case event {
+    key.ArrowLeft -> Pos(..p, column: p.column - 1)
+    key.ArrowRight -> Pos(..p, column: p.column + 1)
+    key.ArrowDown -> Pos(..p, line: p.line + 1)
+    key.ArrowUp -> Pos(..p, line: p.line - 1)
     _ -> p
   }
   Pos(int.clamp(p.line, 0, lines - 1), int.clamp(p.column, 0, columns - 1))
@@ -253,6 +254,7 @@ pub fn move(p: Pos, key: world.Key) -> Pos {
 // A world with a handler for every kind of key event but keydown. What it
 // prints says which handler ran, and for which key.
 const KEY_HANDLERS = `import sgleam/image
+import sgleam/key
 import sgleam/stroke
 import sgleam/world
 
@@ -268,7 +270,7 @@ pub fn draw(_handled: Int) -> image.Image {
   image.circle(20, stroke.red)
 }
 
-fn handler(name: String) -> fn(Int, world.Key) -> Int {
+fn handler(name: String) -> fn(Int, key.Event) -> Int {
   fn(handled, key) {
     echo key as name
     handled + 1
@@ -353,15 +355,18 @@ pub fn main() {
 const MULTIPLAYER_COUNTER = `import sgleam/fill
 import sgleam/image
 import sgleam/mworld
+import sgleam/pad
 
 pub fn main() {
   mworld.create(0, min: 1, max: 1, to_image: draw)
-  |> mworld.on_pad_down(fn(count, player, input) {
-    echo #(mworld.player_index(player), mworld.player_nickname(player), input)
-    count + 1
-  })
+  |> mworld.on_pad_down(count_input)
   |> mworld.stop_when(fn(count) { count == 1 })
   |> mworld.run()
+}
+
+fn count_input(count: Int, player: mworld.Player, event: pad.Event) -> Int {
+  echo #(mworld.player_index(player), mworld.player_nickname(player), event)
+  count + 1
 }
 
 fn draw(count: Int, player: mworld.Player) -> image.Image {

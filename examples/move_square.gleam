@@ -1,6 +1,7 @@
 import gleam/int
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/stroke
 import sgleam/style
 import sgleam/world
@@ -35,12 +36,12 @@ pub fn draw(p: Pos) -> image.Image {
   )
 }
 
-pub fn move(p: Pos, key: world.Key) -> Pos {
-  let p = case key {
-    world.ArrowLeft -> Pos(..p, column: p.column - 1)
-    world.ArrowRight -> Pos(..p, column: p.column + 1)
-    world.ArrowDown -> Pos(..p, line: p.line + 1)
-    world.ArrowUp -> Pos(..p, line: p.line - 1)
+pub fn move(p: Pos, event: key.Event) -> Pos {
+  let p = case event {
+    key.ArrowLeft -> Pos(..p, column: p.column - 1)
+    key.ArrowRight -> Pos(..p, column: p.column + 1)
+    key.ArrowDown -> Pos(..p, line: p.line + 1)
+    key.ArrowUp -> Pos(..p, line: p.line - 1)
     _ -> p
   }
   Pos(int.clamp(p.line, 0, lines - 1), int.clamp(p.column, 0, columns - 1))

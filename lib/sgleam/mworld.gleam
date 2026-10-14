@@ -2,6 +2,8 @@ import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
 import sgleam/image.{type Image}
+import sgleam/key
+import sgleam/pad
 import sgleam/system
 
 /// A player fixed when the multiplayer world starts.
@@ -19,67 +21,6 @@ pub fn player_nickname(player: Player) -> String {
   player.nickname
 }
 
-pub type Key {
-  ArrowLeft
-  ArrowRight
-  ArrowUp
-  ArrowDown
-  PageUp
-  PageDown
-  Home
-  End
-  Backspace
-  Tab
-  Enter
-  Escape
-  Delete
-  Insert
-  F1
-  F2
-  F3
-  F4
-  F5
-  F6
-  F7
-  F8
-  F9
-  F10
-  F11
-  F12
-  CapsLock
-  NumLock
-  ScrollLock
-  PrintScreen
-  Pause
-  Shift
-  Control
-  Alt
-  Meta
-  Char(String)
-}
-
-/// A direction or action of the six-button teaching-game pad.
-pub type PadInput {
-  Up
-  Down
-  Left
-  Right
-  ActionA
-  ActionB
-}
-
-pub const up = Up
-
-pub const down = Down
-
-pub const left = Left
-
-pub const right = Right
-
-pub const action_a = ActionA
-
-pub const action_b = ActionB
-
 pub type ToImage(a) =
   fn(a, Player) -> Image
 
@@ -90,10 +31,10 @@ pub type StopWhen(a) =
   fn(a) -> Bool
 
 pub type OnKey(a) =
-  fn(a, Player, Key) -> a
+  fn(a, Player, key.Event) -> a
 
 pub type OnPad(a) =
-  fn(a, Player, PadInput) -> a
+  fn(a, Player, pad.Event) -> a
 
 const min_tick_rate = 1
 
@@ -208,11 +149,11 @@ pub fn run(world: MultiWorld(a)) {
 }
 
 type RuntimeEvent {
-  KeyPress(Player, Key)
-  KeyDown(Player, Key)
-  KeyUp(Player, Key)
-  PadDown(Player, PadInput)
-  PadUp(Player, PadInput)
+  KeyPress(Player, key.Event)
+  KeyDown(Player, key.Event)
+  KeyUp(Player, key.Event)
+  PadDown(Player, pad.Event)
+  PadUp(Player, pad.Event)
   NoEvent
 }
 
@@ -302,14 +243,14 @@ fn apply_event(
 fn apply_key_or_pad_handler(
   world: MultiWorld(a),
   player: Player,
-  key: Key,
+  event: key.Event,
   key_handler: Option(OnKey(a)),
   pad_handler: Option(OnPad(a)),
 ) -> #(MultiWorld(a), Bool) {
-  case pad_input_from_key(key), pad_handler {
+  case pad.from_key(event), pad_handler {
     Some(input), Some(handler) ->
       apply_player_handler(world, player, input, Some(handler))
-    _, _ -> apply_player_handler(world, player, key, key_handler)
+    _, _ -> apply_player_handler(world, player, event, key_handler)
   }
 }
 
@@ -352,11 +293,11 @@ fn players_from_start(values: List(String)) -> List(Player) {
 fn runtime_event(players: List(Player), event: List(String)) -> RuntimeEvent {
   case event {
     ["keypress", player, key, ..] ->
-      player_input(players, player, key_from_string(key), KeyPress)
+      player_input(players, player, key.from_string(key), KeyPress)
     ["keydown", player, key, ..] ->
-      player_input(players, player, key_from_string(key), KeyDown)
+      player_input(players, player, key.from_string(key), KeyDown)
     ["keyup", player, key, ..] ->
-      player_input(players, player, key_from_string(key), KeyUp)
+      player_input(players, player, key.from_string(key), KeyUp)
     ["paddown", player, input] -> pad_event(players, player, input, PadDown)
     ["padup", player, input] -> pad_event(players, player, input, PadUp)
     _ -> NoEvent
@@ -383,9 +324,9 @@ fn pad_event(
   players: List(Player),
   player: String,
   input: String,
-  event: fn(Player, PadInput) -> RuntimeEvent,
+  event: fn(Player, pad.Event) -> RuntimeEvent,
 ) -> RuntimeEvent {
-  case pad_input_from_string(input) {
+  case pad.from_string(input) {
     Some(input) -> player_input(players, player, input, event)
     None -> NoEvent
   }
@@ -395,74 +336,6 @@ fn find_player(players: List(Player), index: Int) -> Option(Player) {
   case list.find(players, fn(player) { player.index == index }) {
     Ok(player) -> Some(player)
     Error(_) -> None
-  }
-}
-
-@internal
-pub fn pad_input_from_string(input: String) -> Option(PadInput) {
-  case input {
-    "Up" -> Some(Up)
-    "Down" -> Some(Down)
-    "Left" -> Some(Left)
-    "Right" -> Some(Right)
-    "ActionA" -> Some(ActionA)
-    "ActionB" -> Some(ActionB)
-    _ -> None
-  }
-}
-
-@internal
-pub fn pad_input_from_key(key: Key) -> Option(PadInput) {
-  case key {
-    ArrowUp | Char("w") | Char("W") -> Some(Up)
-    ArrowDown | Char("s") | Char("S") -> Some(Down)
-    ArrowLeft | Char("a") | Char("A") -> Some(Left)
-    ArrowRight | Char("d") | Char("D") -> Some(Right)
-    Char("z") | Char("Z") | Char("k") | Char("K") -> Some(ActionA)
-    Char("x") | Char("X") | Char("l") | Char("L") -> Some(ActionB)
-    _ -> None
-  }
-}
-
-@internal
-pub fn key_from_string(key: String) -> Key {
-  case key {
-    "ArrowLeft" -> ArrowLeft
-    "ArrowRight" -> ArrowRight
-    "ArrowUp" -> ArrowUp
-    "ArrowDown" -> ArrowDown
-    "PageUp" -> PageUp
-    "PageDown" -> PageDown
-    "Home" -> Home
-    "End" -> End
-    "Backspace" -> Backspace
-    "Tab" -> Tab
-    "Enter" -> Enter
-    "Escape" -> Escape
-    "Delete" -> Delete
-    "Insert" -> Insert
-    "F1" -> F1
-    "F2" -> F2
-    "F3" -> F3
-    "F4" -> F4
-    "F5" -> F5
-    "F6" -> F6
-    "F7" -> F7
-    "F8" -> F8
-    "F9" -> F9
-    "F10" -> F10
-    "F11" -> F11
-    "F12" -> F12
-    "CapsLock" -> CapsLock
-    "NumLock" -> NumLock
-    "ScrollLock" -> ScrollLock
-    "PrintScreen" -> PrintScreen
-    "Pause" -> Pause
-    "Shift" -> Shift
-    "Control" -> Control
-    "Alt" -> Alt
-    "Meta" -> Meta
-    other -> Char(other)
   }
 }
 

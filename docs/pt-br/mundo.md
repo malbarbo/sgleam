@@ -3,8 +3,10 @@
 O módulo `sgleam/world`{.gleam} permite criar animações e programas interativos usando o padrão "mundo" (big-bang): um estado é transformado em uma imagem, e eventos do usuário produzem um novo estado.
 
 ```gleam
-import sgleam/world
 import sgleam/image
+import sgleam/key
+import sgleam/pad
+import sgleam/world
 ```
 
 
@@ -63,6 +65,7 @@ A função recebe o número do quadro (iniciando em 0) e retorna a imagem a ser 
 import gleam/int
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/world
 
 const width = 600
@@ -99,9 +102,9 @@ fn tick(ball: Ball) -> Ball {
   Ball(x, y, vx, vy)
 }
 
-fn on_key(ball: Ball, key: world.Key) -> Ball {
-  case key {
-    world.Char("r") -> Ball(100, 100, 3, 4)
+fn on_key(ball: Ball, event: key.Event) -> Ball {
+  case event {
+    key.Char("r") -> Ball(100, 100, 3, 4)
     _ -> ball
   }
 }
@@ -142,25 +145,25 @@ Define a condição de parada.
 ### Eventos de teclado
 
 ```gleam
-world.on_key_press(world, fn(a, Key) -> a)
+world.on_key_press(world, fn(a, key.Event) -> a)
 ```
 Tecla digitada (caractere).
 
 ```gleam
-world.on_key_down(world, fn(a, Key) -> a)
+world.on_key_down(world, fn(a, key.Event) -> a)
 ```
 Tecla pressionada.
 
 ```gleam
-world.on_key_up(world, fn(a, Key) -> a)
+world.on_key_up(world, fn(a, key.Event) -> a)
 ```
 Tecla solta.
 
 ### Eventos de controle
 
 ```gleam
-world.on_pad_down(world, fn(a, PadInput) -> a)
-world.on_pad_up(world, fn(a, PadInput) -> a)
+world.on_pad_down(world, fn(a, pad.Event) -> a)
+world.on_pad_up(world, fn(a, pad.Event) -> a)
 ```
 
 O controle didático possui `Up`, `Down`, `Left`, `Right`, `ActionA` e
@@ -178,17 +181,18 @@ Inicia o programa interativo.
 
 ### Teclas
 
-As teclas são representadas pelo tipo `world.Key`{.gleam}:
+As teclas são representadas pelo tipo `key.Event`{.gleam}. Importe
+`sgleam/key` e qualifique seus construtores como abaixo:
 
 | Tecla | Valor |
 |-------|-------|
-| Setas | `ArrowLeft`{.gleam}, `ArrowRight`{.gleam}, `ArrowUp`{.gleam}, `ArrowDown`{.gleam} |
-| Enter | `Enter`{.gleam} |
-| Espaço | `Char(" ")`{.gleam} |
-| Escape | `Escape`{.gleam} |
-| Letras/números | `Char("a")`{.gleam}, `Char("1")`{.gleam}, etc. |
-| Funções | `F1`{.gleam} a `F12`{.gleam} |
-| Outros | `Backspace`{.gleam}, `Tab`{.gleam}, `Delete`{.gleam}, `Home`{.gleam}, `End`{.gleam}, `PageUp`{.gleam}, `PageDown`{.gleam} |
+| Setas | `key.ArrowLeft`{.gleam}, `key.ArrowRight`{.gleam}, `key.ArrowUp`{.gleam}, `key.ArrowDown`{.gleam} |
+| Enter | `key.Enter`{.gleam} |
+| Espaço | `key.Char(" ")`{.gleam} |
+| Escape | `key.Escape`{.gleam} |
+| Letras/números | `key.Char("a")`{.gleam}, `key.Char("1")`{.gleam}, etc. |
+| Funções | `key.F1`{.gleam} a `key.F12`{.gleam} |
+| Outros | `key.Backspace`{.gleam}, `key.Tab`{.gleam}, `key.Delete`{.gleam}, `key.Home`{.gleam}, `key.End`{.gleam}, `key.PageUp`{.gleam}, `key.PageDown`{.gleam} |
 
 
 ## Mundos multijogador
@@ -201,7 +205,9 @@ de desenho recebe cada jogador por vez e pode produzir uma imagem diferente
 para cada um.
 
 ```gleam
+import sgleam/key
 import sgleam/mworld
+import sgleam/pad
 
 mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
 |> mworld.on_tick(tick)
@@ -212,8 +218,8 @@ mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
 Os handlers multijogador têm as seguintes formas:
 
 ```gleam
-fn(a, mworld.Player, mworld.Key) -> a
-fn(a, mworld.Player, mworld.PadInput) -> a
+fn(a, mworld.Player, key.Event) -> a
+fn(a, mworld.Player, pad.Event) -> a
 ```
 
 Use `mworld.player_index(player)` para obter a posição iniciada em 1 e
