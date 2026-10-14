@@ -156,6 +156,18 @@ world.on_key_up(world, fn(a, Key) -> a)
 ```
 Key released.
 
+### Pad events
+
+```gleam
+world.on_pad_down(world, fn(a, PadInput) -> a)
+world.on_pad_up(world, fn(a, PadInput) -> a)
+```
+
+The teaching pad has `Up`, `Down`, `Left`, `Right`, `ActionA`, and `ActionB`.
+Arrow keys and WASD act as its directions, Z/K as `ActionA`, and X/L as
+`ActionB`. When a pad handler is set, a mapped key goes to that handler;
+otherwise it remains available to the corresponding key handler.
+
 ### Execution
 
 ```gleam
@@ -176,3 +188,34 @@ Keys are represented by the `world.Key`{.gleam} type:
 | Letters/numbers | `Char("a")`{.gleam}, `Char("1")`{.gleam}, etc. |
 | Function keys | `F1`{.gleam} to `F12`{.gleam} |
 | Others | `Backspace`{.gleam}, `Tab`{.gleam}, `Delete`{.gleam}, `Home`{.gleam}, `End`{.gleam}, `PageUp`{.gleam}, `PageDown`{.gleam} |
+
+
+## Multiplayer worlds
+
+The `sgleam/mworld` module runs one shared state for a fixed group of players.
+The room chooses the players before the first frame, and they keep the same
+one-based indices until the match ends. Input handlers receive the player who
+sent the event, while the drawing function receives each player in turn and
+may return a different image for each one.
+
+```gleam
+import sgleam/mworld
+
+mworld.create(initial_state, min: 2, max: 4, to_image: draw)
+|> mworld.on_tick(tick)
+|> mworld.on_pad_down(move)
+|> mworld.run()
+```
+
+The multiplayer handlers have these shapes:
+
+```gleam
+fn(a, mworld.Player, mworld.Key) -> a
+fn(a, mworld.Player, mworld.PadInput) -> a
+```
+
+Use `mworld.player_index(player)` for the one-based position and
+`mworld.player_nickname(player)` for the nickname selected by the room.
+`mworld.tick_rate`, `mworld.on_tick`, `mworld.stop_when`, and the keyboard and
+pad handlers otherwise follow the `world` API. A `world.World` is implemented
+as an `mworld.MultiWorld` whose minimum and maximum player counts are both 1.

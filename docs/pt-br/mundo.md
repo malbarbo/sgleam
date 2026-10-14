@@ -156,6 +156,19 @@ world.on_key_up(world, fn(a, Key) -> a)
 ```
 Tecla solta.
 
+### Eventos de controle
+
+```gleam
+world.on_pad_down(world, fn(a, PadInput) -> a)
+world.on_pad_up(world, fn(a, PadInput) -> a)
+```
+
+O controle didático possui `Up`, `Down`, `Left`, `Right`, `ActionA` e
+`ActionB`. As setas e WASD funcionam como direções, Z/K como `ActionA` e X/L
+como `ActionB`. Quando existe um handler de controle, uma tecla mapeada é
+enviada para ele; caso contrário, continua disponível para o handler de
+teclado correspondente.
+
 ### Execução
 
 ```gleam
@@ -176,3 +189,36 @@ As teclas são representadas pelo tipo `world.Key`{.gleam}:
 | Letras/números | `Char("a")`{.gleam}, `Char("1")`{.gleam}, etc. |
 | Funções | `F1`{.gleam} a `F12`{.gleam} |
 | Outros | `Backspace`{.gleam}, `Tab`{.gleam}, `Delete`{.gleam}, `Home`{.gleam}, `End`{.gleam}, `PageUp`{.gleam}, `PageDown`{.gleam} |
+
+
+## Mundos multijogador
+
+O módulo `sgleam/mworld` executa um único estado compartilhado para um grupo
+fixo de jogadores. A sala escolhe os jogadores antes do primeiro quadro, e
+eles mantêm os mesmos índices, iniciados em 1, até o fim da partida. Os
+handlers de entrada recebem o jogador que enviou o evento, enquanto a função
+de desenho recebe cada jogador por vez e pode produzir uma imagem diferente
+para cada um.
+
+```gleam
+import sgleam/mworld
+
+mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
+|> mworld.on_tick(tick)
+|> mworld.on_pad_down(mover)
+|> mworld.run()
+```
+
+Os handlers multijogador têm as seguintes formas:
+
+```gleam
+fn(a, mworld.Player, mworld.Key) -> a
+fn(a, mworld.Player, mworld.PadInput) -> a
+```
+
+Use `mworld.player_index(player)` para obter a posição iniciada em 1 e
+`mworld.player_nickname(player)` para obter o apelido escolhido pela sala.
+`mworld.tick_rate`, `mworld.on_tick`, `mworld.stop_when` e os handlers de
+teclado e controle seguem o restante da API de `world`. Um `world.World` é
+implementado como um `mworld.MultiWorld` cujo mínimo e máximo de jogadores são
+ambos 1.
