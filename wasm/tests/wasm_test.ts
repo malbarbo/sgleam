@@ -684,7 +684,7 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
   // The last line is the repl echoing what main() gave back.
   assertEquals(
     r.stdout,
-    'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\nNil\n',
+    'user.gleam:20 press\nChar("a")\nuser.gleam:20 up\nEnter\nNil\n',
   );
   // The first state and one per handled event.
   assertEquals(r.frames.length, 3, `stderr:\n${r.stderr}`);
@@ -697,7 +697,7 @@ Deno.test("a close ends world.run", async () => {
     steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
-  assertEquals(r.stdout, 'user.gleam:19 press\nChar("a")\nNil\n');
+  assertEquals(r.stdout, 'user.gleam:20 press\nChar("a")\nNil\n');
   destroy(ctx);
 });
 
