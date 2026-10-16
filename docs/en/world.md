@@ -131,6 +131,8 @@ Creates an animation (receives the frame number).
 world.tick_rate(world, rate)
 ```
 Sets the on_tick call frequency (1 to 100 per second, default 28).
+Each call represents a fixed step of `1 / rate` second. This logical clock is
+independent of the rate at which the display presents images.
 
 ```gleam
 world.on_tick(world, fn(a) -> a)

@@ -131,6 +131,8 @@ Cria uma animação (recebe o número do quadro).
 world.tick_rate(world, rate)
 ```
 Define a frequência de chamada de on_tick (1 a 100 por segundo, padrão 28).
+Cada chamada representa um passo fixo de `1 / rate` segundo. Esse relógio
+lógico independe da frequência com que a tela apresenta as imagens.
 
 ```gleam
 world.on_tick(world, fn(a) -> a)
