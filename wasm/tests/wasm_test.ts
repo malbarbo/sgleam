@@ -375,6 +375,23 @@ fn draw(count: Int, player: mworld.Player) -> image.Image {
 }
 `;
 
+const MULTIPLAYER_TICKS = `import sgleam/fill
+import sgleam/image
+import sgleam/mworld
+
+pub fn main() {
+  mworld.create(0, min: 1, max: 1, to_image: draw)
+  |> mworld.tick_rate(60)
+  |> mworld.on_tick(fn(ticks) { ticks + 1 })
+  |> mworld.stop_when(fn(ticks) { ticks == 60 })
+  |> mworld.run()
+}
+
+fn draw(ticks: Int, _player: mworld.Player) -> image.Image {
+  image.square(20 + ticks, fill.red)
+}
+`;
+
 // --- Tests ---
 
 Deno.test("version returns non-empty string", async () => {
@@ -639,6 +656,16 @@ Deno.test("mworld fixes the player and maps keys to pad input", async () => {
     `the drawing function received a provisional player:\n${r.stdout}`,
   );
   assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("mworld keeps fractional tick periods", async () => {
+  const ctx = await newRepl(MULTIPLAYER_TICKS, {
+    interruptAfter: 200_000,
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}`);
+  assertEquals(ctx.room.ms, 1_000n);
   destroy(ctx);
 });
 

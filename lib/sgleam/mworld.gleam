@@ -46,6 +46,10 @@ const ms_per_second = 1000
 
 const max_player_count = 1024
 
+type TickClock {
+  TickClock(deadline: Int, remainder: Int)
+}
+
 pub opaque type MultiWorld(a) {
   MultiWorld(
     state: a,
@@ -149,8 +153,7 @@ pub fn run(world: MultiWorld(a)) {
     True, [player], Some(preview) -> show_player_image(player.index, preview)
     _, _, _ -> show_players(world)
   }
-  let period = ms_per_second / world.rate
-  run_loop(world, system.now_ms() + period)
+  run_loop(world, start_tick_clock(system.now_ms(), world.rate))
   close_display()
 }
 
@@ -163,16 +166,16 @@ type RuntimeEvent {
   NoEvent
 }
 
-fn run_loop(world: MultiWorld(a), next_tick_at: Int) -> Nil {
+fn run_loop(world: MultiWorld(a), clock: TickClock) -> Nil {
   case world.stop_when |> option.map(fn(stop) { stop(world.state) }) {
     Some(True) -> Nil
     _ ->
-      case wait_mworld_event(int.max(next_tick_at - system.now_ms(), 0)) {
+      case wait_mworld_event(int.max(clock.deadline - system.now_ms(), 0)) {
         ["close"] -> Nil
         event -> {
-          let #(world, next_tick_at) =
-            turn(world, runtime_event(world.players, event), next_tick_at)
-          run_loop(world, next_tick_at)
+          let #(world, clock) =
+            turn(world, runtime_event(world.players, event), clock)
+          run_loop(world, clock)
         }
       }
   }
@@ -183,10 +186,10 @@ fn run_loop(world: MultiWorld(a), next_tick_at: Int) -> Nil {
 fn turn(
   world: MultiWorld(a),
   event: RuntimeEvent,
-  next_tick_at: Int,
-) -> #(MultiWorld(a), Int) {
+  clock: TickClock,
+) -> #(MultiWorld(a), TickClock) {
   let now = system.now_ms()
-  let #(world, ticked, next_tick_at) = case now >= next_tick_at {
+  let #(world, ticked, clock) = case now >= clock.deadline {
     True -> {
       let #(world, ticked) = case world.on_tick {
         Some(on_tick) -> #(
@@ -195,24 +198,33 @@ fn turn(
         )
         None -> #(world, False)
       }
-      // Schedule from the deadline to absorb minor overruns without drift.
-      // A large overrun snaps ahead instead of spending turns catching up.
-      let period = ms_per_second / world.rate
-      let bumped = next_tick_at + period
-      let next = case bumped <= now {
-        True -> now + period
+      let bumped = advance_tick_clock(clock, world.rate)
+      let clock = case bumped.deadline <= now {
+        True -> start_tick_clock(now, world.rate)
         False -> bumped
       }
-      #(world, ticked, next)
+      #(world, ticked, clock)
     }
-    False -> #(world, False, next_tick_at)
+    False -> #(world, False, clock)
   }
   let #(world, handled) = apply_event(world, event)
   case ticked || handled {
     True -> show_players(world)
     False -> Nil
   }
-  #(world, next_tick_at)
+  #(world, clock)
+}
+
+fn start_tick_clock(now: Int, rate: Int) -> TickClock {
+  advance_tick_clock(TickClock(deadline: now, remainder: 0), rate)
+}
+
+fn advance_tick_clock(clock: TickClock, rate: Int) -> TickClock {
+  let remainder = clock.remainder + ms_per_second % rate
+  TickClock(
+    deadline: clock.deadline + ms_per_second / rate + remainder / rate,
+    remainder: remainder % rate,
+  )
 }
 
 fn apply_event(
