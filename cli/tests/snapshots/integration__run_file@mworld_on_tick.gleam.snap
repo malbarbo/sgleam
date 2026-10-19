@@ -1,0 +1,15 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Image
+mworld_on_tick.gleam:10 tick
+1
+Image
+mworld_on_tick.gleam:10 tick
+2
+Image
+mworld_on_tick.gleam:10 tick
+3
+Image
+STDERR

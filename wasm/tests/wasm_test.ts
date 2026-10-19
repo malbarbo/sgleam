@@ -370,7 +370,6 @@ pub fn main() {
   mworld.create(0, min: 1, max: 1, to_image: draw)
   |> mworld.on_pad_down(count_input)
   |> mworld.stop_when(fn(count) { count == 1 })
-  |> mworld.run()
 }
 
 fn count_input(count: Int, player: mworld.Player, event: pad.Event) -> Int {
@@ -393,7 +392,6 @@ pub fn main() {
   |> mworld.tick_rate(60)
   |> mworld.on_tick(fn(ticks) { ticks + 1 })
   |> mworld.stop_when(fn(ticks) { ticks == 60 })
-  |> mworld.run()
 }
 
 fn draw(ticks: Int, _player: mworld.Player) -> image.Image {
