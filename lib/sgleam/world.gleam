@@ -153,7 +153,16 @@ pub fn on_key_up(world: World(a), handler: OnKey(a)) -> World(a) {
   World(..world, on_key_up: Some(handler))
 }
 
-pub fn run(world: World(a)) {
+/// A world, so the FFI can take the class of a world from it. The
+/// constructor of an opaque type stays out of the exports of the module.
+@internal
+pub fn variant() -> World(Nil) {
+  create(Nil, fn(_) { image.empty })
+}
+
+/// Runs `world`. The repl and `smain` call it for a world they return.
+@internal
+pub fn run(world: World(a)) -> Nil {
   show(world)
   let period = ms_per_second / world.rate
   run_loop(world, system.now_ms() + period)
