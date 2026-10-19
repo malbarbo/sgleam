@@ -135,7 +135,16 @@ pub fn on_pad_up(world: MultiWorld(a), handler: OnPad(a)) -> MultiWorld(a) {
   MultiWorld(..world, on_pad_up: Some(handler))
 }
 
+/// A world, so the FFI can take the class of a world from it. The
+/// constructor of an opaque type stays out of the exports of the module.
+@internal
+pub fn variant() -> MultiWorld(Nil) {
+  create(Nil, min: 1, max: 1, to_image: fn(_, _) { image.empty })
+}
+
 /// Runs one shared state and draws its current view for every fixed player.
+/// The repl and `smain` call it for a world they return.
+@internal
 pub fn run(world: MultiWorld(a)) {
   let preview = case mworld_uses_session(), world.min_players {
     False, 1 -> Some(world.to_image(world.state, Player(1, "")))
