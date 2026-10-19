@@ -58,6 +58,19 @@ pub fn show_image<'js>(image: Object<'js>, width: f64, height: f64) -> Result<bo
     Ok(crate::host::show_scene(to_scene(&image, width, height)?))
 }
 
+/// Keeps `image` as the next frame of one player of a multiplayer world.
+pub fn show_player_image<'js>(
+    player: u32,
+    image: Object<'js>,
+    width: f64,
+    height: f64,
+) -> Result<bool> {
+    Ok(crate::host::show_player_scene(
+        player,
+        to_scene(&image, width, height)?,
+    ))
+}
+
 /// `image` drawn on a canvas of `width` by `height`.
 fn to_scene(image: &Object, width: f64, height: f64) -> Result<Scene> {
     let mut scene = Scene::new(width as f32, height as f32);

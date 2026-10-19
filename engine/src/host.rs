@@ -10,8 +10,12 @@ use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
 use sinteract::display::{FrameEvent, Frames};
-use sinteract::event::{KeyEvent, KeyKind};
+use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
+
+use self::mworld::{MultiFrameEvent, MultiFrames};
+
+mod mworld;
 
 /// Makes the world ready to answer. An engine calls it as it is built. The
 /// first call does the work and a later one gives back its result.
@@ -58,6 +62,7 @@ mod target;
 
 thread_local! {
     static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", target::stage_options));
+    static MULTI_FRAMES: RefCell<MultiFrames> = RefCell::new(MultiFrames::new("sgleam", target::stage_options));
 }
 
 /// Shows a frame of a world, in a window or the terminal, or in a session of
@@ -68,6 +73,28 @@ pub fn show_scene(scene: Scene) -> bool {
     FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
 }
 
+/// Opens the stage of a multiplayer world and returns alternating player
+/// numbers and nicknames from its fixed start.
+pub fn open_mworld(
+    width: f32,
+    height: f32,
+    min_players: u32,
+    max_players: u32,
+) -> Result<Vec<String>, String> {
+    MULTI_FRAMES.with_borrow_mut(|frames| frames.open(width, height, min_players, max_players))
+}
+
+/// Returns `true` if a multiplayer world uses the session of a server,
+/// `false` if it opens a display of this process.
+pub fn mworld_uses_session() -> bool {
+    cfg!(target_arch = "wasm32") || std::env::var_os(sinteract::session::SESSION_VAR).is_some()
+}
+
+/// Keeps the latest scene for one player until the next stage tick.
+pub fn show_player_scene(player: u32, scene: Scene) -> bool {
+    MULTI_FRAMES.with_borrow_mut(|frames| frames.show(player, scene))
+}
+
 /// Closes the display of the frames, so the world that comes next opens its
 /// own. A window goes away, and the terminal keeps the last frame on screen.
 pub fn close_frames() {
@@ -76,13 +103,18 @@ pub fn close_frames() {
     for line in FRAMES.with_borrow_mut(Frames::close) {
         println!("{line}");
     }
+    for line in MULTI_FRAMES.with_borrow_mut(MultiFrames::close) {
+        println!("{line}");
+    }
 }
 
 /// `console.log` prints a line, and so does `echo`. While the terminal shows
 /// the frames of a world, the line shows under the frame and prints when the
 /// frames close.
 pub fn print_line(line: &str) {
-    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
+    if !MULTI_FRAMES.with_borrow_mut(|frames| frames.print_line(line))
+        && !FRAMES.with_borrow_mut(|frames| frames.print_line(line))
+    {
         println!("{line}");
     }
 }
@@ -111,6 +143,67 @@ pub fn wait_event(ms: u64) -> Vec<String> {
             }
         }
     })
+}
+
+/// Waits for an input of a fixed player, for the session to close, or for
+/// `ms` milliseconds. Display ticks send the latest frame of every player.
+pub fn wait_mworld_event(ms: u64) -> Vec<String> {
+    if !MULTI_FRAMES.with_borrow(MultiFrames::is_open) {
+        sleep(ms);
+        return vec![];
+    }
+    let end = Instant::now() + Duration::from_millis(ms);
+    loop {
+        let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
+        let event = MULTI_FRAMES.with_borrow_mut(|frames| {
+            frames.wait_event(deadline, |error| tracing::warn!("{error}"))
+        });
+        match event {
+            MultiFrameEvent::Input { player, event } => {
+                if let Some(event) = player_event(player, event) {
+                    return event;
+                }
+            }
+            MultiFrameEvent::Close => return vec!["close".into()],
+            MultiFrameEvent::Timeout => {}
+        }
+        if Instant::now() >= end || target::check_interrupt() {
+            return vec![];
+        }
+    }
+}
+
+fn player_event(player: u32, event: InputEvent) -> Option<Vec<String>> {
+    match event {
+        InputEvent::Key(key) => {
+            let mut event = key_event(key);
+            event.insert(1, player.to_string());
+            Some(event)
+        }
+        InputEvent::Pad(PadEvent::Down(button)) => pad_event("paddown", player, button),
+        InputEvent::Pad(PadEvent::Up(button)) => pad_event("padup", player, button),
+        InputEvent::Pad(PadEvent::Connected | PadEvent::Disconnected)
+        | InputEvent::Mouse(_)
+        | InputEvent::Resize { .. } => None,
+    }
+}
+
+fn pad_event(kind: &str, player: u32, button: PadButton) -> Option<Vec<String>> {
+    let input = match button {
+        PadButton::DpadUp => "Up",
+        PadButton::DpadDown => "Down",
+        PadButton::DpadLeft => "Left",
+        PadButton::DpadRight => "Right",
+        PadButton::A => "ActionA",
+        PadButton::B => "ActionB",
+        PadButton::X
+        | PadButton::Y
+        | PadButton::LeftShoulder
+        | PadButton::RightShoulder
+        | PadButton::Select
+        | PadButton::Start => return None,
+    };
+    Some(vec![kind.into(), player.to_string(), input.into()])
 }
 
 /// The kind first, then the name of the key, then one name per modifier that
@@ -144,4 +237,53 @@ pub fn now_ms() -> u64 {
         .duration_since(SystemTime::UNIX_EPOCH)
         .map(|d| d.as_millis() as u64)
         .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod tests {
+    use sinteract::event::{InputEvent, KeyEvent, KeyKind, Modifiers, PadButton, PadEvent};
+
+    use super::player_event;
+
+    #[test]
+    fn a_key_event_carries_its_player_and_modifiers() {
+        let event = player_event(
+            3,
+            InputEvent::Key(KeyEvent {
+                kind: KeyKind::Down,
+                key: "a".into(),
+                modifiers: Modifiers {
+                    ctrl: true,
+                    shift: true,
+                    ..Modifiers::default()
+                },
+            }),
+        );
+        assert_eq!(
+            event,
+            Some(vec![
+                "keydown".into(),
+                "3".into(),
+                "a".into(),
+                "ctrl".into(),
+                "shift".into(),
+            ])
+        );
+    }
+
+    #[test]
+    fn the_teaching_pad_keeps_only_its_six_inputs() {
+        assert_eq!(
+            player_event(2, InputEvent::Pad(PadEvent::Down(PadButton::DpadUp))),
+            Some(vec!["paddown".into(), "2".into(), "Up".into()])
+        );
+        assert_eq!(
+            player_event(2, InputEvent::Pad(PadEvent::Up(PadButton::B))),
+            Some(vec!["padup".into(), "2".into(), "ActionB".into()])
+        );
+        assert_eq!(
+            player_event(2, InputEvent::Pad(PadEvent::Down(PadButton::Start))),
+            None
+        );
+    }
 }

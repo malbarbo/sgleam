@@ -112,6 +112,7 @@ interface LoadOptions {
   interruptAfter?: number;
   // What the player does in a world.
   steps?: Step[];
+  nickname?: string;
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
@@ -130,7 +131,7 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
 
   // The engine reads the time through WASI, and a wait moves it on, so a
   // world runs its ticks without burning wall-clock time.
-  const room = new FakeRoom(options.steps);
+  const room = new FakeRoom(options.steps, options.nickname);
 
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
@@ -217,6 +218,7 @@ const REPL_QUIT = 2;
 const MOVE_SQUARE = `import gleam/int
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/stroke
 import sgleam/style
 import sgleam/world
@@ -248,12 +250,12 @@ pub fn draw(p: Pos) -> image.Image {
   )
 }
 
-pub fn move(p: Pos, key: world.Key) -> Pos {
-  let p = case key {
-    world.ArrowLeft -> Pos(..p, column: p.column - 1)
-    world.ArrowRight -> Pos(..p, column: p.column + 1)
-    world.ArrowDown -> Pos(..p, line: p.line + 1)
-    world.ArrowUp -> Pos(..p, line: p.line - 1)
+pub fn move(p: Pos, event: key.Event) -> Pos {
+  let p = case event {
+    key.ArrowLeft -> Pos(..p, column: p.column - 1)
+    key.ArrowRight -> Pos(..p, column: p.column + 1)
+    key.ArrowDown -> Pos(..p, line: p.line + 1)
+    key.ArrowUp -> Pos(..p, line: p.line - 1)
     _ -> p
   }
   Pos(int.clamp(p.line, 0, lines - 1), int.clamp(p.column, 0, columns - 1))
@@ -263,6 +265,7 @@ pub fn move(p: Pos, key: world.Key) -> Pos {
 // A world with a handler for every kind of key event but keydown. What it
 // prints says which handler ran, and for which key.
 const KEY_HANDLERS = `import sgleam/image
+import sgleam/key
 import sgleam/stroke
 import sgleam/world
 
@@ -277,7 +280,7 @@ pub fn draw(_handled: Int) -> image.Image {
   image.circle(20, stroke.red)
 }
 
-fn handler(name: String) -> fn(Int, world.Key) -> Int {
+fn handler(name: String) -> fn(Int, key.Event) -> Int {
   fn(handled, key) {
     echo key as name
     handled + 1
@@ -355,6 +358,46 @@ pub fn main() {
     echo frame as "frame"
     image.circle(10 + frame, stroke.red)
   })
+}
+`;
+
+const MULTIPLAYER_COUNTER = `import sgleam/fill
+import sgleam/image
+import sgleam/mworld
+import sgleam/pad
+
+pub fn main() {
+  mworld.create(0, min: 1, max: 1, to_image: draw)
+  |> mworld.on_pad_down(count_input)
+  |> mworld.stop_when(fn(count) { count == 1 })
+  |> mworld.run()
+}
+
+fn count_input(count: Int, player: mworld.Player, event: pad.Event) -> Int {
+  echo #(mworld.player_index(player), mworld.player_nickname(player), event)
+  count + 1
+}
+
+fn draw(count: Int, player: mworld.Player) -> image.Image {
+  echo #(mworld.player_index(player), mworld.player_nickname(player), count)
+  image.square(20 + count, fill.red)
+}
+`;
+
+const MULTIPLAYER_TICKS = `import sgleam/fill
+import sgleam/image
+import sgleam/mworld
+
+pub fn main() {
+  mworld.create(0, min: 1, max: 1, to_image: draw)
+  |> mworld.tick_rate(60)
+  |> mworld.on_tick(fn(ticks) { ticks + 1 })
+  |> mworld.stop_when(fn(ticks) { ticks == 60 })
+  |> mworld.run()
+}
+
+fn draw(ticks: Int, _player: mworld.Player) -> image.Image {
+  image.square(20 + ticks, fill.red)
 }
 `;
 
@@ -590,6 +633,43 @@ Deno.test("a world shows its frames in a session", async () => {
   destroy(ctx);
 });
 
+Deno.test("mworld fixes the player and maps keys to pad input", async () => {
+  const ctx = await newRepl(MULTIPLAYER_COUNTER, {
+    interruptAfter: 200_000,
+    nickname: "Ana",
+    steps: [{ type: "down", key: "ArrowRight" }],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}`);
+  assertEquals(
+    r.stdout.includes('#(1, "Ana", Right)'),
+    true,
+    `expected the fixed player and pad input in:\n${r.stdout}`,
+  );
+  assertEquals(
+    r.stdout.includes('#(1, "Ana", 1)'),
+    true,
+    `expected the per-player final view in:\n${r.stdout}`,
+  );
+  assertEquals(
+    r.stdout.includes('#(1, "", 0)'),
+    false,
+    `the drawing function received a provisional player:\n${r.stdout}`,
+  );
+  assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("mworld keeps fractional tick periods", async () => {
+  const ctx = await newRepl(MULTIPLAYER_TICKS, {
+    interruptAfter: 200_000,
+  });
+  const r = run(ctx, "main()");
+  assertEquals(r.result, REPL_OK, `stderr:\n${r.stderr}`);
+  assertEquals(ctx.room.ms, 1_000n);
+  destroy(ctx);
+});
+
 // The events a handler is not for go by untouched: this world has no
 // on_key_down, so the keydown it is given reaches none of its handlers.
 Deno.test("on_key_press and on_key_up take their own events", async () => {
@@ -604,7 +684,7 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
   const r = run(ctx, "main()");
   assertEquals(
     r.stdout,
-    'user.gleam:18 press\nChar("a")\nuser.gleam:18 up\nEnter\n',
+    'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\n',
   );
   // The first state and one per handled event.
   assertEquals(r.frames.length, 3, `stderr:\n${r.stderr}`);
@@ -617,7 +697,7 @@ Deno.test("a close ends a world", async () => {
     steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
-  assertEquals(r.stdout, 'user.gleam:18 press\nChar("a")\n');
+  assertEquals(r.stdout, 'user.gleam:19 press\nChar("a")\n');
   destroy(ctx);
 });
 

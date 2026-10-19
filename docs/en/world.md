@@ -3,8 +3,10 @@
 The `sgleam/world`{.gleam} module allows you to create animations and interactive programs using the "world" (big-bang) pattern: a state is transformed into an image, and user events produce a new state.
 
 ```gleam
-import sgleam/world
 import sgleam/image
+import sgleam/key
+import sgleam/pad
+import sgleam/world
 ```
 
 
@@ -64,6 +66,7 @@ The function receives the frame number (starting at 0) and returns the image to 
 import gleam/int
 import sgleam/fill
 import sgleam/image
+import sgleam/key
 import sgleam/world
 
 const width = 600
@@ -99,9 +102,9 @@ fn tick(ball: Ball) -> Ball {
   Ball(x, y, vx, vy)
 }
 
-fn on_key(ball: Ball, key: world.Key) -> Ball {
-  case key {
-    world.Char("r") -> Ball(100, 100, 3, 4)
+fn on_key(ball: Ball, event: key.Event) -> Ball {
+  case event {
+    key.Char("r") -> Ball(100, 100, 3, 4)
     _ -> ball
   }
 }
@@ -128,6 +131,8 @@ Creates an animation (receives the frame number).
 world.tick_rate(world, rate)
 ```
 Sets the on_tick call frequency (1 to 100 per second, default 28).
+Each call represents a fixed step of `1 / rate` second. This logical clock is
+independent of the rate at which the display presents images.
 
 ```gleam
 world.on_tick(world, fn(a) -> a)
@@ -142,19 +147,31 @@ Sets the stop condition.
 ### Keyboard events
 
 ```gleam
-world.on_key_press(world, fn(a, Key) -> a)
+world.on_key_press(world, fn(a, key.Event) -> a)
 ```
 Key typed (character).
 
 ```gleam
-world.on_key_down(world, fn(a, Key) -> a)
+world.on_key_down(world, fn(a, key.Event) -> a)
 ```
 Key pressed down.
 
 ```gleam
-world.on_key_up(world, fn(a, Key) -> a)
+world.on_key_up(world, fn(a, key.Event) -> a)
 ```
 Key released.
+
+### Pad events
+
+```gleam
+world.on_pad_down(world, fn(a, pad.Event) -> a)
+world.on_pad_up(world, fn(a, pad.Event) -> a)
+```
+
+The teaching pad has `Up`, `Down`, `Left`, `Right`, `ActionA`, and `ActionB`.
+Arrow keys and WASD act as its directions, Z/K as `ActionA`, and X/L as
+`ActionB`. When a pad handler is set, a mapped key goes to that handler;
+otherwise it remains available to the corresponding key handler.
 
 ### Execution
 
@@ -162,14 +179,48 @@ A world or an animation runs when `smain`{.gleam} returns it, or when the REPL s
 
 ### Keys
 
-Keys are represented by the `world.Key`{.gleam} type:
+Keys are represented by the `key.Event`{.gleam} type. Import
+`sgleam/key` and qualify its constructors as shown below:
 
 | Key | Value |
 |-----|-------|
-| Arrows | `ArrowLeft`{.gleam}, `ArrowRight`{.gleam}, `ArrowUp`{.gleam}, `ArrowDown`{.gleam} |
-| Enter | `Enter`{.gleam} |
-| Space | `Char(" ")`{.gleam} |
-| Escape | `Escape`{.gleam} |
-| Letters/numbers | `Char("a")`{.gleam}, `Char("1")`{.gleam}, etc. |
-| Function keys | `F1`{.gleam} to `F12`{.gleam} |
-| Others | `Backspace`{.gleam}, `Tab`{.gleam}, `Delete`{.gleam}, `Home`{.gleam}, `End`{.gleam}, `PageUp`{.gleam}, `PageDown`{.gleam} |
+| Arrows | `key.ArrowLeft`{.gleam}, `key.ArrowRight`{.gleam}, `key.ArrowUp`{.gleam}, `key.ArrowDown`{.gleam} |
+| Enter | `key.Enter`{.gleam} |
+| Space | `key.Char(" ")`{.gleam} |
+| Escape | `key.Escape`{.gleam} |
+| Letters/numbers | `key.Char("a")`{.gleam}, `key.Char("1")`{.gleam}, etc. |
+| Function keys | `key.F1`{.gleam} to `key.F12`{.gleam} |
+| Others | `key.Backspace`{.gleam}, `key.Tab`{.gleam}, `key.Delete`{.gleam}, `key.Home`{.gleam}, `key.End`{.gleam}, `key.PageUp`{.gleam}, `key.PageDown`{.gleam} |
+
+
+## Multiplayer worlds
+
+The `sgleam/mworld` module runs one shared state for a fixed group of players.
+The room chooses the players before the first frame, and they keep the same
+one-based indices until the match ends. Input handlers receive the player who
+sent the event, while the drawing function receives each player in turn and
+may return a different image for each one.
+
+```gleam
+import sgleam/key
+import sgleam/mworld
+import sgleam/pad
+
+mworld.create(initial_state, min: 2, max: 4, to_image: draw)
+|> mworld.on_tick(tick)
+|> mworld.on_pad_down(move)
+|> mworld.run()
+```
+
+The multiplayer handlers have these shapes:
+
+```gleam
+fn(a, mworld.Player, key.Event) -> a
+fn(a, mworld.Player, pad.Event) -> a
+```
+
+Use `mworld.player_index(player)` for the one-based position and
+`mworld.player_nickname(player)` for the nickname selected by the room.
+`mworld.tick_rate`, `mworld.on_tick`, `mworld.stop_when`, and the keyboard and
+pad handlers otherwise follow the `world` API. A `world.World` is implemented
+as an `mworld.MultiWorld` whose minimum and maximum player counts are both 1.

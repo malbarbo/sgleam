@@ -108,6 +108,13 @@ world.create(initial_state, draw)
 
 The world runs when `smain` returns it, or when the REPL shows it.
 
+The `sgleam/mworld` module uses the same model for multiplayer games. It keeps
+one shared state, fixes the players when the match starts, identifies the
+player in input handlers, and can draw a different view for each player.
+`world.World` is the one-player form of `mworld.MultiWorld`, so both APIs use
+the same runtime loop. Keyboard and teaching-pad values are shared by both
+APIs as `key.Event` and `pad.Event`, from `sgleam/key` and `sgleam/pad`.
+
 Both work best in the web version, which shows the picture as you go. The
 [examples](examples/) directory has a few complete programs.
 
