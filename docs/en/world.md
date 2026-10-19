@@ -209,8 +209,10 @@ import sgleam/pad
 mworld.create(initial_state, min: 2, max: 4, to_image: draw)
 |> mworld.on_tick(tick)
 |> mworld.on_pad_down(move)
-|> mworld.run()
 ```
+
+Like a world, a multiplayer world runs when `smain`{.gleam} returns it, or
+when the REPL shows it.
 
 The multiplayer handlers have these shapes:
 

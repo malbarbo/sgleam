@@ -6,10 +6,9 @@ import sgleam/pad
 
 /// A shared counter with a view that identifies each player. Run it through a
 /// sinteract room with two to four participants.
-pub fn main() {
+pub fn smain() {
   mworld.create(0, min: 2, max: 4, to_image: draw)
   |> mworld.on_pad_down(count_input)
-  |> mworld.run()
 }
 
 fn count_input(count: Int, player: mworld.Player, event: pad.Event) -> Int {

@@ -211,8 +211,10 @@ import sgleam/pad
 mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
 |> mworld.on_tick(tick)
 |> mworld.on_pad_down(mover)
-|> mworld.run()
 ```
+
+Como um mundo, um mundo multijogador executa quando a `smain`{.gleam} o
+devolve, ou quando o REPL o mostra.
 
 Os handlers multijogador têm as seguintes formas:
 
