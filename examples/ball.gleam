@@ -14,15 +14,14 @@ const min_vel = 1
 
 const max_vel = 5
 
-type Ball {
+pub type Ball {
   Ball(x: Int, y: Int, vx: Int, vy: Int)
 }
 
-pub fn main() {
+pub fn smain() {
   world.create(init(), draw)
   |> world.on_tick(tick)
   |> world.on_key_down(on_key)
-  |> world.run()
 }
 
 fn draw(ball: Ball) -> image.Image {

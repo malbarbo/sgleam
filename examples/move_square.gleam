@@ -7,11 +7,10 @@ import sgleam/world
 import sgleam/xplace
 import sgleam/yplace
 
-pub fn main() {
+pub fn smain() {
   world.create(Pos(lines / 2, columns / 2), draw)
   |> world.on_key_down(move)
   |> world.stop_when(fn(p) { p.line == 0 && p.column == 0 })
-  |> world.run()
 }
 
 const lines = 9

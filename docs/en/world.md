@@ -24,21 +24,22 @@ An interactive program is defined by:
 world.create(initial_state, drawing_function)
 |> world.on_tick(tick_function)
 |> world.on_key_press(key_function)
-|> world.run()
 ```
+
+The world runs when `smain`{.gleam} returns it, or when the REPL shows it as the value of an expression.
 
 
 ## Simple animation
 
-To create an animation without user interaction, use `world.animate`{.gleam}:
+To create an animation without user interaction, use `world.animation`{.gleam}:
 
 ```gleam
 import sgleam/fill
 import sgleam/image
 import sgleam/world
 
-pub fn main() {
-  world.animate(draw)
+pub fn smain() {
+  world.animation(draw)
 }
 
 const max = 200
@@ -69,15 +70,14 @@ const width = 600
 const height = 400
 const radius = 20
 
-type Ball {
+pub type Ball {
   Ball(x: Int, y: Int, vx: Int, vy: Int)
 }
 
-pub fn main() {
+pub fn smain() {
   world.create(Ball(100, 100, 3, 4), draw)
   |> world.on_tick(tick)
   |> world.on_key_down(on_key)
-  |> world.run()
 }
 
 fn draw(ball: Ball) -> image.Image {
@@ -118,7 +118,7 @@ world.create(state, to_image)
 Creates a world with an initial state and a drawing function.
 
 ```gleam
-world.animate(fn(Int) -> Image)
+world.animation(fn(Int) -> Image)
 ```
 Creates an animation (receives the frame number).
 
@@ -158,10 +158,7 @@ Key released.
 
 ### Execution
 
-```gleam
-world.run(world)
-```
-Starts the interactive program.
+A world or an animation runs when `smain`{.gleam} returns it, or when the REPL shows it.
 
 ### Keys
 

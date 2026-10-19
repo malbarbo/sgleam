@@ -6,7 +6,7 @@ Para executar um arquivo Gleam:
 sgleam arquivo.gleam
 ```
 
-O sgleam procura uma função `smain`{.gleam} ou `main`{.gleam} no arquivo. O sgleam imprime o que a `smain`{.gleam} devolve. Uma `String`{.gleam} sai como está, e qualquer outro valor sai como o Gleam o escreve:
+O sgleam procura uma função `smain`{.gleam} ou `main`{.gleam} no arquivo. O sgleam imprime o que a `smain`{.gleam} devolve. Uma `String`{.gleam} sai como está, uma imagem aparece como no REPL, um mundo ou uma animação executa, e qualquer outro valor sai como o Gleam o escreve:
 
 ```gleam
 // ola.gleam
@@ -51,7 +51,7 @@ $ printf "a\nb\nc" | sgleam conta.gleam
 Linhas: 3
 ```
 
-A função `main`{.gleam} não recebe argumentos, e o sgleam não imprime o que ela devolve. Ela serve para um programa que mostra imagens ou executa um mundo.
+A função `main`{.gleam} não recebe argumentos, e o sgleam não imprime o que ela devolve.
 
 Para ver um valor no meio de um programa, use `echo`{.gleam}. Ele imprime o arquivo e a linha, e depois o valor:
 

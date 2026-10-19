@@ -104,8 +104,9 @@ tick of the clock or key press:
 world.create(initial_state, draw)
 |> world.on_tick(tick)
 |> world.on_key_press(key)
-|> world.run()
 ```
+
+The world runs when `smain` returns it, or when the REPL shows it.
 
 Both work best in the web version, which shows the picture as you go. The
 [examples](examples/) directory has a few complete programs.

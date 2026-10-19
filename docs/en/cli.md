@@ -6,7 +6,7 @@ To run a Gleam file:
 sgleam file.gleam
 ```
 
-Sgleam looks for a `smain`{.gleam} or `main`{.gleam} function in the file. Sgleam prints what `smain`{.gleam} returns. A `String`{.gleam} prints as it is, and any other value prints as Gleam writes it:
+Sgleam looks for a `smain`{.gleam} or `main`{.gleam} function in the file. Sgleam prints what `smain`{.gleam} returns. A `String`{.gleam} prints as it is, an image shows as in the REPL, a world or an animation runs, and any other value prints as Gleam writes it:
 
 ```gleam
 // hello.gleam
@@ -51,7 +51,7 @@ $ printf "a\nb\nc" | sgleam count.gleam
 Lines: 3
 ```
 
-The `main`{.gleam} function takes no arguments, and sgleam does not print what it returns. It fits a program that shows images or runs a world.
+The `main`{.gleam} function takes no arguments, and sgleam does not print what it returns.
 
 To see a value in the middle of a program, use `echo`{.gleam}. It prints the file and the line, then the value:
 

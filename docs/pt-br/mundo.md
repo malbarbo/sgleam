@@ -24,21 +24,22 @@ Um programa interativo é definido por:
 world.create(estado_inicial, funcao_de_desenho)
 |> world.on_tick(funcao_de_tick)
 |> world.on_key_press(funcao_de_tecla)
-|> world.run()
 ```
+
+O mundo executa quando a `smain`{.gleam} o devolve, ou quando o REPL o mostra como o valor de uma expressão.
 
 
 ## Animação simples
 
-Para criar uma animação sem interação do usuário, use `world.animate`{.gleam}:
+Para criar uma animação sem interação do usuário, use `world.animation`{.gleam}:
 
 ```gleam
 import sgleam/fill
 import sgleam/image
 import sgleam/world
 
-pub fn main() {
-  world.animate(desenho)
+pub fn smain() {
+  world.animation(desenho)
 }
 
 const max = 200
@@ -69,15 +70,14 @@ const width = 600
 const height = 400
 const radius = 20
 
-type Ball {
+pub type Ball {
   Ball(x: Int, y: Int, vx: Int, vy: Int)
 }
 
-pub fn main() {
+pub fn smain() {
   world.create(Ball(100, 100, 3, 4), draw)
   |> world.on_tick(tick)
   |> world.on_key_down(on_key)
-  |> world.run()
 }
 
 fn draw(ball: Ball) -> image.Image {
@@ -118,7 +118,7 @@ world.create(state, to_image)
 Cria um mundo com estado inicial e função de desenho.
 
 ```gleam
-world.animate(fn(Int) -> Image)
+world.animation(fn(Int) -> Image)
 ```
 Cria uma animação (recebe o número do quadro).
 
@@ -158,10 +158,7 @@ Tecla solta.
 
 ### Execução
 
-```gleam
-world.run(world)
-```
-Inicia o programa interativo.
+Um mundo ou uma animação executa quando a `smain`{.gleam} o devolve, ou quando o REPL o mostra.
 
 ### Teclas
 
