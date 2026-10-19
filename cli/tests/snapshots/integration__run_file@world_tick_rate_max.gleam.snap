@@ -7,11 +7,7 @@ Image
 Image
 Image
 Image
-Image
-world_tick_rate.gleam:14 max
+world_tick_rate_max.gleam:24 max
 True
 Image
-Image
-world_tick_rate.gleam:16 min
-True
 STDERR

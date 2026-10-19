@@ -227,7 +227,6 @@ pub fn main() {
   world.create(Pos(lines / 2, columns / 2), draw)
   |> world.on_key_down(move)
   |> world.stop_when(fn(p) { p.line == 0 && p.column == 0 })
-  |> world.run()
 }
 
 const lines = 9
@@ -272,7 +271,6 @@ pub fn main() {
   |> world.on_key_press(handler("press"))
   |> world.on_key_up(handler("up"))
   |> world.stop_when(fn(handled) { handled == 2 })
-  |> world.run()
 }
 
 pub fn draw(_handled: Int) -> image.Image {
@@ -340,7 +338,6 @@ pub fn main() {
     seen + 1
   })
   |> world.stop_when(fn(seen) { seen == ${count} })
-  |> world.run()
 }
 
 pub fn draw(_seen: Int) -> image.Image {
@@ -583,11 +580,11 @@ Deno.test("move_square loads without crash", async () => {
   destroy(ctx);
 });
 
-Deno.test("world.run shows its frames in a session", async () => {
+Deno.test("a world shows its frames in a session", async () => {
   const ctx = await newRepl(MOVE_SQUARE, { interruptAfter: 50 });
   assertEquals(ctx.repl !== 0, true);
   const r = run(ctx, "main()");
-  assertEquals(r.frames.length > 0, true, "expected frames from world.run");
+  assertEquals(r.frames.length > 0, true, "expected frames from the world");
   assertEquals(r.svgs.length, 0, "a world draws no svg");
   // check_interrupt fires here, so stderr says "Interrupted."
   destroy(ctx);
@@ -605,23 +602,22 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
     ],
   });
   const r = run(ctx, "main()");
-  // The last line is the repl echoing what main() gave back.
   assertEquals(
     r.stdout,
-    'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\nNil\n',
+    'user.gleam:18 press\nChar("a")\nuser.gleam:18 up\nEnter\n',
   );
   // The first state and one per handled event.
   assertEquals(r.frames.length, 3, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 
-Deno.test("a close ends world.run", async () => {
+Deno.test("a close ends a world", async () => {
   const ctx = await newRepl(KEY_HANDLERS, {
     interruptAfter: 200_000,
     steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
-  assertEquals(r.stdout, 'user.gleam:19 press\nChar("a")\nNil\n');
+  assertEquals(r.stdout, 'user.gleam:18 press\nChar("a")\n');
   destroy(ctx);
 });
 
@@ -646,7 +642,7 @@ Deno.test("every key name decodes to its Key", async () => {
   const r = run(ctx, "main()");
   const expected = [...KEY_NAMES, 'Char("a")']
     .map((k) => `user.gleam:8\n${k}\n`)
-    .join("") + "Nil\n";
+    .join("");
   assertEquals(r.stdout, expected, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });

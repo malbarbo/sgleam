@@ -10,10 +10,9 @@ pub fn tick(state: Int) -> Int {
   echo state + 1 as "tick"
 }
 
-pub fn main() {
+pub fn smain() {
   world.create(0, draw)
   |> world.tick_rate(100)
   |> world.on_tick(tick)
   |> world.stop_when(fn(state) { state == 3 })
-  |> world.run()
 }

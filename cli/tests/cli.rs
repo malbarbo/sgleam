@@ -3298,20 +3298,20 @@ fn runtime_error_exits_with_nonzero() {
     );
 }
 
-// world.run() calls sleep through sgleam_ffi.mjs → sgleam.sleep (rquickjs).
+// A world calls sleep through sgleam_ffi.mjs → sgleam.sleep (rquickjs).
 #[test]
-fn world_run_in_repl_bigint() {
+fn world_in_repl_bigint() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     sgleam()
         .current_dir(&root)
         .args(["repl", "-q", "-d", "none", "cli/tests/images/world1.gleam"])
-        .write_stdin("main()\n")
+        .write_stdin("smain()\n")
         .assert()
         .success();
 }
 
 #[test]
-fn world_run_in_repl_number() {
+fn world_in_repl_number() {
     let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
     sgleam()
         .current_dir(&root)
@@ -3323,7 +3323,7 @@ fn world_run_in_repl_number() {
             "none",
             "cli/tests/images/world1.gleam",
         ])
-        .write_stdin("main()\n")
+        .write_stdin("smain()\n")
         .assert()
         .success();
 }

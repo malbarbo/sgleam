@@ -1,0 +1,9 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Image
+world_tick_rate_min.gleam:24 min
+True
+Image
+STDERR
