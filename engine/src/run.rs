@@ -1,8 +1,10 @@
+use std::sync::Arc;
+
 use camino::{Utf8Path, Utf8PathBuf};
 
 use gleam_core::{
     build::{Module, Origin, Target},
-    type_,
+    type_::{self, Type},
 };
 
 use crate::{
@@ -64,6 +66,34 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
     Ok(())
 }
 
+/// A signature of `smain` that a run accepts.
+pub struct SmainSignature {
+    arguments: fn() -> Vec<Arc<Type>>,
+    /// The name the launcher knows the signature by. `try_main` hands the
+    /// arguments for it.
+    kind: &'static str,
+    /// How the error for an invalid `smain` shows the signature.
+    pub text: &'static str,
+}
+
+pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
+    SmainSignature {
+        arguments: Vec::new,
+        kind: "Smain",
+        text: "fn() -> a",
+    },
+    SmainSignature {
+        arguments: || vec![type_::string()],
+        kind: "SmainStdin",
+        text: "fn(String) -> a",
+    },
+    SmainSignature {
+        arguments: || vec![type_::list(type_::string())],
+        kind: "SmainStdinLines",
+        text: "fn(List(String)) -> a",
+    },
+];
+
 fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
     match get_smain(module) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
@@ -91,22 +121,22 @@ fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
         .into());
     }
 
-    let string_type = type_::string();
-    let list_string_type = type_::list(type_::string());
-    match &smain.arguments[..] {
-        [] => Ok(MainFunction::Smain),
-        [arg] if arg.type_.same_as(&string_type) => Ok(MainFunction::SmainStdin),
-        [arg] if arg.type_.same_as(&list_string_type) => Ok(MainFunction::SmainStdinLines),
-        _ => Err(SgleamError::InvalidSMain {
+    let args = smain
+        .arguments
+        .iter()
+        .map(|arg| arg.type_.clone())
+        .collect::<Vec<_>>();
+    let accepts = |signature: &&SmainSignature| {
+        let expected = (signature.arguments)();
+        args.len() == expected.len() && args.iter().zip(&expected).all(|(a, e)| a.same_as(e))
+    };
+    match SMAIN_SIGNATURES.iter().find(accepts) {
+        Some(signature) => Ok(MainFunction::Smain {
+            kind: signature.kind,
+        }),
+        None => Err(SgleamError::InvalidSMain {
             module: module.name.clone(),
-            signature: {
-                let args = smain
-                    .arguments
-                    .iter()
-                    .map(|arg| arg.type_.clone())
-                    .collect::<Vec<_>>();
-                fn_type_to_string(module, &args[..], smain.return_type.clone()).into()
-            },
+            signature: fn_type_to_string(module, &args[..], smain.return_type.clone()).into(),
         }),
     }
 }

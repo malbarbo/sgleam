@@ -4,11 +4,11 @@ use camino::Utf8PathBuf;
 use ecow::EcoString;
 use gleam_core::build::Origin;
 use gleam_core::diagnostic::{Diagnostic, Level};
-use indoc::formatdoc;
 use termcolor::{BufferWriter, ColorChoice};
 use thiserror::Error;
 
 use crate::gleam::relocate_to_user_paths;
+use crate::run::SMAIN_SIGNATURES;
 
 #[derive(Debug, Error)]
 pub enum SgleamError {
@@ -105,13 +105,10 @@ pub fn show_error(err: &SgleamError) {
             "smain function has an invalid signature",
             format!("`{module}.smain` has the invalid signature `{signature}` and can not be run."),
             // TODO: add an url for more information
-            formatdoc! {"
-                Use one of the valid signatures for `smain` function:
-                  fn() -> a
-                  fn(String) -> a
-                  fn(List(String)) -> a
-                "
-            },
+            SMAIN_SIGNATURES.iter().fold(
+                "Use one of the valid signatures for `smain` function:\n".to_string(),
+                |hint, signature| hint + "  " + signature.text + "\n",
+            ),
         )
         .write(&mut buffer),
 
