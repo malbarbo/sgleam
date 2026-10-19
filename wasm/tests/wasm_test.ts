@@ -354,7 +354,7 @@ import sgleam/stroke
 import sgleam/world
 
 pub fn main() {
-  world.animate(fn(frame) {
+  world.animation(fn(frame) {
     echo frame as "frame"
     image.circle(10 + frame, stroke.red)
   })
@@ -625,14 +625,14 @@ Deno.test("a close ends world.run", async () => {
   destroy(ctx);
 });
 
-Deno.test("a close ends world.animate", async () => {
+Deno.test("a close ends world.animation", async () => {
   const ctx = await newRepl(ANIMATE, {
     interruptAfter: 200_000,
     steps: [{ type: "press", key: "a" }, "close"],
   });
   const r = run(ctx, "main()");
   // The key goes unused, so the first frame is the only one.
-  assertEquals(r.stdout, "user.gleam:7 frame\n0\nNil\n");
+  assertEquals(r.stdout, "user.gleam:7 frame\n0\n");
   assertEquals(r.frames.length, 1, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
@@ -651,8 +651,8 @@ Deno.test("every key name decodes to its Key", async () => {
   destroy(ctx);
 });
 
-// animate has no stop of its own: it draws until it is interrupted.
-Deno.test("animate draws a frame per number", async () => {
+// An animation has no stop of its own: it draws until it is interrupted.
+Deno.test("an animation draws a frame per number", async () => {
   const ctx = await newRepl(ANIMATE, { interruptAfter: 20 });
   const r = run(ctx, "main()");
   assertEquals(

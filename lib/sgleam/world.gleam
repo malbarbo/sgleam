@@ -4,8 +4,25 @@ import gleam/option.{type Option, None, Some}
 import sgleam/image.{type Image}
 import sgleam/system
 
-pub fn animate(create_image: fn(Int) -> Image) -> Nil {
-  animate_loop(create_image, 1000 / 28, 0)
+pub opaque type Animation {
+  Animation(create_image: fn(Int) -> Image)
+}
+
+pub fn animation(create_image: fn(Int) -> Image) -> Animation {
+  Animation(create_image)
+}
+
+/// An animation, so the FFI can take the class of an animation from it.
+@internal
+pub fn animation_variant() -> Animation {
+  animation(fn(_) { image.empty })
+}
+
+/// Runs `animation`. The repl and `smain` call it for an animation they
+/// return.
+@internal
+pub fn run_animation(animation: Animation) -> Nil {
+  animate_loop(animation.create_image, 1000 / 28, 0)
   close_display()
 }
 
