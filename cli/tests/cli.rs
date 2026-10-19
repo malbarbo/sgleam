@@ -17,6 +17,7 @@ fn strip_repl_suffix(s: &str) -> String {
     for prefix in [
         "repl_main_",
         "repl_print_",
+        "repl_print_binding_",
         "repl_memo_",
         "repl_vals_",
         "repl_value_",
@@ -3326,6 +3327,22 @@ fn world_in_repl_number() {
         .write_stdin("smain()\n")
         .assert()
         .success();
+}
+
+#[test]
+fn world_in_repl_let_binds_without_running() {
+    let (stdout, stderr) = run_sgleam_cmd(
+        &["repl", "-q", "-d", "none"],
+        Some(indoc! {"
+            import sgleam/fill
+            import sgleam/image
+            import sgleam/world
+            let w = world.create(0, fn(_) { image.circle(1, fill.red) }) |> world.stop_when(fn(_) { echo True })
+            let a = world.animation(fn(_) { image.circle(1, fill.red) })
+        "}),
+    );
+    assert_eq!(stdout, "//world\n//animation\n");
+    assert!(!stderr.contains("True"), "{stderr}");
 }
 
 /// A project of its own: the files written into a fresh directory, and the

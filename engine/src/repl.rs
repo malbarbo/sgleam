@@ -138,6 +138,7 @@ pub struct Repl<E: Engine> {
     // them.
     repl_main: String,
     repl_print: String,
+    repl_print_binding: String,
     repl_memo: String,
     repl_vals: String,
     repl_value: String,
@@ -167,6 +168,7 @@ impl<E: Engine> Repl<E> {
             pending_files: Vec::new(),
             repl_main: format!("repl_main_{suffix}"),
             repl_print: format!("repl_print_{suffix}"),
+            repl_print_binding: format!("repl_print_binding_{suffix}"),
             repl_memo: format!("repl_memo_{suffix}"),
             repl_vals: format!("repl_vals_{suffix}"),
             repl_value: format!("repl_value_{suffix}"),
@@ -374,12 +376,16 @@ impl<E: Engine> Repl<E> {
     /// The FFI that lets the generated modules reach the engine.
     fn build_externals(&self) -> String {
         let (memo, print) = (&self.repl_memo, &self.repl_print);
+        let print_binding = &self.repl_print_binding;
         formatdoc! {r#"
             @external(javascript, "{SGLEAM_FFI}", "repl_memo")
             pub fn {memo}(key: String, value: fn() -> a) -> a
 
             @external(javascript, "{SGLEAM_FFI}", "repl_print")
             pub fn {print}(value: a) -> a
+
+            @external(javascript, "{SGLEAM_FFI}", "repl_print_binding")
+            pub fn {print_binding}(value: a) -> a
         "#}
     }
 
@@ -759,7 +765,7 @@ impl<E: Engine> Repl<E> {
         message: Option<SrcSpan>,
         names: &[String],
     ) -> Result<(), InputError> {
-        let (memo, print) = (&self.repl_memo, &self.repl_print);
+        let (memo, print) = (&self.repl_memo, &self.repl_print_binding);
         let (vals, val) = (&self.repl_vals, &self.repl_value);
 
         // Only the value and the message of a `let assert` read what the
