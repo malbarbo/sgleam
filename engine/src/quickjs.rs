@@ -261,6 +261,8 @@ fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
     set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
     #[cfg(not(target_arch = "wasm32"))]
     set_fn(&sgleam, "print_image", crate::scene::print_image)?;
+    #[cfg(not(target_arch = "wasm32"))]
+    set_fn(&sgleam, "prints_images", crate::host::prints_images)?;
     set_fn(&sgleam, "show_image", crate::scene::show_image)?;
     set_fn(
         &sgleam,

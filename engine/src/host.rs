@@ -47,6 +47,11 @@ pub use target::draw_svg;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::print_scene;
 
+/// Returns `true` if [`print_scene`] has a terminal to print to, `false`
+/// otherwise. A failed check asks it before it prints the label of an image.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::prints_images;
+
 /// The choice of the display for the frames of a world and the images of the
 /// repl. `set_display` makes it before a run, and `Auto` stands until then.
 /// The browser always draws on the page, so it has no such choice.

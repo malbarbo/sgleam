@@ -518,6 +518,24 @@ pub fn add_examples() {
   ctx.exports.repl_destroy(repl);
 });
 
+Deno.test("a failed check draws its images", async () => {
+  const source = `import sgleam/check
+import sgleam/fill
+import sgleam/image
+
+pub fn square_examples() {
+  check.same(image.square(10, fill.red), image.square(10, fill.blue))
+}
+`;
+  const ctx = await loadWasm();
+  const repl = withSource(ctx.exports, source, "", ctx.exports.repl_new);
+  const stdout = ctx.stdout.join("");
+  assertEquals(ctx.svgs.length, 2, stdout);
+  assertEquals(stdout.includes("Actual  :\n"), true, stdout);
+  assertEquals(stdout.includes("Path("), false, stdout);
+  ctx.exports.repl_destroy(repl);
+});
+
 Deno.test("circle image produces SVG", async () => {
   const ctx = await newRepl();
   const r = run(

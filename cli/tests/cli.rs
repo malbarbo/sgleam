@@ -3345,6 +3345,20 @@ fn world_in_repl_let_binds_without_running() {
     assert!(!stderr.contains("True"), "{stderr}");
 }
 
+#[test]
+fn check_failure_prints_the_images() {
+    let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+    let out = sgleam()
+        .current_dir(&root)
+        .args(["test", "-d", "blocks", "cli/tests/inputs/check_same.gleam"])
+        .output()
+        .expect("sgleam runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("Actual  :\n\x1b[38;2;255;0;0"), "{stdout}");
+    assert!(stdout.contains("Expected:\n\x1b[38;2;0;0;255"), "{stdout}");
+    assert!(!stdout.contains("Path("), "{stdout}");
+}
+
 /// A project of its own: the files written into a fresh directory, and the
 /// binary run there. A test that needs a module of the user's needs somewhere
 /// to put it, which is most of what writing one takes.
