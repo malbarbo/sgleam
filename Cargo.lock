@@ -1160,7 +1160,7 @@ checksum = "877a4ace8713b0bcf2a4e7eec82529c029f1d0619886d18145fea96c3ffe5c0f"
 [[package]]
 name = "erlang-generation"
 version = "1.0.0"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "ecow",
  "erlang-term-format",
@@ -1173,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "erlang-term-format"
 version = "1.0.0"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "num-bigint",
  "num-traits",
@@ -1533,7 +1533,7 @@ dependencies = [
 [[package]]
 name = "gleam-core"
 version = "1.18.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "age",
  "askama",
@@ -1589,7 +1589,7 @@ dependencies = [
 [[package]]
 name = "gleam-format"
 version = "1.18.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "camino",
  "ecow",
@@ -1649,7 +1649,7 @@ checksum = "e17592d60ebacc7d5e169f4663c5f84f9161cc90328abcfe8456f41e4dfcb284"
 [[package]]
 name = "hexpm"
 version = "1.18.1"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "base16",
  "bytes",
@@ -2985,7 +2985,7 @@ dependencies = [
 [[package]]
 name = "pretty-arena"
 version = "1.0.0"
-source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#482450d6a69e8007a4f76b3e7068f9540ae80402"
+source = "git+https://github.com/malbarbo/gleam.git?branch=sgleam-0.8#e2947b863981d9c625477ba952a50aaa2944b11e"
 dependencies = [
  "ecow",
  "im",

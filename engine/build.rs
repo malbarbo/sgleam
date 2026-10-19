@@ -44,7 +44,11 @@ pub fn main() {
 
     let outdir = PathBuf::from(env::var("OUT_DIR").unwrap());
 
-    create_tar(&outdir, "gleam-stdlib.tar", "sgleam-stdlib-1.0.5");
+    create_tar(
+        &outdir,
+        "gleam-stdlib.tar",
+        "67cf1942e81f534d70b663eff550f87994b8a521",
+    );
 }
 
 /// Returns `true` if the clone at `repo` already has `revision`, `false`

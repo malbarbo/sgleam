@@ -1,0 +1,8 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+inspect_world.gleam:9
+#(//world, //animation)
+[//world]
+STDERR
