@@ -8,6 +8,7 @@ import sgleam/pad
 /// sinteract room with two to four participants.
 pub fn smain() {
   mworld.create(0, min: 2, max: 4, to_image: draw)
+  |> mworld.keys_as_pad(pad.from_key)
   |> mworld.on_pad_down(count_input)
 }
 
