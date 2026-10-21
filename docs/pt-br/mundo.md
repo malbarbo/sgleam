@@ -169,10 +169,34 @@ world.on_pad_up(world, fn(a, pad.Event) -> a)
 ```
 
 O controle didático possui `Up`, `Down`, `Left`, `Right`, `ActionA` e
-`ActionB`. As setas e WASD funcionam como direções, Z/K como `ActionA` e X/L
-como `ActionB`. Quando existe um handler de controle, uma tecla mapeada é
-enviada para ele; caso contrário, continua disponível para o handler de
-teclado correspondente.
+`ActionB`. Uma tecla só aciona o controle se o mundo pedir. `pad.from_key`
+leva as setas e WASD às direções, Z e K a `ActionA`, e X e L a `ActionB`:
+
+```gleam
+world.create(estado, desenhar)
+|> world.keys_as_pad(pad.from_key)
+|> world.on_pad_down(mover)
+```
+
+Uma tecla que o mapeamento transforma em botão vai para `on_pad_down` e
+`on_pad_up`, e para nenhum handler de teclado. As outras teclas continuam indo
+para os handlers de teclado. Um mundo pode escolher as próprias teclas e deixar
+as setas e as letras que não cita para os handlers de teclado:
+
+```gleam
+fn ijkl(event: key.Event) -> Option(pad.Event) {
+  case event {
+    key.Char("i") | key.Char("I") -> Some(pad.Up)
+    key.Char("k") | key.Char("K") -> Some(pad.Down)
+    key.Char("j") | key.Char("J") -> Some(pad.Left)
+    key.Char("l") | key.Char("L") -> Some(pad.Right)
+    _ -> None
+  }
+}
+```
+
+Segurar uma tecla repete `on_pad_down`, e um terminal simples não avisa quando
+a tecla é solta, então ali `on_pad_up` não vem do teclado.
 
 ### Execução
 

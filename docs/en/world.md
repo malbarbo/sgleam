@@ -169,9 +169,35 @@ world.on_pad_up(world, fn(a, pad.Event) -> a)
 ```
 
 The teaching pad has `Up`, `Down`, `Left`, `Right`, `ActionA`, and `ActionB`.
-Arrow keys and WASD act as its directions, Z/K as `ActionA`, and X/L as
-`ActionB`. When a pad handler is set, a mapped key goes to that handler;
-otherwise it remains available to the corresponding key handler.
+A key does not move the pad unless the world asks for it. `pad.from_key` maps
+the arrows and WASD to the directions, Z and K to `ActionA`, and X and L to
+`ActionB`:
+
+```gleam
+world.create(state, draw)
+|> world.keys_as_pad(pad.from_key)
+|> world.on_pad_down(move)
+```
+
+A key that the mapping turns into a button goes to `on_pad_down` and
+`on_pad_up`, and to no key handler. Every other key still goes to the key
+handlers. A world can choose its own keys, and leave the arrows and the letters
+it does not name to the key handlers:
+
+```gleam
+fn ijkl(event: key.Event) -> Option(pad.Event) {
+  case event {
+    key.Char("i") | key.Char("I") -> Some(pad.Up)
+    key.Char("k") | key.Char("K") -> Some(pad.Down)
+    key.Char("j") | key.Char("J") -> Some(pad.Left)
+    key.Char("l") | key.Char("L") -> Some(pad.Right)
+    _ -> None
+  }
+}
+```
+
+A held key repeats `on_pad_down`, and a plain terminal sends no key release,
+so `on_pad_up` does not come from the keyboard there.
 
 ### Execution
 
