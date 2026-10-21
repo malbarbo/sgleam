@@ -36,6 +36,9 @@ pub type OnKey(a) =
 pub type OnPad(a) =
   fn(a, Player, pad.Event) -> a
 
+pub type KeysAsPad =
+  fn(key.Event) -> Option(pad.Event)
+
 const min_tick_rate = 1
 
 const max_tick_rate = 100
@@ -66,6 +69,7 @@ pub opaque type MultiWorld(a) {
     on_key_up: Option(OnKey(a)),
     on_pad_down: Option(OnPad(a)),
     on_pad_up: Option(OnPad(a)),
+    keys_as_pad: KeysAsPad,
   )
 }
 
@@ -93,6 +97,7 @@ pub fn create(
     on_key_up: None,
     on_pad_down: None,
     on_pad_up: None,
+    keys_as_pad: fn(_) { None },
   )
 }
 
@@ -133,6 +138,12 @@ pub fn on_pad_down(world: MultiWorld(a), handler: OnPad(a)) -> MultiWorld(a) {
 
 pub fn on_pad_up(world: MultiWorld(a), handler: OnPad(a)) -> MultiWorld(a) {
   MultiWorld(..world, on_pad_up: Some(handler))
+}
+
+/// Sends a key that `mapping` turns into a pad button to `on_pad_down` and
+/// `on_pad_up`, and to no key handler. Every other key stays a key.
+pub fn keys_as_pad(world: MultiWorld(a), mapping: KeysAsPad) -> MultiWorld(a) {
+  MultiWorld(..world, keys_as_pad: mapping)
 }
 
 /// A world, so the FFI can take the class of a world from it. The
@@ -242,7 +253,10 @@ fn apply_event(
 ) -> #(MultiWorld(a), Bool) {
   case event {
     KeyPress(player, key) ->
-      apply_player_handler(world, player, key, world.on_key_press)
+      case world.keys_as_pad(key) {
+        Some(_) -> #(world, False)
+        None -> apply_player_handler(world, player, key, world.on_key_press)
+      }
     KeyDown(player, key) ->
       apply_key_or_pad_handler(
         world,
@@ -274,10 +288,9 @@ fn apply_key_or_pad_handler(
   key_handler: Option(OnKey(a)),
   pad_handler: Option(OnPad(a)),
 ) -> #(MultiWorld(a), Bool) {
-  case pad.from_key(event), pad_handler {
-    Some(input), Some(handler) ->
-      apply_player_handler(world, player, input, Some(handler))
-    _, _ -> apply_player_handler(world, player, event, key_handler)
+  case world.keys_as_pad(event) {
+    Some(input) -> apply_player_handler(world, player, input, pad_handler)
+    None -> apply_player_handler(world, player, event, key_handler)
   }
 }
 

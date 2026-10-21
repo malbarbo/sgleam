@@ -57,6 +57,9 @@ pub type OnKey(a) =
 pub type OnPad(a) =
   fn(a, pad.Event) -> a
 
+pub type KeysAsPad =
+  mworld.KeysAsPad
+
 pub type ToImage(a) =
   fn(a) -> Image
 
@@ -129,6 +132,13 @@ pub fn on_pad_up(world: World(a), handler: OnPad(a)) -> World(a) {
   World(
     mworld.on_pad_up(inner, fn(state, _player, event) { handler(state, event) }),
   )
+}
+
+/// Sends a key that `mapping` turns into a pad button to `on_pad_down` and
+/// `on_pad_up`, and to no key handler. Every other key stays a key.
+pub fn keys_as_pad(world: World(a), mapping: KeysAsPad) -> World(a) {
+  let World(inner) = world
+  World(mworld.keys_as_pad(inner, mapping))
 }
 
 /// A world, so the FFI can take the class of a world from it. The

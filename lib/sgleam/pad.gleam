@@ -36,7 +36,8 @@ pub fn from_string(name: String) -> Option(Event) {
   }
 }
 
-@internal
+/// Maps the arrows and W, A, S, D to the directions, Z and K to `ActionA`,
+/// and X and L to `ActionB`. Returns `None` for every other key.
 pub fn from_key(event: key.Event) -> Option(Event) {
   case event {
     key.ArrowUp | key.Char("w") | key.Char("W") -> Some(Up)

@@ -349,6 +349,42 @@ pub fn draw(_seen: Int) -> image.Image {
 `;
 }
 
+// A world that prints every keydown, keypress and paddown it is given, and
+// stops after three of them.
+function padKeysProgram(keysAsPad: boolean): string {
+  return `import sgleam/image
+import sgleam/key
+import sgleam/pad
+import sgleam/stroke
+import sgleam/world
+
+pub fn main() {
+  world.create(0, draw)
+  ${keysAsPad ? "|> world.keys_as_pad(pad.from_key)" : "// no keys_as_pad"}
+  |> world.on_pad_down(on_pad)
+  |> world.on_key_down(on_key("down"))
+  |> world.on_key_press(on_key("press"))
+  |> world.stop_when(fn(handled) { handled == 3 })
+}
+
+pub fn draw(_handled: Int) -> image.Image {
+  image.circle(20, stroke.red)
+}
+
+fn on_pad(handled: Int, button: pad.Event) -> Int {
+  echo button as "pad"
+  handled + 1
+}
+
+fn on_key(name: String) -> fn(Int, key.Event) -> Int {
+  fn(handled, key) {
+    echo key as name
+    handled + 1
+  }
+}
+`;
+}
+
 const ANIMATE = `import sgleam/image
 import sgleam/stroke
 import sgleam/world
@@ -368,6 +404,7 @@ import sgleam/pad
 
 pub fn main() {
   mworld.create(0, min: 1, max: 1, to_image: draw)
+  |> mworld.keys_as_pad(pad.from_key)
   |> mworld.on_pad_down(count_input)
   |> mworld.stop_when(fn(count) { count == 1 })
 }
@@ -673,6 +710,45 @@ Deno.test("mworld fixes the player and maps keys to pad input", async () => {
     `the drawing function received a provisional player:\n${r.stdout}`,
   );
   assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("keys_as_pad sends a mapped key only to the pad", async () => {
+  const ctx = await newRepl(padKeysProgram(true), {
+    interruptAfter: 200_000,
+    steps: [
+      { type: "down", key: "a" },
+      { type: "press", key: "a" },
+      { type: "down", key: "b" },
+      { type: "press", key: "b" },
+    ],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(
+    r.stdout,
+    'user.gleam:21 pad\nLeft\nuser.gleam:27 down\nChar("b")\n' +
+      'user.gleam:27 press\nChar("b")\n',
+    `stderr:\n${r.stderr}`,
+  );
+  destroy(ctx);
+});
+
+Deno.test("without keys_as_pad a key stays a key", async () => {
+  const ctx = await newRepl(padKeysProgram(false), {
+    interruptAfter: 200_000,
+    steps: [
+      { type: "down", key: "ArrowLeft" },
+      { type: "press", key: "a" },
+      { type: "down", key: "a" },
+    ],
+  });
+  const r = run(ctx, "main()");
+  assertEquals(
+    r.stdout,
+    "user.gleam:27 down\nArrowLeft\nuser.gleam:27 press\n" +
+      'Char("a")\nuser.gleam:27 down\nChar("a")\n',
+    `stderr:\n${r.stderr}`,
+  );
   destroy(ctx);
 });
 
