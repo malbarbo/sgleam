@@ -9,7 +9,7 @@
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
-use sinteract::display::{FrameEvent, Frames, OpenError, StageError};
+use sinteract::display::{FrameEvent, Frames, OpenError, Stage, StageError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
 use sinteract::session::PlayerRange;
@@ -101,7 +101,7 @@ pub fn open_mworld(
 /// Returns `true` if a multiplayer world uses the session of a server,
 /// `false` if it opens a display of this process.
 pub fn mworld_uses_session() -> bool {
-    cfg!(target_arch = "wasm32") || std::env::var_os(sinteract::session::SESSION_VAR).is_some()
+    Stage::opens_session()
 }
 
 /// Keeps the latest scene for one player until the next stage tick.
