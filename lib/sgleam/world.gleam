@@ -63,8 +63,7 @@ pub type KeysAsPad =
 pub type ToImage(a) =
   fn(a) -> Image
 
-/// A `MultiWorld` specialized to exactly one player. Its handlers hide the
-/// player value, preserving the original single-player API.
+/// A `MultiWorld` of exactly one player. Its handlers take no player.
 pub opaque type World(a) {
   World(mworld.MultiWorld(a))
 }
