@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::time::Instant;
 
-use sinteract::display::{PresentError, Stage, StageEvent, StageOptions};
+use sinteract::display::{OpenError, PresentError, Stage, StageError, StageEvent, StageOptions};
 use sinteract::event::{InputEvent, Interrupt, KeyEvent, KeyKind};
 use sinteract::scene::Scene;
 use sinteract::session::{Player, PlayerRange, Target};
@@ -29,8 +29,7 @@ pub(super) struct MultiFrames {
 enum State {
     Closed,
     Open(Open),
-    /// A one-player world keeps running when no native display opens, just as
-    /// the original `Frames` adapter does for tests and `-d none`.
+    /// `-d none` asks for no display, and the world runs without one.
     Unavailable,
 }
 
@@ -96,10 +95,7 @@ impl MultiFrames {
                 });
                 Ok(result)
             }
-            // A program that accepts one player can still calculate and print
-            // images when the user explicitly disabled the native display.
-            Err(error) if min_players == 1 => {
-                tracing::debug!(%error, "world display unavailable");
+            Err(StageError::Open(OpenError::Disabled)) => {
                 self.state = State::Unavailable;
                 Ok(vec!["1".into(), String::new()])
             }
