@@ -18,7 +18,7 @@ use rquickjs::{
 use sinteract::asset::{ImageHead, decode_data_uri};
 use sinteract::renderer::Renderer;
 use sinteract::renderer::pixmap::render_to_pixmap;
-use sinteract::renderer::svg::SvgRenderer;
+use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
 use sinteract::scene::{
     Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path,
     PathBuilder, PathStyle, Sampling, Scene, Text, TextSpec,
@@ -36,9 +36,8 @@ const FP_EPSILON: f64 = 1.0e-10;
 pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String> {
     let scene = to_scene(&image, width, height)?;
     let prefix = format!("s{}-", NEXT_SVG.fetch_add(1, Ordering::Relaxed));
-    let mut renderer = SvgRenderer::with_id_prefix(&prefix)
-        .expect("a valid id prefix")
-        .keep_image_formats();
+    let prefix = IdPrefix::new(&prefix).expect("a valid id prefix");
+    let mut renderer = SvgRenderer::with_id_prefix(prefix).keep_image_formats();
     let Ok(svg) = renderer.render(&scene);
     Ok(svg.to_owned())
 }
