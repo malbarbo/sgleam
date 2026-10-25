@@ -1,0 +1,8 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+mworld_draws_the_first_frame_once.gleam:6 draw
+Player(index: 1, nickname: "")
+Image
+STDERR

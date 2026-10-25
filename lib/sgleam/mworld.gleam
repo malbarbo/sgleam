@@ -61,7 +61,6 @@ pub opaque type MultiWorld(a) {
     min_players: Int,
     max_players: Int,
     players: List(Player),
-    reuse_preview: Bool,
     on_tick: Option(OnTick(a)),
     stop_when: Option(StopWhen(a)),
     on_key_press: Option(OnKey(a)),
@@ -89,7 +88,6 @@ pub fn create(
     min_players:,
     max_players:,
     players: [],
-    reuse_preview: False,
     on_tick: None,
     stop_when: None,
     on_key_press: None,
@@ -99,13 +97,6 @@ pub fn create(
     on_pad_up: None,
     keys_as_pad: fn(_) { None },
   )
-}
-
-/// Marks the preview as the first view. `world` uses this because its drawing
-/// function cannot observe the provisional player used to size the stage.
-@internal
-pub fn reuse_preview(world: MultiWorld(a)) -> MultiWorld(a) {
-  MultiWorld(..world, reuse_preview: True)
 }
 
 pub fn tick_rate(world: MultiWorld(a), rate: Int) -> MultiWorld(a) {
@@ -169,9 +160,10 @@ pub fn run(world: MultiWorld(a)) {
     open_mworld(width, height, world.min_players, world.max_players)
     |> players_from_start
   let world = MultiWorld(..world, players:)
-  case world.reuse_preview, players, preview {
-    True, [player], Some(preview) -> show_player_image(player.index, preview)
-    _, _, _ -> show_players(world)
+  case players, preview {
+    [player], Some(preview) if player == Player(1, "") ->
+      show_player_image(player.index, preview)
+    _, _ -> show_players(world)
   }
   run_loop(world, start_tick_clock(system.now_ms(), world.rate))
   close_display()

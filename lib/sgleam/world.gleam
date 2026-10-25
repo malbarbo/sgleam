@@ -73,8 +73,7 @@ pub fn create(state: a, to_image: ToImage(a)) -> World(a) {
   World(
     mworld.create(state, min: 1, max: 1, to_image: fn(state, _player) {
       to_image(state)
-    })
-    |> mworld.reuse_preview,
+    }),
   )
 }
 
