@@ -73,6 +73,7 @@ pub opaque type MultiWorld(a) {
 }
 
 /// Creates a world whose fixed player list is chosen when the match starts.
+/// `min` stays between 1 and 1024, and `max` between `min` and 1024.
 pub fn create(
   state: a,
   min min_players: Int,
