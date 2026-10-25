@@ -9,13 +9,10 @@
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
-use sinteract::display::{FrameEvent, Frames};
+use sinteract::display::{FrameEvent, Frames, OpenError, StageError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
-
-use self::mworld::{MultiFrameEvent, MultiFrames};
-
-mod mworld;
+use sinteract::session::PlayerRange;
 
 /// Makes the world ready to answer. An engine calls it as it is built. The
 /// first call does the work and a later one gives back its result.
@@ -67,7 +64,6 @@ mod target;
 
 thread_local! {
     static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", target::stage_options));
-    static MULTI_FRAMES: RefCell<MultiFrames> = RefCell::new(MultiFrames::new("sgleam", target::stage_options));
 }
 
 /// Shows a frame of a world, in a window or the terminal, or in a session of
@@ -86,7 +82,20 @@ pub fn open_mworld(
     min_players: u32,
     max_players: u32,
 ) -> Result<Vec<String>, String> {
-    MULTI_FRAMES.with_borrow_mut(|frames| frames.open(width, height, min_players, max_players))
+    if FRAMES.with_borrow(Frames::is_open) {
+        return Err("a world is already running".into());
+    }
+    let range = PlayerRange::new(min_players, max_players)
+        .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
+    match FRAMES.with_borrow_mut(|frames| frames.open(width, height, range)) {
+        Ok(players) => Ok(players
+            .into_iter()
+            .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
+            .collect()),
+        // `-d none` asks for no display, so the world runs without one.
+        Err(StageError::Open(OpenError::Disabled)) => Ok(vec!["1".into(), String::new()]),
+        Err(error) => Err(error.to_string()),
+    }
 }
 
 /// Returns `true` if a multiplayer world uses the session of a server,
@@ -97,7 +106,12 @@ pub fn mworld_uses_session() -> bool {
 
 /// Keeps the latest scene for one player until the next stage tick.
 pub fn show_player_scene(player: u32, scene: Scene) -> bool {
-    MULTI_FRAMES.with_borrow_mut(|frames| frames.show(player, scene))
+    FRAMES.with_borrow_mut(|frames| {
+        let Some(&player) = frames.players().iter().find(|p| p.number().get() == player) else {
+            return false;
+        };
+        frames.show_to(player, scene).is_ok()
+    })
 }
 
 /// Closes the display of the frames, so the world that comes next opens its
@@ -108,18 +122,13 @@ pub fn close_frames() {
     for line in FRAMES.with_borrow_mut(Frames::close) {
         println!("{line}");
     }
-    for line in MULTI_FRAMES.with_borrow_mut(MultiFrames::close) {
-        println!("{line}");
-    }
 }
 
 /// `console.log` prints a line, and so does `echo`. While the terminal shows
 /// the frames of a world, the line shows under the frame and prints when the
 /// frames close.
 pub fn print_line(line: &str) {
-    if !MULTI_FRAMES.with_borrow_mut(|frames| frames.print_line(line))
-        && !FRAMES.with_borrow_mut(|frames| frames.print_line(line))
-    {
+    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
         println!("{line}");
     }
 }
@@ -139,9 +148,9 @@ pub fn wait_event(ms: u64) -> Vec<String> {
         loop {
             let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
             match frames.wait_event(deadline, |err| tracing::warn!("{err}")) {
-                FrameEvent::Key(key) => return key_event(key),
+                FrameEvent::Key(_, key) => return key_event(key),
                 FrameEvent::Close => return vec!["close".into()],
-                FrameEvent::Timeout => {}
+                FrameEvent::Pad(..) | FrameEvent::Timeout => {}
             }
             if Instant::now() >= end || target::check_interrupt() {
                 return vec![];
@@ -153,24 +162,28 @@ pub fn wait_event(ms: u64) -> Vec<String> {
 /// Waits for an input of a fixed player, for the session to close, or for
 /// `ms` milliseconds. Display ticks send the latest frame of every player.
 pub fn wait_mworld_event(ms: u64) -> Vec<String> {
-    if !MULTI_FRAMES.with_borrow(MultiFrames::is_open) {
+    if !FRAMES.with_borrow(Frames::is_open) {
         sleep(ms);
         return vec![];
     }
     let end = Instant::now() + Duration::from_millis(ms);
     loop {
         let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
-        let event = MULTI_FRAMES.with_borrow_mut(|frames| {
+        let event = FRAMES.with_borrow_mut(|frames| {
             frames.wait_event(deadline, |error| tracing::warn!("{error}"))
         });
-        match event {
-            MultiFrameEvent::Input { player, event } => {
-                if let Some(event) = player_event(player, event) {
-                    return event;
-                }
+        let event = match event {
+            FrameEvent::Key(player, key) => {
+                player_event(player.number().get(), InputEvent::Key(key))
             }
-            MultiFrameEvent::Close => return vec!["close".into()],
-            MultiFrameEvent::Timeout => {}
+            FrameEvent::Pad(player, pad) => {
+                player_event(player.number().get(), InputEvent::Pad(pad))
+            }
+            FrameEvent::Close => return vec!["close".into()],
+            FrameEvent::Timeout => None,
+        };
+        if let Some(event) = event {
+            return event;
         }
         if Instant::now() >= end || target::check_interrupt() {
             return vec![];
