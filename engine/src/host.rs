@@ -140,10 +140,6 @@ pub fn print_line(line: &str) {
 pub fn wait_event(ms: u64) -> Vec<String> {
     let end = Instant::now() + Duration::from_millis(ms);
     FRAMES.with_borrow_mut(|frames| {
-        if !frames.is_open() {
-            sleep(ms);
-            return vec![];
-        }
         // Short slices, so an interruption ends a long wait at once.
         loop {
             let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
@@ -162,10 +158,6 @@ pub fn wait_event(ms: u64) -> Vec<String> {
 /// Waits for an input of a fixed player, for the session to close, or for
 /// `ms` milliseconds. Display ticks send the latest frame of every player.
 pub fn wait_mworld_event(ms: u64) -> Vec<String> {
-    if !FRAMES.with_borrow(Frames::is_open) {
-        sleep(ms);
-        return vec![];
-    }
     let end = Instant::now() + Duration::from_millis(ms);
     loop {
         let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
