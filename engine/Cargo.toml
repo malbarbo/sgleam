@@ -18,7 +18,7 @@ im = "15.1.0"
 indoc = "2.0.5"
 # The box of a path, with each arc as the cubics that sinteract draws.
 kurbo = { version = "0.13", default-features = false, features = ["std"] }
-rquickjs = { version = "0.12.2", features = ["loader"] }
+rquickjs = { version = "0.12.2", features = ["loader", "disable-assertions"] }
 # debug-embed: without it a debug build reads lib/sgleam from the disk of the
 # machine it was built on, so a debug binary anywhere else has no library.
 rust-embed = { version = "8.7.2", features = ["debug-embed"] }
