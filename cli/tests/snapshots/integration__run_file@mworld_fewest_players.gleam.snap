@@ -1,0 +1,19 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+mworld_fewest_players.gleam:6 draw
+1
+mworld_fewest_players.gleam:6 draw
+1
+Image
+mworld_fewest_players.gleam:6 draw
+2
+Image
+mworld_fewest_players.gleam:6 draw
+1
+Image
+mworld_fewest_players.gleam:6 draw
+2
+Image
+STDERR

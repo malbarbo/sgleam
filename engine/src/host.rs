@@ -99,8 +99,11 @@ pub fn open_mworld(
             .into_iter()
             .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
             .collect()),
-        // `-d none` asks for no display, so the world runs without one.
-        Err(StageError::Open(OpenError::Disabled)) => Ok(vec!["1".into(), String::new()]),
+        // `-d none` asks for no display, so the world runs without one,
+        // with the fewest players it takes.
+        Err(StageError::Open(OpenError::Disabled)) => Ok((1..=range.min().get())
+            .flat_map(|player| [player.to_string(), String::new()])
+            .collect()),
         Err(error) => Err(error.to_string()),
     }
 }
