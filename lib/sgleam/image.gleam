@@ -445,8 +445,34 @@ fn combination_settled(
   b: Image,
   b_at: Pointf,
 ) -> #(Image, Pointf) {
-  let #(a, a_at) = settle(a, a_at)
-  let #(b, b_at) = settle(b, b_at)
+  // Most children already sit at the origin, and `settle` would give them
+  // back as they are.
+  case at_origin(a) && at_origin(b) {
+    True -> combine_settled(a, a_at, b, b_at)
+    False -> {
+      let #(a, a_at) = settle(a, a_at)
+      let #(b, b_at) = settle(b, b_at)
+      combine_settled(a, a_at, b, b_at)
+    }
+  }
+}
+
+/// Returns `true` if the least corner of what `img` draws is on the origin,
+/// `false` otherwise.
+fn at_origin(img: Image) -> Bool {
+  case drawn_box(img) {
+    Ok(#(min, _)) -> min.x == 0.0 && min.y == 0.0
+    Error(Nil) -> False
+  }
+}
+
+/// `combination_settled` of `a` and `b` that `settle` already moved.
+fn combine_settled(
+  a: Image,
+  a_at: Pointf,
+  b: Image,
+  b_at: Pointf,
+) -> #(Image, Pointf) {
   case drawn_box(a), drawn_box(b) {
     Ok(#(_, a_max)), Ok(#(_, b_max)) -> {
       let at = point_min(a_at, b_at)
