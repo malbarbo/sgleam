@@ -254,7 +254,6 @@ fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
     set_fn(&sgleam, "wait_event", wait_event)?;
     set_fn(&sgleam, "open_mworld", open_mworld)?;
     set_fn(&sgleam, "mworld_uses_session", host::mworld_uses_session)?;
-    set_fn(&sgleam, "wait_mworld_event", wait_mworld_event)?;
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
@@ -345,12 +344,6 @@ fn open_mworld(
 ) -> Result<Vec<String>> {
     host::open_mworld(width, height, min_players, max_players)
         .map_err(|error| Exception::throw_message(&ctx, &error))
-}
-
-fn wait_mworld_event(ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
-    let event = host::wait_mworld_event(ms);
-    stop_on_interrupt(&ctx)?;
-    Ok(event)
 }
 
 fn stop_on_interrupt(ctx: &Ctx<'_>) -> Result<()> {

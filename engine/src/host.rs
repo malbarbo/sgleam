@@ -133,33 +133,15 @@ pub fn print_line(line: &str) {
     }
 }
 
-/// `system.wait_event` waits at most `ms` milliseconds for a key or for the
-/// display to close. It gives the kind of the event, then for a key its name
-/// and the modifiers that are on, or nothing when the time runs out. With no
-/// display open, it sleeps.
+/// `system.wait_event` waits at most `ms` milliseconds for an input of a
+/// player or for the display to close. It gives the kind of the event, the
+/// number of the player, and the name of the key or of the pad input, then
+/// for a key the modifiers that are on. It gives nothing when the time runs
+/// out.
 pub fn wait_event(ms: u64) -> Vec<String> {
     let end = Instant::now() + Duration::from_millis(ms);
-    FRAMES.with_borrow_mut(|frames| {
-        // Short slices, so an interruption ends a long wait at once.
-        loop {
-            let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
-            match frames.wait_event(deadline, |err| tracing::warn!("{err}")) {
-                FrameEvent::Key(_, key) => return key_event(key),
-                FrameEvent::Close => return vec!["close".into()],
-                FrameEvent::Pad(..) | FrameEvent::Timeout => {}
-            }
-            if Instant::now() >= end || target::check_interrupt() {
-                return vec![];
-            }
-        }
-    })
-}
-
-/// Waits for an input of a fixed player, for the session to close, or for
-/// `ms` milliseconds. Display ticks send the latest frame of every player.
-pub fn wait_mworld_event(ms: u64) -> Vec<String> {
-    let end = Instant::now() + Duration::from_millis(ms);
     loop {
+        // Short slices, so an interruption ends a long wait at once.
         let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
         let event = FRAMES.with_borrow_mut(|frames| {
             frames.wait_event(deadline, |error| tracing::warn!("{error}"))

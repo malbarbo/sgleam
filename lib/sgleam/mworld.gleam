@@ -183,7 +183,7 @@ fn run_loop(world: MultiWorld(a), clock: TickClock) -> Nil {
   case world.stop_when |> option.map(fn(stop) { stop(world.state) }) {
     Some(True) -> Nil
     _ ->
-      case wait_mworld_event(int.max(clock.deadline - system.now_ms(), 0)) {
+      case system.wait_event(int.max(clock.deadline - system.now_ms(), 0)) {
         ["close"] -> Nil
         event -> {
           let #(world, clock) =
@@ -385,9 +385,6 @@ fn mworld_uses_session() -> Bool
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "show_player_image")
 fn show_player_image(player: Int, image: Image) -> Nil
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "wait_mworld_event")
-fn wait_mworld_event(ms: Int) -> List(String)
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "close_display")
 fn close_display() -> Nil
