@@ -240,6 +240,12 @@ mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
 Como um mundo, um mundo multijogador executa quando a `smain`{.gleam} o
 devolve, ou quando o REPL o mostra.
 
+Sem um servidor, cada jogador joga em uma janela própria, então você pode
+testar o jogo sozinho trocando de janela. O jogo abre tantas janelas quanto o
+seu mínimo, e `sgleam run --players 3 jogo.gleam` pede mais, até 8. O terminal
+mostra um jogador só, então um jogo de vários jogadores precisa de uma janela.
+Fechar qualquer janela encerra o jogo.
+
 Os handlers multijogador têm as seguintes formas:
 
 ```gleam

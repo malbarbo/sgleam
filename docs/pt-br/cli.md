@@ -266,5 +266,6 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 |-------|-----------|
 | `-n` | Usar Number ao invés de BigInt para inteiros |
 | `-d MODO` | Mostrar imagens em `window`, `kitty`, `sixel`, `blocks` ou `none` |
+| `--players N` | Jogar um mundo multijogador com N jogadores, cada um em uma janela |
 | `-q` | Não exibir mensagem de boas-vindas no REPL |
 | `--version` | Exibir versão |

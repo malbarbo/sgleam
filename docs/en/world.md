@@ -240,6 +240,12 @@ mworld.create(initial_state, min: 2, max: 4, to_image: draw)
 Like a world, a multiplayer world runs when `smain`{.gleam} returns it, or
 when the REPL shows it.
 
+Without a server, each player plays in a window of its own, so you can try
+the game alone by switching between the windows. The game opens as many
+windows as its minimum, and `sgleam run --players 3 game.gleam` asks for more,
+up to 8. The terminal shows one player, so a game of several players needs a
+window. Closing any window ends the game.
+
 The multiplayer handlers have these shapes:
 
 ```gleam

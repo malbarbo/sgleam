@@ -264,5 +264,6 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 |--------|-------------|
 | `-n` | Use Number instead of BigInt for integers |
 | `-d MODE` | Show images in `window`, `kitty`, `sixel`, `blocks` or `none` |
+| `--players N` | Play a multiplayer world with N players, each in a window |
 | `-q` | Don't print welcome message in REPL |
 | `--version` | Print version |
