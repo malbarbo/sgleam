@@ -5,6 +5,8 @@
 //! The size of a text comes from here too, so the text measures with the
 //! face that draws it, and so does the box of a path.
 
+use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
@@ -21,8 +23,8 @@ use sinteract::renderer::Renderer;
 use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
 use sinteract::scene::{
-    Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path,
-    PathBuilder, PathStyle, Sampling, Scene, Text, TextSpec,
+    Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path, PathStyle,
+    Sampling, Scene, Text, TextSpec,
 };
 
 /// The number in the id prefix of the next svg. The page puts every svg of a
@@ -187,9 +189,18 @@ impl Leaf {
 /// of the thread.
 fn walk<'js>(image: &Object<'js>, at: Offset, region: &Region, runs: &mut Vec<Run>) -> Result<()> {
     let mut pending = vec![(image.clone(), at, Rc::new(region.clone()))];
+    // A program often places one shape in many places, so each `Path` is
+    // read from JavaScript once.
+    let mut shapes: HashMap<Value<'js>, Option<Shape>> = HashMap::new();
     while let Some((image, at, region)) = pending.pop() {
         let leaf = match class(&image)?.as_str() {
-            "Path" => path(&image, at)?.map(Leaf::Path),
+            "Path" => {
+                let shape = match shapes.entry(image.as_value().clone()) {
+                    Entry::Occupied(entry) => entry.into_mut(),
+                    Entry::Vacant(entry) => entry.insert(shape(&image)?),
+                };
+                shape.as_ref().map(|shape| Leaf::Path(shape.at(at)))
+            }
             "Line" => Some(Leaf::Path(line(&image, at)?)),
             "Combination" => {
                 // The stack gives back the last node first, and `a` draws
@@ -399,9 +410,32 @@ pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<Option<Sized<'
     ))))
 }
 
-/// The path of a `Path`, or `None` when its commands do not start with a
+/// A `Path` in the coordinates of the image, before a place moves it.
+struct Shape {
+    style: PathStyle,
+    aligned: bool,
+    start: (f64, f64),
+    segments: Vec<Segment>,
+}
+
+enum Segment {
+    Move((f64, f64)),
+    Line((f64, f64)),
+    Quad((f64, f64), (f64, f64)),
+    Cubic((f64, f64), (f64, f64), (f64, f64)),
+    Arc {
+        rx: f32,
+        ry: f32,
+        rotation: f32,
+        large_arc: bool,
+        sweep: bool,
+        end: (f64, f64),
+    },
+}
+
+/// The shape of a `Path`, or `None` when its commands do not start with a
 /// move, which svg does not draw either.
-fn path(image: &Object, at: Offset) -> Result<Option<Path>> {
+fn shape(image: &Object) -> Result<Option<Shape>> {
     let style = Style::read(&image.get("style")?)?;
     let commands: Vec<Object> = list(image.get("commands")?)?;
     let Some((first, rest)) = commands.split_first() else {
@@ -410,87 +444,116 @@ fn path(image: &Object, at: Offset) -> Result<Option<Path>> {
     if class(first)? != "MoveTo" {
         return Ok(None);
     }
-    let point = pixel_point(&style, at);
-    let (x, y) = point(first.get("0")?)?;
     let mut path_style = style.path_style();
     path_style.closed = image.get("closed")?;
-    let mut builder = Path::builder(path_style, x, y);
-    for cmd in rest {
-        builder = segment(builder, cmd, &point)?;
+    Ok(Some(Shape {
+        style: path_style,
+        aligned: style.aligned(),
+        start: point(first.get("0")?)?,
+        segments: rest.iter().map(segment).collect::<Result<_>>()?,
+    }))
+}
+
+impl Shape {
+    /// The path of the shape moved by `at`.
+    fn at(&self, at: Offset) -> Path {
+        let p = |(x, y): (f64, f64)| {
+            (
+                snap(self.aligned, x + at.0) as f32,
+                snap(self.aligned, y + at.1) as f32,
+            )
+        };
+        let (x, y) = p(self.start);
+        let mut builder = Path::builder(self.style.clone(), x, y);
+        for segment in &self.segments {
+            builder = match *segment {
+                Segment::Move(end) => {
+                    let (x, y) = p(end);
+                    builder.move_to(x, y)
+                }
+                Segment::Line(end) => {
+                    let (x, y) = p(end);
+                    builder.line_to(x, y)
+                }
+                Segment::Quad(control, end) => {
+                    let (cx, cy) = p(control);
+                    let (x, y) = p(end);
+                    builder.quad_to(cx, cy, x, y)
+                }
+                Segment::Cubic(c1, c2, end) => {
+                    let (c1x, c1y) = p(c1);
+                    let (c2x, c2y) = p(c2);
+                    let (x, y) = p(end);
+                    builder.cubic_to(c1x, c1y, c2x, c2y, x, y)
+                }
+                Segment::Arc {
+                    rx,
+                    ry,
+                    rotation,
+                    large_arc,
+                    sweep,
+                    end,
+                } => {
+                    let (x, y) = p(end);
+                    builder.arc_to(rx, ry, rotation, large_arc, sweep, x, y)
+                }
+            };
+        }
+        builder.build()
     }
-    Ok(Some(builder.build()))
 }
 
 /// The path of a `Line`, from one end to the other.
 fn line(image: &Object, at: Offset) -> Result<Path> {
     let style = Style::read(&image.get("style")?)?;
-    let point = pixel_point(&style, at);
-    let (x, y) = point(image.get("from")?)?;
-    let (to_x, to_y) = point(image.get("to")?)?;
+    let aligned = style.aligned();
+    let p = |name: &str| -> Result<(f32, f32)> {
+        let (x, y) = point(image.get(name)?)?;
+        Ok((
+            snap(aligned, x + at.0) as f32,
+            snap(aligned, y + at.1) as f32,
+        ))
+    };
+    let (x, y) = p("from")?;
+    let (to_x, to_y) = p("to")?;
     Ok(Path::builder(style.path_style(), x, y)
         .line_to(to_x, to_y)
         .build())
 }
 
-/// Reads a point for a path with `style`, moved by `at`. A thin outline on
-/// a half pixel covers one row of pixels, and on a whole pixel it blurs over
-/// two, so an aligned style puts the point on the center of its pixel. The
-/// epsilon takes 9.999999999999998 as 10.
-fn pixel_point(style: &Style, at: Offset) -> impl Fn(Object) -> Result<(f32, f32)> + '_ {
-    let snap = |v: f64| {
-        if style.aligned() {
-            (v + FP_EPSILON).floor() + 0.5
-        } else {
-            v
-        }
-    };
-    move |p: Object| {
-        Ok((
-            snap(float(&p, "x")? + at.0) as f32,
-            snap(float(&p, "y")? + at.1) as f32,
-        ))
+/// A coordinate of a path. A thin outline on a half pixel covers one row of
+/// pixels, and on a whole pixel it blurs over two, so an aligned style puts
+/// the point on the center of its pixel. The epsilon takes
+/// 9.999999999999998 as 10.
+fn snap(aligned: bool, v: f64) -> f64 {
+    if aligned {
+        (v + FP_EPSILON).floor() + 0.5
+    } else {
+        v
     }
 }
 
-/// `builder` with the segment of `cmd` appended.
-fn segment(
-    builder: PathBuilder,
-    cmd: &Object,
-    point: &impl Fn(Object) -> Result<(f32, f32)>,
-) -> Result<PathBuilder> {
+/// A `Pointf`.
+fn point(p: Object) -> Result<(f64, f64)> {
+    Ok((float(&p, "x")?, float(&p, "y")?))
+}
+
+/// The segment of `cmd`.
+fn segment(cmd: &Object) -> Result<Segment> {
     let at = |name: &str| point(cmd.get(name)?);
     Ok(match class(cmd)?.as_str() {
-        "MoveTo" => {
-            let (x, y) = at("0")?;
-            builder.move_to(x, y)
-        }
-        "LineTo" => {
-            let (x, y) = at("0")?;
-            builder.line_to(x, y)
-        }
-        "QuadTo" => {
-            let (cx, cy) = at("control")?;
-            let (x, y) = at("end")?;
-            builder.quad_to(cx, cy, x, y)
-        }
-        "CubicTo" => {
-            let (c1x, c1y) = at("c1")?;
-            let (c2x, c2y) = at("c2")?;
-            let (x, y) = at("end")?;
-            builder.cubic_to(c1x, c1y, c2x, c2y, x, y)
-        }
-        "ArcTo" => {
-            let (x, y) = at("end")?;
-            builder.arc_to(
-                float(cmd, "rx")? as f32,
-                float(cmd, "ry")? as f32,
-                float(cmd, "rotation")? as f32,
-                cmd.get("large_arc")?,
-                cmd.get("sweep")?,
-                x,
-                y,
-            )
-        }
+        "MoveTo" => Segment::Move(at("0")?),
+        "LineTo" => Segment::Line(at("0")?),
+        "QuadTo" => Segment::Quad(at("control")?, at("end")?),
+        "CubicTo" => Segment::Cubic(at("c1")?, at("c2")?, at("end")?),
+        "ArcTo" => Segment::Arc {
+            rx: float(cmd, "rx")? as f32,
+            ry: float(cmd, "ry")? as f32,
+            rotation: float(cmd, "rotation")? as f32,
+            large_arc: cmd.get("large_arc")?,
+            sweep: cmd.get("sweep")?,
+            end: at("end")?,
+        },
         other => return Err(type_error(cmd.ctx(), &format!("cannot draw a {other}"))),
     })
 }
