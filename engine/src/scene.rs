@@ -9,6 +9,7 @@ use std::rc::Rc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use kurbo::{BezPath, ParamCurveExtrema, Point, Rect, SvgArc, Vec2};
+use rquickjs::atom::PredefinedAtom;
 use rquickjs::class::{JsClass, Readable, Trace, Tracer};
 use rquickjs::function::This;
 use rquickjs::{
@@ -781,7 +782,9 @@ fn color(c: &Object) -> Result<Color> {
 
 /// The name of the constructor of `value`, which is the name of its variant.
 fn class(value: &Object) -> Result<String> {
-    value.get::<_, Object>("constructor")?.get("name")
+    value
+        .get::<_, Object>(PredefinedAtom::Constructor)?
+        .get(PredefinedAtom::Name)
 }
 
 /// The elements of a Gleam list.
