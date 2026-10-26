@@ -431,7 +431,8 @@ fn place(scene: Image, img: Image, at: Pointf) -> Image {
 
 fn place_and_crop(scene: Image, img: Image, at: Pointf) -> Image {
   let #(both, at) = combination_settled(scene, origin, img, at)
-  cropf(both, 0.0 -. at.x, 0.0 -. at.y, widthf(scene), heightf(scene))
+  let #(width, height) = dimensionf(scene)
+  cropf(both, 0.0 -. at.x, 0.0 -. at.y, width, height)
 }
 
 /// Draws `b` at `b_at` over `a` at `a_at`, and gives where the least corner
@@ -1786,14 +1787,15 @@ pub fn place_image_alignf(
   y_place: YPlace,
   img: Image,
 ) -> Image {
+  let #(width, height) = dimensionf(img)
   let dx = case x_place {
-    Center -> widthf(img) /. -2.0
+    Center -> width /. -2.0
     Left -> 0.0
-    Right -> 0.0 -. widthf(img)
+    Right -> 0.0 -. width
   }
   let dy = case y_place {
-    Bottom -> 0.0 -. heightf(img)
-    Middle -> heightf(img) /. -2.0
+    Bottom -> 0.0 -. height
+    Middle -> height /. -2.0
     Top -> 0.0
   }
   place(scene, img, Pointf(x +. dx, y +. dy))
