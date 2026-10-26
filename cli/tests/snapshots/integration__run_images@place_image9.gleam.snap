@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="80" viewBox="0 0 100 80">
+  <defs>
+    <clipPath id="s0-c0"><path d="M0 0 L100 0 L100 80 L0 80"/></clipPath>
+  </defs>
+  <g clip-path="url(#s0-c0)">
+    <path d="M0 0 L100 0 L100 80 L0 80 Z" fill="#d3d3d3"/>
+    <path d="M140 40 C140 89.70563 99.70563 130 50 130 C0.29437253 130 -40 89.70563 -40 40 C-40 -9.705627 0.29437253 -50 50 -50 C99.70563 -50 140 -9.705627 140 40 Z" fill="none" stroke="#ff0000" stroke-width="10" stroke-linecap="round" stroke-miterlimit="10"/>
+    <path d="M15 15 L25 15 L25 25 L15 25 Z" fill="#000000"/>
+  </g>
+</svg>

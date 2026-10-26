@@ -208,6 +208,13 @@ fn box_box(box: Box) -> #(Pointf, Pointf) {
   )
 }
 
+/// Returns `true` if `box` has no rotation and its least corner is on the
+/// origin, `false` otherwise. A crop that `place` makes has such a box.
+fn box_at_origin(box: Box) -> Bool {
+  let #(min, _) = box_box(box)
+  box.x_axis.y == 0.0 && box.y_axis.x == 0.0 && min.x == 0.0 && min.y == 0.0
+}
+
 fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
   let origin = Pointf(0.0, 0.0)
   Box(
@@ -402,8 +409,25 @@ fn combination(a: Image, a_at: Pointf, b: Image, b_at: Pointf) -> Image {
   combination_settled(a, a_at, b, b_at).0
 }
 
-/// Draws `img` at `at` over `scene`, and crops the two to `scene`.
+/// Draws `img` at `at` over `scene`, and crops the two to `scene`. When
+/// `scene` is already a crop to its own box, `img` goes inside that crop,
+/// which cuts what `img` draws outside the box as a new crop would, so a
+/// chain of places keeps one crop.
 fn place(scene: Image, img: Image, at: Pointf) -> Image {
+  case scene {
+    Crop(box:, image: inner, at: inner_at) ->
+      case box_at_origin(box) {
+        True -> {
+          let #(both, both_at) = combination_settled(inner, inner_at, img, at)
+          Crop(box, both, both_at)
+        }
+        False -> place_and_crop(scene, img, at)
+      }
+    _ -> place_and_crop(scene, img, at)
+  }
+}
+
+fn place_and_crop(scene: Image, img: Image, at: Pointf) -> Image {
   let #(both, at) = combination_settled(scene, origin, img, at)
   cropf(both, 0.0 -. at.x, 0.0 -. at.y, widthf(scene), heightf(scene))
 }
