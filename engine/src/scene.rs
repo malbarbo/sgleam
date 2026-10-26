@@ -24,7 +24,7 @@ use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
 use sinteract::scene::{
     Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path, PathStyle,
-    Sampling, Scene, Text, TextSpec,
+    Sampling, Scene, Segment, Text, TextSpec,
 };
 
 /// The number in the id prefix of the next svg. The page puts every svg of a
@@ -174,6 +174,17 @@ enum Leaf {
 }
 
 impl Leaf {
+    /// A box around the pixels that the leaf can mark, as the least x, the
+    /// least y, the greatest x and the greatest y, or `None` for a text,
+    /// whose glyphs may go past its box.
+    fn bounds(&self) -> Option<(f64, f64, f64, f64)> {
+        match self {
+            Leaf::Path(path) => path_bounds(path),
+            Leaf::Text(_) => None,
+            Leaf::Bitmap { bitmap, .. } => enclose(corners(bitmap.transform)),
+        }
+    }
+
     fn add_to(self, scene: &mut Scene) {
         match self {
             Leaf::Path(path) => scene.add_path(path),
@@ -239,12 +250,16 @@ fn walk<'js>(image: &Object<'js>, at: Offset, region: &Region, runs: &mut Vec<Ru
         let Some(leaf) = leaf else {
             continue;
         };
-        if region.as_ref().as_ref().is_some_and(Vec::is_empty) {
-            continue;
-        }
+        let region = match region.as_ref() {
+            Some(corners) if corners.is_empty() => continue,
+            // A clip around each tile of a grid makes a scene with a clip
+            // for each tile, and a clip that cuts no pixel draws the same.
+            Some(corners) if leaf.bounds().is_some_and(|b| covers(corners, b)) => &None,
+            region => region,
+        };
         match runs.last_mut() {
-            Some((last, leaves)) if last == region.as_ref() => leaves.push(leaf),
-            _ => runs.push((region.as_ref().clone(), vec![leaf])),
+            Some((last, leaves)) if last == region => leaves.push(leaf),
+            _ => runs.push((region.clone(), vec![leaf])),
         }
     }
     Ok(())
@@ -327,6 +342,78 @@ fn intersect(region: &Region, corners: &[(f64, f64); 4]) -> Region {
         out.clear();
     }
     Some(out)
+}
+
+/// The box around the points of `path`, with room for its stroke. A cubic
+/// stays inside its control points, and so does a quad.
+fn path_bounds(path: &Path) -> Option<(f64, f64, f64, f64)> {
+    let points = path.segments().flat_map(|segment| match segment {
+        Segment::Move { x, y } | Segment::Line { x, y } => vec![(x, y)],
+        Segment::Quad { cx, cy, x, y } => vec![(cx, cy), (x, y)],
+        Segment::Cubic {
+            c1x,
+            c1y,
+            c2x,
+            c2y,
+            x,
+            y,
+        } => vec![(c1x, c1y), (c2x, c2y), (x, y)],
+    });
+    let (x0, y0, x1, y1) = enclose(points.map(|(x, y)| (f64::from(x), f64::from(y))))?;
+    let style = &path.style;
+    let half = f64::from(style.stroke_width.max(0.0)) / 2.0;
+    // A miter goes up to the limit times the half width past the corner, and
+    // a square cap goes along the diagonal of the half width.
+    let join = match style.line_join {
+        LineJoin::Miter => f64::from(style.miter_limit).max(1.0),
+        _ => 1.0,
+    };
+    let cap = match style.line_cap {
+        LineCap::Square => std::f64::consts::SQRT_2,
+        _ => 1.0,
+    };
+    let pad = half * join.max(cap);
+    Some((x0 - pad, y0 - pad, x1 + pad, y1 + pad))
+}
+
+/// The box around `points`, or `None` when there is no point or one is not
+/// finite.
+fn enclose(points: impl IntoIterator<Item = (f64, f64)>) -> Option<(f64, f64, f64, f64)> {
+    let mut points = points.into_iter().peekable();
+    points.peek()?;
+    let mut b = (
+        f64::INFINITY,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::NEG_INFINITY,
+    );
+    for (x, y) in points {
+        if !x.is_finite() || !y.is_finite() {
+            return None;
+        }
+        b = (b.0.min(x), b.1.min(y), b.2.max(x), b.3.max(y));
+    }
+    Some(b)
+}
+
+/// Returns `true` if the convex polygon of `corners` covers every pixel that
+/// meets the box `b`, `false` otherwise. A clip leaves such a pixel whole, so
+/// it changes nothing inside the box.
+fn covers(corners: &[(f64, f64)], b: (f64, f64, f64, f64)) -> bool {
+    let (x0, y0, x1, y1) = (b.0.floor(), b.1.floor(), b.2.ceil(), b.3.ceil());
+    let edges = || {
+        corners
+            .iter()
+            .copied()
+            .zip(corners.iter().copied().cycle().skip(1))
+    };
+    let area: f64 = edges().map(|(p, q)| p.0 * q.1 - q.0 * p.1).sum();
+    if area == 0.0 {
+        return false;
+    }
+    [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        .into_iter()
+        .all(|r| edges().all(|(p, q)| area.signum() * cross(p, q, r) >= 0.0))
 }
 
 /// Twice the signed area of the triangle `p`, `q`, `r`.
@@ -415,10 +502,10 @@ struct Shape {
     style: PathStyle,
     aligned: bool,
     start: (f64, f64),
-    segments: Vec<Segment>,
+    commands: Vec<Command>,
 }
 
-enum Segment {
+enum Command {
     Move((f64, f64)),
     Line((f64, f64)),
     Quad((f64, f64), (f64, f64)),
@@ -450,7 +537,7 @@ fn shape(image: &Object) -> Result<Option<Shape>> {
         style: path_style,
         aligned: style.aligned(),
         start: point(first.get("0")?)?,
-        segments: rest.iter().map(segment).collect::<Result<_>>()?,
+        commands: rest.iter().map(command).collect::<Result<_>>()?,
     }))
 }
 
@@ -465,28 +552,28 @@ impl Shape {
         };
         let (x, y) = p(self.start);
         let mut builder = Path::builder(self.style.clone(), x, y);
-        for segment in &self.segments {
-            builder = match *segment {
-                Segment::Move(end) => {
+        for command in &self.commands {
+            builder = match *command {
+                Command::Move(end) => {
                     let (x, y) = p(end);
                     builder.move_to(x, y)
                 }
-                Segment::Line(end) => {
+                Command::Line(end) => {
                     let (x, y) = p(end);
                     builder.line_to(x, y)
                 }
-                Segment::Quad(control, end) => {
+                Command::Quad(control, end) => {
                     let (cx, cy) = p(control);
                     let (x, y) = p(end);
                     builder.quad_to(cx, cy, x, y)
                 }
-                Segment::Cubic(c1, c2, end) => {
+                Command::Cubic(c1, c2, end) => {
                     let (c1x, c1y) = p(c1);
                     let (c2x, c2y) = p(c2);
                     let (x, y) = p(end);
                     builder.cubic_to(c1x, c1y, c2x, c2y, x, y)
                 }
-                Segment::Arc {
+                Command::Arc {
                     rx,
                     ry,
                     rotation,
@@ -538,15 +625,15 @@ fn point(p: Object) -> Result<(f64, f64)> {
     Ok((float(&p, "x")?, float(&p, "y")?))
 }
 
-/// The segment of `cmd`.
-fn segment(cmd: &Object) -> Result<Segment> {
+/// The command of `cmd`.
+fn command(cmd: &Object) -> Result<Command> {
     let at = |name: &str| point(cmd.get(name)?);
     Ok(match class(cmd)?.as_str() {
-        "MoveTo" => Segment::Move(at("0")?),
-        "LineTo" => Segment::Line(at("0")?),
-        "QuadTo" => Segment::Quad(at("control")?, at("end")?),
-        "CubicTo" => Segment::Cubic(at("c1")?, at("c2")?, at("end")?),
-        "ArcTo" => Segment::Arc {
+        "MoveTo" => Command::Move(at("0")?),
+        "LineTo" => Command::Line(at("0")?),
+        "QuadTo" => Command::Quad(at("control")?, at("end")?),
+        "CubicTo" => Command::Cubic(at("c1")?, at("c2")?, at("end")?),
+        "ArcTo" => Command::Arc {
             rx: float(cmd, "rx")? as f32,
             ry: float(cmd, "ry")? as f32,
             rotation: float(cmd, "rotation")? as f32,
