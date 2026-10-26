@@ -9,7 +9,7 @@
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
-use sinteract::display::{FrameEvent, Frames, OpenError, Stage, StageError};
+use sinteract::display::{FrameEvent, Frames, OpenError, ShowError, Stage, StageError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
 use sinteract::session::PlayerRange;
@@ -69,9 +69,16 @@ thread_local! {
 /// Shows a frame of a world, in a window or the terminal, or in a session of
 /// sinteract on the page. The first frame of a world opens the display with
 /// its own size, and the frame goes out at the next tick of the display.
-/// Returns `true` if the display is open, `false` if it did not open.
-pub fn show_scene(scene: Scene) -> bool {
-    FRAMES.with_borrow_mut(|frames| frames.show(scene).is_ok())
+/// Returns `true` if the display is open, `false` if `-d` asked for none, and
+/// the error of the display if it failed to open.
+pub fn show_scene(scene: Scene) -> Result<bool, String> {
+    match FRAMES.with_borrow_mut(|frames| frames.show(scene)) {
+        Ok(()) => Ok(true),
+        Err(ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable) => {
+            Ok(false)
+        }
+        Err(ShowError::Open(error)) => Err(error.to_string()),
+    }
 }
 
 /// Opens the stage of a multiplayer world and returns alternating player
