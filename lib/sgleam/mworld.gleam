@@ -149,9 +149,10 @@ pub fn variant() -> MultiWorld(Nil) {
 /// The repl and `smain` call it for a world they return.
 @internal
 pub fn run(world: MultiWorld(a)) {
-  let preview = case mworld_uses_session(), world.min_players {
-    False, 1 -> Some(world.to_image(world.state, Player(1, "")))
-    _, _ -> None
+  // A display of this process opens at the size of the view of player 1.
+  let preview = case mworld_uses_session() {
+    False -> Some(world.to_image(world.state, Player(1, "")))
+    True -> None
   }
   let #(width, height) = case preview {
     Some(preview) -> #(image.width(preview), image.height(preview))
