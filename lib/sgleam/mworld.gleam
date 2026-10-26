@@ -166,7 +166,7 @@ pub fn run(world: MultiWorld(a)) {
       show_player_image(player.index, preview)
     _, _ -> show_players(world)
   }
-  run_loop(world, start_tick_clock(system.now_ms(), world.rate))
+  run_loop(world, start_tick_clock(system.now_ms(), world.rate), False)
   close_display()
 }
 
@@ -176,31 +176,38 @@ type RuntimeEvent {
   KeyUp(Player, key.Event)
   PadDown(Player, pad.Event)
   PadUp(Player, pad.Event)
+  DisplayTick
   NoEvent
 }
 
-fn run_loop(world: MultiWorld(a), clock: TickClock) -> Nil {
+/// `changed` says if the state changed since the players last got their
+/// views.
+fn run_loop(world: MultiWorld(a), clock: TickClock, changed: Bool) -> Nil {
   case world.stop_when |> option.map(fn(stop) { stop(world.state) }) {
+    // The close of the display shows the last views.
+    Some(True) if changed -> show_players(world)
     Some(True) -> Nil
     _ ->
       case system.wait_event(int.max(clock.deadline - system.now_ms(), 0)) {
         ["close"] -> Nil
         event -> {
-          let #(world, clock) =
-            turn(world, runtime_event(world.players, event), clock)
-          run_loop(world, clock)
+          let #(world, clock, changed) =
+            turn(world, runtime_event(world.players, event), clock, changed)
+          run_loop(world, clock, changed)
         }
       }
   }
 }
 
-/// Handles a logical tick when one is due and one input event. A changed
-/// shared state produces one view for each player, but only once per turn.
+/// Handles a logical tick when one is due and one event. A tick of the
+/// display gives each player a view of the state if the state changed, and
+/// the views go out at the next tick. Returns `changed` for the next turn.
 fn turn(
   world: MultiWorld(a),
   event: RuntimeEvent,
   clock: TickClock,
-) -> #(MultiWorld(a), TickClock) {
+  changed: Bool,
+) -> #(MultiWorld(a), TickClock, Bool) {
   let now = system.now_ms()
   let #(world, ticked, clock) = case now >= clock.deadline {
     True -> {
@@ -221,11 +228,13 @@ fn turn(
     False -> #(world, False, clock)
   }
   let #(world, handled) = apply_event(world, event)
-  case ticked || handled {
-    True -> show_players(world)
-    False -> Nil
+  case event, changed || ticked || handled {
+    DisplayTick, True -> {
+      show_players(world)
+      #(world, clock, False)
+    }
+    _, changed -> #(world, clock, changed)
   }
-  #(world, clock)
 }
 
 fn start_tick_clock(now: Int, rate: Int) -> TickClock {
@@ -270,7 +279,7 @@ fn apply_event(
       apply_player_handler(world, player, input, world.on_pad_down)
     PadUp(player, input) ->
       apply_player_handler(world, player, input, world.on_pad_up)
-    NoEvent -> #(world, False)
+    DisplayTick | NoEvent -> #(world, False)
   }
 }
 
@@ -333,6 +342,7 @@ fn runtime_event(players: List(Player), event: List(String)) -> RuntimeEvent {
       player_input(players, player, key.from_string(key), KeyUp)
     ["paddown", player, input] -> pad_event(players, player, input, PadDown)
     ["padup", player, input] -> pad_event(players, player, input, PadUp)
+    ["tick"] -> DisplayTick
     _ -> NoEvent
   }
 }

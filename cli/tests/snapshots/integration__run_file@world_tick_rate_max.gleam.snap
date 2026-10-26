@@ -3,10 +3,6 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Image
-Image
-Image
-Image
-Image
 world_tick_rate_max.gleam:24 max
 True
 Image

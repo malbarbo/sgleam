@@ -778,8 +778,10 @@ Deno.test("on_key_press and on_key_up take their own events", async () => {
     r.stdout,
     'user.gleam:19 press\nChar("a")\nuser.gleam:19 up\nEnter\n',
   );
-  // The first state and one per handled event.
-  assertEquals(r.frames.length, 3, `stderr:\n${r.stderr}`);
+  // A view drawn at a tick goes out at the next tick. The world stops before
+  // the tick that sends the view after the press, so the close sends the
+  // last view in its place.
+  assertEquals(r.frames.length, 2, `stderr:\n${r.stderr}`);
   destroy(ctx);
 });
 
