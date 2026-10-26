@@ -132,6 +132,7 @@ pub(super) fn stage_options() -> StageOptions {
             DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
             DisplayMode::None => Native::None,
         },
+        players: None,
         terminal: TerminalOptions {
             // Raw mode turns Ctrl-C into a key, so the reader of the terminal
             // stops the program in place of the signal.
