@@ -55,6 +55,12 @@ pub use target::prints_images;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::{DisplayMode, set_display};
 
+/// The players of a multiplayer world on a display of this process.
+/// `set_players` makes the choice before a run, and the world plays with
+/// the fewest it takes until then.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::set_players;
+
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]
 mod target;
@@ -100,8 +106,11 @@ pub fn open_mworld(
             .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
             .collect()),
         // `-d none` asks for no display, so the world runs without one,
-        // with the fewest players it takes.
-        Err(StageError::Open(OpenError::Disabled)) => Ok((1..=range.min().get())
+        // with the players of `--players`, or the fewest it takes.
+        Err(StageError::Open(OpenError::Disabled)) => Ok((1..=target::stage_options()
+            .players
+            .unwrap_or(range.min())
+            .get())
             .flat_map(|player| [player.to_string(), String::new()])
             .collect()),
         Err(error) => Err(error.to_string()),

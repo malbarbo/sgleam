@@ -2,6 +2,7 @@
 //! terminal shows a world.
 
 use std::cell::RefCell;
+use std::num::NonZeroU32;
 use std::sync::{
     OnceLock,
     atomic::{AtomicBool, Ordering},
@@ -81,6 +82,15 @@ pub fn set_display(mode: DisplayMode) {
     debug_assert!(first.is_ok(), "the display is chosen once");
 }
 
+static PLAYERS: OnceLock<NonZeroU32> = OnceLock::new();
+
+/// Makes a multiplayer world on a display of this process play with
+/// `players`, each in a window, and not with the fewest it takes.
+pub fn set_players(players: NonZeroU32) {
+    let first = PLAYERS.set(players);
+    debug_assert!(first.is_ok(), "the players are chosen once");
+}
+
 fn display_mode() -> DisplayMode {
     DISPLAY_MODE.get().copied().unwrap_or_default()
 }
@@ -132,7 +142,7 @@ pub(super) fn stage_options() -> StageOptions {
             DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
             DisplayMode::None => Native::None,
         },
-        players: None,
+        players: PLAYERS.get().copied(),
         terminal: TerminalOptions {
             // Raw mode turns Ctrl-C into a key, so the reader of the terminal
             // stops the program in place of the signal.

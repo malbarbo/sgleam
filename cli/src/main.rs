@@ -18,7 +18,7 @@ use engine::{
     error::{SgleamError, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
-    host::{DisplayMode, set_display},
+    host::{DisplayMode, set_display, set_players},
     quickjs::QuickJsEngine,
     repl::Repl,
     run::{run_check, run_main, run_test},
@@ -29,7 +29,7 @@ use gleam_core::{
     javascript::set_bigint_enabled,
 };
 use repl_reader::Theme;
-use std::{cell::Cell, rc::Rc};
+use std::{cell::Cell, num::NonZeroU32, rc::Rc};
 
 fn number_arg() -> impl bpaf::Parser<bool> {
     bpaf::short('n')
@@ -51,6 +51,13 @@ fn display_arg() -> impl bpaf::Parser<DisplayMode> {
             _ => Err("expected window, kitty, sixel, blocks or none"),
         })
         .fallback(DisplayMode::Auto)
+}
+
+fn players_arg() -> impl bpaf::Parser<Option<NonZeroU32>> {
+    bpaf::long("players")
+        .help("Play a multiplayer world with N players")
+        .argument::<NonZeroU32>("N")
+        .optional()
 }
 
 #[derive(Debug, Clone, Bpaf)]
@@ -76,6 +83,8 @@ enum Command {
         number: bool,
         #[bpaf(external(display_arg))]
         display: DisplayMode,
+        #[bpaf(external(players_arg))]
+        players: Option<NonZeroU32>,
         /// Gleam file to run.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -122,10 +131,12 @@ enum Command {
 fn cli() -> bpaf::OptionParser<Option<Command>> {
     let number = number_arg();
     let display = display_arg();
+    let players = players_arg();
     let file = bpaf::positional::<String>("FILE");
     let file_as_run = bpaf::construct!(Command::Run {
         number,
         display,
+        players,
         file
     });
     let cmd = bpaf::construct!([command(), file_as_run]).optional();
@@ -201,6 +212,14 @@ fn run() -> Result<(), SgleamError> {
     | Command::Test { display, .. } = &command
     {
         set_display(*display);
+    }
+
+    if let Command::Run {
+        players: Some(players),
+        ..
+    } = &command
+    {
+        set_players(*players);
     }
 
     match command {
