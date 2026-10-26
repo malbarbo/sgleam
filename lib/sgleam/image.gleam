@@ -211,8 +211,10 @@ fn box_box(box: Box) -> #(Pointf, Pointf) {
 /// Returns `true` if `box` has no rotation and its least corner is on the
 /// origin, `false` otherwise. A crop that `place` makes has such a box.
 fn box_at_origin(box: Box) -> Bool {
-  let #(min, _) = box_box(box)
-  box.x_axis.y == 0.0 && box.y_axis.x == 0.0 && min.x == 0.0 && min.y == 0.0
+  box.x_axis.y == 0.0
+  && box.y_axis.x == 0.0
+  && box.center.x -. float.absolute_value(box.x_axis.x) /. 2.0 == 0.0
+  && box.center.y -. float.absolute_value(box.y_axis.y) /. 2.0 == 0.0
 }
 
 fn box_rotate(box: Box, center: Pointf, angle: Float) -> Box {
