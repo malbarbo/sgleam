@@ -134,10 +134,11 @@ pub fn print_line(line: &str) {
 }
 
 /// `system.wait_event` waits at most `ms` milliseconds for an input of a
-/// player or for the display to close. It gives the kind of the event, the
-/// number of the player, and the name of the key or of the pad input, then
-/// for a key the modifiers that are on. It gives nothing when the time runs
-/// out.
+/// player, a tick of the display, or the close of the display. For an input
+/// it gives the kind of the event, the number of the player, and the name of
+/// the key or of the pad input, then for a key the modifiers that are on. A
+/// scene shown after a tick goes out at the next one. It gives nothing when
+/// the time runs out.
 pub fn wait_event(ms: u64) -> Vec<String> {
     let end = Instant::now() + Duration::from_millis(ms);
     loop {
@@ -153,6 +154,7 @@ pub fn wait_event(ms: u64) -> Vec<String> {
             FrameEvent::Pad(player, pad) => {
                 player_event(player.number().get(), InputEvent::Pad(pad))
             }
+            FrameEvent::Tick => return vec!["tick".into()],
             FrameEvent::Close => return vec!["close".into()],
             FrameEvent::Timeout => None,
         };
