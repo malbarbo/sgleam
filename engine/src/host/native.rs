@@ -1,7 +1,6 @@
 //! The operating system answers. Ctrl-C stops a program, and a window or the
 //! terminal shows a world.
 
-use std::cell::RefCell;
 use std::num::NonZeroU32;
 use std::sync::{
     OnceLock,
@@ -10,7 +9,6 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use sinteract::display::{Backend, Native, Printer, StageOptions, TerminalOptions};
-use sinteract::scene::Scene;
 
 use crate::error::SgleamError;
 
@@ -110,27 +108,13 @@ fn backend(mode: DisplayMode) -> Option<Backend> {
     }
 }
 
-fn new_printer() -> Option<Printer> {
+pub(super) fn new_printer() -> Option<Printer> {
     match display_mode() {
         DisplayMode::None => None,
         mode => backend(mode)
             .map(Printer::with_backend)
             .or_else(|| Printer::new().ok()),
     }
-}
-
-thread_local! {
-    // The first use makes the printer, so a run that prints no image never
-    // asks the terminal anything.
-    static PRINTER: RefCell<Option<Printer>> = RefCell::new(new_printer());
-}
-
-pub fn prints_images() -> bool {
-    PRINTER.with_borrow(Option::is_some)
-}
-
-pub fn print_scene(scene: &Scene) -> bool {
-    PRINTER.with_borrow_mut(|printer| printer.as_mut().is_some_and(|p| p.print(scene).is_ok()))
 }
 
 /// The rows under a frame in the terminal, for the last lines the program

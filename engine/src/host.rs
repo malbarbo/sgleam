@@ -6,9 +6,13 @@
 //! target has the function, and whatever asks for it says the same `cfg`.
 //! The frames of a world are the same on both, over `Frames` of sinteract.
 
+#[cfg(not(target_arch = "wasm32"))]
+use std::cell::OnceCell;
 use std::cell::RefCell;
 use std::time::{Duration, Instant};
 
+#[cfg(not(target_arch = "wasm32"))]
+use sinteract::display::Printer;
 use sinteract::display::{FrameEvent, Frames, OpenError, ShowError, Stage, StageError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
@@ -36,19 +40,6 @@ pub use target::sleep;
 #[cfg(target_arch = "wasm32")]
 pub use target::draw_svg;
 
-/// Prints a scene in the terminal at the cursor. Returns `true` if the scene
-/// went out, `false` otherwise. With `-d none` nothing goes out. A backend
-/// that `-d` names prints to stdout whatever it is, and otherwise the scene
-/// goes out only if stdout is a terminal that shows images. The browser draws
-/// an svg instead, so it has no such function.
-#[cfg(not(target_arch = "wasm32"))]
-pub use target::print_scene;
-
-/// Returns `true` if [`print_scene`] has a terminal to print to, `false`
-/// otherwise. A failed check asks it before it prints the label of an image.
-#[cfg(not(target_arch = "wasm32"))]
-pub use target::prints_images;
-
 /// The choice of the display for the frames of a world and the images of the
 /// repl. `set_display` makes it before a run, and `Auto` stands until then.
 /// The browser always draws on the page, so it has no such choice.
@@ -68,52 +59,162 @@ mod target;
 #[path = "host/native.rs"]
 mod target;
 
-thread_local! {
-    static FRAMES: RefCell<Frames> = RefCell::new(Frames::new("sgleam", target::stage_options));
+/// The displays of one engine. The frames show the worlds, and on a native
+/// target the printer shows the images of the repl in the terminal.
+pub(crate) struct Host {
+    frames: RefCell<Frames>,
+    // Empty until the first print, so a run that prints no image never asks
+    // the terminal anything. `None` inside means there is no terminal to
+    // print to.
+    #[cfg(not(target_arch = "wasm32"))]
+    printer: OnceCell<Option<RefCell<Printer>>>,
 }
 
-/// Shows a frame of a world, in a window or the terminal, or in a session of
-/// sinteract on the page. The first frame of a world opens the display with
-/// its own size, and the frame goes out at the next tick of the display.
-/// Returns `true` if the display is open, `false` if `-d` asked for none, and
-/// the error of the display if it failed to open.
-pub fn show_scene(scene: Scene) -> Result<bool, String> {
-    match FRAMES.with_borrow_mut(|frames| frames.show(scene)) {
-        Ok(()) => Ok(true),
-        Err(ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable) => {
-            Ok(false)
+impl Host {
+    pub(crate) fn new() -> Host {
+        Host {
+            frames: RefCell::new(Frames::new("sgleam", target::stage_options)),
+            #[cfg(not(target_arch = "wasm32"))]
+            printer: OnceCell::new(),
         }
-        Err(ShowError::Open(error)) => Err(error.to_string()),
     }
-}
 
-/// Opens the stage of a multiplayer world and returns alternating player
-/// numbers and nicknames from its fixed start.
-pub fn open_mworld(
-    width: f32,
-    height: f32,
-    min_players: u32,
-    max_players: u32,
-) -> Result<Vec<String>, String> {
-    if FRAMES.with_borrow(Frames::is_open) {
-        return Err("a world is already running".into());
-    }
-    let range = PlayerRange::new(min_players, max_players)
-        .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
-    let players = target::players();
-    match FRAMES.with_borrow_mut(|frames| frames.open(width, height, range, players)) {
-        Ok(players) => Ok(players
-            .into_iter()
-            .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
-            .collect()),
-        // `-d none` asks for no display, so the world runs without one,
-        // with the players of `--players`, or the fewest it takes.
-        Err(StageError::Open(OpenError::Disabled)) => {
-            Ok((1..=players.unwrap_or(range.min()).get())
-                .flat_map(|player| [player.to_string(), String::new()])
-                .collect())
+    /// Shows a frame of a world, in a window or the terminal, or in a session
+    /// of sinteract on the page. The first frame of a world opens the display
+    /// with its own size, and the frame goes out at the next tick of the
+    /// display. Returns `true` if the display is open, `false` if `-d` asked
+    /// for none, and the error of the display if it failed to open.
+    pub fn show_scene(&self, scene: Scene) -> Result<bool, String> {
+        match self.frames.borrow_mut().show(scene) {
+            Ok(()) => Ok(true),
+            Err(
+                ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable,
+            ) => Ok(false),
+            Err(ShowError::Open(error)) => Err(error.to_string()),
         }
-        Err(error) => Err(error.to_string()),
+    }
+
+    /// Opens the stage of a multiplayer world and returns alternating player
+    /// numbers and nicknames from its fixed start.
+    pub fn open_mworld(
+        &self,
+        width: f32,
+        height: f32,
+        min_players: u32,
+        max_players: u32,
+    ) -> Result<Vec<String>, String> {
+        let mut frames = self.frames.borrow_mut();
+        if frames.is_open() {
+            return Err("a world is already running".into());
+        }
+        let range = PlayerRange::new(min_players, max_players)
+            .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
+        let players = target::players();
+        match frames.open(width, height, range, players) {
+            Ok(players) => Ok(players
+                .into_iter()
+                .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
+                .collect()),
+            // `-d none` asks for no display, so the world runs without one,
+            // with the players of `--players`, or the fewest it takes.
+            Err(StageError::Open(OpenError::Disabled)) => {
+                Ok((1..=players.unwrap_or(range.min()).get())
+                    .flat_map(|player| [player.to_string(), String::new()])
+                    .collect())
+            }
+            Err(error) => Err(error.to_string()),
+        }
+    }
+
+    /// Keeps the latest scene for one player until the next stage tick.
+    pub fn show_player_scene(&self, player: u32, scene: Scene) -> bool {
+        let mut frames = self.frames.borrow_mut();
+        let Some(&player) = frames.players().iter().find(|p| p.number().get() == player) else {
+            return false;
+        };
+        frames.show_to(player, scene).is_ok()
+    }
+
+    /// Closes the display of the frames, so the world that comes next opens
+    /// its own. A window goes away, and the terminal keeps the last frame on
+    /// screen.
+    pub fn close_frames(&self) {
+        // The terminal shows the lines of `print_line` under the frame, and
+        // they print under it after the close.
+        let lines = self.frames.borrow_mut().close();
+        for line in lines {
+            println!("{line}");
+        }
+    }
+
+    /// `console.log` prints a line, and so does `echo`. While the terminal
+    /// shows the frames of a world, the line shows under the frame and prints
+    /// when the frames close.
+    pub fn print_line(&self, line: &str) {
+        if !self.frames.borrow_mut().print_line(line) {
+            println!("{line}");
+        }
+    }
+
+    /// `system.wait_event` waits at most `ms` milliseconds for an input of a
+    /// player, a tick of the display, or the close of the display. For an
+    /// input it gives the kind of the event, the number of the player, and
+    /// the name of the key or of the pad input, then for a key the modifiers
+    /// that are on. A scene shown after a tick goes out at the next one. It
+    /// gives nothing when the time runs out.
+    pub fn wait_event(&self, ms: u64) -> Vec<String> {
+        let end = Instant::now() + Duration::from_millis(ms);
+        loop {
+            // Short slices, so an interruption ends a long wait at once.
+            let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
+            let event = self
+                .frames
+                .borrow_mut()
+                .wait_event(deadline, |error| tracing::warn!("{error}"));
+            let event = match event {
+                FrameEvent::Key(player, key) => {
+                    player_event(player.number().get(), InputEvent::Key(key))
+                }
+                FrameEvent::Pad(player, pad) => {
+                    player_event(player.number().get(), InputEvent::Pad(pad))
+                }
+                FrameEvent::Tick => return vec!["tick".into()],
+                FrameEvent::Close => return vec!["close".into()],
+                FrameEvent::Timeout => None,
+            };
+            if let Some(event) = event {
+                return event;
+            }
+            if Instant::now() >= end || target::check_interrupt() {
+                return vec![];
+            }
+        }
+    }
+
+    /// Prints a scene in the terminal at the cursor. Returns `true` if the
+    /// scene went out, `false` otherwise. With `-d none` nothing goes out. A
+    /// backend that `-d` names prints to stdout whatever it is, and otherwise
+    /// the scene goes out only if stdout is a terminal that shows images. The
+    /// browser draws an svg instead, so it has no such function.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn print_scene(&self, scene: &Scene) -> bool {
+        self.printer()
+            .is_some_and(|printer| printer.borrow_mut().print(scene).is_ok())
+    }
+
+    /// Returns `true` if [`Host::print_scene`] has a terminal to print to,
+    /// `false` otherwise. A failed check asks it before it prints the label
+    /// of an image.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub fn prints_images(&self) -> bool {
+        self.printer().is_some()
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn printer(&self) -> Option<&RefCell<Printer>> {
+        self.printer
+            .get_or_init(|| target::new_printer().map(RefCell::new))
+            .as_ref()
     }
 }
 
@@ -121,69 +222,6 @@ pub fn open_mworld(
 /// `false` if it opens a display of this process.
 pub fn mworld_uses_session() -> bool {
     Stage::opens_session()
-}
-
-/// Keeps the latest scene for one player until the next stage tick.
-pub fn show_player_scene(player: u32, scene: Scene) -> bool {
-    FRAMES.with_borrow_mut(|frames| {
-        let Some(&player) = frames.players().iter().find(|p| p.number().get() == player) else {
-            return false;
-        };
-        frames.show_to(player, scene).is_ok()
-    })
-}
-
-/// Closes the display of the frames, so the world that comes next opens its
-/// own. A window goes away, and the terminal keeps the last frame on screen.
-pub fn close_frames() {
-    // The terminal shows the lines of `print_line` under the frame, and they
-    // print under it after the close.
-    for line in FRAMES.with_borrow_mut(Frames::close) {
-        println!("{line}");
-    }
-}
-
-/// `console.log` prints a line, and so does `echo`. While the terminal shows
-/// the frames of a world, the line shows under the frame and prints when the
-/// frames close.
-pub fn print_line(line: &str) {
-    if !FRAMES.with_borrow_mut(|frames| frames.print_line(line)) {
-        println!("{line}");
-    }
-}
-
-/// `system.wait_event` waits at most `ms` milliseconds for an input of a
-/// player, a tick of the display, or the close of the display. For an input
-/// it gives the kind of the event, the number of the player, and the name of
-/// the key or of the pad input, then for a key the modifiers that are on. A
-/// scene shown after a tick goes out at the next one. It gives nothing when
-/// the time runs out.
-pub fn wait_event(ms: u64) -> Vec<String> {
-    let end = Instant::now() + Duration::from_millis(ms);
-    loop {
-        // Short slices, so an interruption ends a long wait at once.
-        let deadline = (Instant::now() + Duration::from_millis(10)).min(end);
-        let event = FRAMES.with_borrow_mut(|frames| {
-            frames.wait_event(deadline, |error| tracing::warn!("{error}"))
-        });
-        let event = match event {
-            FrameEvent::Key(player, key) => {
-                player_event(player.number().get(), InputEvent::Key(key))
-            }
-            FrameEvent::Pad(player, pad) => {
-                player_event(player.number().get(), InputEvent::Pad(pad))
-            }
-            FrameEvent::Tick => return vec!["tick".into()],
-            FrameEvent::Close => return vec!["close".into()],
-            FrameEvent::Timeout => None,
-        };
-        if let Some(event) = event {
-            return event;
-        }
-        if Instant::now() >= end || target::check_interrupt() {
-            return vec![];
-        }
-    }
 }
 
 fn player_event(player: u32, event: InputEvent) -> Option<Vec<String>> {

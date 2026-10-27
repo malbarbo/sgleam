@@ -27,6 +27,8 @@ use sinteract::scene::{
     Sampling, Scene, Segment, Text, TextSpec,
 };
 
+use crate::host::Host;
+
 /// The number in the id prefix of the next svg. The page puts every svg of a
 /// run into one HTML document, so two svgs must not share an id.
 static NEXT_SVG: AtomicUsize = AtomicUsize::new(0);
@@ -49,30 +51,28 @@ pub fn to_svg<'js>(image: Object<'js>, width: f64, height: f64) -> Result<String
 /// Returns `true` if the image went out, `false` otherwise, and then the repl
 /// prints the word `Image`.
 #[cfg(not(target_arch = "wasm32"))]
-pub fn print_image<'js>(image: Object<'js>, width: f64, height: f64) -> Result<bool> {
-    Ok(crate::host::print_scene(&to_scene(&image, width, height)?))
+pub fn print_image(host: &Host, image: Object<'_>, width: f64, height: f64) -> Result<bool> {
+    Ok(host.print_scene(&to_scene(&image, width, height)?))
 }
 
 /// Shows `image` as a frame of a world, on a canvas of `width` by `height`.
 /// Returns `true` if the display of the world is open, `false` otherwise, and
 /// then the world prints the word `Image`. A display that fails to open
 /// throws its error.
-pub fn show_image<'js>(image: Object<'js>, width: f64, height: f64) -> Result<bool> {
-    crate::host::show_scene(to_scene(&image, width, height)?)
+pub fn show_image(host: &Host, image: Object<'_>, width: f64, height: f64) -> Result<bool> {
+    host.show_scene(to_scene(&image, width, height)?)
         .map_err(|error| Exception::throw_message(image.ctx(), &error))
 }
 
 /// Keeps `image` as the next frame of one player of a multiplayer world.
-pub fn show_player_image<'js>(
+pub fn show_player_image(
+    host: &Host,
     player: u32,
-    image: Object<'js>,
+    image: Object<'_>,
     width: f64,
     height: f64,
 ) -> Result<bool> {
-    Ok(crate::host::show_player_scene(
-        player,
-        to_scene(&image, width, height)?,
-    ))
+    Ok(host.show_player_scene(player, to_scene(&image, width, height)?))
 }
 
 /// `image` drawn on a canvas of `width` by `height`.

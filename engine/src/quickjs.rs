@@ -4,6 +4,7 @@ use indoc::formatdoc;
 use sourcemap::SourceMap;
 
 use std::fmt::Write as _;
+use std::rc::Rc;
 
 use rquickjs::{
     CatchResultExt, CaughtError, Coerced, Context, Ctx, Error, Exception, Function, Module, Object,
@@ -24,7 +25,7 @@ use crate::{
     engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
-    host::{self, check_interrupt, init, now_ms},
+    host::{self, Host, check_interrupt, init, now_ms},
     swriteln,
 };
 
@@ -38,23 +39,26 @@ pub fn version() -> &'static str {
     version.to_str().unwrap_or("unknown")
 }
 
-/// A JavaScript context together with its runtime. A clone shares both,
-/// because rquickjs counts the references.
+/// A JavaScript context together with its runtime and its displays. A clone
+/// shares all three, because each one counts its references.
 #[derive(Clone)]
 pub struct QuickJsEngine {
     context: Context,
+    host: Rc<Host>,
 }
 
 impl Engine for QuickJsEngine {
     fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
         init()?;
+        let host = Rc::new(Host::new());
         Ok(QuickJsEngine {
-            context: create_context(fs)?,
+            context: create_context(fs, &host)?,
+            host,
         })
     }
 
     fn run_main(&self, module: &str, main: MainFunction) -> std::result::Result<(), SgleamError> {
-        run_main(&self.context, module, main)
+        run_main(&self.context, &self.host, module, main)
     }
 
     fn has_var(&self, key: &str) -> bool {
@@ -67,11 +71,11 @@ impl Engine for QuickJsEngine {
     }
 
     fn run_tests(&self, modules: &[&str]) -> std::result::Result<(), SgleamError> {
-        run_tests(&self.context, modules)
+        run_tests(&self.context, &self.host, modules)
     }
 }
 
-fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
+fn create_context(fs: InMemoryFileSystem, host: &Rc<Host>) -> Result<Context> {
     let runtime = Runtime::new()?;
     runtime.set_interrupt_handler(Some(Box::new(check_interrupt)));
     let context = Context::full(&runtime)?;
@@ -89,8 +93,8 @@ fn create_context(fs: InMemoryFileSystem) -> Result<Context> {
         .with(|ctx| {
             seed_bigint_flag(&ctx)?;
             raise_stack_trace_limit(&ctx)?;
-            add_console(&ctx)?;
-            add_sgleam(&ctx, fs)
+            add_console(&ctx, host)?;
+            add_sgleam(&ctx, fs, host)
         })
         .map(|_| context)
 }
@@ -110,6 +114,7 @@ fn raise_stack_trace_limit(ctx: &Ctx) -> Result<()> {
 
 fn run_main(
     context: &Context,
+    host: &Host,
     module: &str,
     main: MainFunction,
 ) -> std::result::Result<(), SgleamError> {
@@ -142,10 +147,14 @@ fn run_main(
         try_main({name}, "{kind}", {show_output}, [{repl_files}]);
         "#
     };
-    run_script(context, code)
+    run_script(context, host, code)
 }
 
-fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), SgleamError> {
+fn run_tests(
+    context: &Context,
+    host: &Host,
+    modules: &[&str],
+) -> std::result::Result<(), SgleamError> {
     let mut src = String::new();
     swriteln!(&mut src, r#"import {{ run_tests }} from "{SGLEAM_FFI}";"#);
     let mut entries = vec![];
@@ -160,7 +169,7 @@ fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), Sgl
         &mut src,
         "globalThis.tests_passed = run_tests([{modules}]);"
     );
-    run_script(context, src)?;
+    run_script(context, host, src)?;
     // The script ran without raising, so it set this.
     let passed = context.with(|ctx| ctx.globals().get("tests_passed").unwrap_or(false));
     if passed {
@@ -170,10 +179,14 @@ fn run_tests(context: &Context, modules: &[&str]) -> std::result::Result<(), Sgl
     }
 }
 
-fn run_script(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
+fn run_script(
+    context: &Context,
+    host: &Host,
+    source: String,
+) -> std::result::Result<(), SgleamError> {
     let result = eval_script(context, source);
     // A world that ended, or that Ctrl-C stopped, leaves its display open.
-    crate::host::close_frames();
+    host.close_frames();
     result
 }
 
@@ -240,35 +253,66 @@ fn is_interrupt(exception: &Exception) -> bool {
     unsafe { JS_IsUncatchableError(exception.as_value().as_raw()) }
 }
 
-fn add_console(ctx: &Ctx) -> Result<()> {
+fn add_console(ctx: &Ctx, host: &Rc<Host>) -> Result<()> {
     let console = Object::new(ctx.clone())?;
-    set_fn(&console, "log", log)?;
+    let host = host.clone();
+    set_fn(&console, "log", move |value: Coerced<String>| {
+        host.print_line(&value.0)
+    })?;
     ctx.globals().set("console", console)
 }
 
-fn add_sgleam(ctx: &Ctx, fs: InMemoryFileSystem) -> Result<()> {
+fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> Result<()> {
     let sgleam = Object::new(ctx.clone())?;
     set_fn(&sgleam, "getline", getline)?;
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "now_ms", now_ms)?;
-    set_fn(&sgleam, "wait_event", wait_event)?;
-    set_fn(&sgleam, "open_mworld", open_mworld)?;
+    let h = host.clone();
+    set_fn(&sgleam, "wait_event", move |ctx, ms| {
+        wait_event(&h, ctx, ms)
+    })?;
+    let h = host.clone();
+    set_fn(
+        &sgleam,
+        "open_mworld",
+        move |ctx, width, height, min_players, max_players| {
+            open_mworld(&h, ctx, width, height, min_players, max_players)
+        },
+    )?;
     set_fn(&sgleam, "mworld_uses_session", host::mworld_uses_session)?;
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
     set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
     #[cfg(not(target_arch = "wasm32"))]
-    set_fn(&sgleam, "print_image", crate::scene::print_image)?;
-    #[cfg(not(target_arch = "wasm32"))]
-    set_fn(&sgleam, "prints_images", crate::host::prints_images)?;
-    set_fn(&sgleam, "show_image", crate::scene::show_image)?;
+    {
+        let h = host.clone();
+        set_fn(
+            &sgleam,
+            "print_image",
+            move |image: Object<'js>, width, height| {
+                crate::scene::print_image(&h, image, width, height)
+            },
+        )?;
+        let h = host.clone();
+        set_fn(&sgleam, "prints_images", move || h.prints_images())?;
+    }
+    let h = host.clone();
+    set_fn(
+        &sgleam,
+        "show_image",
+        move |image: Object<'js>, width, height| crate::scene::show_image(&h, image, width, height),
+    )?;
+    let h = host.clone();
     set_fn(
         &sgleam,
         "show_player_image",
-        crate::scene::show_player_image,
+        move |player, image: Object<'js>, width, height| {
+            crate::scene::show_player_image(&h, player, image, width, height)
+        },
     )?;
-    set_fn(&sgleam, "close_display", crate::host::close_frames)?;
+    let h = host.clone();
+    set_fn(&sgleam, "close_display", move || h.close_frames())?;
     set_fn(&sgleam, "text_metrics", crate::scene::text_metrics)?;
     set_fn(&sgleam, "load_image", crate::scene::load_image)?;
     set_fn(&sgleam, "image_to_svg", crate::scene::to_svg)?;
@@ -329,20 +373,21 @@ fn sleep(ctx: Ctx<'_>, ms: u64) -> Result<()> {
 
 /// `system.wait_event`, which stops the program on an interruption, as `sleep`
 /// does.
-fn wait_event(ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
-    let event = host::wait_event(ms);
+fn wait_event(host: &Host, ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
+    let event = host.wait_event(ms);
     stop_on_interrupt(&ctx)?;
     Ok(event)
 }
 
 fn open_mworld(
+    host: &Host,
     ctx: Ctx<'_>,
     width: f32,
     height: f32,
     min_players: u32,
     max_players: u32,
 ) -> Result<Vec<String>> {
-    host::open_mworld(width, height, min_players, max_players)
+    host.open_mworld(width, height, min_players, max_players)
         .map_err(|error| Exception::throw_message(&ctx, &error))
 }
 
@@ -377,10 +422,6 @@ fn getline() -> Option<String> {
             None
         }
     }
-}
-
-fn log(value: Coerced<String>) {
-    host::print_line(&value.0);
 }
 
 #[derive(Debug)]
