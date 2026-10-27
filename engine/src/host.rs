@@ -96,11 +96,7 @@ impl Host {
                 "an animation takes no players, and --players asks for {players}"
             ));
         }
-        match self.frames.borrow_mut().show(scene) {
-            Ok(()) => Ok(self.shows_frames()),
-            Err(ShowError::Unavailable) => Ok(false),
-            Err(ShowError::Open(error)) => Err(error.to_string()),
-        }
+        self.shown(self.frames.borrow_mut().show(scene))
     }
 
     /// Chooses the players of a multiplayer world and returns alternating
@@ -131,7 +127,13 @@ impl Host {
         let Some(&player) = frames.players().iter().find(|p| p.number().get() == player) else {
             return Ok(false);
         };
-        match frames.show_to(player, scene) {
+        self.shown(frames.show_to(player, scene))
+    }
+
+    /// Returns `true` if the frame reaches a display, `false` if there is
+    /// none, and the error of a display that failed to open.
+    fn shown(&self, result: Result<(), ShowError>) -> Result<bool, String> {
+        match result {
             Ok(()) => Ok(self.shows_frames()),
             Err(ShowError::Unavailable) => Ok(false),
             Err(ShowError::Open(error)) => Err(error.to_string()),
