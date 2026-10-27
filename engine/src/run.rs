@@ -11,13 +11,14 @@ use crate::{
     engine::{Engine, MainFunction, SMAIN},
     error::SgleamError,
     gleam::{Project, copy_files_and_build, fn_type_to_string, get_function},
+    host::HostOptions,
 };
 
 // Running a program is what picks a runtime. Nothing above this module names
 // one.
 use crate::quickjs::QuickJsEngine as JsEngine;
 
-pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+pub fn run_main(paths: &[Utf8PathBuf], options: HostOptions) -> Result<(), SgleamError> {
     // The first path is the program, and the rest are what it imports.
     let program = paths.first().expect("a path to run");
     let mut project = Project::default();
@@ -25,12 +26,17 @@ pub fn run_main(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
-    run_module(&project, module, program)
+    run_module(&project, module, program, options)
 }
 
 /// Runs the `main` or the `smain` of `module`, which `project` built. An
 /// error names the module by `path`.
-pub fn run_module(project: &Project, module: &Module, path: &Utf8Path) -> Result<(), SgleamError> {
+pub fn run_module(
+    project: &Project,
+    module: &Module,
+    path: &Utf8Path,
+    options: HostOptions,
+) -> Result<(), SgleamError> {
     let main = get_main(module).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
@@ -40,7 +46,7 @@ pub fn run_module(project: &Project, module: &Module, path: &Utf8Path) -> Result
         }
         err => err,
     })?;
-    JsEngine::new(project.fs.clone())?.run_main(&module.name, main)?;
+    JsEngine::new(project.fs.clone(), options)?.run_main(&module.name, main)?;
 
     Ok(())
 }
@@ -51,7 +57,11 @@ pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     Ok(())
 }
 
-pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
+pub fn run_test(
+    user_files: &[Utf8PathBuf],
+    paths: &[Utf8PathBuf],
+    options: HostOptions,
+) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let user_modules: Vec<_> = paths
@@ -62,7 +72,7 @@ pub fn run_test(user_files: &[Utf8PathBuf], paths: &[Utf8PathBuf]) -> Result<(),
         .map(|module| module.name.as_str())
         .collect();
 
-    JsEngine::new(project.fs.clone())?.run_tests(&user_modules)?;
+    JsEngine::new(project.fs.clone(), options)?.run_tests(&user_modules)?;
     Ok(())
 }
 

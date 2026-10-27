@@ -5,6 +5,7 @@ use engine::{
     error::{self, show_error},
     format,
     gleam::{Project, get_module},
+    host::HostOptions,
     input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
@@ -93,7 +94,7 @@ fn configure(ptr: *mut u8, len: usize) {
 
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     let project = Project::default();
-    let engine = QuickJsEngine::new(project.fs.clone())?;
+    let engine = QuickJsEngine::new(project.fs.clone(), HostOptions)?;
     Ok(Repl::new(project, None, engine))
 }
 
@@ -134,12 +135,12 @@ pub unsafe extern "C" fn repl_new(
     };
     let module = get_module(&modules, USER);
     if module.map(has_examples).unwrap_or(false)
-        && let Ok(engine) = QuickJsEngine::new(project.fs.clone())
+        && let Ok(engine) = QuickJsEngine::new(project.fs.clone(), HostOptions)
     {
         let _ = engine.run_tests(&[USER]);
     }
-    let repl =
-        QuickJsEngine::new(project.fs.clone()).map(|engine| Repl::new(project, module, engine));
+    let repl = QuickJsEngine::new(project.fs.clone(), HostOptions)
+        .map(|engine| Repl::new(project, module, engine));
     leak_shell(repl)
 }
 
@@ -174,7 +175,7 @@ pub unsafe extern "C" fn run(
         .map_err(error::SgleamError::Gleam)
         .and_then(|modules| {
             let module = get_module(&modules, USER).expect("the module of the page");
-            run_module(&project, module, USER_FILE.into())
+            run_module(&project, module, USER_FILE.into(), HostOptions)
         });
     match result {
         Ok(()) => 0,

@@ -5,7 +5,7 @@
 
 use camino::Utf8PathBuf;
 
-use engine::{error::SgleamError, gleam::Project, run::run_main};
+use engine::{error::SgleamError, gleam::Project, host::HostOptions, run::run_main};
 
 #[test]
 fn an_absolute_path_names_no_module() {
@@ -16,7 +16,7 @@ fn an_absolute_path_names_no_module() {
     assert!(path.exists(), "{path} is the file this test runs on");
 
     assert!(matches!(
-        run_main(&[path]),
+        run_main(&[path], HostOptions::default()),
         Err(SgleamError::NoModuleToRun { .. })
     ));
 }

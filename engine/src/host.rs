@@ -41,10 +41,12 @@ pub use target::sleep;
 pub use target::draw_svg;
 
 /// The choice of the display for the frames of a world and the images of the
-/// repl. `set_display` makes it before a run, and `Auto` stands until then.
-/// The browser always draws on the page, so it has no such choice.
+/// repl. The browser always draws on the page, so it has no such choice.
 #[cfg(not(target_arch = "wasm32"))]
-pub use target::{DisplayMode, set_display};
+pub use target::DisplayMode;
+
+/// What the command line chooses for the displays of an engine.
+pub use target::HostOptions;
 
 /// The players of a multiplayer world on a display of this process.
 /// `set_players` makes the choice before a run, and the world plays with
@@ -62,6 +64,8 @@ mod target;
 /// The displays of one engine. The frames show the worlds, and on a native
 /// target the printer shows the images of the repl in the terminal.
 pub(crate) struct Host {
+    #[cfg(not(target_arch = "wasm32"))]
+    options: HostOptions,
     frames: RefCell<Frames>,
     // Empty until the first print, so a run that prints no image never asks
     // the terminal anything. `None` inside means there is no terminal to
@@ -71,9 +75,13 @@ pub(crate) struct Host {
 }
 
 impl Host {
-    pub(crate) fn new() -> Host {
+    pub(crate) fn new(options: HostOptions) -> Host {
         Host {
-            frames: RefCell::new(Frames::new("sgleam", target::stage_options)),
+            #[cfg(not(target_arch = "wasm32"))]
+            options,
+            frames: RefCell::new(Frames::new("sgleam", move || {
+                target::stage_options(options)
+            })),
             #[cfg(not(target_arch = "wasm32"))]
             printer: OnceCell::new(),
         }
@@ -213,7 +221,7 @@ impl Host {
     #[cfg(not(target_arch = "wasm32"))]
     fn printer(&self) -> Option<&RefCell<Printer>> {
         self.printer
-            .get_or_init(|| target::new_printer().map(RefCell::new))
+            .get_or_init(|| target::new_printer(self.options).map(RefCell::new))
             .as_ref()
     }
 }

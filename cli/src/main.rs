@@ -18,7 +18,7 @@ use engine::{
     error::{SgleamError, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
-    host::{DisplayMode, set_display, set_players},
+    host::{DisplayMode, HostOptions, set_players},
     quickjs::QuickJsEngine,
     repl::Repl,
     run::{run_check, run_main, run_test},
@@ -207,12 +207,12 @@ fn run() -> Result<(), SgleamError> {
 
     set_bigint_enabled(!number);
 
-    if let Command::Repl { display, .. }
-    | Command::Run { display, .. }
-    | Command::Test { display, .. } = &command
-    {
-        set_display(*display);
-    }
+    let options = match &command {
+        Command::Repl { display, .. }
+        | Command::Run { display, .. }
+        | Command::Test { display, .. } => HostOptions { display: *display },
+        _ => HostOptions::default(),
+    };
 
     if let Command::Run {
         players: Some(players),
@@ -240,18 +240,18 @@ fn run() -> Result<(), SgleamError> {
                 Some(file) => find_imports(vec![user_module(file)?])?,
                 None => vec![],
             };
-            run_interactive(&paths, quiet)
+            run_interactive(&paths, quiet, options)
         }
         Command::Run { file, .. } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_main(&files)
+            run_main(&files, options)
         }
         Command::Test { file, .. } => {
             let file = user_module(file)?;
             let user_files = vec![file];
             let files = find_imports(user_files.clone())?;
-            run_test(&user_files, &files)
+            run_test(&user_files, &files, options)
         }
         Command::Format { check, files } => {
             let paths = files.into_iter().map(Utf8PathBuf::from).collect();
@@ -308,7 +308,11 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })
 }
 
-fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError> {
+fn run_interactive(
+    paths: &[Utf8PathBuf],
+    quiet: bool,
+    options: HostOptions,
+) -> Result<(), SgleamError> {
     let theme = Rc::new(Cell::new(config::load().theme));
 
     if !quiet {
@@ -319,7 +323,7 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0);
 
-    let engine = QuickJsEngine::new(project.fs.clone())?;
+    let engine = QuickJsEngine::new(project.fs.clone(), options)?;
     let mut shell = Shell::new(Repl::new(project, module, engine));
     shell.add(
         ":theme",

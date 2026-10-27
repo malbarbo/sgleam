@@ -4,6 +4,7 @@
 
 use engine::{
     gleam::{Project, get_module},
+    host::HostOptions,
     quickjs::QuickJsEngine,
     repl::Repl,
     shell::Shell,
@@ -12,7 +13,8 @@ use indoc::indoc;
 
 fn new_repl() -> Repl<QuickJsEngine> {
     let project = Project::default();
-    let engine = QuickJsEngine::new(project.fs.clone()).expect("start the engine");
+    let engine =
+        QuickJsEngine::new(project.fs.clone(), HostOptions::default()).expect("start the engine");
     Repl::new(project, None, engine)
 }
 
@@ -21,7 +23,8 @@ fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
     project.write_source("user.gleam", source);
     let modules = project.compile(true).expect("compile user module");
     let module = get_module(&modules, "user");
-    let engine = QuickJsEngine::new(project.fs.clone()).expect("start the engine");
+    let engine =
+        QuickJsEngine::new(project.fs.clone(), HostOptions::default()).expect("start the engine");
     Repl::new(project, module, engine)
 }
 

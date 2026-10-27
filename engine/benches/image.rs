@@ -5,7 +5,7 @@
 
 use camino::Utf8PathBuf;
 
-use engine::{gleam::find_imports, run::run_main};
+use engine::{gleam::find_imports, host::HostOptions, run::run_main};
 
 fn main() {
     let filter: Vec<String> = std::env::args()
@@ -34,7 +34,7 @@ fn main() {
             for case in cases {
                 println!("# {case}");
                 let paths = find_imports(vec![case.clone()]).expect("the imports of the case");
-                if let Err(err) = run_main(&paths) {
+                if let Err(err) = run_main(&paths, HostOptions::default()) {
                     println!("{case} failed: {err}");
                 }
             }

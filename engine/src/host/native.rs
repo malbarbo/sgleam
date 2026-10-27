@@ -73,11 +73,10 @@ pub enum DisplayMode {
     None,
 }
 
-static DISPLAY_MODE: OnceLock<DisplayMode> = OnceLock::new();
-
-pub fn set_display(mode: DisplayMode) {
-    let first = DISPLAY_MODE.set(mode);
-    debug_assert!(first.is_ok(), "the display is chosen once");
+/// What the command line chooses for the displays of an engine.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HostOptions {
+    pub display: DisplayMode,
 }
 
 static PLAYERS: OnceLock<NonZeroU32> = OnceLock::new();
@@ -93,10 +92,6 @@ pub(super) fn players() -> Option<NonZeroU32> {
     PLAYERS.get().copied()
 }
 
-fn display_mode() -> DisplayMode {
-    DISPLAY_MODE.get().copied().unwrap_or_default()
-}
-
 /// The backend of the terminal that `mode` asks for, or `None` to ask the
 /// terminal.
 fn backend(mode: DisplayMode) -> Option<Backend> {
@@ -108,8 +103,8 @@ fn backend(mode: DisplayMode) -> Option<Backend> {
     }
 }
 
-pub(super) fn new_printer() -> Option<Printer> {
-    match display_mode() {
+pub(super) fn new_printer(options: HostOptions) -> Option<Printer> {
+    match options.display {
         DisplayMode::None => None,
         mode => backend(mode)
             .map(Printer::with_backend)
@@ -121,8 +116,8 @@ pub(super) fn new_printer() -> Option<Printer> {
 /// printed. An `echo` takes two of them.
 const FOOTER_ROWS: u16 = 5;
 
-pub(super) fn stage_options() -> StageOptions {
-    let mode = display_mode();
+pub(super) fn stage_options(options: HostOptions) -> StageOptions {
+    let mode = options.display;
     StageOptions {
         display: match mode {
             DisplayMode::Auto => Native::Auto,

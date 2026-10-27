@@ -45,7 +45,11 @@ pub(super) fn players() -> Option<NonZeroU32> {
     None
 }
 
+/// The page has no choice to make about its displays.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HostOptions;
+
 /// The page shows each world in a session, the only display it has.
-pub(super) fn stage_options() -> StageOptions {
+pub(super) fn stage_options(_options: HostOptions) -> StageOptions {
     StageOptions::default()
 }

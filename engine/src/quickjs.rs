@@ -25,7 +25,7 @@ use crate::{
     engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
-    host::{self, Host, check_interrupt, init, now_ms},
+    host::{self, Host, HostOptions, check_interrupt, init, now_ms},
     swriteln,
 };
 
@@ -48,9 +48,12 @@ pub struct QuickJsEngine {
 }
 
 impl QuickJsEngine {
-    pub fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
+    pub fn new(
+        fs: InMemoryFileSystem,
+        options: HostOptions,
+    ) -> std::result::Result<Self, SgleamError> {
         init()?;
-        let host = Rc::new(Host::new());
+        let host = Rc::new(Host::new(options));
         Ok(QuickJsEngine {
             context: create_context(fs, &host)?,
             host,
