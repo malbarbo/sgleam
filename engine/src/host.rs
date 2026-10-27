@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
 use sinteract::display::Printer;
-use sinteract::display::{FrameEvent, Frames, OpenError, ShowError, StageError};
+use sinteract::display::{FrameEvent, Frames, ShowError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
 use sinteract::session::PlayerRange;
@@ -64,7 +64,6 @@ mod target;
 /// The displays of one engine. The frames show the worlds, and on a native
 /// target the printer shows the images of the repl in the terminal.
 pub(crate) struct Host {
-    #[cfg(not(target_arch = "wasm32"))]
     options: HostOptions,
     frames: RefCell<Frames>,
     players: Option<NonZeroU32>,
@@ -78,7 +77,6 @@ pub(crate) struct Host {
 impl Host {
     pub(crate) fn new(options: HostOptions) -> Host {
         Host {
-            #[cfg(not(target_arch = "wasm32"))]
             options,
             frames: RefCell::new(Frames::new("sgleam", move || {
                 target::stage_options(options)
@@ -102,10 +100,8 @@ impl Host {
             ));
         }
         match self.frames.borrow_mut().show(scene) {
-            Ok(()) => Ok(true),
-            Err(
-                ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable,
-            ) => Ok(false),
+            Ok(()) => Ok(self.shows_frames()),
+            Err(ShowError::Unavailable) => Ok(false),
             Err(ShowError::Open(error)) => Err(error.to_string()),
         }
     }
@@ -125,13 +121,6 @@ impl Host {
                 .into_iter()
                 .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
                 .collect()),
-            // `-d none` asks for no display, so the world runs without one,
-            // with the players of `--players`, or the fewest it takes.
-            Err(StageError::Open(OpenError::Disabled)) => {
-                Ok((1..=self.players.unwrap_or(range.min()).get())
-                    .flat_map(|player| [player.to_string(), String::new()])
-                    .collect())
-            }
             Err(error) => Err(error.to_string()),
         }
     }
@@ -146,12 +135,19 @@ impl Host {
             return Ok(false);
         };
         match frames.show_to(player, scene) {
-            Ok(()) => Ok(true),
-            Err(
-                ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable,
-            ) => Ok(false),
+            Ok(()) => Ok(self.shows_frames()),
+            Err(ShowError::Unavailable) => Ok(false),
             Err(ShowError::Open(error)) => Err(error.to_string()),
         }
+    }
+
+    /// Returns `true` if the frames of a world reach a display, `false` if
+    /// `-d none` asked for none. The stage still opens and ticks then.
+    fn shows_frames(&self) -> bool {
+        #[cfg(not(target_arch = "wasm32"))]
+        return self.options.display != DisplayMode::None;
+        #[cfg(target_arch = "wasm32")]
+        true
     }
 
     /// Closes the display of the frames, so the world that comes next opens

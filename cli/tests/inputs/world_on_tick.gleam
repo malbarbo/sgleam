@@ -12,7 +12,7 @@ pub fn tick(state: Int) -> Int {
 
 pub fn smain() {
   world.create(0, draw)
-  |> world.tick_rate(100)
+  |> world.tick_rate(20)
   |> world.on_tick(tick)
   |> world.stop_when(fn(state) { state == 3 })
 }

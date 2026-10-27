@@ -5,8 +5,10 @@ STDOUT
 Image
 world_on_tick.gleam:10 tick
 1
+Image
 world_on_tick.gleam:10 tick
 2
+Image
 world_on_tick.gleam:10 tick
 3
 Image
