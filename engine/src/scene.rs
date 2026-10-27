@@ -350,8 +350,9 @@ fn intersect(region: &Region, corners: &[(f64, f64); 4]) -> Region {
 /// stays inside its control points, and so does a quad.
 fn path_bounds(path: &Path) -> Option<(f64, f64, f64, f64)> {
     let points = path.segments().flat_map(|segment| match segment {
-        Segment::Move { x, y } | Segment::Line { x, y } => vec![(x, y)],
-        Segment::Quad { cx, cy, x, y } => vec![(cx, cy), (x, y)],
+        // A point twice in the array leaves the box the same.
+        Segment::Move { x, y } | Segment::Line { x, y } => [(x, y); 3],
+        Segment::Quad { cx, cy, x, y } => [(cx, cy), (x, y), (x, y)],
         Segment::Cubic {
             c1x,
             c1y,
@@ -359,7 +360,7 @@ fn path_bounds(path: &Path) -> Option<(f64, f64, f64, f64)> {
             c2y,
             x,
             y,
-        } => vec![(c1x, c1y), (c2x, c2y), (x, y)],
+        } => [(c1x, c1y), (c2x, c2y), (x, y)],
     });
     let (x0, y0, x1, y1) = enclose(points.map(|(x, y)| (f64::from(x), f64::from(y))))?;
     let style = &path.style;
