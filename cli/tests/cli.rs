@@ -3405,6 +3405,41 @@ fn mworld_draws_the_players_of_the_players_flag() {
     assert_eq!(players, ["1", "2", "3"].into(), "{out}");
 }
 
+// The display decides how many frames a world at 100 Hz shows, so the test
+// looks only at the time of the ticks.
+#[test]
+fn world_clamps_the_tick_rate_to_100() {
+    let source = indoc! {"
+        import sgleam/image
+        import sgleam/stroke
+        import sgleam/system
+        import sgleam/world
+
+        pub fn smain() {
+          world.create(#(0, system.now_ms()), fn(_) { image.circle(20, stroke.red) })
+          |> world.tick_rate(1000)
+          |> world.on_tick(fn(state) {
+            let #(ticks, start) = state
+            case ticks + 1 == 5 {
+              True -> {
+                echo system.now_ms() - start >= 40 as \"max\"
+                Nil
+              }
+              False -> Nil
+            }
+            #(ticks + 1, start)
+          })
+          |> world.stop_when(fn(state) { state.0 == 5 })
+        }
+    "};
+    let out = out_in_dir(
+        &[("game.gleam", source)],
+        &["run", "-d", "none", "game.gleam"],
+        None,
+    );
+    assert!(out.contains("max\nTrue\n"), "{out}");
+}
+
 #[test]
 fn animation_fails_with_the_players_flag() {
     let source = indoc! {"
