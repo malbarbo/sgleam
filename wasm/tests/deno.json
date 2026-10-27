@@ -6,7 +6,7 @@
   "imports": {
     // The room of sinteract at the revision that Cargo.lock names, so the
     // tests speak the protocol of the engine.
-    "sinteract/": "https://raw.githubusercontent.com/malbarbo/sinteract/e1d85358b6e30cc0bb8bc3a5c48da6e43c530d29/web/src/",
+    "sinteract/": "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/",
     "capnp-es": "npm:capnp-es@0.0.16"
   }
 }

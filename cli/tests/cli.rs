@@ -3435,6 +3435,39 @@ fn world_fails_with_players_outside_its_range() {
     );
 }
 
+/// Linux finds a graphical display only through these variables, so a test
+/// without them sees what a terminal over ssh sees.
+#[test]
+#[cfg(target_os = "linux")]
+fn mworld_of_several_players_fails_with_no_display() {
+    let source = indoc! {"
+        import sgleam/fill
+        import sgleam/image
+        import sgleam/mworld
+
+        pub fn smain() {
+          mworld.create(0, min: 2, max: 2, to_image: fn(_, _) {
+            image.square(10, fill.red)
+          })
+        }
+    "};
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(dir.path().join("game.gleam"), source).expect("write the module");
+    let out = sgleam()
+        .current_dir(dir.path())
+        .env_remove("DISPLAY")
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("WAYLAND_SOCKET")
+        .args(["run", "game.gleam"])
+        .output()
+        .expect("run sgleam");
+    assert!(!out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "Error: several players need a window each, and this session has no graphical display\n"
+    );
+}
+
 /// A project of its own: the files written into a fresh directory, and the
 /// binary run there. A test that needs a module of the user's needs somewhere
 /// to put it, which is most of what writing one takes.
