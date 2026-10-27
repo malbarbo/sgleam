@@ -3359,6 +3359,65 @@ fn check_failure_prints_the_images() {
     assert!(!stdout.contains("Path("), "{stdout}");
 }
 
+#[test]
+fn mworld_draws_the_players_of_the_players_flag() {
+    let source = indoc! {"
+        import sgleam/fill
+        import sgleam/image
+        import sgleam/mworld
+
+        pub fn smain() {
+          mworld.create(0, min: 1, max: 4, to_image: fn(_, player) {
+            echo mworld.player_index(player)
+            image.square(10, fill.red)
+          })
+          |> mworld.on_tick(fn(n) { n + 1 })
+          |> mworld.stop_when(fn(n) { n >= 1 })
+        }
+    "};
+    let out = out_in_dir(
+        &[("game.gleam", source)],
+        &["run", "-d", "none", "--players", "3", "game.gleam"],
+        None,
+    );
+    let players: std::collections::BTreeSet<&str> = out
+        .lines()
+        .filter(|line| !line.starts_with("game.gleam") && *line != "Image")
+        .collect();
+    assert_eq!(players, ["1", "2", "3"].into(), "{out}");
+}
+
+/// An animation shows its frames to one player, whatever `--players` asks for
+/// a multiplayer world.
+#[test]
+fn animation_runs_with_the_players_flag() {
+    let source = indoc! {"
+        import sgleam/fill
+        import sgleam/image
+        import sgleam/world
+
+        pub fn smain() {
+          world.animation(fn(t) { image.square(10 + t % 3, fill.red) })
+        }
+    "};
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(dir.path().join("anim.gleam"), source).expect("write the module");
+    // An animation never stops, so the test reads the first frame and kills it.
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_sgleam"))
+        .current_dir(dir.path())
+        .args(["run", "-d", "none", "--players", "2", "anim.gleam"])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("run sgleam");
+    let mut stdout = child.stdout.take().expect("the stdout of sgleam");
+    let mut first = [0; 5];
+    std::io::Read::read_exact(&mut stdout, &mut first).expect("read the first frame");
+    let _ = child.kill();
+    let out = child.wait_with_output().expect("wait for sgleam");
+    assert_eq!(&first, b"Image", "{}", String::from_utf8_lossy(&out.stderr));
+}
+
 /// A project of its own: the files written into a fresh directory, and the
 /// binary run there. A test that needs a module of the user's needs somewhere
 /// to put it, which is most of what writing one takes.
