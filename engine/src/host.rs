@@ -100,19 +100,19 @@ pub fn open_mworld(
     }
     let range = PlayerRange::new(min_players, max_players)
         .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
-    match FRAMES.with_borrow_mut(|frames| frames.open(width, height, range)) {
+    let players = target::players();
+    match FRAMES.with_borrow_mut(|frames| frames.open(width, height, range, players)) {
         Ok(players) => Ok(players
             .into_iter()
             .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
             .collect()),
         // `-d none` asks for no display, so the world runs without one,
         // with the players of `--players`, or the fewest it takes.
-        Err(StageError::Open(OpenError::Disabled)) => Ok((1..=target::stage_options()
-            .players
-            .unwrap_or(range.min())
-            .get())
-            .flat_map(|player| [player.to_string(), String::new()])
-            .collect()),
+        Err(StageError::Open(OpenError::Disabled)) => {
+            Ok((1..=players.unwrap_or(range.min()).get())
+                .flat_map(|player| [player.to_string(), String::new()])
+                .collect())
+        }
         Err(error) => Err(error.to_string()),
     }
 }

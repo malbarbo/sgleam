@@ -2,6 +2,7 @@
 //! of sinteract on fd 3 and fd 4. What the page has to implement is the whole
 //! of `ffi`, and the WASI calls of ENGINE.md in simplecode.
 
+use std::num::NonZeroU32;
 use std::time::Duration;
 
 use sinteract::display::StageOptions;
@@ -37,6 +38,11 @@ pub fn sleep(ms: u64) {
 
 pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
+}
+
+/// The session decides the players of a world on the page.
+pub(super) fn players() -> Option<NonZeroU32> {
+    None
 }
 
 /// The page shows each world in a session, the only display it has.

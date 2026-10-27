@@ -3821,7 +3821,7 @@ checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
 [[package]]
 name = "sinteract"
 version = "0.1.0"
-source = "git+https://github.com/malbarbo/sinteract.git?branch=master#7c929bf3ec38518038e82f56a5117671b8e59b3b"
+source = "git+https://github.com/malbarbo/sinteract.git?branch=master#e1d85358b6e30cc0bb8bc3a5c48da6e43c530d29"
 dependencies = [
  "base64 0.22.1",
  "capnp",
@@ -4881,7 +4881,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

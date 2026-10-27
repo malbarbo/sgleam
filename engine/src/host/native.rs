@@ -91,6 +91,10 @@ pub fn set_players(players: NonZeroU32) {
     debug_assert!(first.is_ok(), "the players are chosen once");
 }
 
+pub(super) fn players() -> Option<NonZeroU32> {
+    PLAYERS.get().copied()
+}
+
 fn display_mode() -> DisplayMode {
     DISPLAY_MODE.get().copied().unwrap_or_default()
 }
@@ -142,7 +146,6 @@ pub(super) fn stage_options() -> StageOptions {
             DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
             DisplayMode::None => Native::None,
         },
-        players: PLAYERS.get().copied(),
         terminal: TerminalOptions {
             // Raw mode turns Ctrl-C into a key, so the reader of the terminal
             // stops the program in place of the signal.
@@ -151,5 +154,7 @@ pub(super) fn stage_options() -> StageOptions {
             footer_rows: FOOTER_ROWS,
             backend: backend(mode),
         },
+        // `open_mworld` passes the players to `Frames::open`.
+        ..StageOptions::default()
     }
 }
