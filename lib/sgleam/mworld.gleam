@@ -149,24 +149,11 @@ pub fn variant() -> MultiWorld(Nil) {
 /// The repl and `smain` call it for a world they return.
 @internal
 pub fn run(world: MultiWorld(a)) {
-  // A display of this process opens at the size of the view of player 1.
-  let preview = case mworld_uses_session() {
-    False -> Some(world.to_image(world.state, Player(1, "")))
-    True -> None
-  }
-  let #(width, height) = case preview {
-    Some(preview) -> #(image.width(preview), image.height(preview))
-    None -> #(0, 0)
-  }
   let players =
-    open_mworld(width, height, world.min_players, world.max_players)
+    open_mworld(world.min_players, world.max_players)
     |> players_from_start
   let world = MultiWorld(..world, players:)
-  case players, preview {
-    [player], Some(preview) if player == Player(1, "") ->
-      show_player_image(player.index, preview)
-    _, _ -> show_players(world)
-  }
+  show_players(world)
   run_loop(world, start_tick_clock(system.now_ms(), world.rate), False)
   close_display()
 }
@@ -384,15 +371,7 @@ fn find_player(players: List(Player), index: Int) -> Option(Player) {
 }
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "open_mworld")
-fn open_mworld(
-  width: Int,
-  height: Int,
-  min_players: Int,
-  max_players: Int,
-) -> List(String)
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "mworld_uses_session")
-fn mworld_uses_session() -> Bool
+fn open_mworld(min_players: Int, max_players: Int) -> List(String)
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "show_player_image")
 fn show_player_image(player: Int, image: Image) -> Nil

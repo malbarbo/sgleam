@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
 use sinteract::display::Printer;
-use sinteract::display::{FrameEvent, Frames, OpenError, ShowError, Stage, StageError};
+use sinteract::display::{FrameEvent, Frames, OpenError, ShowError, StageError};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
 use sinteract::session::PlayerRange;
@@ -105,22 +105,17 @@ impl Host {
         }
     }
 
-    /// Opens the stage of a multiplayer world and returns alternating player
-    /// numbers and nicknames from its fixed start.
-    pub fn open_mworld(
-        &self,
-        width: f32,
-        height: f32,
-        min_players: u32,
-        max_players: u32,
-    ) -> Result<Vec<String>, String> {
+    /// Chooses the players of a multiplayer world and returns alternating
+    /// player numbers and nicknames from its fixed start. The first frame
+    /// of the world opens its display, at the size of the frame.
+    pub fn open_mworld(&self, min_players: u32, max_players: u32) -> Result<Vec<String>, String> {
         let mut frames = self.frames.borrow_mut();
         if frames.is_open() {
             return Err("a world is already running".into());
         }
         let range = PlayerRange::new(min_players, max_players)
             .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
-        match frames.open(width, height, range, self.players) {
+        match frames.open(range, self.players) {
             Ok(players) => Ok(players
                 .into_iter()
                 .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
@@ -136,13 +131,22 @@ impl Host {
         }
     }
 
-    /// Keeps the latest scene for one player until the next stage tick.
-    pub fn show_player_scene(&self, player: u32, scene: Scene) -> bool {
+    /// Keeps the latest scene for one player until the next stage tick. The
+    /// first scene of a world opens its display. Returns `true` if the
+    /// display is open, `false` if `-d` asked for none, and the error of the
+    /// display if it failed to open.
+    pub fn show_player_scene(&self, player: u32, scene: Scene) -> Result<bool, String> {
         let mut frames = self.frames.borrow_mut();
         let Some(&player) = frames.players().iter().find(|p| p.number().get() == player) else {
-            return false;
+            return Ok(false);
         };
-        frames.show_to(player, scene).is_ok()
+        match frames.show_to(player, scene) {
+            Ok(()) => Ok(true),
+            Err(
+                ShowError::Open(StageError::Open(OpenError::Disabled)) | ShowError::Unavailable,
+            ) => Ok(false),
+            Err(ShowError::Open(error)) => Err(error.to_string()),
+        }
     }
 
     /// Closes the display of the frames, so the world that comes next opens
@@ -226,12 +230,6 @@ impl Host {
             .get_or_init(|| target::new_printer(self.options).map(RefCell::new))
             .as_ref()
     }
-}
-
-/// Returns `true` if a multiplayer world uses the session of a server,
-/// `false` if it opens a display of this process.
-pub fn mworld_uses_session() -> bool {
-    Stage::opens_session()
 }
 
 fn player_event(player: u32, event: InputEvent) -> Option<Vec<String>> {

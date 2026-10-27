@@ -64,7 +64,8 @@ pub fn show_image(host: &Host, image: Object<'_>, width: f64, height: f64) -> Re
         .map_err(|error| Exception::throw_message(image.ctx(), &error))
 }
 
-/// Keeps `image` as the next frame of one player of a multiplayer world.
+/// Keeps `image` as the next frame of one player of a multiplayer world. A
+/// display that fails to open throws its error.
 pub fn show_player_image(
     host: &Host,
     player: u32,
@@ -72,7 +73,8 @@ pub fn show_player_image(
     width: f64,
     height: f64,
 ) -> Result<bool> {
-    Ok(host.show_player_scene(player, to_scene(&image, width, height)?))
+    host.show_player_scene(player, to_scene(&image, width, height)?)
+        .map_err(|error| Exception::throw_message(image.ctx(), &error))
 }
 
 /// `image` drawn on a canvas of `width` by `height`.

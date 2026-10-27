@@ -23,16 +23,16 @@
     }
   },
   "remote": {
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/capnp/event.ts": "51a8572a99353576b9f366824a10d06ef0dbefb4e3d9b2be83aadc494272d391",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/capnp/protocol.ts": "c8520fd60d0fcc8c07c42895d26e5c247f31f616abd72e704f5241d73ee018c7",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/input.ts": "8b1d38fd9fcc6e2445920db370e43ad145c543a6329d5bc8a9f936b65998b362",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/protocol.ts": "e5d99724e76ef9095783c150566c690d552e225af1631598fd45265b0b4b037a",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/reader.ts": "6f7e2ef70dff4cef8f93bccacd718cfc505b4538f0932dba5d119c7bee18a372",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/render.ts": "1a5ce741a95559ea2ef247f7003157444cbeb473eebc91c2fd8c68c341e2a861",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/room.ts": "6aef3dd73efd4c1581506b33330222bc5702d5442c67b4c636e01a0e660c5911",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/scene.ts": "ed6c745b950b6c222b50329e43d6a6d370cc2368630415c28db05280cbaf1f26",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/screen.ts": "c00cf7fc59aba543244127b176c7f9c18c536201ecbd1d7f42ce58d9472e7722",
-    "https://raw.githubusercontent.com/malbarbo/sinteract/ced3cf955a65dbe2955ebc07ee21eaa786d9d342/web/src/view.ts": "bcf1ea03edc03dfeb6d4a33bb334465ee671f12a2375b7e8c18a773e6725da72"
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/capnp/event.ts": "51a8572a99353576b9f366824a10d06ef0dbefb4e3d9b2be83aadc494272d391",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/capnp/protocol.ts": "c8520fd60d0fcc8c07c42895d26e5c247f31f616abd72e704f5241d73ee018c7",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/input.ts": "8b1d38fd9fcc6e2445920db370e43ad145c543a6329d5bc8a9f936b65998b362",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/protocol.ts": "e5d99724e76ef9095783c150566c690d552e225af1631598fd45265b0b4b037a",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/reader.ts": "6f7e2ef70dff4cef8f93bccacd718cfc505b4538f0932dba5d119c7bee18a372",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/render.ts": "1a5ce741a95559ea2ef247f7003157444cbeb473eebc91c2fd8c68c341e2a861",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/room.ts": "6aef3dd73efd4c1581506b33330222bc5702d5442c67b4c636e01a0e660c5911",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/scene.ts": "ed6c745b950b6c222b50329e43d6a6d370cc2368630415c28db05280cbaf1f26",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/screen.ts": "c00cf7fc59aba543244127b176c7f9c18c536201ecbd1d7f42ce58d9472e7722",
+    "https://raw.githubusercontent.com/malbarbo/sinteract/bf69b53ca3844065c21d5b444ca103eecf1c1232/web/src/view.ts": "bcf1ea03edc03dfeb6d4a33bb334465ee671f12a2375b7e8c18a773e6725da72"
   },
   "workspace": {
     "dependencies": [

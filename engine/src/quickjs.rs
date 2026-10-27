@@ -280,11 +280,8 @@ fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> R
     set_fn(
         &sgleam,
         "open_mworld",
-        move |ctx, width, height, min_players, max_players| {
-            open_mworld(&h, ctx, width, height, min_players, max_players)
-        },
+        move |ctx, min_players, max_players| open_mworld(&h, ctx, min_players, max_players),
     )?;
-    set_fn(&sgleam, "mworld_uses_session", host::mworld_uses_session)?;
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
@@ -387,12 +384,10 @@ fn wait_event(host: &Host, ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
 fn open_mworld(
     host: &Host,
     ctx: Ctx<'_>,
-    width: f32,
-    height: f32,
     min_players: u32,
     max_players: u32,
 ) -> Result<Vec<String>> {
-    host.open_mworld(width, height, min_players, max_players)
+    host.open_mworld(min_players, max_players)
         .map_err(|error| Exception::throw_message(&ctx, &error))
 }
 
