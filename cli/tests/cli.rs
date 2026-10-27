@@ -3418,6 +3418,31 @@ fn animation_runs_with_the_players_flag() {
     assert_eq!(&first, b"Image", "{}", String::from_utf8_lossy(&out.stderr));
 }
 
+#[test]
+fn world_fails_with_players_outside_its_range() {
+    let source = indoc! {"
+        import sgleam/fill
+        import sgleam/image
+        import sgleam/world
+
+        pub fn smain() {
+          world.create(0, fn(n) { image.square(10 + n, fill.red) })
+          |> world.on_tick(fn(n) { n + 1 })
+          |> world.stop_when(fn(n) { n >= 1 })
+        }
+    "};
+    let out = run_in_dir(
+        &[("game.gleam", source)],
+        &["run", "-d", "none", "--players", "2", "game.gleam"],
+        None,
+    );
+    assert!(!out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "Error: the game takes from 1 to 1 players, and 2 play here\n"
+    );
+}
+
 /// A project of its own: the files written into a fresh directory, and the
 /// binary run there. A test that needs a module of the user's needs somewhere
 /// to put it, which is most of what writing one takes.
