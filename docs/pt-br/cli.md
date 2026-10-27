@@ -77,7 +77,7 @@ Um mundo, ou uma animação, mostra seus quadros em uma janela, e fechar a janel
 
 Enquanto um mundo aparece no terminal, o que o programa imprime, como um `echo`{.gleam}, vai para as cinco linhas abaixo do quadro. Quando o mundo termina, o último quadro fica na tela com essas linhas embaixo.
 
-A opção `-d` escolhe onde as imagens aparecem. `-d window` mostra os quadros de um mundo apenas em uma janela, e o REPL continua mostrando suas imagens no terminal. `-d kitty`, `-d sixel` e `-d blocks` usam apenas o terminal, com os gráficos do Kitty, com Sixel ou com blocos coloridos, que qualquer terminal com true color mostra. O sgleam envia a imagem sem consultar o terminal, então um terminal que não suporta o modo não mostra nada, ou mostra caracteres soltos. `-d none` não mostra imagens e imprime `Image` no lugar delas.
+A opção `-d` escolhe onde as imagens aparecem. `-d window` mostra os quadros de um mundo apenas em uma janela, e o REPL continua mostrando suas imagens no terminal. `-d kitty`, `-d sixel` e `-d blocks` usam apenas o terminal, com os gráficos do Kitty, com Sixel ou com blocos coloridos, que qualquer terminal com true color mostra. Com `-d kitty` e `-d sixel`, o sgleam consulta o terminal antes e para com um erro quando o terminal não suporta o modo. `-d blocks` não consulta, então um terminal sem true color mostra cores erradas. `-d none` não mostra imagens e imprime `Image` no lugar delas.
 
 ```sh
 sgleam -d blocks bola.gleam

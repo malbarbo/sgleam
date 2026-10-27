@@ -44,6 +44,11 @@ pub enum SgleamError {
     #[error("no module to run")]
     NoModuleToRun { path: Utf8PathBuf },
 
+    /// A display that `-d` names and the terminal does not show, such as
+    /// `kitty`.
+    #[error("display not supported")]
+    DisplayNotSupported { mode: &'static str },
+
     /// A failure of the Gleam compiler, shown as the diagnostics it carries,
     /// over the paths the user gave and not the ones the project holds.
     #[error("gleam error")]
@@ -144,6 +149,13 @@ pub fn show_error(err: &SgleamError) {
             "A module is named after the path of its file, which has to be a `.gleam` file \
              under the current directory."
                 .into(),
+        )
+        .write(&mut buffer),
+
+        SgleamError::DisplayNotSupported { mode } => error_diagnostic(
+            "display not supported",
+            format!("The terminal does not support the `{mode}` display."),
+            "Use another value for `-d`, or leave `-d` out so sgleam picks one.".into(),
         )
         .write(&mut buffer),
         SgleamError::Interrupted => {

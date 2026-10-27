@@ -18,7 +18,7 @@ use engine::{
     error::{SgleamError, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
-    host::{DisplayMode, HostOptions},
+    host::{DisplayMode, HostOptions, check_display},
     quickjs::QuickJsEngine,
     repl::Repl,
     run::{run_check, run_main, run_test},
@@ -220,6 +220,7 @@ fn run() -> Result<(), SgleamError> {
         },
         _ => HostOptions::default(),
     };
+    check_display(options.display)?;
 
     match command {
         Command::Help { command: None } => {

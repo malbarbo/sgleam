@@ -3359,6 +3359,24 @@ fn check_failure_prints_the_images() {
     assert!(!stdout.contains("Path("), "{stdout}");
 }
 
+// The output of a test is a pipe, which shows no graphics of Kitty.
+#[test]
+fn kitty_display_fails_where_the_terminal_does_not_support_it() {
+    let root = std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/.."));
+    let out = sgleam()
+        .current_dir(&root)
+        .args(["run", "-d", "kitty", "cli/tests/inputs/bit_array.gleam"])
+        .output()
+        .expect("sgleam runs");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success());
+    assert!(out.stdout.is_empty());
+    assert!(
+        stderr.contains("does not support the `kitty` display"),
+        "{stderr}"
+    );
+}
+
 #[test]
 fn mworld_draws_the_players_of_the_players_flag() {
     let source = indoc! {"

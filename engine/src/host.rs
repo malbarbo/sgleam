@@ -46,6 +46,11 @@ pub use target::draw_svg;
 #[cfg(not(target_arch = "wasm32"))]
 pub use target::DisplayMode;
 
+/// Fails when the terminal does not show the display that the command line
+/// names.
+#[cfg(not(target_arch = "wasm32"))]
+pub use target::check_display;
+
 /// What the command line chooses for the displays of an engine.
 pub use target::HostOptions;
 

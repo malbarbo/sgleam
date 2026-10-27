@@ -97,6 +97,21 @@ fn backend(mode: DisplayMode) -> Option<Backend> {
     }
 }
 
+/// Fails when `mode` asks for the graphics of a terminal that does not show
+/// them. A mode of blocks goes on, because a terminal with true color often
+/// does not say so.
+pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
+    match mode {
+        DisplayMode::Kitty if !Backend::Kitty.is_supported() => {
+            Err(SgleamError::DisplayNotSupported { mode: "kitty" })
+        }
+        DisplayMode::Sixel if !Backend::Sixel.is_supported() => {
+            Err(SgleamError::DisplayNotSupported { mode: "sixel" })
+        }
+        _ => Ok(()),
+    }
+}
+
 pub(super) fn new_printer(options: HostOptions) -> Option<Printer> {
     match options.display {
         DisplayMode::None => None,
