@@ -9,7 +9,6 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::cell::OnceCell;
 use std::cell::RefCell;
-use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -66,7 +65,6 @@ mod target;
 pub(crate) struct Host {
     options: HostOptions,
     frames: RefCell<Frames>,
-    players: Option<NonZeroU32>,
     // Empty until the first print, so the printer asks the terminal nothing
     // until a run prints an image. `None` inside means there is no terminal to
     // print to.
@@ -81,7 +79,6 @@ impl Host {
             frames: RefCell::new(Frames::new("sgleam", move || {
                 target::stage_options(options)
             })),
-            players: target::players(options),
             #[cfg(not(target_arch = "wasm32"))]
             printer: OnceCell::new(),
         }
@@ -94,7 +91,7 @@ impl Host {
     /// for none, and the error of the display if it failed to open. An
     /// animation has no players, so `--players` is an error.
     pub fn show_scene(&self, scene: Scene) -> Result<bool, String> {
-        if let Some(players) = self.players {
+        if let Some(players) = target::players(self.options) {
             return Err(format!(
                 "an animation takes no players, and --players asks for {players}"
             ));
@@ -116,7 +113,7 @@ impl Host {
         }
         let range = PlayerRange::new(min_players, max_players)
             .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
-        match frames.open(range, self.players) {
+        match frames.open(range) {
             Ok(players) => Ok(players
                 .into_iter()
                 .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])

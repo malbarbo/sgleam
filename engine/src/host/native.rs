@@ -142,7 +142,6 @@ pub(super) fn stage_options(options: HostOptions) -> StageOptions {
             footer_rows: FOOTER_ROWS,
             backend: backend(mode),
         },
-        // `open_mworld` passes the players to `Frames::open`.
-        ..StageOptions::default()
+        players: options.players,
     }
 }
