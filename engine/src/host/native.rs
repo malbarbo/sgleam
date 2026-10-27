@@ -77,19 +77,13 @@ pub enum DisplayMode {
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HostOptions {
     pub display: DisplayMode,
+    /// How many players a multiplayer world has, each in a window, or the
+    /// fewest it takes when `None`.
+    pub players: Option<NonZeroU32>,
 }
 
-static PLAYERS: OnceLock<NonZeroU32> = OnceLock::new();
-
-/// Makes a multiplayer world on a display of this process play with
-/// `players`, each in a window, and not with the fewest it takes.
-pub fn set_players(players: NonZeroU32) {
-    let first = PLAYERS.set(players);
-    debug_assert!(first.is_ok(), "the players are chosen once");
-}
-
-pub(super) fn players() -> Option<NonZeroU32> {
-    PLAYERS.get().copied()
+pub(super) fn players(options: HostOptions) -> Option<NonZeroU32> {
+    options.players
 }
 
 /// The backend of the terminal that `mode` asks for, or `None` to ask the

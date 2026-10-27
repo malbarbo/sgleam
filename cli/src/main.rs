@@ -18,7 +18,7 @@ use engine::{
     error::{SgleamError, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
-    host::{DisplayMode, HostOptions, set_players},
+    host::{DisplayMode, HostOptions},
     quickjs::QuickJsEngine,
     repl::Repl,
     run::{run_check, run_main, run_test},
@@ -208,19 +208,18 @@ fn run() -> Result<(), SgleamError> {
     set_bigint_enabled(!number);
 
     let options = match &command {
-        Command::Repl { display, .. }
-        | Command::Run { display, .. }
-        | Command::Test { display, .. } => HostOptions { display: *display },
+        Command::Run {
+            display, players, ..
+        } => HostOptions {
+            display: *display,
+            players: *players,
+        },
+        Command::Repl { display, .. } | Command::Test { display, .. } => HostOptions {
+            display: *display,
+            players: None,
+        },
         _ => HostOptions::default(),
     };
-
-    if let Command::Run {
-        players: Some(players),
-        ..
-    } = &command
-    {
-        set_players(*players);
-    }
 
     match command {
         Command::Help { command: None } => {

@@ -9,6 +9,7 @@
 #[cfg(not(target_arch = "wasm32"))]
 use std::cell::OnceCell;
 use std::cell::RefCell;
+use std::num::NonZeroU32;
 use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -48,12 +49,6 @@ pub use target::DisplayMode;
 /// What the command line chooses for the displays of an engine.
 pub use target::HostOptions;
 
-/// The players of a multiplayer world on a display of this process.
-/// `set_players` makes the choice before a run, and the world plays with
-/// the fewest it takes until then.
-#[cfg(not(target_arch = "wasm32"))]
-pub use target::set_players;
-
 #[cfg(target_arch = "wasm32")]
 #[path = "host/wasm.rs"]
 mod target;
@@ -67,6 +62,7 @@ pub(crate) struct Host {
     #[cfg(not(target_arch = "wasm32"))]
     options: HostOptions,
     frames: RefCell<Frames>,
+    players: Option<NonZeroU32>,
     // Empty until the first print, so a run that prints no image never asks
     // the terminal anything. `None` inside means there is no terminal to
     // print to.
@@ -82,6 +78,7 @@ impl Host {
             frames: RefCell::new(Frames::new("sgleam", move || {
                 target::stage_options(options)
             })),
+            players: target::players(options),
             #[cfg(not(target_arch = "wasm32"))]
             printer: OnceCell::new(),
         }
@@ -117,8 +114,7 @@ impl Host {
         }
         let range = PlayerRange::new(min_players, max_players)
             .ok_or_else(|| "the number of players must be between 1 and 1024".to_string())?;
-        let players = target::players();
-        match frames.open(width, height, range, players) {
+        match frames.open(width, height, range, self.players) {
             Ok(players) => Ok(players
                 .into_iter()
                 .flat_map(|(player, nickname)| [player.number().get().to_string(), nickname])
@@ -126,7 +122,7 @@ impl Host {
             // `-d none` asks for no display, so the world runs without one,
             // with the players of `--players`, or the fewest it takes.
             Err(StageError::Open(OpenError::Disabled)) => {
-                Ok((1..=players.unwrap_or(range.min()).get())
+                Ok((1..=self.players.unwrap_or(range.min()).get())
                     .flat_map(|player| [player.to_string(), String::new()])
                     .collect())
             }

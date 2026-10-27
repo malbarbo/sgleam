@@ -41,7 +41,7 @@ pub fn draw_svg(str: String) {
 }
 
 /// The session decides the players of a world on the page.
-pub(super) fn players() -> Option<NonZeroU32> {
+pub(super) fn players(_options: HostOptions) -> Option<NonZeroU32> {
     None
 }
 
