@@ -1127,7 +1127,7 @@ checksum = "869b0adbda23651a9c5c0c3d270aac9fcb52e8622a8f2b17e57802d7791962f2"
 
 [[package]]
 name = "engine"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "camino",
  "ctrlc",
@@ -3749,7 +3749,7 @@ dependencies = [
 
 [[package]]
 name = "sgleam"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "assert_cmd",
  "bpaf",
@@ -4617,7 +4617,7 @@ dependencies = [
 
 [[package]]
 name = "wasm"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "camino",
  "engine",
