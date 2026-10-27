@@ -3387,10 +3387,8 @@ fn mworld_draws_the_players_of_the_players_flag() {
     assert_eq!(players, ["1", "2", "3"].into(), "{out}");
 }
 
-/// An animation shows its frames to one player, whatever `--players` asks for
-/// a multiplayer world.
 #[test]
-fn animation_runs_with_the_players_flag() {
+fn animation_fails_with_the_players_flag() {
     let source = indoc! {"
         import sgleam/fill
         import sgleam/image
@@ -3400,22 +3398,16 @@ fn animation_runs_with_the_players_flag() {
           world.animation(fn(t) { image.square(10 + t % 3, fill.red) })
         }
     "};
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(dir.path().join("anim.gleam"), source).expect("write the module");
-    // An animation never stops, so the test reads the first frame and kills it.
-    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_sgleam"))
-        .current_dir(dir.path())
-        .args(["run", "-d", "none", "--players", "2", "anim.gleam"])
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("run sgleam");
-    let mut stdout = child.stdout.take().expect("the stdout of sgleam");
-    let mut first = [0; 5];
-    std::io::Read::read_exact(&mut stdout, &mut first).expect("read the first frame");
-    let _ = child.kill();
-    let out = child.wait_with_output().expect("wait for sgleam");
-    assert_eq!(&first, b"Image", "{}", String::from_utf8_lossy(&out.stderr));
+    let out = run_in_dir(
+        &[("anim.gleam", source)],
+        &["run", "-d", "none", "--players", "1", "anim.gleam"],
+        None,
+    );
+    assert!(!out.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "Error: an animation takes no players, and --players asks for 1\n"
+    );
 }
 
 #[test]

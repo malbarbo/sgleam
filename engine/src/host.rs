@@ -88,8 +88,14 @@ impl Host {
     /// of sinteract on the page. The first frame of a world opens the display
     /// with its own size, and the frame goes out at the next tick of the
     /// display. Returns `true` if the display is open, `false` if `-d` asked
-    /// for none, and the error of the display if it failed to open.
+    /// for none, and the error of the display if it failed to open. An
+    /// animation has no players, so `--players` is an error.
     pub fn show_scene(&self, scene: Scene) -> Result<bool, String> {
+        if let Some(players) = self.players {
+            return Err(format!(
+                "an animation takes no players, and --players asks for {players}"
+            ));
+        }
         match self.frames.borrow_mut().show(scene) {
             Ok(()) => Ok(true),
             Err(
