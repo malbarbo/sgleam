@@ -12,7 +12,6 @@ use engine::{
     gleam::Project,
     repl::Repl,
 };
-use gleam_core::io::memory::InMemoryFileSystem;
 
 /// `run_main` takes `&self`, and the repl clones the engine to snapshot itself,
 /// so an `Rc` holds what the repl told it — which is also what keeps a rollback
@@ -23,12 +22,6 @@ struct Recorder {
 }
 
 impl Engine for Recorder {
-    fn new(_fs: InMemoryFileSystem) -> Result<Recorder, SgleamError> {
-        Ok(Recorder {
-            handed: Rc::default(),
-        })
-    }
-
     fn run_main(&self, _module: &str, main: MainFunction) -> Result<(), SgleamError> {
         if let MainFunction::ReplMain { files, .. } = main {
             self.handed.borrow_mut().extend(files);
@@ -61,7 +54,10 @@ fn handed_over_paths(repl: &Repl<Recorder>) -> Vec<String> {
 
 #[test]
 fn the_runtime_is_told_of_the_modules_it_can_reach() {
-    let mut repl: Repl<Recorder> = Repl::new(Project::default(), None).expect("start the repl");
+    let recorder = Recorder {
+        handed: Rc::default(),
+    };
+    let mut repl = Repl::new(Project::default(), None, recorder);
     run(&mut repl, "fn f() { 1 }");
     run(&mut repl, "import gleam/int");
     run(&mut repl, "import gleam/float");

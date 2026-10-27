@@ -1,5 +1,3 @@
-use gleam_core::io::memory::InMemoryFileSystem;
-
 use crate::error::SgleamError;
 
 /// A module written by the repl.
@@ -76,8 +74,6 @@ impl MainFunction {
 }
 
 pub trait Engine: Clone {
-    fn new(fs: InMemoryFileSystem) -> Result<Self, SgleamError>;
-
     fn run_main(&self, module: &str, main: MainFunction) -> Result<(), SgleamError>;
 
     fn has_var(&self, key: &str) -> bool;

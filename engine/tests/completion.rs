@@ -11,7 +11,9 @@ use engine::{
 use indoc::indoc;
 
 fn new_repl() -> Repl<QuickJsEngine> {
-    Repl::new(Project::default(), None).expect("start the repl")
+    let project = Project::default();
+    let engine = QuickJsEngine::new(project.fs.clone()).expect("start the engine");
+    Repl::new(project, None, engine)
 }
 
 fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
@@ -19,7 +21,8 @@ fn new_repl_with_source(source: &str) -> Repl<QuickJsEngine> {
     project.write_source("user.gleam", source);
     let modules = project.compile(true).expect("compile user module");
     let module = get_module(&modules, "user");
-    Repl::new(project, module).expect("start the repl")
+    let engine = QuickJsEngine::new(project.fs.clone()).expect("start the engine");
+    Repl::new(project, module, engine)
 }
 
 /// An input of a setup has to work, or what it was setting up is not what the

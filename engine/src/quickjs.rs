@@ -47,8 +47,8 @@ pub struct QuickJsEngine {
     host: Rc<Host>,
 }
 
-impl Engine for QuickJsEngine {
-    fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
+impl QuickJsEngine {
+    pub fn new(fs: InMemoryFileSystem) -> std::result::Result<Self, SgleamError> {
         init()?;
         let host = Rc::new(Host::new());
         Ok(QuickJsEngine {
@@ -56,7 +56,9 @@ impl Engine for QuickJsEngine {
             host,
         })
     }
+}
 
+impl Engine for QuickJsEngine {
     fn run_main(&self, module: &str, main: MainFunction) -> std::result::Result<(), SgleamError> {
         run_main(&self.context, &self.host, module, main)
     }

@@ -319,7 +319,8 @@ fn run_interactive(paths: &[Utf8PathBuf], quiet: bool) -> Result<(), SgleamError
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0);
 
-    let mut shell = Shell::new(Repl::<QuickJsEngine>::new(project, module)?);
+    let engine = QuickJsEngine::new(project.fs.clone())?;
+    let mut shell = Shell::new(Repl::new(project, module, engine));
     shell.add(
         ":theme",
         Some("[light|dark]"),

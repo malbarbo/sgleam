@@ -17,7 +17,6 @@ use indoc::formatdoc;
 
 use crate::{
     engine::{Engine, MainFunction, ReplFile, SGLEAM_FFI},
-    error::SgleamError,
     gleam::{
         Project, get_definition_span, get_function, is_private, is_repl_noise, type_to_string,
     },
@@ -145,8 +144,7 @@ pub struct Repl<E: Engine> {
 }
 
 impl<E: Engine> Repl<E> {
-    pub fn new(project: Project, user_module: Option<&Module>) -> Result<Repl<E>, SgleamError> {
-        let fs = project.fs.clone();
+    pub fn new(project: Project, user_module: Option<&Module>, engine: E) -> Repl<E> {
         let suffix = format!(
             "{:08x}",
             std::time::SystemTime::now()
@@ -158,7 +156,7 @@ impl<E: Engine> Repl<E> {
             scope: Scope::default(),
             project,
             existing_modules: im::HashMap::new(),
-            engine: E::new(fs)?,
+            engine,
             input_number: 0,
             item_number: 0,
             debug: false,
@@ -182,7 +180,7 @@ impl<E: Engine> Repl<E> {
         if let Err(error) = repl.run_check(None) {
             repl.show_gleam_error(&error);
         }
-        Ok(repl)
+        repl
     }
 
     /// The runtime that runs what the repl writes.

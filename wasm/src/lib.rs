@@ -92,7 +92,9 @@ fn configure(ptr: *mut u8, len: usize) {
 }
 
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
-    Repl::new(Project::default(), None)
+    let project = Project::default();
+    let engine = QuickJsEngine::new(project.fs.clone())?;
+    Ok(Repl::new(project, None, engine))
 }
 
 fn leak_shell(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Shell<QuickJsEngine> {
@@ -136,7 +138,9 @@ pub unsafe extern "C" fn repl_new(
     {
         let _ = engine.run_tests(&[USER]);
     }
-    leak_shell(Repl::new(project, module))
+    let repl =
+        QuickJsEngine::new(project.fs.clone()).map(|engine| Repl::new(project, module, engine));
+    leak_shell(repl)
 }
 
 fn has_examples(module: &Module) -> bool {
