@@ -68,8 +68,8 @@ pub(crate) struct Host {
     options: HostOptions,
     frames: RefCell<Frames>,
     players: Option<NonZeroU32>,
-    // Empty until the first print, so a run that prints no image never asks
-    // the terminal anything. `None` inside means there is no terminal to
+    // Empty until the first print, so the printer asks the terminal nothing
+    // until a run prints an image. `None` inside means there is no terminal to
     // print to.
     #[cfg(not(target_arch = "wasm32"))]
     printer: OnceCell<Option<RefCell<Printer>>>,
