@@ -71,6 +71,10 @@ pub enum DisplayMode {
     Blocks,
     /// No display at all, so each image prints as the word `Image`.
     None,
+    /// A session with the server that ran this process, on fd 3 and fd 4.
+    /// The server keeps stdout as a log, so each image prints as the word
+    /// `Image`.
+    Session,
 }
 
 /// What the command line chooses for the displays of an engine.
@@ -93,7 +97,7 @@ fn graphics(mode: DisplayMode) -> Option<TerminalGraphics> {
         DisplayMode::Kitty => Some(TerminalGraphics::Kitty),
         DisplayMode::Sixel => Some(TerminalGraphics::Sixel),
         DisplayMode::Blocks => Some(TerminalGraphics::HalfBlocks),
-        DisplayMode::Auto | DisplayMode::Window | DisplayMode::None => None,
+        DisplayMode::Auto | DisplayMode::Window | DisplayMode::None | DisplayMode::Session => None,
     }
 }
 
@@ -114,7 +118,7 @@ pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
 
 pub(super) fn new_printer(options: HostOptions) -> Option<Printer> {
     match options.display {
-        DisplayMode::None => None,
+        DisplayMode::None | DisplayMode::Session => None,
         mode => graphics(mode)
             .map(Printer::with_graphics)
             .or_else(|| Printer::new().ok()),
@@ -144,5 +148,6 @@ pub(super) fn stage_mode(options: HostOptions) -> StageMode {
             }
         }
         DisplayMode::None => StageMode::Headless { players },
+        DisplayMode::Session => StageMode::Session,
     }
 }
