@@ -2,5 +2,5 @@
 source: cli/tests/integration.rs
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="10" viewBox="0 0 100 10">
-  <path d="M0 0 L100 0 L40.911533 10.418891 Z" fill="#2e8b57"/>
+  <path d="M0 0 L100 0 L40.911533 10.418891" fill="#2e8b57"/>
 </svg>

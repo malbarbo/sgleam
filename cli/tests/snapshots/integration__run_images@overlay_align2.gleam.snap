@@ -2,8 +2,8 @@
 source: cli/tests/integration.rs
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="50" height="50" viewBox="0 0 50 50">
-  <path d="M0 0 L50 0 L50 50 L0 50 Z" fill="#2e8b57"/>
-  <path d="M10 10 L50 10 L50 50 L10 50 Z" fill="#c0c0c0"/>
-  <path d="M20 20 L50 20 L50 50 L20 50 Z" fill="#2e8b57"/>
-  <path d="M30 30 L50 30 L50 50 L30 50 Z" fill="#c0c0c0"/>
+  <path d="M0 0 L50 0 L50 50 L0 50" fill="#2e8b57"/>
+  <path d="M10 10 L50 10 L50 50 L10 50" fill="#c0c0c0"/>
+  <path d="M20 20 L50 20 L50 50 L20 50" fill="#2e8b57"/>
+  <path d="M30 30 L50 30 L50 50 L30 50" fill="#c0c0c0"/>
 </svg>

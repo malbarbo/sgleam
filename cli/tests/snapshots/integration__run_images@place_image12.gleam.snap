@@ -1,14 +1,13 @@
 ---
 source: cli/tests/integration.rs
-assertion_line: 54
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="100" height="80" viewBox="0 0 100 80">
   <defs>
     <clipPath id="s0-c0"><path d="M30 20 L70 20 L70 60 L30 60"/></clipPath>
     <clipPath id="s0-c1"><path d="M0 0 L100 0 L100 80 L0 80"/></clipPath>
   </defs>
-  <path d="M0 0 L100 0 L100 80 L0 80 Z" fill="#d3d3d3"/>
-  <path d="M30 20 L70 20 L70 60 L30 60 Z" fill="#ffff00"/>
+  <path d="M0 0 L100 0 L100 80 L0 80" fill="#d3d3d3"/>
+  <path d="M30 20 L70 20 L70 60 L30 60" fill="#ffff00"/>
   <g clip-path="url(#s0-c0)">
     <path d="M45 40 C45 48.28427 38.28427 55 30 55 C21.715729 55 15 48.28427 15 40 C15 31.715729 21.715729 25 30 25 C38.28427 25 45 31.715729 45 40 Z" fill="none" stroke="#ff0000" stroke-width="6" stroke-linecap="round" stroke-miterlimit="10"/>
     <path d="M85 40 C85 48.28427 78.28427 55 70 55 C61.71573 55 55 48.28427 55 40 C55 31.715729 61.71573 25 70 25 C78.28427 25 85 31.715729 85 40 Z" fill="none" stroke="#ff0000" stroke-width="6" stroke-linecap="round" stroke-miterlimit="10"/>

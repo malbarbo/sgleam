@@ -5,7 +5,7 @@
 use std::num::NonZeroU32;
 use std::time::Duration;
 
-use sinteract::display::StageOptions;
+use sinteract::display::StageMode;
 
 use crate::error::SgleamError;
 
@@ -50,6 +50,6 @@ pub(super) fn players(_options: HostOptions) -> Option<NonZeroU32> {
 pub struct HostOptions;
 
 /// The page shows each world in a session, the only display it has.
-pub(super) fn stage_options(_options: HostOptions) -> StageOptions {
-    StageOptions::default()
+pub(super) fn stage_mode(_options: HostOptions) -> StageMode {
+    StageMode::Session
 }

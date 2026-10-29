@@ -3517,7 +3517,7 @@ fn mworld_of_several_players_fails_with_no_display() {
     assert!(!out.status.success());
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
-        "Error: several players need a window each, and this session has no graphical display\n"
+        "Error: the game takes at least 2 players, and the terminal shows one, so they need a window each\n"
     );
 }
 

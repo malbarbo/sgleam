@@ -1,8 +1,7 @@
 ---
 source: cli/tests/integration.rs
-assertion_line: 54
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="50" height="50" viewBox="0 0 50 50">
-  <path d="M0 0 L50 0 L50 50 L0 50 Z" fill="#d3d3d3"/>
-  <path d="M50 35 C50 43.28427 45.522846 50 40 50 C34.477154 50 30 43.28427 30 35 C30 26.715729 34.477154 20 40 20 C45.522846 20 50 26.715729 50 35 Z" fill="#ff0000"/>
+  <path d="M0 0 L50 0 L50 50 L0 50" fill="#d3d3d3"/>
+  <path d="M50 35 C50 43.28427 45.522846 50 40 50 C34.477154 50 30 43.28427 30 35 C30 26.715729 34.477154 20 40 20 C45.522846 20 50 26.715729 50 35" fill="#ff0000"/>
 </svg>

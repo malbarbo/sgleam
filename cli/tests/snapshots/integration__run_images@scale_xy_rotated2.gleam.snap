@@ -34,13 +34,13 @@ source: cli/tests/integration.rs
     <path d="M38.60085 0 L154.4034 0 L154.4034 38.60085 L38.60085 38.60085 Z" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-miterlimit="10"/>
   </g>
   <g clip-path="url(#s0-c2)">
-    <path d="M154.4034 26.371492 L182.68767 -1.9127791 L210.97194 26.371492 L182.68767 54.65576 Z" fill="#0000ff"/>
+    <path d="M154.4034 26.371492 L182.68767 -1.9127791 L210.97194 26.371492 L182.68767 54.65576" fill="#0000ff"/>
   </g>
   <g clip-path="url(#s0-c3)">
     <path d="M154.4034 5.158289 L182.68767 5.158289 L182.68767 33.44256 L154.4034 33.44256 Z" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-miterlimit="10"/>
   </g>
   <g clip-path="url(#s0-c4)">
-    <path d="M182.68767 26.371492 L267.54047 -1.9127791 L352.39328 26.371492 L267.54047 54.65576 Z" fill="#0000ff"/>
+    <path d="M182.68767 26.371492 L267.54047 -1.9127791 L352.39328 26.371492 L267.54047 54.65576" fill="#0000ff"/>
   </g>
   <g clip-path="url(#s0-c5)">
     <path d="M182.68767 5.158289 L267.54047 5.158289 L267.54047 33.44256 L182.68767 33.44256 Z" fill="none" stroke="#000000" stroke-width="2" stroke-linecap="round" stroke-miterlimit="10"/>

@@ -7,7 +7,7 @@ source: cli/tests/integration.rs
     <clipPath id="s0-c1"><path d="M0 0 L126.60254 0 L126.60254 119.282036 L0 119.282036"/></clipPath>
   </defs>
   <g clip-path="url(#s0-c0)">
-    <path d="M0 50 L86.60254 0 L126.60254 69.282036 L40 119.282036 Z" fill="#d3d3d3"/>
+    <path d="M0 50 L86.60254 0 L126.60254 69.282036 L40 119.282036" fill="#d3d3d3"/>
     <path d="M-20.490381 44.50962 L5.4903812 29.509619 L20.490381 55.49038 L-5.4903812 70.49038 Z" fill="none" stroke="#ff0000" stroke-width="8" stroke-linecap="round" stroke-miterlimit="10"/>
   </g>
   <g clip-path="url(#s0-c1)">

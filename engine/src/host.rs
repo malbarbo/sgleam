@@ -4,7 +4,7 @@
 //! Each target provides every function re-exported below, under the name and
 //! with the meaning written here. A `cfg` on a re-export says that only one
 //! target has the function, and whatever asks for it says the same `cfg`.
-//! The frames of a world are the same on both, over `Frames` of sinteract.
+//! The frames of a world are the same on both, over `Worlds` of sinteract.
 
 #[cfg(not(target_arch = "wasm32"))]
 use std::cell::OnceCell;
@@ -13,7 +13,7 @@ use std::time::{Duration, Instant};
 
 #[cfg(not(target_arch = "wasm32"))]
 use sinteract::display::Printer;
-use sinteract::display::{FrameEvent, Frames, ShowError};
+use sinteract::display::{ShowError, WorldEvent, Worlds};
 use sinteract::event::{InputEvent, KeyEvent, KeyKind, PadButton, PadEvent};
 use sinteract::scene::Scene;
 use sinteract::session::PlayerRange;
@@ -64,7 +64,7 @@ mod target;
 /// target the printer shows the images of the repl in the terminal.
 pub(crate) struct Host {
     options: HostOptions,
-    frames: RefCell<Frames>,
+    frames: RefCell<Worlds>,
     // Empty until the first print, so the printer asks the terminal nothing
     // until a run prints an image. `None` inside means there is no terminal to
     // print to.
@@ -76,9 +76,7 @@ impl Host {
     pub(crate) fn new(options: HostOptions) -> Host {
         Host {
             options,
-            frames: RefCell::new(Frames::new("sgleam", move || {
-                target::stage_options(options)
-            })),
+            frames: RefCell::new(Worlds::new("sgleam", move || target::stage_mode(options))),
             #[cfg(not(target_arch = "wasm32"))]
             printer: OnceCell::new(),
         }
@@ -184,17 +182,17 @@ impl Host {
             let event = self
                 .frames
                 .borrow_mut()
-                .wait_event(deadline, |error| tracing::warn!("{error}"));
+                .wait(deadline, |error| tracing::warn!("{error}"));
             let event = match event {
-                FrameEvent::Key(player, key) => {
+                WorldEvent::Key(player, key) => {
                     player_event(player.number().get(), InputEvent::Key(key))
                 }
-                FrameEvent::Pad(player, pad) => {
+                WorldEvent::Pad(player, pad) => {
                     player_event(player.number().get(), InputEvent::Pad(pad))
                 }
-                FrameEvent::Tick => return vec!["tick".into()],
-                FrameEvent::Close => return vec!["close".into()],
-                FrameEvent::Timeout => None,
+                WorldEvent::Frame => return vec!["tick".into()],
+                WorldEvent::Close => return vec!["close".into()],
+                WorldEvent::Timeout => None,
             };
             if let Some(event) = event {
                 return event;

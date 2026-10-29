@@ -8,7 +8,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
-use sinteract::display::{Backend, Native, Printer, StageOptions, TerminalOptions};
+use sinteract::display::{Printer, StageMode, TerminalGraphics, TerminalOptions};
 
 use crate::error::SgleamError;
 
@@ -86,13 +86,13 @@ pub(super) fn players(options: HostOptions) -> Option<NonZeroU32> {
     options.players
 }
 
-/// The backend of the terminal that `mode` asks for, or `None` to ask the
+/// The graphics of the terminal that `mode` asks for, or `None` to ask the
 /// terminal.
-fn backend(mode: DisplayMode) -> Option<Backend> {
+fn graphics(mode: DisplayMode) -> Option<TerminalGraphics> {
     match mode {
-        DisplayMode::Kitty => Some(Backend::Kitty),
-        DisplayMode::Sixel => Some(Backend::Sixel),
-        DisplayMode::Blocks => Some(Backend::HalfBlocks),
+        DisplayMode::Kitty => Some(TerminalGraphics::Kitty),
+        DisplayMode::Sixel => Some(TerminalGraphics::Sixel),
+        DisplayMode::Blocks => Some(TerminalGraphics::HalfBlocks),
         DisplayMode::Auto | DisplayMode::Window | DisplayMode::None => None,
     }
 }
@@ -102,10 +102,10 @@ fn backend(mode: DisplayMode) -> Option<Backend> {
 /// does not say so.
 pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
     match mode {
-        DisplayMode::Kitty if !Backend::Kitty.is_supported() => {
+        DisplayMode::Kitty if !TerminalGraphics::Kitty.is_supported() => {
             Err(SgleamError::DisplayNotSupported { mode: "kitty" })
         }
-        DisplayMode::Sixel if !Backend::Sixel.is_supported() => {
+        DisplayMode::Sixel if !TerminalGraphics::Sixel.is_supported() => {
             Err(SgleamError::DisplayNotSupported { mode: "sixel" })
         }
         _ => Ok(()),
@@ -115,8 +115,8 @@ pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
 pub(super) fn new_printer(options: HostOptions) -> Option<Printer> {
     match options.display {
         DisplayMode::None => None,
-        mode => backend(mode)
-            .map(Printer::with_backend)
+        mode => graphics(mode)
+            .map(Printer::with_graphics)
             .or_else(|| Printer::new().ok()),
     }
 }
@@ -125,23 +125,24 @@ pub(super) fn new_printer(options: HostOptions) -> Option<Printer> {
 /// printed. An `echo` takes two of them.
 const FOOTER_ROWS: u16 = 5;
 
-pub(super) fn stage_options(options: HostOptions) -> StageOptions {
-    let mode = options.display;
-    StageOptions {
-        display: match mode {
-            DisplayMode::Auto => Native::Auto,
-            DisplayMode::Window => Native::Window,
-            DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks => Native::Terminal,
-            DisplayMode::None => Native::None,
-        },
-        terminal: TerminalOptions {
-            // Raw mode turns Ctrl-C into a key, so the reader of the terminal
-            // stops the program in place of the signal.
-            on_interrupt: Some(Box::new(interrupt)),
-            keep_last_frame: true,
-            footer_rows: FOOTER_ROWS,
-            backend: backend(mode),
-        },
-        players: options.players,
+pub(super) fn stage_mode(options: HostOptions) -> StageMode {
+    let terminal = TerminalOptions {
+        // Raw mode turns Ctrl-C into a key, so the reader of the terminal
+        // stops the program in place of the signal.
+        on_interrupt: Some(interrupt),
+        keep_last_frame: true,
+        footer_rows: FOOTER_ROWS,
+    };
+    let players = options.players;
+    match options.display {
+        DisplayMode::Auto => StageMode::auto(players, terminal),
+        DisplayMode::Window => StageMode::Window { players },
+        mode @ (DisplayMode::Kitty | DisplayMode::Sixel | DisplayMode::Blocks) => {
+            StageMode::Terminal {
+                options: terminal,
+                graphics: graphics(mode),
+            }
+        }
+        DisplayMode::None => StageMode::Headless { players },
     }
 }

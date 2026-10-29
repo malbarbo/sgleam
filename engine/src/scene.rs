@@ -23,8 +23,9 @@ use sinteract::renderer::Renderer;
 use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
 use sinteract::scene::{
-    Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path, PathStyle,
-    Sampling, Scene, Segment, Text, TextSpec,
+    Affine, Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path,
+    PathFill, PathStroke, PathStyle, Rgba, Sampling, Scene, Segment, StrokeWidth, Text, TextSpec,
+    TextStyle,
 };
 
 use crate::host::Host;
@@ -214,7 +215,7 @@ fn walk<'js>(image: &Object<'js>, at: Offset, region: &Region, runs: &mut Vec<Ru
                 };
                 shape.as_ref().map(|shape| Leaf::Path(shape.at(at)))
             }
-            "Line" => Some(Leaf::Path(line(&image, at)?)),
+            "Line" => line(&image, at)?.map(Leaf::Path),
             "Combination" => {
                 // The stack gives back the last node first, and `a` draws
                 // before `b`.
@@ -274,8 +275,9 @@ fn moved(at: Offset, by: Object) -> Result<Offset> {
 
 /// The corners of the box of `m`, in the convention of
 /// [`ClipPath::from_transform`].
-fn corners(m: [f32; 6]) -> [(f64, f64); 4] {
-    let [a, b, c, d, e, f] = m.map(f64::from);
+fn corners(m: Affine) -> [(f64, f64); 4] {
+    let wide = |(x, y): (f32, f32)| (f64::from(x), f64::from(y));
+    let ((a, b), (c, d), (e, f)) = (wide(m.x_axis), wide(m.y_axis), wide(m.origin));
     [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)]
         .map(|(u, v)| (a * u + c * v + e, b * u + d * v + f))
 }
@@ -363,15 +365,17 @@ fn path_bounds(path: &Path) -> Option<(f64, f64, f64, f64)> {
         } => [(c1x, c1y), (c2x, c2y), (x, y)],
     });
     let (x0, y0, x1, y1) = enclose(points.map(|(x, y)| (f64::from(x), f64::from(y))))?;
-    let style = &path.style;
-    let half = f64::from(style.stroke_width.max(0.0)) / 2.0;
+    let Some(stroke) = path.style.stroke() else {
+        return Some((x0, y0, x1, y1));
+    };
+    let half = f64::from(stroke.width.get()) / 2.0;
     // A miter goes up to the limit times the half width past the corner, and
     // a square cap goes along the diagonal of the half width.
-    let join = match style.line_join {
-        LineJoin::Miter => f64::from(style.miter_limit).max(1.0),
+    let join = match stroke.join {
+        LineJoin::Miter(limit) => f64::from(limit.get()),
         _ => 1.0,
     };
-    let cap = match style.line_cap {
+    let cap = match stroke.cap {
         LineCap::Square => std::f64::consts::SQRT_2,
         _ => 1.0,
     };
@@ -486,7 +490,7 @@ type Sized<'js> = List<(f64, f64, Class<'js, Loaded>)>;
 /// one of the original.
 pub fn load_image<'js>(ctx: Ctx<'js>, data_uri: String) -> Result<Option<Sized<'js>>> {
     let Some((image, head)) =
-        decode_data_uri(&data_uri).and_then(|blob| Image::load_with_head(blob).ok())
+        decode_data_uri(&data_uri).and_then(|blob| Image::fit_with_head(blob).ok())
     else {
         return Ok(None);
     };
@@ -534,8 +538,9 @@ fn shape(image: &Object) -> Result<Option<Shape>> {
     if class(first)? != "MoveTo" {
         return Ok(None);
     }
-    let mut path_style = style.path_style();
-    path_style.closed = image.get("closed")?;
+    let Some(path_style) = style.path_style(image.get("closed")?) else {
+        return Ok(None);
+    };
     Ok(Some(Shape {
         style: path_style,
         aligned: style.aligned(),
@@ -593,8 +598,9 @@ impl Shape {
     }
 }
 
-/// The path of a `Line`, from one end to the other.
-fn line(image: &Object, at: Offset) -> Result<Path> {
+/// The path of a `Line`, from one end to the other, or `None` when its style
+/// marks nothing.
+fn line(image: &Object, at: Offset) -> Result<Option<Path>> {
     let style = Style::read(&image.get("style")?)?;
     let aligned = style.aligned();
     let p = |name: &str| -> Result<(f32, f32)> {
@@ -606,9 +612,9 @@ fn line(image: &Object, at: Offset) -> Result<Path> {
     };
     let (x, y) = p("from")?;
     let (to_x, to_y) = p("to")?;
-    Ok(Path::builder(style.path_style(), x, y)
-        .line_to(to_x, to_y)
-        .build())
+    Ok(style
+        .path_style(false)
+        .map(|style| Path::builder(style, x, y).line_to(to_x, to_y).build()))
 }
 
 /// A coordinate of a path. A thin outline on a half pixel covers one row of
@@ -719,13 +725,13 @@ fn text(image: &Object, at: Offset) -> Result<Option<Text>> {
     let style = Style::read(&image.get("style")?)?;
     let font: Object = image.get("font")?;
     let spec = text_spec(image.get("text")?, &font)?;
-    let Some(mut text) = spec.fit_transform(affine(&image.get("box")?, at)?) else {
+    let Some(style) = style.path_style(false) else {
         return Ok(None);
     };
-    let path_style = style.path_style();
-    text.fill = path_style.fill;
-    text.stroke = path_style.stroke;
-    text.stroke_width = path_style.stroke_width;
+    let transform = affine(&image.get("box")?, at)?;
+    let Some(mut text) = spec.fit_transform(transform, TextStyle::from(style)) else {
+        return Ok(None);
+    };
     text.underline = font.get("underline")?;
     Ok(Some(text))
 }
@@ -736,13 +742,7 @@ fn text(image: &Object, at: Offset) -> Result<Option<Text>> {
 /// that cannot draw measures nothing.
 pub fn text_metrics<'js>(text: String, font: Object<'js>) -> Result<List<(f64, f64)>> {
     let spec = text_spec(text, &font)?;
-    let size = match sinteract::text::measure(
-        &spec.family,
-        spec.weight,
-        spec.style,
-        spec.size,
-        &spec.text,
-    ) {
+    let size = match sinteract::text::measure(&spec) {
         Some(m) => (f64::from(m.width()), f64::from(m.height())),
         None => (0.0, 0.0),
     };
@@ -759,7 +759,7 @@ fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
             "Bold" => 700,
             _ => 400,
         },
-        style: match class(&font.get("font_style")?)?.as_str() {
+        font_style: match class(&font.get("font_style")?)?.as_str() {
             "Italic" => FontStyle::Italic,
             "Slant" => FontStyle::Oblique,
             _ => FontStyle::Normal,
@@ -770,16 +770,18 @@ fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
 
 /// The affine of a `Box`, which takes the unit square centred on the origin
 /// to the box moved by `at`.
-fn affine(b: &Object, at: Offset) -> Result<[f32; 6]> {
+fn affine(b: &Object, at: Offset) -> Result<Affine> {
     let point = |name: &str| -> Result<(f32, f32)> {
         let p: Object = b.get(name)?;
         Ok((float(&p, "x")? as f32, float(&p, "y")? as f32))
     };
     let (cx, cy) = moved(at, b.get("center")?)?;
     let (cx, cy) = (cx as f32, cy as f32);
-    let (ux, uy) = point("x_axis")?;
-    let (vx, vy) = point("y_axis")?;
-    Ok([ux, uy, vx, vy, cx, cy])
+    Ok(Affine {
+        x_axis: point("x_axis")?,
+        y_axis: point("y_axis")?,
+        origin: (cx, cy),
+    })
 }
 
 /// A `Style` of `sgleam/style`, with a default for each attribute left out.
@@ -842,7 +844,7 @@ impl Style {
                     s.line_join = Some(match attr.get::<_, String>("0")?.as_str() {
                         "round" => LineJoin::Round,
                         "bevel" => LineJoin::Bevel,
-                        _ => LineJoin::Miter,
+                        _ => LineJoin::default(),
                     });
                 }
                 other => {
@@ -861,45 +863,42 @@ impl Style {
         self.stroke.is_some() && self.fill.is_none() && self.stroke_width.is_none_or(|w| w == 1.0)
     }
 
-    fn path_style(&self) -> PathStyle {
+    /// The style of a path, with every sub-path closed when `closed` is
+    /// `true`, or `None` when the path marks nothing.
+    fn path_style(&self, closed: bool) -> Option<PathStyle> {
         let outline = self.stroke.is_some();
         // A shape with no fill is black, as in svg, and an outline is not
         // filled.
         let fill = match self.fill {
-            Some(c) => c,
-            None if outline => Color::default(),
-            None => Color {
+            Some(c) => Some(c),
+            None if outline => None,
+            None => Some(Color {
                 r: 0,
                 g: 0,
                 b: 0,
                 a: 1.0,
-            },
-        };
-        let stroke = self.stroke.unwrap_or_default();
-        PathStyle {
-            fill: paint(fill, self.fill_opacity),
-            stroke: paint(stroke, self.stroke_opacity),
-            stroke_width: if outline {
-                self.stroke_width.unwrap_or(1.0)
-            } else {
-                0.0
-            },
-            line_cap: self.line_cap.unwrap_or(if outline {
-                LineCap::Round
-            } else {
-                LineCap::Butt
             }),
-            line_join: self.line_join.unwrap_or(LineJoin::Miter),
-            fill_rule: self.fill_rule,
-            // An outline with no join of its own gets a limit of 10.
-            miter_limit: if self.line_join.is_none() && outline {
-                10.0
-            } else {
-                sinteract::scene::DEFAULT_MITER_LIMIT
-            },
-            dash: self.dash.as_ref().and_then(|a| Dash::new(a.clone(), 0.0)),
-            closed: false,
-        }
+        };
+        let fill = fill
+            .and_then(|c| paint(c, self.fill_opacity))
+            .map(|paint| PathFill {
+                paint,
+                rule: self.fill_rule,
+            });
+        let stroke = self.stroke.and_then(|c| {
+            Some(PathStroke {
+                paint: paint(c, self.stroke_opacity)?,
+                width: StrokeWidth::new(self.stroke_width.unwrap_or(1.0))?,
+                cap: self.line_cap.unwrap_or(LineCap::Round),
+                // An outline with no join of its own gets a limit of 10.
+                join: self
+                    .line_join
+                    .unwrap_or(LineJoin::miter(10.0).unwrap_or_default()),
+                dash: self.dash.as_ref().and_then(|a| Dash::new(a.clone(), 0.0)),
+                closed,
+            })
+        });
+        PathStyle::new(fill, stroke)
     }
 }
 
@@ -913,10 +912,15 @@ struct Color {
 }
 
 /// The color with its alpha times `opacity`, rounded once to the byte of the
-/// scene.
-fn paint(c: Color, opacity: f32) -> Paint {
+/// scene, or `None` when the color is transparent.
+fn paint(c: Color, opacity: f32) -> Option<Paint> {
     let a = (c.a * opacity).clamp(0.0, 1.0) * 255.0;
-    Paint::rgba(c.r, c.g, c.b, a.round() as u8)
+    Paint::solid(Rgba {
+        r: c.r,
+        g: c.g,
+        b: c.b,
+        a: a.round() as u8,
+    })
 }
 
 /// A `Color` of `sgleam/color`. `None` has no alpha.

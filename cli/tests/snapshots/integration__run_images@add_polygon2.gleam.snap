@@ -2,6 +2,6 @@
 source: cli/tests/integration.rs
 ---
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="180" height="180" viewBox="0 0 180 180">
-  <path d="M0 0 L180 0 L180 180 L0 180 Z" fill="#ffff00"/>
+  <path d="M0 0 L180 0 L180 180 L0 180" fill="#ffff00"/>
   <path d="M109.5 160.5 L26.5 148.5 L46.5 36.5 L93.5 44.5 L89.5 68.5 L122.5 72.5 Z" fill="none" stroke="#00008b" stroke-width="1" stroke-linecap="round" stroke-miterlimit="10"/>
 </svg>
