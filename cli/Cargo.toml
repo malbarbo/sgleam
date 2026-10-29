@@ -32,3 +32,8 @@ assert_cmd = "2.1"
 indoc = "2.0.5"
 insta = "1.41.1"
 tempfile = "3"
+
+# tests/server.rs plays the server of a room, with the engine on fd 3 and fd 4.
+[target.'cfg(unix)'.dev-dependencies]
+command-fds = "0.3"
+sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false }

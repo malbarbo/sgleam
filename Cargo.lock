@@ -731,6 +731,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "command-fds"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b60b5124979fccd9addd89d8b97a1d6eebb4950694520c75ddd722535ea443f"
+dependencies = [
+ "nix",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3754,6 +3764,7 @@ dependencies = [
  "assert_cmd",
  "bpaf",
  "camino",
+ "command-fds",
  "dirs",
  "engine",
  "gleam-core",
@@ -3761,6 +3772,7 @@ dependencies = [
  "insta",
  "libc",
  "rustyline",
+ "sinteract",
  "tempfile",
 ]
 
