@@ -89,6 +89,15 @@ enum Command {
         #[bpaf(positional("FILE"))]
         file: String,
     },
+    /// Run a program as the engine of a game server, on fd 3 and fd 4.
+    #[bpaf(command, hide)]
+    Server {
+        #[bpaf(external(number_arg))]
+        number: bool,
+        /// Gleam file to run.
+        #[bpaf(positional("FILE"))]
+        file: String,
+    },
     /// Run tests.
     #[bpaf(command)]
     Test {
@@ -201,6 +210,7 @@ fn run() -> Result<(), SgleamError> {
         &command,
         Command::Repl { number: true, .. }
             | Command::Run { number: true, .. }
+            | Command::Server { number: true, .. }
             | Command::Test { number: true, .. }
             | Command::Check { number: true, .. }
     );
@@ -213,6 +223,10 @@ fn run() -> Result<(), SgleamError> {
         } => HostOptions {
             display: *display,
             players: *players,
+        },
+        Command::Server { .. } => HostOptions {
+            display: DisplayMode::Session,
+            players: None,
         },
         Command::Repl { display, .. } | Command::Test { display, .. } => HostOptions {
             display: *display,
@@ -242,7 +256,7 @@ fn run() -> Result<(), SgleamError> {
             };
             run_interactive(&paths, quiet, options)
         }
-        Command::Run { file, .. } => {
+        Command::Run { file, .. } | Command::Server { file, .. } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
             run_main(&files, options)
