@@ -18,7 +18,7 @@ use rquickjs::{
     Class, Constructor, Ctx, Exception, FromJs, Function, JsLifetime, Object, Result, Value,
     convert::List,
 };
-use sinteract::asset::{ImageHead, decode_data_uri};
+use sinteract::asset::{ImageFormat, ImageHead, decode_data_uri};
 use sinteract::renderer::Renderer;
 use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
@@ -439,7 +439,7 @@ pub struct Loaded {
 
 impl Loaded {
     fn new(image: Image, head: ImageHead) -> Self {
-        let png = head.mime == "image/png";
+        let png = head.format == ImageFormat::Png;
         Self { image, png }
     }
 }

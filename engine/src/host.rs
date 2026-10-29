@@ -133,7 +133,7 @@ impl Host {
     fn shown(&self, result: Result<(), ShowError>) -> Result<bool, String> {
         match result {
             Ok(()) => Ok(self.shows_frames()),
-            Err(ShowError::Unavailable) => Ok(false),
+            Err(ShowError::Unavailable | ShowError::NoPlayer(_)) => Ok(false),
             Err(ShowError::Open(error)) => Err(error.to_string()),
         }
     }
