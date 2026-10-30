@@ -93,8 +93,17 @@ fn dash_array_source(values: List(Float)) -> String {
   let style = Style(..none, stroke_dash_array: Some(values))
   case list.key_find(named_dash_arrays, style) {
     Ok(name) -> name
-    Error(_) -> "stroke.dash_array([" <> numbers(values) <> "])"
+    Error(_) ->
+      case list.try_map(values, whole) {
+        Ok(ns) -> "stroke.dash_array([" <> items(ns, int.to_string) <> "])"
+        Error(_) ->
+          "stroke.dash_arrayf([" <> items(values, float.to_string) <> "])"
+      }
   }
+}
+
+fn items(values: List(a), to_string: fn(a) -> String) -> String {
+  values |> list.map(to_string) |> string.join(", ")
 }
 
 /// `name(v)` for a whole `v`, the function that takes an `Int`, and
@@ -103,15 +112,6 @@ fn number_call(name: String, v: Float) -> String {
   case whole(v) {
     Ok(n) -> name <> "(" <> int.to_string(n) <> ")"
     Error(_) -> name <> "f(" <> float.to_string(v) <> ")"
-  }
-}
-
-/// The values of a dash array, as `Int` when all are whole. Only `scale`
-/// makes them fractional, and `stroke.dash_array` has no `Float` version.
-fn numbers(values: List(Float)) -> String {
-  case list.try_map(values, whole) {
-    Ok(ns) -> ns |> list.map(int.to_string) |> string.join(", ")
-    Error(_) -> values |> list.map(float.to_string) |> string.join(", ")
   }
 }
 
