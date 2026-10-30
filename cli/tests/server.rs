@@ -59,7 +59,8 @@ impl Engine {
             let mut from_engine = from_engine;
             let mut buf = vec![0; 1 << 16];
             while let Ok(n @ 1..) = from_engine.read(&mut buf) {
-                if send.send(buf[..n].to_vec()).is_err() {
+                let Some(bytes) = buf.get(..n) else { return };
+                if send.send(bytes.to_vec()).is_err() {
                     return;
                 }
             }

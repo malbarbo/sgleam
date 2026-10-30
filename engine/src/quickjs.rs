@@ -492,7 +492,7 @@ mod tests {
 
     #[test]
     fn an_import_resolves_to_a_path_separated_with_slashes() {
-        let resolve = |base, name| resolve_path(base, name).unwrap();
+        let resolve = |base, name| resolve_path(base, name).expect("a path");
         assert_eq!(resolve("/build/eval_script", "./b.mjs"), "/build/b.mjs");
         assert_eq!(
             resolve("/build/sub/d.mjs", "../gleam/list.mjs"),
@@ -514,7 +514,7 @@ mod tests {
             "sub/a.gleam",
             "pub fn main() {\n  f()\n}\n\nfn f() {\n  1 + f()\n}\n",
         );
-        project.compile(false).unwrap();
+        project.compile(false).expect("compile");
         let at = |path: &str, line, column| source_location(&project.fs, path.into(), line, column);
         // The `f()` in `return 1 + f();`, under the line of the map.
         assert_eq!(
