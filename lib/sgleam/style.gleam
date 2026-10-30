@@ -1,6 +1,7 @@
 import gleam/float
 import gleam/int
 import gleam/list
+import gleam/string
 import sgleam/color.{type Color}
 
 pub opaque type Style {
@@ -26,6 +27,67 @@ pub fn join(style: List(Style)) -> Style {
 }
 
 pub const none = Style([])
+
+/// The text `inspect` prints for `style`, an expression the user could write.
+@internal
+pub fn to_source(style: Style) -> String {
+  case list.map(style.attributes, attribute_source) {
+    [] -> "style.none"
+    [one] -> one
+    many -> "style.join([" <> string.join(many, ", ") <> "])"
+  }
+}
+
+const named_dash_arrays = [
+  #(stroke_dashed, "stroke.dashed"),
+  #(stroke_dotted, "stroke.dotted"),
+  #(stroke_long_dashed, "stroke.long_dashed"),
+  #(stroke_dash_dot, "stroke.dash_dot"),
+]
+
+fn attribute_source(a: Attribute) -> String {
+  case a {
+    Fill(c) -> "fill." <> color.name(c)
+    FillOpacity(v) -> "fill." <> number_call("opacity", v)
+    FillRule(rule) -> "fill.rule_" <> rule
+    Stroke(c) -> "stroke." <> color.name(c)
+    StrokeLineCap(cap) -> "stroke.linecap_" <> cap
+    StrokeLineJoin(join) -> "stroke.linejoin_" <> join
+    StrokeWidth(v) -> "stroke." <> number_call("width", v)
+    StrokeOpacity(v) -> "stroke." <> number_call("opacity", v)
+    StrokeDashArray(values) ->
+      case list.key_find(named_dash_arrays, Style([a])) {
+        Ok(name) -> name
+        Error(_) -> "stroke.dash_array([" <> numbers(values) <> "])"
+      }
+  }
+}
+
+/// `name(v)` for a whole `v`, the function that takes an `Int`, and
+/// `namef(v)` otherwise.
+fn number_call(name: String, v: Float) -> String {
+  case whole(v) {
+    Ok(n) -> name <> "(" <> int.to_string(n) <> ")"
+    Error(_) -> name <> "f(" <> float.to_string(v) <> ")"
+  }
+}
+
+/// The values of a dash array, as `Int` when all are whole. Only `scale`
+/// makes them fractional, and `stroke.dash_array` has no `Float` version.
+fn numbers(values: List(Float)) -> String {
+  case list.try_map(values, whole) {
+    Ok(ns) -> ns |> list.map(int.to_string) |> string.join(", ")
+    Error(_) -> values |> list.map(float.to_string) |> string.join(", ")
+  }
+}
+
+fn whole(v: Float) -> Result(Int, Nil) {
+  let n = float.round(v)
+  case int.to_float(n) == v {
+    True -> Ok(n)
+    False -> Error(Nil)
+  }
+}
 
 /// `style` for a shape scaled by `factor`. A stroke with no width of its
 /// own stays one pixel wide, as an outline does in 2htdp.

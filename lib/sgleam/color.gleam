@@ -1,5 +1,7 @@
 import gleam/float
 import gleam/int
+import gleam/list
+import gleam/string
 
 pub opaque type Color {
   None
@@ -25,6 +27,29 @@ pub fn rgba(red: Int, green: Int, blue: Int, alpha: Float) -> Color {
 }
 
 pub const none = None
+
+/// The text `inspect` prints for `c`, a call the user could write.
+@internal
+pub fn to_source(c: Color) -> String {
+  "color." <> name(c)
+}
+
+/// What follows the module in a call that gives `c`. `fill` and `stroke`
+/// use the same names. Of two names for one color, the first in `all` wins.
+@internal
+pub fn name(c: Color) -> String {
+  case c, list.find(all, fn(named) { named.1 == c }) {
+    None, _ -> "none"
+    _, Ok(#(name, _)) -> name
+    Rgb(r, g, b, 1.0), _ -> "rgb(" <> ints([r, g, b]) <> ")"
+    Rgb(r, g, b, a), _ ->
+      "rgba(" <> ints([r, g, b]) <> ", " <> float.to_string(a) <> ")"
+  }
+}
+
+fn ints(values: List(Int)) -> String {
+  values |> list.map(int.to_string) |> string.join(", ")
+}
 
 pub const aliceblue = Rgb(240, 248, 255, 1.0)
 

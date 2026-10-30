@@ -1,0 +1,16 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+inspect_style.gleam:8
+#(color.red, color.aqua, color.rgb(10, 20, 30), color.none)
+inspect_style.gleam:9
+color.rgba(255, 0, 0, 0.5)
+inspect_style.gleam:10
+#(style.none, fill.none, fill.opacity(1), fill.opacityf(0.3))
+inspect_style.gleam:11
+[stroke.dashed, stroke.dash_array([1, 2]), stroke.linecap_round]
+inspect_style.gleam:12
+stroke.dash_array([1.5, 3.0])
+style.join([fill.rgba(1, 2, 3, 0.25), stroke.blue, stroke.widthf(2.5)])
+STDERR

@@ -5,7 +5,7 @@ STDOUT
 Running tests...
   check_same.gleam/same_examples
     Failure at line 8
-      Actual  : Path(drawn: Ok(#(Pointf(x: 0.0, y: 0.0), Pointf(x: 10.0, y: 10.0))), style: Style(attributes: [Fill(Rgb(255, 0, 0, 1.0))]), commands: [MoveTo(Pointf(x: 0.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 10.0)), LineTo(Pointf(x: 0.0, y: 10.0))], closed: True)
-      Expected: Path(drawn: Ok(#(Pointf(x: 0.0, y: 0.0), Pointf(x: 10.0, y: 10.0))), style: Style(attributes: [Fill(Rgb(0, 0, 255, 1.0))]), commands: [MoveTo(Pointf(x: 0.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 10.0)), LineTo(Pointf(x: 0.0, y: 10.0))], closed: True)
+      Actual  : Path(drawn: Ok(#(Pointf(x: 0.0, y: 0.0), Pointf(x: 10.0, y: 10.0))), style: fill.red, commands: [MoveTo(Pointf(x: 0.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 10.0)), LineTo(Pointf(x: 0.0, y: 10.0))], closed: True)
+      Expected: Path(drawn: Ok(#(Pointf(x: 0.0, y: 0.0), Pointf(x: 10.0, y: 10.0))), style: fill.blue, commands: [MoveTo(Pointf(x: 0.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 0.0)), LineTo(Pointf(x: 10.0, y: 10.0)), LineTo(Pointf(x: 0.0, y: 10.0))], closed: True)
 2 tests, 1 success, 1 failure and 0 errors.
 STDERR
