@@ -4,7 +4,7 @@ import sgleam/stroke
 import sgleam/style
 
 pub fn smain() {
-  echo style.join([fill.red, fill.blue]) == fill.red
+  echo style.join([fill.red, fill.blue]) == fill.blue
   echo style.join([stroke.blue, fill.red])
     == style.join([fill.red, stroke.blue])
   echo style.join([fill.red, style.none]) == fill.red

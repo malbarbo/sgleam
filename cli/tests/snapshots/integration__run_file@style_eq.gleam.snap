@@ -11,7 +11,7 @@ True
 style_eq.gleam:11
 True
 style_eq.gleam:12
-style.join([fill.red, stroke.blue, stroke.width(2)])
+style.join([fill.red, stroke.blue, stroke.width(5)])
 style_eq.gleam:13
 True
 style.join([stroke.width(4), stroke.dash_array([12, 6])])

@@ -21,21 +21,21 @@ pub opaque type Style {
 }
 
 /// The attributes of every style in `styles`. Of two styles that set the
-/// same attribute, the first wins.
+/// same attribute, the last wins.
 pub fn join(styles: List(Style)) -> Style {
   list.fold(styles, none, fn(joined, style) {
     Style(
-      fill: option.or(joined.fill, style.fill),
-      fill_opacity: option.or(joined.fill_opacity, style.fill_opacity),
-      fill_rule: option.or(joined.fill_rule, style.fill_rule),
-      stroke: option.or(joined.stroke, style.stroke),
-      stroke_linecap: option.or(joined.stroke_linecap, style.stroke_linecap),
-      stroke_linejoin: option.or(joined.stroke_linejoin, style.stroke_linejoin),
-      stroke_width: option.or(joined.stroke_width, style.stroke_width),
-      stroke_opacity: option.or(joined.stroke_opacity, style.stroke_opacity),
+      fill: option.or(style.fill, joined.fill),
+      fill_opacity: option.or(style.fill_opacity, joined.fill_opacity),
+      fill_rule: option.or(style.fill_rule, joined.fill_rule),
+      stroke: option.or(style.stroke, joined.stroke),
+      stroke_linecap: option.or(style.stroke_linecap, joined.stroke_linecap),
+      stroke_linejoin: option.or(style.stroke_linejoin, joined.stroke_linejoin),
+      stroke_width: option.or(style.stroke_width, joined.stroke_width),
+      stroke_opacity: option.or(style.stroke_opacity, joined.stroke_opacity),
       stroke_dash_array: option.or(
-        joined.stroke_dash_array,
         style.stroke_dash_array,
+        joined.stroke_dash_array,
       ),
     )
   })
