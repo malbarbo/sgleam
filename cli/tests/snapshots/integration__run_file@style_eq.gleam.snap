@@ -1,0 +1,18 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+style_eq.gleam:7
+True
+style_eq.gleam:8
+True
+style_eq.gleam:10
+True
+style_eq.gleam:11
+True
+style_eq.gleam:12
+style.join([fill.red, stroke.blue, stroke.width(2)])
+style_eq.gleam:13
+True
+style.join([stroke.width(4), stroke.dash_array([12, 6])])
+STDERR

@@ -808,62 +808,40 @@ struct Style {
 }
 
 impl Style {
-    /// Reads the attributes of `style`. Of two that set the same thing, the
-    /// first wins, as in an svg element with the attribute twice.
+    /// Reads `style`, a `Style` of `sgleam/style`.
     fn read(style: &Object) -> Result<Self> {
-        let mut s = Style {
-            fill: None,
-            fill_opacity: 1.0,
-            fill_rule: FillRule::NonZero,
-            stroke: None,
-            stroke_width: None,
-            stroke_opacity: 1.0,
-            dash: None,
-            line_cap: None,
-            line_join: None,
+        let color_at = |name| -> Result<Option<Color>> {
+            some::<Object>(style, name)?.map(|c| color(&c)).transpose()
         };
-        let mut seen = Vec::new();
-        for attr in list::<Object>(style.get("attributes")?)? {
-            let class = class(&attr)?;
-            if seen.contains(&class) {
-                continue;
+        let dash = match some::<Object>(style, "stroke_dash_array")? {
+            Some(values) => {
+                let values: Vec<Value> = list(values)?;
+                Some(values.iter().map(|v| number(v) as f32).collect())
             }
-            match class.as_str() {
-                "Fill" => s.fill = Some(color(&attr.get("0")?)?),
-                "FillOpacity" => s.fill_opacity = attr.get::<_, f64>("0")? as f32,
-                "FillRule" => {
-                    if attr.get::<_, String>("0")? == "evenodd" {
-                        s.fill_rule = FillRule::EvenOdd;
-                    }
-                }
-                "Stroke" => s.stroke = Some(color(&attr.get("0")?)?),
-                "StrokeWidth" => s.stroke_width = Some(attr.get::<_, f64>("0")? as f32),
-                "StrokeOpacity" => s.stroke_opacity = attr.get::<_, f64>("0")? as f32,
-                "StrokeDashArray" => {
-                    let values: Vec<Value> = list(attr.get("0")?)?;
-                    s.dash = Some(values.iter().map(|v| number(v) as f32).collect());
-                }
-                "StrokeLineCap" => {
-                    s.line_cap = Some(match attr.get::<_, String>("0")?.as_str() {
-                        "round" => LineCap::Round,
-                        "square" => LineCap::Square,
-                        _ => LineCap::Butt,
-                    });
-                }
-                "StrokeLineJoin" => {
-                    s.line_join = Some(match attr.get::<_, String>("0")?.as_str() {
-                        "round" => LineJoin::Round,
-                        "bevel" => LineJoin::Bevel,
-                        _ => LineJoin::default(),
-                    });
-                }
-                other => {
-                    return Err(type_error(attr.ctx(), &format!("unknown style {other}")));
-                }
-            }
-            seen.push(class);
-        }
-        Ok(s)
+            None => None,
+        };
+        Ok(Style {
+            fill: color_at("fill")?,
+            fill_opacity: some::<f64>(style, "fill_opacity")?.map_or(1.0, |v| v as f32),
+            fill_rule: match some::<String>(style, "fill_rule")?.as_deref() {
+                Some("evenodd") => FillRule::EvenOdd,
+                _ => FillRule::NonZero,
+            },
+            stroke: color_at("stroke")?,
+            stroke_width: some::<f64>(style, "stroke_width")?.map(|v| v as f32),
+            stroke_opacity: some::<f64>(style, "stroke_opacity")?.map_or(1.0, |v| v as f32),
+            dash,
+            line_cap: some::<String>(style, "stroke_linecap")?.map(|cap| match cap.as_str() {
+                "round" => LineCap::Round,
+                "square" => LineCap::Square,
+                _ => LineCap::Butt,
+            }),
+            line_join: some::<String>(style, "stroke_linejoin")?.map(|join| match join.as_str() {
+                "round" => LineJoin::Round,
+                "bevel" => LineJoin::Bevel,
+                _ => LineJoin::default(),
+            }),
+        })
     }
 
     /// Returns `true` if the path draws a thin outline on half pixels, `false`
@@ -952,6 +930,16 @@ fn class(value: &Object) -> Result<String> {
     value
         .get::<_, Object>(PredefinedAtom::Constructor)?
         .get(PredefinedAtom::Name)
+}
+
+/// The value in the `Option` of `gleam/option` at `obj.name`.
+fn some<'js, T: FromJs<'js>>(obj: &Object<'js>, name: &str) -> Result<Option<T>> {
+    let option: Object = obj.get(name)?;
+    if class(&option)? == "Some" {
+        Ok(Some(option.get("0")?))
+    } else {
+        Ok(None)
+    }
 }
 
 /// The elements of a Gleam list.
