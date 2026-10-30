@@ -11,9 +11,6 @@ unwrap_used = "deny"
 # already at hand, `get` says so in the same expression.
 indexing_slicing = "deny"
 
-[patch."https://github.com/malbarbo/sinteract.git"]
-sinteract = { path = "../sinteract" }
-
 [profile.release]
 opt-level = 2
 lto = true

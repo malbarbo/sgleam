@@ -23,9 +23,9 @@ use sinteract::renderer::Renderer;
 use sinteract::renderer::pixmap::render_to_pixmap;
 use sinteract::renderer::svg::{IdPrefix, SvgRenderer};
 use sinteract::scene::{
-    Affine, Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint, Path,
-    PathFill, PathStroke, PathStyle, Rgba, Sampling, Scene, Segment, StrokeWidth, Text, TextSpec,
-    TextStyle,
+    Affine, ArcSize, Bitmap, ClipPath, Dash, FillRule, FontStyle, Image, LineCap, LineJoin, Paint,
+    Path, PathFill, PathStroke, PathStyle, Rgba, Sampling, Scene, Segment, StrokeWidth, Sweep,
+    Text, TextSpec, TextStyle, Weight,
 };
 
 use crate::host::Host;
@@ -590,7 +590,17 @@ impl Shape {
                     end,
                 } => {
                     let (x, y) = p(end);
-                    builder.arc_to(rx, ry, rotation, large_arc, sweep, x, y)
+                    let size = if large_arc {
+                        ArcSize::Large
+                    } else {
+                        ArcSize::Small
+                    };
+                    let sweep = if sweep {
+                        Sweep::Clockwise
+                    } else {
+                        Sweep::Counterclockwise
+                    };
+                    builder.arc_to(rx, ry, rotation, size, sweep, x, y)
                 }
             };
         }
@@ -755,9 +765,9 @@ fn text_spec(text: String, font: &Object) -> Result<TextSpec> {
         size: font.get::<_, f64>("size")? as f32,
         family: font.get::<_, String>("family")?.into(),
         weight: match class(&font.get("font_weight")?)?.as_str() {
-            "Light" => 300,
-            "Bold" => 700,
-            _ => 400,
+            "Light" => Weight::LIGHT,
+            "Bold" => Weight::BOLD,
+            _ => Weight::REGULAR,
         },
         font_style: match class(&font.get("font_style")?)?.as_str() {
             "Italic" => FontStyle::Italic,
