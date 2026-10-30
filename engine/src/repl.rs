@@ -381,10 +381,10 @@ impl<E: Engine> Repl<E> {
             pub fn {memo}(key: String, value: fn() -> a) -> a
 
             @external(javascript, "{SGLEAM_FFI}", "repl_print")
-            pub fn {print}(value: a) -> a
+            pub fn {print}(value: a, names: names) -> a
 
             @external(javascript, "{SGLEAM_FFI}", "repl_print_binding")
-            pub fn {print_binding}(value: a) -> a
+            pub fn {print_binding}(value: a, names: names) -> a
         "#}
     }
 
@@ -645,8 +645,25 @@ impl<E: Engine> Repl<E> {
         let mut body = Source::new();
         swrite!(body, "{}({{\n", self.repl_print);
         body.copy(input, expr);
-        body.write("\n})");
+        swrite!(body, "\n}}, {})", self.module_names());
         body
+    }
+
+    /// The names the session gives the modules whose values print as a call,
+    /// as a Gleam list of `#(short name, name)`. A module keeps its short name
+    /// when the short name still means it, and when no name means it.
+    fn module_names(&self) -> String {
+        let mut names = Vec::new();
+        for short in ["color", "fill", "stroke", "style"] {
+            let path = format!("sgleam/{short}");
+            if self.scope.modules.get(short) == Some(&path) {
+                continue;
+            }
+            if let Some((name, _)) = self.scope.modules.iter().find(|(_, p)| **p == path) {
+                names.push(format!("#(\"{short}\", \"{name}\")"));
+            }
+        }
+        format!("[{}]", names.join(", "))
     }
 
     /// Compiles a `repl_main` around `body` and runs it.
@@ -806,8 +823,9 @@ impl<E: Engine> Repl<E> {
         code.append(&bind);
         swrite!(
             code,
-            "\n}})\n}}\n\npub fn {main}() {{\n{print}({vals}().0)\n}}\n",
-            main = self.repl_main
+            "\n}})\n}}\n\npub fn {main}() {{\n{print}({vals}().0, {names})\n}}\n",
+            main = self.repl_main,
+            names = self.module_names(),
         );
 
         let (vals_module, vals) = self.vals_module(&module, names);

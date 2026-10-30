@@ -8,10 +8,10 @@ Debug mode on.
 pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
-pub fn repl_print_XXXXXXXX(value: a) -> a
+pub fn repl_print_XXXXXXXX(value: a, names: names) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print_binding")
-pub fn repl_print_binding_XXXXXXXX(value: a) -> a
+pub fn repl_print_binding_XXXXXXXX(value: a, names: names) -> a
 
 import sgleam/system
 ---
@@ -31,19 +31,20 @@ export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX, repl_print_binding_XXXXXXXX };
 pub fn repl_memo_XXXXXXXX(key: String, value: fn() -> a) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print")
-pub fn repl_print_XXXXXXXX(value: a) -> a
+pub fn repl_print_XXXXXXXX(value: a, names: names) -> a
 
 @external(javascript, "./sgleam/sgleam_ffi.mjs", "repl_print_binding")
-pub fn repl_print_binding_XXXXXXXX(value: a) -> a
+pub fn repl_print_binding_XXXXXXXX(value: a, names: names) -> a
 
 import sgleam/system
 
 pub fn repl_main_XXXXXXXX() {
-  repl_print_XXXXXXXX({ system.unix_time_ms() > 0 })
+  repl_print_XXXXXXXX({ system.unix_time_ms() > 0 }, [])
 }
 ---
 --- repl2_1.mjs ---
 //# sourceMappingURL=repl2_1.mjs.map
+import { List$Empty$const as $List$Empty$const } from "./gleam.mjs";
 import {
   repl_memo as repl_memo_XXXXXXXX,
   repl_print as repl_print_XXXXXXXX,
@@ -54,7 +55,7 @@ import * as $system from "./sgleam/system.mjs";
 export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX, repl_print_binding_XXXXXXXX };
 
 export function repl_main_XXXXXXXX() {
-  return repl_print_XXXXXXXX(($system.unix_time_ms() > 0n));
+  return repl_print_XXXXXXXX(($system.unix_time_ms() > 0n), $List$Empty$const);
 }
 ---
 True

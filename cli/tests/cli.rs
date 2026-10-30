@@ -102,6 +102,32 @@ fn repl_image_by_class() {
 }
 
 #[test]
+fn repl_style_with_module_alias() {
+    assert_eq!(
+        repl_exec(&formatdoc! {r#"
+            import gleam/string
+            import sgleam/fill as f
+            import sgleam/style as s
+            f.red
+            [f.red, f.blue]
+            let x = f.red
+            s.join([f.red, s.stroke_blue])
+            string.inspect(f.red)
+            import sgleam/fill
+            fill.red"#
+        }),
+        indoc! {r#"
+            f.red
+            [f.red, f.blue]
+            f.red
+            s.join([f.red, stroke.blue])
+            "fill.red"
+            fill.red"#
+        }
+    );
+}
+
+#[test]
 fn repl_import() {
     assert_eq!(
         repl_exec(&formatdoc! {r#"
