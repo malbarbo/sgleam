@@ -19,6 +19,8 @@ pub const opacityf = style.stroke_opacityf
 
 pub const dash_array = style.stroke_dash_array
 
+pub const dash_arrayf = style.stroke_dash_arrayf
+
 pub const dashed = style.stroke_dashed
 
 pub const dotted = style.stroke_dotted

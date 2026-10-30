@@ -1,0 +1,10 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+stroke_dash_arrayf.gleam:4
+True
+stroke_dash_arrayf.gleam:5
+True
+True
+STDERR

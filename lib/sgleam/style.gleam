@@ -168,7 +168,11 @@ pub fn stroke_opacityf(opacity: Float) -> Style {
 }
 
 pub fn stroke_dash_array(values: List(Int)) -> Style {
-  let values = list.map(values, fn(v) { int.to_float(int.max(0, v)) })
+  stroke_dash_arrayf(list.map(values, int.to_float))
+}
+
+pub fn stroke_dash_arrayf(values: List(Float)) -> Style {
+  let values = list.map(values, fn(v) { float.max(0.0, v) })
   Style(..none, stroke_dash_array: Some(values))
 }
 
