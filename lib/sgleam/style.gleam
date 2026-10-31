@@ -41,17 +41,18 @@ pub fn join(styles: List(Style)) -> Style {
   })
 }
 
-pub const none = Style(
-  fill: None,
-  fill_opacity: None,
-  fill_rule: None,
-  stroke: None,
-  stroke_linecap: None,
-  stroke_linejoin: None,
-  stroke_width: None,
-  stroke_opacity: None,
-  stroke_dash_array: None,
-)
+pub const none =
+  Style(
+    fill: None,
+    fill_opacity: None,
+    fill_rule: None,
+    stroke: None,
+    stroke_linecap: None,
+    stroke_linejoin: None,
+    stroke_width: None,
+    stroke_opacity: None,
+    stroke_dash_array: None,
+  )
 
 /// The text `inspect` prints for `style`, an expression the user could write.
 @internal
@@ -175,15 +176,11 @@ pub const stroke_dashed = Style(..none, stroke_dash_array: Some([6.0, 3.0]))
 
 pub const stroke_dotted = Style(..none, stroke_dash_array: Some([2.0, 2.0]))
 
-pub const stroke_long_dashed = Style(
-  ..none,
-  stroke_dash_array: Some([12.0, 4.0]),
-)
+pub const stroke_long_dashed =
+  Style(..none, stroke_dash_array: Some([12.0, 4.0]))
 
-pub const stroke_dash_dot = Style(
-  ..none,
-  stroke_dash_array: Some([6.0, 3.0, 2.0, 3.0]),
-)
+pub const stroke_dash_dot =
+  Style(..none, stroke_dash_array: Some([6.0, 3.0, 2.0, 3.0]))
 
 fn positive(n: Float) -> Float {
   float.max(0.0, n)
@@ -347,10 +344,8 @@ pub const fill_lightcoral = Style(..none, fill: Some(color.lightcoral))
 
 pub const fill_lightcyan = Style(..none, fill: Some(color.lightcyan))
 
-pub const fill_lightgoldenrodyellow = Style(
-  ..none,
-  fill: Some(color.lightgoldenrodyellow),
-)
+pub const fill_lightgoldenrodyellow =
+  Style(..none, fill: Some(color.lightgoldenrodyellow))
 
 pub const fill_lightgray = Style(..none, fill: Some(color.lightgray))
 
@@ -384,10 +379,8 @@ pub const fill_magenta = Style(..none, fill: Some(color.magenta))
 
 pub const fill_maroon = Style(..none, fill: Some(color.maroon))
 
-pub const fill_mediumaquamarine = Style(
-  ..none,
-  fill: Some(color.mediumaquamarine),
-)
+pub const fill_mediumaquamarine =
+  Style(..none, fill: Some(color.mediumaquamarine))
 
 pub const fill_mediumblue = Style(..none, fill: Some(color.mediumblue))
 
@@ -399,10 +392,8 @@ pub const fill_mediumseagreen = Style(..none, fill: Some(color.mediumseagreen))
 
 pub const fill_mediumslateblue = Style(..none, fill: Some(color.mediumslateblue))
 
-pub const fill_mediumspringgreen = Style(
-  ..none,
-  fill: Some(color.mediumspringgreen),
-)
+pub const fill_mediumspringgreen =
+  Style(..none, fill: Some(color.mediumspringgreen))
 
 pub const fill_mediumturquoise = Style(..none, fill: Some(color.mediumturquoise))
 
@@ -552,10 +543,8 @@ pub const stroke_bisque = Style(..none, stroke: Some(color.bisque))
 
 pub const stroke_black = Style(..none, stroke: Some(color.black))
 
-pub const stroke_blanchedalmond = Style(
-  ..none,
-  stroke: Some(color.blanchedalmond),
-)
+pub const stroke_blanchedalmond =
+  Style(..none, stroke: Some(color.blanchedalmond))
 
 pub const stroke_blue = Style(..none, stroke: Some(color.blue))
 
@@ -573,10 +562,8 @@ pub const stroke_chocolate = Style(..none, stroke: Some(color.chocolate))
 
 pub const stroke_coral = Style(..none, stroke: Some(color.coral))
 
-pub const stroke_cornflowerblue = Style(
-  ..none,
-  stroke: Some(color.cornflowerblue),
-)
+pub const stroke_cornflowerblue =
+  Style(..none, stroke: Some(color.cornflowerblue))
 
 pub const stroke_cornsilk = Style(..none, stroke: Some(color.cornsilk))
 
@@ -600,10 +587,8 @@ pub const stroke_darkkhaki = Style(..none, stroke: Some(color.darkkhaki))
 
 pub const stroke_darkmagenta = Style(..none, stroke: Some(color.darkmagenta))
 
-pub const stroke_darkolivegreen = Style(
-  ..none,
-  stroke: Some(color.darkolivegreen),
-)
+pub const stroke_darkolivegreen =
+  Style(..none, stroke: Some(color.darkolivegreen))
 
 pub const stroke_darkorange = Style(..none, stroke: Some(color.darkorange))
 
@@ -685,10 +670,8 @@ pub const stroke_lightcoral = Style(..none, stroke: Some(color.lightcoral))
 
 pub const stroke_lightcyan = Style(..none, stroke: Some(color.lightcyan))
 
-pub const stroke_lightgoldenrodyellow = Style(
-  ..none,
-  stroke: Some(color.lightgoldenrodyellow),
-)
+pub const stroke_lightgoldenrodyellow =
+  Style(..none, stroke: Some(color.lightgoldenrodyellow))
 
 pub const stroke_lightgray = Style(..none, stroke: Some(color.lightgray))
 
@@ -704,20 +687,14 @@ pub const stroke_lightseagreen = Style(..none, stroke: Some(color.lightseagreen)
 
 pub const stroke_lightskyblue = Style(..none, stroke: Some(color.lightskyblue))
 
-pub const stroke_lightslategray = Style(
-  ..none,
-  stroke: Some(color.lightslategray),
-)
+pub const stroke_lightslategray =
+  Style(..none, stroke: Some(color.lightslategray))
 
-pub const stroke_lightslategrey = Style(
-  ..none,
-  stroke: Some(color.lightslategrey),
-)
+pub const stroke_lightslategrey =
+  Style(..none, stroke: Some(color.lightslategrey))
 
-pub const stroke_lightsteelblue = Style(
-  ..none,
-  stroke: Some(color.lightsteelblue),
-)
+pub const stroke_lightsteelblue =
+  Style(..none, stroke: Some(color.lightsteelblue))
 
 pub const stroke_lightyellow = Style(..none, stroke: Some(color.lightyellow))
 
@@ -731,10 +708,8 @@ pub const stroke_magenta = Style(..none, stroke: Some(color.magenta))
 
 pub const stroke_maroon = Style(..none, stroke: Some(color.maroon))
 
-pub const stroke_mediumaquamarine = Style(
-  ..none,
-  stroke: Some(color.mediumaquamarine),
-)
+pub const stroke_mediumaquamarine =
+  Style(..none, stroke: Some(color.mediumaquamarine))
 
 pub const stroke_mediumblue = Style(..none, stroke: Some(color.mediumblue))
 
@@ -742,30 +717,20 @@ pub const stroke_mediumorchid = Style(..none, stroke: Some(color.mediumorchid))
 
 pub const stroke_mediumpurple = Style(..none, stroke: Some(color.mediumpurple))
 
-pub const stroke_mediumseagreen = Style(
-  ..none,
-  stroke: Some(color.mediumseagreen),
-)
+pub const stroke_mediumseagreen =
+  Style(..none, stroke: Some(color.mediumseagreen))
 
-pub const stroke_mediumslateblue = Style(
-  ..none,
-  stroke: Some(color.mediumslateblue),
-)
+pub const stroke_mediumslateblue =
+  Style(..none, stroke: Some(color.mediumslateblue))
 
-pub const stroke_mediumspringgreen = Style(
-  ..none,
-  stroke: Some(color.mediumspringgreen),
-)
+pub const stroke_mediumspringgreen =
+  Style(..none, stroke: Some(color.mediumspringgreen))
 
-pub const stroke_mediumturquoise = Style(
-  ..none,
-  stroke: Some(color.mediumturquoise),
-)
+pub const stroke_mediumturquoise =
+  Style(..none, stroke: Some(color.mediumturquoise))
 
-pub const stroke_mediumvioletred = Style(
-  ..none,
-  stroke: Some(color.mediumvioletred),
-)
+pub const stroke_mediumvioletred =
+  Style(..none, stroke: Some(color.mediumvioletred))
 
 pub const stroke_midnightblue = Style(..none, stroke: Some(color.midnightblue))
 

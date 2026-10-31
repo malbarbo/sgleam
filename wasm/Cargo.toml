@@ -13,7 +13,7 @@ workspace = true
 [dependencies]
 engine = { path = "../engine" }
 camino = "1.1.9"
-gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8", default-features = false, features = [
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.9", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
 # The fonts that the frames of a world draw with, which the page registers.

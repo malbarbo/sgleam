@@ -9,11 +9,12 @@ use std::{
 
 use ecow::EcoString;
 use gleam_core::{
-    ast::{AssignName, Import, SrcSpan, UnqualifiedImport},
+    ast::{AssignName, Import, UnqualifiedImport},
     build::Module,
     parse,
     type_::printer::Names,
 };
+use src_span::SrcSpan;
 
 use crate::{source::Source, swriteln};
 

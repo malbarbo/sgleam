@@ -2,7 +2,9 @@
 // compiler-cli/src/format.rs and compiler-cli/src/fs.rs, except `gleam_files`,
 // which gleam does with the `ignore` crate.
 
-use gleam_core::error::{Error, FileIoAction, FileKind, Result, StandardIoAction, Unformatted};
+use gleam_core::error::{
+    Error, FileIoAction, FileIoCause, FileKind, Result, StandardIoAction, Unformatted,
+};
 use std::io::Read;
 
 use camino::{Utf8Path, Utf8PathBuf};
@@ -111,7 +113,7 @@ fn read_dir(dir: &Utf8Path) -> Result<Vec<Utf8PathBuf>> {
         action: FileIoAction::Read,
         kind: FileKind::Directory,
         path: dir.to_path_buf(),
-        err: Some(err.to_string()),
+        cause: FileIoCause::std_io(err),
     };
 
     let mut paths = Vec::new();
@@ -158,7 +160,7 @@ fn read(path: impl AsRef<Utf8Path> + std::fmt::Debug) -> Result<String, Error> {
         action: FileIoAction::Read,
         kind: FileKind::File,
         path: Utf8PathBuf::from(path.as_ref()),
-        err: Some(err.to_string()),
+        cause: FileIoCause::std_io(err),
     })
 }
 
@@ -167,6 +169,6 @@ fn write(path: &Utf8Path, text: &str) -> Result<(), Error> {
         action: FileIoAction::WriteTo,
         kind: FileKind::File,
         path: path.to_path_buf(),
-        err: Some(err.to_string()),
+        cause: FileIoCause::std_io(err),
     })
 }

@@ -25,7 +25,7 @@ use engine::{
     shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{
-    error::{FileIoAction, FileKind},
+    error::{FileIoAction, FileIoCause, FileKind},
     javascript::set_bigint_enabled,
 };
 use repl_reader::Theme;
@@ -307,7 +307,7 @@ fn canonicalise(path: Utf8PathBuf) -> Result<Utf8PathBuf, gleam_core::Error> {
             kind: FileKind::File,
             action: FileIoAction::Canonicalise,
             path,
-            err: Some(e.to_string()),
+            cause: FileIoCause::std_io(e),
         })
 }
 
@@ -316,7 +316,7 @@ fn get_current_dir() -> Result<Utf8PathBuf, gleam_core::Error> {
         kind: FileKind::Directory,
         action: FileIoAction::Open,
         path: ".".into(),
-        err: Some(e.to_string()),
+        cause: FileIoCause::std_io(e),
     })?;
     Utf8PathBuf::from_path_buf(curr_dir.clone())
         .map_err(|_| gleam_core::Error::NonUtf8Path { path: curr_dir })

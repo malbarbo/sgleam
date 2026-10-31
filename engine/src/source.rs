@@ -2,7 +2,7 @@
 
 use std::{fmt, rc::Rc};
 
-use gleam_core::{ast::SrcSpan, line_numbers::LineNumbers};
+use src_span::{LineNumbers, SrcSpan};
 
 /// A module the repl writes: what it says itself, and the regions it copied
 /// from the input. Moving a diagnostic back onto the input is then a lookup

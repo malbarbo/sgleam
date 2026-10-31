@@ -4,8 +4,8 @@ use ecow::EcoString;
 use gleam_core::{
     Error,
     ast::{
-        AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, SrcSpan,
-        Statement, UntypedPattern, UntypedStatement,
+        AssignName, BitArrayOption, BitArraySize, Constant, Definition, Pattern, Statement,
+        UntypedPattern, UntypedStatement,
     },
     build::Module,
     diagnostic::Diagnostic,
@@ -14,6 +14,7 @@ use gleam_core::{
     warning::VectorWarningEmitterIO,
 };
 use indoc::formatdoc;
+use src_span::SrcSpan;
 
 use crate::{
     engine::{Engine, MainFunction, ReplFile, SGLEAM_FFI},
@@ -116,7 +117,7 @@ pub struct Repl<E: Engine> {
     /// The names the session has in scope, and the modules that hold them.
     scope: Scope,
     project: Project,
-    existing_modules: im::HashMap<EcoString, ModuleInterface>,
+    existing_modules: imbl::HashMap<EcoString, ModuleInterface>,
     engine: E,
     // The input and the item being run. Their numbers name the module that
     // holds the compiled code.
@@ -155,7 +156,7 @@ impl<E: Engine> Repl<E> {
         let mut repl = Repl {
             scope: Scope::default(),
             project,
-            existing_modules: im::HashMap::new(),
+            existing_modules: imbl::HashMap::new(),
             engine,
             input_number: 0,
             item_number: 0,
@@ -465,7 +466,7 @@ impl<E: Engine> Repl<E> {
         let result = self.project.compile_with_modules(
             Rc::new(warnings.clone()),
             &mut self.existing_modules,
-            &mut im::HashMap::new(),
+            &mut imbl::HashMap::new(),
         );
 
         // The files go as soon as the compiler has them. The next input needs
@@ -1031,8 +1032,8 @@ fn assignment_find_names(pattern: &UntypedPattern, names: &mut Vec<String>) {
             right_side_assignment,
             ..
         } => {
-            if let Some((name, _)) = left_side_assignment {
-                names.push(name.into());
+            if let Some(left_side_assignment) = left_side_assignment {
+                names.push(left_side_assignment.name.as_str().into());
             }
             if let AssignName::Variable(name) = right_side_assignment {
                 names.push(name.into());
@@ -1135,7 +1136,7 @@ fn constant_find_names<T>(
                 }
             }
         }
-        Constant::StringConcatenation { left, right, .. } => {
+        Constant::BinaryOperator { left, right, .. } => {
             constant_find_names(left, names, modules);
             constant_find_names(right, names, modules);
         }

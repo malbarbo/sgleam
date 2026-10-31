@@ -10,11 +10,11 @@ workspace = true
 camino = "1.1.9"
 ecow = "0.2.3"
 flate2 = "1"
-gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8", default-features = false, features = [
+gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.9", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
 ] }
-gleam-format = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.8" }
-im = "15.1.0"
+gleam-format = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.9" }
+imbl = "7"
 indoc = "2.0.5"
 # The box of a path, with each arc as the cubics that sinteract draws.
 kurbo = { version = "0.13", default-features = false, features = ["std"] }
@@ -26,6 +26,7 @@ rust-embed = { version = "8.7.2", features = ["debug-embed"] }
 # pixels of an image that image.same compares.
 sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "master", default-features = false, features = ["pixmap"] }
 sourcemap = "9.3.2"
+src-span = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0.9" }
 tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"

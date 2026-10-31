@@ -3,14 +3,14 @@ use ecow::EcoString;
 use flate2::read::GzDecoder;
 use gleam_core::{
     Error, Warning,
-    ast::{Definition, SrcSpan, TypedFunction, UntypedDefinition},
+    ast::{Definition, TypedFunction, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
     },
     config::PackageConfig,
     diagnostic::Diagnostic,
-    error::{DefinedModuleOrigin, FileIoAction, FileKind},
+    error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
     type_::{
@@ -20,6 +20,7 @@ use gleam_core::{
     uid::UniqueIdGenerator,
     warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
 };
+use src_span::SrcSpan;
 use std::{
     collections::{HashSet, VecDeque},
     io::Read,
@@ -133,16 +134,16 @@ impl Project {
     pub fn compile(&mut self, repl: bool) -> Result<Vec<Module>, Error> {
         self.compile_with_modules(
             Rc::new(ConsoleWarningEmitter::with_repl(repl)),
-            &mut im::HashMap::new(),
-            &mut im::HashMap::new(),
+            &mut imbl::HashMap::new(),
+            &mut imbl::HashMap::new(),
         )
     }
 
     pub fn compile_with_modules(
         &mut self,
         warnings: Rc<dyn WarningEmitterIO>,
-        existing_modules: &mut im::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
-        defined_modules: &mut im::HashMap<EcoString, DefinedModuleOrigin>,
+        existing_modules: &mut imbl::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
+        defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
         let config = PackageConfig {
             target: Target::JavaScript,
@@ -208,7 +209,7 @@ fn read_error(path: Utf8PathBuf, err: &std::io::Error) -> Error {
         kind: FileKind::File,
         action: FileIoAction::Read,
         path,
-        err: Some(err.to_string()),
+        cause: FileIoCause::Other(err.to_string()),
     }
 }
 
