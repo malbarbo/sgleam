@@ -51,6 +51,25 @@ $ printf "a\nb\nc" | sgleam count.gleam
 Lines: 3
 ```
 
+Receiving an `Env`{.gleam}, from the `sgleam/env`{.gleam} module, the function receives what the program knows when it starts. `env.args`{.gleam} gives the arguments after the file, `env.random`{.gleam} gives a random generator, and `env.time`{.gleam} gives the milliseconds since 1970-01-01 00:00 UTC:
+
+```gleam
+// hello.gleam
+import gleam/string
+import sgleam/env.{type Env}
+
+pub fn smain(env: Env) {
+  "Hello, " <> string.join(env.args(env), " and ") <> "!"
+}
+```
+
+```sh
+$ sgleam hello.gleam Ana Bia
+Hello, Ana and Bia!
+```
+
+An argument that starts with `-` goes after `--`, as in `sgleam run hello.gleam -- -x`. Otherwise sgleam reads it as one of its options.
+
 The `main`{.gleam} function takes no arguments, and sgleam does not print what it returns.
 
 To see a value in the middle of a program, use `echo`{.gleam}. It prints the file and the line, then the value:
@@ -68,6 +87,51 @@ $ sgleam double.gleam
 double.gleam:3
 6
 12
+```
+
+
+# Random numbers
+
+The `sgleam/random`{.gleam} module draws numbers from a generator. A generator is a value, so the same generator always gives the same number. Each function returns the number together with the next generator, and the next draw uses the new one:
+
+```gleam
+// dice.gleam
+import sgleam/env.{type Env}
+import sgleam/random
+
+pub fn smain(env: Env) {
+  let gen = env.random(env)
+  let #(a, gen) = random.int(gen, 1, 6)
+  let #(b, _) = random.int(gen, 1, 6)
+  #(a, b)
+}
+```
+
+`env.random`{.gleam} gives a generator with a different seed each run. `random.new(seed)`{.gleam} creates one with a fixed seed, and the same seed gives the same sequence. `random.int(gen, from, to)`{.gleam} draws an `Int`{.gleam} between `from` and `to`, both included. `random.float(gen)`{.gleam} draws a `Float`{.gleam} from 0.0 up to 1.0, excluded. `random.pick(gen, items)`{.gleam} draws an item of a list, and `random.shuffle(gen, items)`{.gleam} puts a list in a random order.
+
+A test gives the program a generator with known answers. `random.mock`{.gleam} takes the calls the program makes, in order, each with the result it returns:
+
+```gleam
+import sgleam/check
+import sgleam/random.{type Generator}
+
+pub fn roll(gen: Generator) -> #(Int, Generator) {
+  let #(a, gen) = random.int(gen, 1, 6)
+  let #(b, gen) = random.int(gen, 1, 6)
+  #(a + b, gen)
+}
+
+pub fn roll_examples() {
+  let gen =
+    random.mock([random.int_returns(1, 6, 2), random.int_returns(1, 6, 5)])
+  check.eq(roll(gen).0, 7)
+}
+```
+
+`random.float_returns`{.gleam}, `random.pick_returns`{.gleam} and `random.shuffle_returns`{.gleam} describe the other calls. Each draw has to match the first call of the list, with the same arguments. A different call, or a draw after the list ends, stops the program with a message that says what the mock expected. For a function that takes an `Env`{.gleam}, `env.fake()`{.gleam} gives an env with no arguments, `random.new(0)`{.gleam} and time 0, and `env.with_args`{.gleam}, `env.with_random`{.gleam} and `env.with_time`{.gleam} change it:
+
+```gleam
+env.fake() |> env.with_random(random.mock([random.int_returns(1, 6, 2)]))
 ```
 
 
@@ -252,7 +316,7 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 |---------|-------------|
 | `sgleam [file]` | Run the file (shorthand for `sgleam run`) |
 | `sgleam repl [file]` | Interactive mode (REPL) |
-| `sgleam run file` | Run the file |
+| `sgleam run file [args]` | Run the file, with arguments for `smain(env)` |
 | `sgleam test file` | Run tests |
 | `sgleam format [files]` | Format code (reads stdin if no files given) |
 | `sgleam check file` | Check code (compile only) |

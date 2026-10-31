@@ -30,6 +30,24 @@ world.create(initial_state, drawing_function)
 
 The world runs when `smain`{.gleam} returns it, or when the REPL shows it as the value of an expression.
 
+When the initial state needs a random generator or the time, `world.create_from`{.gleam} takes a function that makes the state from the `Env`{.gleam} of the run. The world calls it when it starts, in a run and in the REPL:
+
+```gleam
+import sgleam/env.{type Env}
+import sgleam/random
+
+fn initial_state(env: Env) -> Ball {
+  let #(x, gen) = random.int(env.random(env), radius, width - radius)
+  let #(y, _) = random.int(gen, radius, height - radius)
+  Ball(x, y, 3, 4)
+}
+
+pub fn smain() {
+  world.create_from(initial_state, draw)
+  |> world.on_tick(tick)
+}
+```
+
 
 ## Simple animation
 
@@ -119,6 +137,11 @@ fn on_key(ball: Ball, event: key.Event) -> Ball {
 world.create(state, to_image)
 ```
 Creates a world with an initial state and a drawing function.
+
+```gleam
+world.create_from(fn(Env) -> a, to_image)
+```
+Creates a world whose initial state the function makes from the `Env`{.gleam} of the run.
 
 ```gleam
 world.animation(fn(Int) -> Image)
@@ -235,6 +258,18 @@ import sgleam/pad
 mworld.create(initial_state, min: 2, max: 4, to_image: draw)
 |> mworld.on_tick(tick)
 |> mworld.on_pad_down(move)
+```
+
+`mworld.create_from`{.gleam} takes a function that makes the initial state
+from the `Env`{.gleam} of the run and the players of the match:
+
+```gleam
+mworld.create_from(
+  fn(env: Env, players: List(mworld.Player)) { initial_state },
+  min: 2,
+  max: 4,
+  to_image: draw,
+)
 ```
 
 Like a world, a multiplayer world runs when `smain`{.gleam} returns it, or

@@ -30,6 +30,24 @@ world.create(estado_inicial, funcao_de_desenho)
 
 O mundo executa quando a `smain`{.gleam} o devolve, ou quando o REPL o mostra como o valor de uma expressão.
 
+Quando o estado inicial precisa de um gerador de números aleatórios ou da hora, `world.create_from`{.gleam} recebe uma função que cria o estado a partir do `Env`{.gleam} da execução. O mundo chama essa função quando começa, tanto ao executar um arquivo quanto no REPL:
+
+```gleam
+import sgleam/env.{type Env}
+import sgleam/random
+
+fn estado_inicial(env: Env) -> Ball {
+  let #(x, gen) = random.int(env.random(env), radius, width - radius)
+  let #(y, _) = random.int(gen, radius, height - radius)
+  Ball(x, y, 3, 4)
+}
+
+pub fn smain() {
+  world.create_from(estado_inicial, draw)
+  |> world.on_tick(tick)
+}
+```
+
 
 ## Animação simples
 
@@ -119,6 +137,11 @@ fn on_key(ball: Ball, event: key.Event) -> Ball {
 world.create(state, to_image)
 ```
 Cria um mundo com estado inicial e função de desenho.
+
+```gleam
+world.create_from(fn(Env) -> a, to_image)
+```
+Cria um mundo cujo estado inicial a função cria a partir do `Env`{.gleam} da execução.
 
 ```gleam
 world.animation(fn(Int) -> Image)
@@ -235,6 +258,18 @@ import sgleam/pad
 mworld.create(estado_inicial, min: 2, max: 4, to_image: desenhar)
 |> mworld.on_tick(tick)
 |> mworld.on_pad_down(mover)
+```
+
+`mworld.create_from`{.gleam} recebe uma função que cria o estado inicial a
+partir do `Env`{.gleam} da execução e dos jogadores da partida:
+
+```gleam
+mworld.create_from(
+  fn(env: Env, jogadores: List(mworld.Player)) { estado_inicial },
+  min: 2,
+  max: 4,
+  to_image: desenhar,
+)
 ```
 
 Como um mundo, um mundo multijogador executa quando a `smain`{.gleam} o
