@@ -1,4 +1,5 @@
 import gleam/int
+import sgleam/env.{type Env}
 import sgleam/image.{type Image}
 import sgleam/key
 import sgleam/mworld
@@ -69,10 +70,19 @@ pub opaque type World(a) {
 }
 
 pub fn create(state: a, to_image: ToImage(a)) -> World(a) {
+  create_from(fn(_) { state }, to_image)
+}
+
+/// Creates a world whose state `init` makes from the env of the run when the
+/// world starts.
+pub fn create_from(init: fn(Env) -> a, to_image: ToImage(a)) -> World(a) {
   World(
-    mworld.create(state, min: 1, max: 1, to_image: fn(state, _player) {
-      to_image(state)
-    }),
+    mworld.create_from(
+      fn(env, _players) { init(env) },
+      min: 1,
+      max: 1,
+      to_image: fn(state, _player) { to_image(state) },
+    ),
   )
 }
 

@@ -1,6 +1,7 @@
 import gleam/int
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import sgleam/env.{type Env}
 import sgleam/image.{type Image}
 import sgleam/key
 import sgleam/pad
@@ -55,12 +56,11 @@ type TickClock {
 
 pub opaque type MultiWorld(a) {
   MultiWorld(
-    state: a,
+    init: fn(Env, List(Player)) -> a,
     to_image: ToImage(a),
     rate: Int,
     min_players: Int,
     max_players: Int,
-    players: List(Player),
     on_tick: Option(OnTick(a)),
     stop_when: Option(StopWhen(a)),
     on_key_press: Option(OnKey(a)),
@@ -80,15 +80,25 @@ pub fn create(
   max max_players: Int,
   to_image to_image: ToImage(a),
 ) -> MultiWorld(a) {
+  create_from(fn(_, _) { state }, min: min_players, max: max_players, to_image:)
+}
+
+/// Creates a world whose state `init` makes when the match starts, from the
+/// env of the run and the players of the match.
+pub fn create_from(
+  init: fn(Env, List(Player)) -> a,
+  min min_players: Int,
+  max max_players: Int,
+  to_image to_image: ToImage(a),
+) -> MultiWorld(a) {
   let min_players = int.clamp(min_players, 1, max_player_count)
   let max_players = int.clamp(max_players, min_players, max_player_count)
   MultiWorld(
-    state:,
+    init:,
     to_image:,
     rate: default_tick_rate,
     min_players:,
     max_players:,
-    players: [],
     on_tick: None,
     stop_when: None,
     on_key_press: None,
@@ -152,10 +162,16 @@ pub fn run(world: MultiWorld(a)) {
   let players =
     open_mworld(world.min_players, world.max_players)
     |> players_from_start
-  let world = MultiWorld(..world, players:)
-  show_players(world)
-  run_loop(world, start_tick_clock(system.now_ms(), world.rate), False)
+  let running =
+    Running(world:, players:, state: world.init(env.from_host(), players))
+  show_players(running)
+  run_loop(running, start_tick_clock(system.now_ms(), world.rate), False)
   close_display()
+}
+
+/// A world that runs, with the players of the match and the current state.
+type Running(a) {
+  Running(world: MultiWorld(a), players: List(Player), state: a)
 }
 
 type RuntimeEvent {
@@ -170,18 +186,18 @@ type RuntimeEvent {
 
 /// `changed` says if the state changed since the players last got their
 /// views.
-fn run_loop(world: MultiWorld(a), clock: TickClock, changed: Bool) -> Nil {
-  case world.stop_when |> option.map(fn(stop) { stop(world.state) }) {
+fn run_loop(running: Running(a), clock: TickClock, changed: Bool) -> Nil {
+  case running.world.stop_when |> option.map(fn(stop) { stop(running.state) }) {
     // The close of the display shows the last views.
-    Some(True) if changed -> show_players(world)
+    Some(True) if changed -> show_players(running)
     Some(True) -> Nil
     _ ->
       case system.wait_event(int.max(clock.deadline - system.now_ms(), 0)) {
         ["close"] -> Nil
         event -> {
-          let #(world, clock, changed) =
-            turn(world, runtime_event(world.players, event), clock, changed)
-          run_loop(world, clock, changed)
+          let #(running, clock, changed) =
+            turn(running, runtime_event(running.players, event), clock, changed)
+          run_loop(running, clock, changed)
         }
       }
   }
@@ -191,37 +207,38 @@ fn run_loop(world: MultiWorld(a), clock: TickClock, changed: Bool) -> Nil {
 /// display gives each player a view of the state if the state changed, and
 /// the views go out at the next tick. Returns `changed` for the next turn.
 fn turn(
-  world: MultiWorld(a),
+  running: Running(a),
   event: RuntimeEvent,
   clock: TickClock,
   changed: Bool,
-) -> #(MultiWorld(a), TickClock, Bool) {
+) -> #(Running(a), TickClock, Bool) {
   let now = system.now_ms()
-  let #(world, ticked, clock) = case now >= clock.deadline {
+  let rate = running.world.rate
+  let #(running, ticked, clock) = case now >= clock.deadline {
     True -> {
-      let #(world, ticked) = case world.on_tick {
+      let #(running, ticked) = case running.world.on_tick {
         Some(on_tick) -> #(
-          MultiWorld(..world, state: on_tick(world.state)),
+          Running(..running, state: on_tick(running.state)),
           True,
         )
-        None -> #(world, False)
+        None -> #(running, False)
       }
-      let bumped = advance_tick_clock(clock, world.rate)
+      let bumped = advance_tick_clock(clock, rate)
       let clock = case bumped.deadline <= now {
-        True -> start_tick_clock(now, world.rate)
+        True -> start_tick_clock(now, rate)
         False -> bumped
       }
-      #(world, ticked, clock)
+      #(running, ticked, clock)
     }
-    False -> #(world, False, clock)
+    False -> #(running, False, clock)
   }
-  let #(world, handled) = apply_event(world, event)
+  let #(running, handled) = apply_event(running, event)
   case event, changed || ticked || handled {
     DisplayTick, True -> {
-      show_players(world)
-      #(world, clock, False)
+      show_players(running)
+      #(running, clock, False)
     }
-    _, changed -> #(world, clock, changed)
+    _, changed -> #(running, clock, changed)
   }
 }
 
@@ -238,18 +255,19 @@ fn advance_tick_clock(clock: TickClock, rate: Int) -> TickClock {
 }
 
 fn apply_event(
-  world: MultiWorld(a),
+  running: Running(a),
   event: RuntimeEvent,
-) -> #(MultiWorld(a), Bool) {
+) -> #(Running(a), Bool) {
+  let world = running.world
   case event {
     KeyPress(player, key) ->
       case world.keys_as_pad(key) {
-        Some(_) -> #(world, False)
-        None -> apply_player_handler(world, player, key, world.on_key_press)
+        Some(_) -> #(running, False)
+        None -> apply_player_handler(running, player, key, world.on_key_press)
       }
     KeyDown(player, key) ->
       apply_key_or_pad_handler(
-        world,
+        running,
         player,
         key,
         world.on_key_down,
@@ -257,51 +275,51 @@ fn apply_event(
       )
     KeyUp(player, key) ->
       apply_key_or_pad_handler(
-        world,
+        running,
         player,
         key,
         world.on_key_up,
         world.on_pad_up,
       )
     PadDown(player, input) ->
-      apply_player_handler(world, player, input, world.on_pad_down)
+      apply_player_handler(running, player, input, world.on_pad_down)
     PadUp(player, input) ->
-      apply_player_handler(world, player, input, world.on_pad_up)
-    DisplayTick | NoEvent -> #(world, False)
+      apply_player_handler(running, player, input, world.on_pad_up)
+    DisplayTick | NoEvent -> #(running, False)
   }
 }
 
 fn apply_key_or_pad_handler(
-  world: MultiWorld(a),
+  running: Running(a),
   player: Player,
   event: key.Event,
   key_handler: Option(OnKey(a)),
   pad_handler: Option(OnPad(a)),
-) -> #(MultiWorld(a), Bool) {
-  case world.keys_as_pad(event) {
-    Some(input) -> apply_player_handler(world, player, input, pad_handler)
-    None -> apply_player_handler(world, player, event, key_handler)
+) -> #(Running(a), Bool) {
+  case running.world.keys_as_pad(event) {
+    Some(input) -> apply_player_handler(running, player, input, pad_handler)
+    None -> apply_player_handler(running, player, event, key_handler)
   }
 }
 
 fn apply_player_handler(
-  world: MultiWorld(a),
+  running: Running(a),
   player: Player,
   input: input,
   handler: Option(fn(a, Player, input) -> a),
-) -> #(MultiWorld(a), Bool) {
+) -> #(Running(a), Bool) {
   case handler {
     Some(handler) -> #(
-      MultiWorld(..world, state: handler(world.state, player, input)),
+      Running(..running, state: handler(running.state, player, input)),
       True,
     )
-    None -> #(world, False)
+    None -> #(running, False)
   }
 }
 
-fn show_players(world: MultiWorld(a)) {
-  list.each(world.players, fn(player) {
-    world.to_image(world.state, player)
+fn show_players(running: Running(a)) {
+  list.each(running.players, fn(player) {
+    running.world.to_image(running.state, player)
     |> show_player_image(player.index, _)
   })
 }

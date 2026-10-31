@@ -1,0 +1,10 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+world_create_from.gleam:7
+[]
+Image
+Image
+Image
+STDERR
