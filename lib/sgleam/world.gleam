@@ -49,6 +49,9 @@ fn closed_before(deadline: Int) -> Bool {
 pub type OnTick(a) =
   fn(a) -> a
 
+pub type OnFrame(a) =
+  mworld.OnFrame(a)
+
 pub type StopWhen(a) =
   fn(a) -> Bool
 
@@ -94,6 +97,21 @@ pub fn tick_rate(world: World(a), rate: Int) -> World(a) {
 pub fn on_tick(world: World(a), handler: OnTick(a)) -> World(a) {
   let World(inner) = world
   World(mworld.on_tick(inner, handler))
+}
+
+/// Calls `handler` at each frame of the display, before the drawing, with the
+/// milliseconds since the world started.
+pub fn on_frame(world: World(a), handler: OnFrame(a)) -> World(a) {
+  let World(inner) = world
+  World(mworld.on_frame(inner, handler))
+}
+
+/// Calls `handler` at each frame of the display, before the drawing, with the
+/// milliseconds since the previous frame. The first frame counts from the
+/// start of the world.
+pub fn on_frame_delta(world: World(a), handler: OnFrame(a)) -> World(a) {
+  let World(inner) = world
+  World(mworld.on_frame_delta(inner, handler))
 }
 
 pub fn stop_when(world: World(a), handler: StopWhen(a)) -> World(a) {

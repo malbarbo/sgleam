@@ -28,6 +28,9 @@ pub type ToImage(a) =
 pub type OnTick(a) =
   fn(a) -> a
 
+pub type OnFrame(a) =
+  fn(a, Int) -> a
+
 pub type StopWhen(a) =
   fn(a) -> Bool
 
@@ -62,6 +65,8 @@ pub opaque type MultiWorld(a) {
     min_players: Int,
     max_players: Int,
     on_tick: Option(OnTick(a)),
+    on_frame: Option(OnFrame(a)),
+    on_frame_delta: Option(OnFrame(a)),
     stop_when: Option(StopWhen(a)),
     on_key_press: Option(OnKey(a)),
     on_key_down: Option(OnKey(a)),
@@ -100,6 +105,8 @@ pub fn create_from(
     min_players:,
     max_players:,
     on_tick: None,
+    on_frame: None,
+    on_frame_delta: None,
     stop_when: None,
     on_key_press: None,
     on_key_down: None,
@@ -116,6 +123,22 @@ pub fn tick_rate(world: MultiWorld(a), rate: Int) -> MultiWorld(a) {
 
 pub fn on_tick(world: MultiWorld(a), handler: OnTick(a)) -> MultiWorld(a) {
   MultiWorld(..world, on_tick: Some(handler))
+}
+
+/// Calls `handler` at each frame of the display, before the players get their
+/// views, with the milliseconds since the world started.
+pub fn on_frame(world: MultiWorld(a), handler: OnFrame(a)) -> MultiWorld(a) {
+  MultiWorld(..world, on_frame: Some(handler))
+}
+
+/// Calls `handler` at each frame of the display, before the players get their
+/// views, with the milliseconds since the previous frame. The first frame
+/// counts from the start of the world.
+pub fn on_frame_delta(
+  world: MultiWorld(a),
+  handler: OnFrame(a),
+) -> MultiWorld(a) {
+  MultiWorld(..world, on_frame_delta: Some(handler))
 }
 
 pub fn stop_when(world: MultiWorld(a), handler: StopWhen(a)) -> MultiWorld(a) {
@@ -162,16 +185,24 @@ pub fn run(world: MultiWorld(a)) {
   let players =
     open_mworld(world.min_players, world.max_players)
     |> players_from_start
-  let running =
-    Running(world:, players:, state: world.init(env.from_host(), players))
+  let state = world.init(env.from_host(), players)
+  let start = system.elapsed_ms()
+  let running = Running(world:, players:, state:, start:, last_frame: start)
   show_players(running)
-  run_loop(running, start_tick_clock(system.elapsed_ms(), world.rate), False)
+  run_loop(running, start_tick_clock(start, world.rate), False)
   close_display()
 }
 
 /// A world that runs, with the players of the match and the current state.
+/// `start` and `last_frame` are times of `system.elapsed_ms`.
 type Running(a) {
-  Running(world: MultiWorld(a), players: List(Player), state: a)
+  Running(
+    world: MultiWorld(a),
+    players: List(Player),
+    state: a,
+    start: Int,
+    last_frame: Int,
+  )
 }
 
 type RuntimeEvent {
@@ -232,7 +263,7 @@ fn turn(
     }
     False -> #(running, False, clock)
   }
-  let #(running, handled) = apply_event(running, event)
+  let #(running, handled) = apply_event(running, event, now)
   case event, changed || ticked || handled {
     DisplayTick, True -> {
       show_players(running)
@@ -257,6 +288,7 @@ fn advance_tick_clock(clock: TickClock, rate: Int) -> TickClock {
 fn apply_event(
   running: Running(a),
   event: RuntimeEvent,
+  now: Int,
 ) -> #(Running(a), Bool) {
   let world = running.world
   case event {
@@ -285,8 +317,25 @@ fn apply_event(
       apply_player_handler(running, player, input, world.on_pad_down)
     PadUp(player, input) ->
       apply_player_handler(running, player, input, world.on_pad_up)
-    DisplayTick | NoEvent -> #(running, False)
+    DisplayTick -> apply_frame(running, now)
+    NoEvent -> #(running, False)
   }
+}
+
+fn apply_frame(running: Running(a), now: Int) -> #(Running(a), Bool) {
+  let world = running.world
+  let state = running.state
+  let state = case world.on_frame {
+    Some(handler) -> handler(state, now - running.start)
+    None -> state
+  }
+  let state = case world.on_frame_delta {
+    Some(handler) -> handler(state, now - running.last_frame)
+    None -> state
+  }
+  let handled =
+    option.is_some(world.on_frame) || option.is_some(world.on_frame_delta)
+  #(Running(..running, state:, last_frame: now), handled)
 }
 
 fn apply_key_or_pad_handler(

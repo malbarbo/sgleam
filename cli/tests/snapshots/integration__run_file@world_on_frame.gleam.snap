@@ -1,0 +1,15 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Image
+world_on_frame.gleam:19 frame
+#(1, True)
+Image
+world_on_frame.gleam:19 frame
+#(2, True)
+Image
+world_on_frame.gleam:19 frame
+#(3, True)
+Image
+STDERR
