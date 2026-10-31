@@ -22,6 +22,15 @@ pub fn player_nickname(player: Player) -> String {
   player.nickname
 }
 
+/// A player for tests, with `index` and `nickname`. Returns `Error(Nil)` when
+/// `index` is less than 1, since the runtime numbers the players from 1.
+pub fn fake_player(index: Int, nickname: String) -> Result(Player, Nil) {
+  case index >= 1 {
+    True -> Ok(Player(index, nickname))
+    False -> Error(Nil)
+  }
+}
+
 pub type ToImage(a) =
   fn(a, Player) -> Image
 
