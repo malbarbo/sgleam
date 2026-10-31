@@ -88,6 +88,9 @@ enum Command {
         /// Gleam file to run.
         #[bpaf(positional("FILE"))]
         file: String,
+        /// Arguments for the program.
+        #[bpaf(positional("ARG"), many)]
+        args: Vec<String>,
     },
     /// Run a program as the engine of a game server, on fd 3 and fd 4.
     #[bpaf(command, hide)]
@@ -142,11 +145,13 @@ fn cli() -> bpaf::OptionParser<Option<Command>> {
     let display = display_arg();
     let players = players_arg();
     let file = bpaf::positional::<String>("FILE");
+    let args = bpaf::positional::<String>("ARG").many();
     let file_as_run = bpaf::construct!(Command::Run {
         number,
         display,
         players,
-        file
+        file,
+        args
     });
     let cmd = bpaf::construct!([command(), file_as_run]).optional();
     bpaf::construct!(cmd)
@@ -256,10 +261,15 @@ fn run() -> Result<(), SgleamError> {
             };
             run_interactive(&paths, quiet, options)
         }
-        Command::Run { file, .. } | Command::Server { file, .. } => {
+        Command::Run { file, args, .. } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_main(&files, options)
+            run_main(&files, options, args)
+        }
+        Command::Server { file, .. } => {
+            let file = user_module(file)?;
+            let files = find_imports(vec![file])?;
+            run_main(&files, options, vec![])
         }
         Command::Test { file, .. } => {
             let file = user_module(file)?;

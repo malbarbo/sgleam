@@ -175,7 +175,7 @@ pub unsafe extern "C" fn run(
         .map_err(error::SgleamError::Gleam)
         .and_then(|modules| {
             let module = get_module(&modules, USER).expect("the module of the page");
-            run_module(&project, module, USER_FILE.into(), HostOptions)
+            run_module(&project, module, USER_FILE.into(), HostOptions, vec![])
         });
     match result {
         Ok(()) => 0,

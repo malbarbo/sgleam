@@ -11,3 +11,4 @@ Hint: Use one of the valid signatures for `smain` function:
   fn() -> a
   fn(String) -> a
   fn(List(String)) -> a
+  fn(Env) -> a

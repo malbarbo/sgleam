@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+#([], True, 61, 0.8524657984803172, Ok("a"), [5, 3, 1, 4, 2])
+STDERR

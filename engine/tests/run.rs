@@ -16,7 +16,7 @@ fn an_absolute_path_names_no_module() {
     assert!(path.exists(), "{path} is the file this test runs on");
 
     assert!(matches!(
-        run_main(&[path], HostOptions::default()),
+        run_main(&[path], HostOptions::default(), vec![]),
         Err(SgleamError::NoModuleToRun { .. })
     ));
 }

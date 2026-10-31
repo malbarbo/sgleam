@@ -18,7 +18,12 @@ use crate::{
 // one.
 use crate::quickjs::QuickJsEngine as JsEngine;
 
-pub fn run_main(paths: &[Utf8PathBuf], options: HostOptions) -> Result<(), SgleamError> {
+/// `args` are what `smain` finds in its env.
+pub fn run_main(
+    paths: &[Utf8PathBuf],
+    options: HostOptions,
+    args: Vec<String>,
+) -> Result<(), SgleamError> {
     // The first path is the program, and the rest are what it imports.
     let program = paths.first().expect("a path to run");
     let mut project = Project::default();
@@ -26,7 +31,7 @@ pub fn run_main(paths: &[Utf8PathBuf], options: HostOptions) -> Result<(), Sglea
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
-    run_module(&project, module, program, options)
+    run_module(&project, module, program, options, args)
 }
 
 /// Runs the `main` or the `smain` of `module`, which `project` built. An
@@ -36,8 +41,9 @@ pub fn run_module(
     module: &Module,
     path: &Utf8Path,
     options: HostOptions,
+    args: Vec<String>,
 ) -> Result<(), SgleamError> {
-    let main = get_main(module).map_err(|err| match err {
+    let main = get_main(module, args).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
                 module,
@@ -78,7 +84,9 @@ pub fn run_test(
 
 /// A signature of `smain` that a run accepts.
 pub struct SmainSignature {
-    arguments: fn() -> Vec<Arc<Type>>,
+    /// Returns `true` if `smain` with these argument types has this
+    /// signature, `false` otherwise.
+    accepts: fn(&[Arc<Type>]) -> bool,
     /// The name the launcher knows the signature by. `try_main` hands the
     /// arguments for it.
     kind: &'static str,
@@ -88,24 +96,32 @@ pub struct SmainSignature {
 
 pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
     SmainSignature {
-        arguments: Vec::new,
+        accepts: |args| args.is_empty(),
         kind: "Smain",
         text: "fn() -> a",
     },
     SmainSignature {
-        arguments: || vec![type_::string()],
+        accepts: |args| matches!(args, [arg] if arg.same_as(&type_::string())),
         kind: "SmainStdin",
         text: "fn(String) -> a",
     },
     SmainSignature {
-        arguments: || vec![type_::list(type_::string())],
+        accepts: |args| matches!(args, [arg] if arg.same_as(&type_::list(type_::string()))),
         kind: "SmainStdinLines",
         text: "fn(List(String)) -> a",
     },
+    SmainSignature {
+        accepts: |args| {
+            matches!(args, [arg] if arg.named_type_name()
+                .is_some_and(|(module, name)| module == "sgleam/env" && name == "Env"))
+        },
+        kind: "SmainEnv",
+        text: "fn(Env) -> a",
+    },
 ];
 
-fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
-    match get_smain(module) {
+fn get_main(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamError> {
+    match get_smain(module, args) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
         _ => Ok(module
             .ast
@@ -115,7 +131,7 @@ fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
     }
 }
 
-fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
+fn get_smain(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamError> {
     let smain = get_function(module, SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
@@ -131,22 +147,22 @@ fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
         .into());
     }
 
-    let args = smain
+    let types = smain
         .arguments
         .iter()
         .map(|arg| arg.type_.clone())
         .collect::<Vec<_>>();
-    let accepts = |signature: &&SmainSignature| {
-        let expected = (signature.arguments)();
-        args.len() == expected.len() && args.iter().zip(&expected).all(|(a, e)| a.same_as(e))
-    };
-    match SMAIN_SIGNATURES.iter().find(accepts) {
+    match SMAIN_SIGNATURES
+        .iter()
+        .find(|signature| (signature.accepts)(&types))
+    {
         Some(signature) => Ok(MainFunction::Smain {
             kind: signature.kind,
+            args,
         }),
         None => Err(SgleamError::InvalidSMain {
             module: module.name.clone(),
-            signature: fn_type_to_string(module, &args[..], smain.return_type.clone()).into(),
+            signature: fn_type_to_string(module, &types[..], smain.return_type.clone()).into(),
         }),
     }
 }
