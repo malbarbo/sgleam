@@ -163,6 +163,18 @@ world.on_tick(world, fn(a) -> a)
 Define a função chamada a cada tick.
 
 ```gleam
+world.on_frame(world, fn(a, Int) -> a)
+world.on_frame_delta(world, fn(a, Int) -> a)
+```
+Definem uma função chamada a cada quadro da tela, antes do desenho.
+`on_frame` recebe os milissegundos desde o início do mundo, e
+`on_frame_delta` os milissegundos desde o quadro anterior. Um tick é um passo
+fixo, e um computador lento executa os ticks com atraso, então o jogo fica mais
+lento. Um quadro segue o relógio, então o jogo pode calcular uma posição a
+partir do tempo, como em `x = x0 + velocidade * ms / 1000`, e manter o mesmo
+ritmo em qualquer computador.
+
+```gleam
 world.stop_when(world, fn(a) -> Bool)
 ```
 Define a condição de parada.
@@ -290,7 +302,8 @@ fn(a, mworld.Player, pad.Event) -> a
 
 Use `mworld.player_index(player)` para obter a posição iniciada em 1 e
 `mworld.player_nickname(player)` para obter o apelido escolhido pela sala.
-`mworld.tick_rate`, `mworld.on_tick`, `mworld.stop_when` e os handlers de
+`mworld.tick_rate`, `mworld.on_tick`, `mworld.on_frame`,
+`mworld.on_frame_delta`, `mworld.stop_when` e os handlers de
 teclado e controle seguem o restante da API de `world`. Um `world.World` é
 implementado como um `mworld.MultiWorld` cujo mínimo e máximo de jogadores são
 ambos 1.
