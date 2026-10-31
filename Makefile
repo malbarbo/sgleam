@@ -1,6 +1,6 @@
 WASM_TARGET = wasm32-wasip1
 
-.PHONY: release release-min release-nightly wasm wasm-nightly test test-rs test-wasm test-wasm-cli check docs clean
+.PHONY: release release-min release-nightly wasm wasm-test wasm-nightly test test-rs test-wasm test-wasm-cli check docs clean
 
 NIGHTLY_BIN = target/min-nightly/x86_64-unknown-linux-gnu/release/sgleam
 
@@ -40,6 +40,13 @@ wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
 	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
 
+# Like wasm, plus the `wasm-backend` feature, which adds the `run` export the
+# dual-run and wasm/bench need. Used by test-wasm-cli, never by a release
+# build.
+wasm-test:
+	cargo build -p wasm --target $(WASM_TARGET) --profile release-small --features wasm-backend
+	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
+
 # Como wasm, mas recompila std com optimize_for_size (requer nightly +
 # `rustup component add rust-src --toolchain nightly`). Target-dir dedicado
 # evita invalidar o cache do `wasm` normal.
@@ -68,12 +75,13 @@ test-wasm: wasm
 # WASM wrapper, asserting both backends produce identical output. Requires
 # the wasm32-wasip1 target and Deno. CI should enable this only on one
 # platform (e.g., Linux) to avoid redundant WASM runs across the matrix.
-test-wasm-cli: wasm
+test-wasm-cli: wasm-test
 	cargo test -p sgleam --features wasm-backend --test cli
 
 check:
 	cargo clippy -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
+	cargo clippy --target $(WASM_TARGET) -p wasm --features wasm-backend -- -D warnings
 	cargo fmt -- --check
 	cargo run -- format --check lib/sgleam/*.gleam
 	deno fmt --check wasm/tests/ wasm/sgleam.ts lib/sgleam/sgleam_ffi.mjs

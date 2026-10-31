@@ -9,7 +9,6 @@ use engine::{
     input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::run_module,
     shell::{self, Shell},
 };
 use gleam_core::build::Module;
@@ -155,7 +154,9 @@ fn has_examples(module: &Module) -> bool {
 }
 
 /// Runs the `main` or the `smain` of `code`, as `sgleam run` does. Returns 0
-/// if the program ran to the end, 1 otherwise.
+/// if the program ran to the end, 1 otherwise. Only for the `wasm/sgleam.ts`
+/// wrapper: the page never calls it.
+#[cfg(feature = "wasm-backend")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn run(
     code_ptr: *mut u8,
@@ -175,7 +176,7 @@ pub unsafe extern "C" fn run(
         .map_err(error::SgleamError::Gleam)
         .and_then(|modules| {
             let module = get_module(&modules, USER).expect("the module of the page");
-            run_module(&project, module, USER_FILE.into(), HostOptions, vec![])
+            engine::run::run_module(&project, module, USER_FILE.into(), HostOptions, vec![])
         });
     match result {
         Ok(()) => 0,

@@ -12,12 +12,6 @@ interface WasmExports {
     config_ptr: number,
     config_len: number,
   ): number;
-  run(
-    code_ptr: number,
-    code_len: number,
-    config_ptr: number,
-    config_len: number,
-  ): number;
   repl_run(repl: number, ptr: number, len: number): number;
   repl_destroy(repl: number): void;
   repl_complete?(
@@ -1070,17 +1064,4 @@ Deno.test("pub on a line of its own", async () => {
     assertEquals(r.stdout.length > 0, true, `${input} produced nothing`);
     destroy(ctx);
   }
-});
-
-Deno.test("run prints the String of smain as it is", async () => {
-  const ctx = await loadWasm();
-  const source = 'pub fn smain() { "a\\nb" }';
-  const result = withSource(
-    ctx.exports,
-    source,
-    "bigint=true",
-    ctx.exports.run,
-  );
-  assertEquals(result, 0);
-  assertEquals(ctx.stdout.join(""), "a\nb\n");
 });

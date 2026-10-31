@@ -7,6 +7,13 @@ edition = "2024"
 name = "sgleam"
 crate-type = ["cdylib"]
 
+[features]
+# The `run` export, used only by the dual-run integration tests in
+# `cli/tests/cli.rs` (via `wasm/sgleam.ts`) and by `wasm/bench`. Not compiled
+# into the production binary, which the page drives through `repl_new`. Paired
+# with the identically-named feature on the `cli` crate.
+wasm-backend = []
+
 [lints]
 workspace = true
 

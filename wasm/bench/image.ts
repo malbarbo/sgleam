@@ -1,7 +1,8 @@
 // Times the cases of engine/benches/image on the WASM binary, as the
 // browser runs them. The binary compiles one module, so each case goes in
 // together with the bench helper. `deno run --allow-read wasm/bench/image.ts
-// scene` runs only the cases whose name holds `scene`.
+// scene` runs only the cases whose name holds `scene`. It needs the `run`
+// export, which only `make wasm-test` builds.
 
 import { makeWasi } from "../tests/wasi.ts";
 

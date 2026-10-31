@@ -3038,6 +3038,18 @@ fn smain_list_string() {
     });
 }
 
+// The String an smain returns is printed as it is, not as Gleam would write
+// it: the newline inside it is a line break, and no quotes surround it.
+#[test]
+fn smain_prints_its_string_as_it_is() {
+    let input = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/inputs/smain_lines.gleam"
+    );
+    let (out, err) = run_sgleam_cmd(&["run", input], None);
+    assert_eq!((out.as_str(), err.as_str()), ("a\nb\n", ""));
+}
+
 #[test]
 fn smain_string() {
     let input = concat!(
