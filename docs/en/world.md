@@ -301,6 +301,14 @@ fn(a, mworld.Player, pad.Event) -> a
 
 Use `mworld.player_index(player)` for the one-based position and
 `mworld.player_nickname(player)` for the nickname selected by the room.
+A test can make a player with `mworld.fake_player`, which returns
+`Error(Nil)` for an index less than 1:
+
+```gleam
+let assert Ok(ana) = mworld.fake_player(1, "ana")
+check.eq(draw(state, ana), ...)
+```
+
 `mworld.tick_rate`, `mworld.on_tick`, `mworld.on_frame`,
 `mworld.on_frame_delta`, `mworld.stop_when`, and the keyboard and
 pad handlers otherwise follow the `world` API. A `world.World` is implemented

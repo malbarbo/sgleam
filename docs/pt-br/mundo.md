@@ -302,6 +302,14 @@ fn(a, mworld.Player, pad.Event) -> a
 
 Use `mworld.player_index(player)` para obter a posição iniciada em 1 e
 `mworld.player_nickname(player)` para obter o apelido escolhido pela sala.
+Um teste pode criar um jogador com `mworld.fake_player`, que devolve
+`Error(Nil)` para um índice menor que 1:
+
+```gleam
+let assert Ok(ana) = mworld.fake_player(1, "ana")
+check.eq(desenha(estado, ana), ...)
+```
+
 `mworld.tick_rate`, `mworld.on_tick`, `mworld.on_frame`,
 `mworld.on_frame_delta`, `mworld.stop_when` e os handlers de
 teclado e controle seguem o restante da API de `world`. Um `world.World` é
