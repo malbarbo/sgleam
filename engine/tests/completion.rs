@@ -91,12 +91,12 @@ fn completion_after_import_alias() {
 #[test]
 fn completion_after_import_new_module() {
     let mut repl = new_repl();
-    assert!(completions_matching(&repl, "system.now_ms").is_empty());
+    assert!(completions_matching(&repl, "system.unix_time_ms").is_empty());
     run(&mut repl, "import sgleam/system");
-    let c = completions_matching(&repl, "system.now_ms");
+    let c = completions_matching(&repl, "system.unix_time_ms");
     assert!(
-        c.contains(&"system.now_ms".to_string()),
-        "expected system.now_ms after importing sgleam/system, got: {c:?}"
+        c.contains(&"system.unix_time_ms".to_string()),
+        "expected system.unix_time_ms after importing sgleam/system, got: {c:?}"
     );
 }
 

@@ -3,8 +3,8 @@ import sgleam/font.{type Font}
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "sleep")
 pub fn sleep(ms: Int) -> Nil
 
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "now_ms")
-pub fn now_ms() -> Int
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "unix_time_ms")
+pub fn unix_time_ms() -> Int
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "wait_event")
 pub fn wait_event(ms: Int) -> List(String)

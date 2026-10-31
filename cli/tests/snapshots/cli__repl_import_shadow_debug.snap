@@ -39,7 +39,7 @@ pub fn repl_print_binding_XXXXXXXX(value: a) -> a
 import sgleam/system
 
 pub fn repl_main_XXXXXXXX() {
-  repl_print_XXXXXXXX({ system.now_ms() > 0 })
+  repl_print_XXXXXXXX({ system.unix_time_ms() > 0 })
 }
 ---
 --- repl2_1.mjs ---
@@ -54,7 +54,7 @@ import * as $system from "./sgleam/system.mjs";
 export { repl_memo_XXXXXXXX, repl_print_XXXXXXXX, repl_print_binding_XXXXXXXX };
 
 export function repl_main_XXXXXXXX() {
-  return repl_print_XXXXXXXX(($system.now_ms() > 0n));
+  return repl_print_XXXXXXXX(($system.unix_time_ms() > 0n));
 }
 ---
 True

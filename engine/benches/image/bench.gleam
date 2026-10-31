@@ -41,13 +41,13 @@ pub fn run_on(
 /// The time of one run of `work` in milliseconds. A fast `work` runs again
 /// until 200 ms pass, because the clock counts whole milliseconds.
 fn time(work: fn() -> a) -> Float {
-  let start = system.now_ms()
+  let start = system.unix_time_ms()
   repeat(work, start, 1)
 }
 
 fn repeat(work: fn() -> a, start: Int, runs: Int) -> Float {
   work()
-  let elapsed = system.now_ms() - start
+  let elapsed = system.unix_time_ms() - start
   case elapsed >= 200 {
     True -> int.to_float(elapsed) /. int.to_float(runs)
     False -> repeat(work, start, runs + 1)

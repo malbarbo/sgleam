@@ -286,9 +286,9 @@ fn key_event(key: KeyEvent) -> Vec<String> {
     event
 }
 
-/// `system.now_ms` gives milliseconds since the epoch, and `world` times its
-/// ticks by it.
-pub fn now_ms() -> u64 {
+/// `system.unix_time_ms` gives milliseconds since the Unix epoch, and `world`
+/// times its ticks by it.
+pub fn unix_time_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)

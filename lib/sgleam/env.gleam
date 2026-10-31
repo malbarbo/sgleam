@@ -50,5 +50,5 @@ fn host_args() -> List(String)
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "host_seed")
 fn host_seed() -> Int
 
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "now_ms")
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "unix_time_ms")
 fn host_time() -> Int

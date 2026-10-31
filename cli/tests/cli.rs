@@ -176,7 +176,7 @@ fn repl_import() {
     assert_eq!(
         repl_exec(&formatdoc! {r#"
             import sgleam/system as sys
-            sys.now_ms() > 0"#
+            sys.unix_time_ms() > 0"#
         }),
         "True"
     );
@@ -263,7 +263,7 @@ fn repl_import_shadow_debug() {
         Some(&formatdoc! {r#"
             :debug
             import sgleam/system
-            system.now_ms() > 0"#
+            system.unix_time_ms() > 0"#
         }),
     );
     assert_snapshot!(strip_repl_suffix(&out));
@@ -3428,13 +3428,13 @@ fn world_clamps_the_tick_rate_to_100() {
         import sgleam/world
 
         pub fn smain() {
-          world.create(#(0, system.now_ms()), fn(_) { image.circle(20, stroke.red) })
+          world.create(#(0, system.unix_time_ms()), fn(_) { image.circle(20, stroke.red) })
           |> world.tick_rate(1000)
           |> world.on_tick(fn(state) {
             let #(ticks, start) = state
             case ticks + 1 == 5 {
               True -> {
-                echo system.now_ms() - start >= 40 as \"max\"
+                echo system.unix_time_ms() - start >= 40 as \"max\"
                 Nil
               }
               False -> Nil

@@ -25,7 +25,7 @@ use crate::{
     engine::{Engine, MainFunction, SGLEAM_FFI},
     error::SgleamError,
     gleam::Project,
-    host::{self, Host, HostOptions, check_interrupt, init, now_ms},
+    host::{self, Host, HostOptions, check_interrupt, init, unix_time_ms},
     swriteln,
 };
 
@@ -278,7 +278,7 @@ fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> R
     let sgleam = Object::new(ctx.clone())?;
     set_fn(&sgleam, "getline", getline)?;
     set_fn(&sgleam, "sleep", sleep)?;
-    set_fn(&sgleam, "now_ms", now_ms)?;
+    set_fn(&sgleam, "unix_time_ms", unix_time_ms)?;
     let h = host.clone();
     set_fn(&sgleam, "wait_event", move |ctx, ms| {
         wait_event(&h, ctx, ms)
