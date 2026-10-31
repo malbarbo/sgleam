@@ -30,7 +30,7 @@ pub fn run_animation(animation: Animation) -> Nil {
 
 fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) -> Nil {
   frame |> create_image |> show_image
-  case closed_before(system.unix_time_ms() + delay) {
+  case closed_before(system.elapsed_ms() + delay) {
     True -> Nil
     False -> animate_loop(create_image, delay, frame + 1)
   }
@@ -39,7 +39,7 @@ fn animate_loop(create_image: fn(Int) -> Image, delay: Int, frame: Int) -> Nil {
 /// Returns `True` if the display closes before `deadline`, `False` otherwise.
 /// The keys that arrive meanwhile go unused.
 fn closed_before(deadline: Int) -> Bool {
-  case system.wait_event(int.max(deadline - system.unix_time_ms(), 0)) {
+  case system.wait_event(int.max(deadline - system.elapsed_ms(), 0)) {
     ["close"] -> True
     [] -> False
     _ -> closed_before(deadline)

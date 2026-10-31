@@ -165,7 +165,7 @@ pub fn run(world: MultiWorld(a)) {
   let running =
     Running(world:, players:, state: world.init(env.from_host(), players))
   show_players(running)
-  run_loop(running, start_tick_clock(system.unix_time_ms(), world.rate), False)
+  run_loop(running, start_tick_clock(system.elapsed_ms(), world.rate), False)
   close_display()
 }
 
@@ -192,9 +192,7 @@ fn run_loop(running: Running(a), clock: TickClock, changed: Bool) -> Nil {
     Some(True) if changed -> show_players(running)
     Some(True) -> Nil
     _ ->
-      case
-        system.wait_event(int.max(clock.deadline - system.unix_time_ms(), 0))
-      {
+      case system.wait_event(int.max(clock.deadline - system.elapsed_ms(), 0)) {
         ["close"] -> Nil
         event -> {
           let #(running, clock, changed) =
@@ -214,7 +212,7 @@ fn turn(
   clock: TickClock,
   changed: Bool,
 ) -> #(Running(a), TickClock, Bool) {
-  let now = system.unix_time_ms()
+  let now = system.elapsed_ms()
   let rate = running.world.rate
   let #(running, ticked, clock) = case now >= clock.deadline {
     True -> {

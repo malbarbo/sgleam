@@ -280,6 +280,8 @@ fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> R
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "unix_time_ms", unix_time_ms)?;
     let h = host.clone();
+    set_fn(&sgleam, "elapsed_ms", move || h.elapsed_ms())?;
+    let h = host.clone();
     set_fn(&sgleam, "wait_event", move |ctx, ms| {
         wait_event(&h, ctx, ms)
     })?;

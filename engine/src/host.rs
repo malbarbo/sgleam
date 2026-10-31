@@ -65,6 +65,7 @@ mod target;
 pub(crate) struct Host {
     options: HostOptions,
     frames: RefCell<Worlds>,
+    start: Instant,
     // Empty until the first print, so the printer asks the terminal nothing
     // until a run prints an image. `None` inside means there is no terminal to
     // print to.
@@ -77,9 +78,17 @@ impl Host {
         Host {
             options,
             frames: RefCell::new(Worlds::new("sgleam", move || target::stage_mode(options))),
+            start: Instant::now(),
             #[cfg(not(target_arch = "wasm32"))]
             printer: OnceCell::new(),
         }
+    }
+
+    /// `system.elapsed_ms` gives milliseconds since the host started. A world
+    /// times its ticks by it, so a change of the system clock does not move
+    /// them.
+    pub fn elapsed_ms(&self) -> u64 {
+        self.start.elapsed().as_millis() as u64
     }
 
     /// Shows a frame of a world, in a window or the terminal, or in a session
@@ -286,8 +295,7 @@ fn key_event(key: KeyEvent) -> Vec<String> {
     event
 }
 
-/// `system.unix_time_ms` gives milliseconds since the Unix epoch, and `world`
-/// times its ticks by it.
+/// `system.unix_time_ms` gives milliseconds since the Unix epoch.
 pub fn unix_time_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()

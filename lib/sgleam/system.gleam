@@ -6,6 +6,9 @@ pub fn sleep(ms: Int) -> Nil
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "unix_time_ms")
 pub fn unix_time_ms() -> Int
 
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "elapsed_ms")
+pub fn elapsed_ms() -> Int
+
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "wait_event")
 pub fn wait_event(ms: Int) -> List(String)
 
