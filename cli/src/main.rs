@@ -261,16 +261,8 @@ fn run() -> Result<(), SgleamError> {
             };
             run_interactive(&paths, quiet, options)
         }
-        Command::Run { file, args, .. } => {
-            let file = user_module(file)?;
-            let files = find_imports(vec![file])?;
-            run_main(&files, options, args)
-        }
-        Command::Server { file, .. } => {
-            let file = user_module(file)?;
-            let files = find_imports(vec![file])?;
-            run_main(&files, options, vec![])
-        }
+        Command::Run { file, args, .. } => run_file(file, options, args),
+        Command::Server { file, .. } => run_file(file, options, vec![]),
         Command::Test { file, .. } => {
             let file = user_module(file)?;
             let user_files = vec![file];
@@ -309,6 +301,12 @@ fn make_relative_to_current_dir(path: Utf8PathBuf) -> Result<Utf8PathBuf, Sgleam
             relative => Utf8PathBuf::from(relative),
         })
         .map_err(|_| SgleamError::PathNotInCurrentDir { current_dir, path })
+}
+
+fn run_file(file: String, options: HostOptions, args: Vec<String>) -> Result<(), SgleamError> {
+    let file = user_module(file)?;
+    let files = find_imports(vec![file])?;
+    run_main(&files, options, args)
 }
 
 fn canonicalise(path: Utf8PathBuf) -> Result<Utf8PathBuf, gleam_core::Error> {
