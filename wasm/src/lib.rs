@@ -154,8 +154,8 @@ fn has_examples(module: &Module) -> bool {
 }
 
 /// Runs the `main` or the `smain` of `code`, as `sgleam run` does. Returns 0
-/// if the program ran to the end, 1 otherwise. Only for the `wasm/sgleam.ts`
-/// wrapper: the page never calls it.
+/// if the program ran to the end, 1 otherwise. Only the `wasm/sgleam.ts`
+/// wrapper calls it. The page never does.
 #[cfg(feature = "wasm-backend")]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn run(
