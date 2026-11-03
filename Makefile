@@ -83,7 +83,7 @@ test-wasm-cli: wasm-test
 	cargo test -p sgleam --features wasm-backend --test cli
 
 check:
-	cargo clippy -- -D warnings
+	cargo clippy --all-targets -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p wasm -- -D warnings
 	cargo clippy --target $(WASM_TARGET) -p wasm --features wasm-backend -- -D warnings
 	cargo fmt -- --check
