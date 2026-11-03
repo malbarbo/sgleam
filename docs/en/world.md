@@ -167,7 +167,7 @@ world.on_frame(world, fn(a, Int) -> a)
 world.on_frame_delta(world, fn(a, Int) -> a)
 ```
 Set a function called on each frame of the display, before the drawing.
-`on_frame` receives the milliseconds since the world started, and
+`on_frame` receives the milliseconds since the first drawing, and
 `on_frame_delta` the milliseconds since the previous frame. A tick is a fixed
 step, and a slow computer runs the ticks late, so the game goes slower. A
 frame follows the clock, so the game can compute a position from the time,

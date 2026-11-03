@@ -167,7 +167,7 @@ world.on_frame(world, fn(a, Int) -> a)
 world.on_frame_delta(world, fn(a, Int) -> a)
 ```
 Definem uma função chamada a cada quadro da tela, antes do desenho.
-`on_frame` recebe os milissegundos desde o início do mundo, e
+`on_frame` recebe os milissegundos desde o primeiro desenho, e
 `on_frame_delta` os milissegundos desde o quadro anterior. Um tick é um passo
 fixo, e um computador lento executa os ticks com atraso, então o jogo fica mais
 lento. Um quadro segue o relógio, então o jogo pode calcular uma posição a
