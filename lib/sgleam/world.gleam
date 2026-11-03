@@ -100,7 +100,7 @@ pub fn on_tick(world: World(a), handler: OnTick(a)) -> World(a) {
 }
 
 /// Calls `handler` at each frame of the display, before the drawing, with the
-/// milliseconds since the world started.
+/// milliseconds since the first drawing.
 pub fn on_frame(world: World(a), handler: OnFrame(a)) -> World(a) {
   let World(inner) = world
   World(mworld.on_frame(inner, handler))
@@ -108,7 +108,7 @@ pub fn on_frame(world: World(a), handler: OnFrame(a)) -> World(a) {
 
 /// Calls `handler` at each frame of the display, before the drawing, with the
 /// milliseconds since the previous frame. The first frame counts from the
-/// start of the world.
+/// first drawing.
 pub fn on_frame_delta(world: World(a), handler: OnFrame(a)) -> World(a) {
   let World(inner) = world
   World(mworld.on_frame_delta(inner, handler))

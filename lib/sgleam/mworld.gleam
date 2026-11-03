@@ -135,14 +135,14 @@ pub fn on_tick(world: MultiWorld(a), handler: OnTick(a)) -> MultiWorld(a) {
 }
 
 /// Calls `handler` at each frame of the display, before the players get their
-/// views, with the milliseconds since the world started.
+/// views, with the milliseconds since the players got their first view.
 pub fn on_frame(world: MultiWorld(a), handler: OnFrame(a)) -> MultiWorld(a) {
   MultiWorld(..world, on_frame: Some(handler))
 }
 
 /// Calls `handler` at each frame of the display, before the players get their
 /// views, with the milliseconds since the previous frame. The first frame
-/// counts from the start of the world.
+/// counts from the first view.
 pub fn on_frame_delta(
   world: MultiWorld(a),
   handler: OnFrame(a),
