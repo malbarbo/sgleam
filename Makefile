@@ -1,4 +1,5 @@
 WASM_TARGET = wasm32-wasip1
+WASM_OPT = wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int
 
 .PHONY: release release-min release-nightly wasm wasm-test wasm-nightly test test-rs test-wasm test-wasm-cli check docs clean
 
@@ -36,9 +37,10 @@ release-nightly:
 	@echo "Artefato em $(NIGHTLY_BIN)"
 	@ls -lh $(NIGHTLY_BIN)
 
+WASM_BIN = target/$(WASM_TARGET)/release-small/sgleam.wasm
 wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
-	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
+	$(WASM_OPT) $(WASM_BIN) -o $(WASM_BIN)
 
 # Like wasm, plus the `wasm-backend` feature, which adds the `run` export that
 # the dual run and wasm/bench use. Used by test-wasm-cli, never by a release
@@ -47,7 +49,7 @@ WASM_TEST_DIR = target/wasm-test
 WASM_TEST_BIN = $(WASM_TEST_DIR)/$(WASM_TARGET)/release-small/sgleam.wasm
 wasm-test:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small --features wasm-backend --target-dir $(WASM_TEST_DIR)
-	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int $(WASM_TEST_BIN) -o $(WASM_TEST_BIN)
+	$(WASM_OPT) $(WASM_TEST_BIN) -o $(WASM_TEST_BIN)
 
 # Como wasm, mas recompila std com optimize_for_size (requer nightly +
 # `rustup component add rust-src --toolchain nightly`). Target-dir dedicado
@@ -61,7 +63,7 @@ wasm-nightly:
 	    --target $(WASM_TARGET) \
 	    --profile release-small \
 	    --target-dir $(WASM_NIGHTLY_DIR)
-	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int $(WASM_NIGHTLY_BIN) -o $(WASM_NIGHTLY_BIN)
+	$(WASM_OPT) $(WASM_NIGHTLY_BIN) -o $(WASM_NIGHTLY_BIN)
 	@echo "Artefato em $(WASM_NIGHTLY_BIN)"
 	@ls -lh $(WASM_NIGHTLY_BIN)
 
