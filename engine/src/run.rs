@@ -43,6 +43,7 @@ pub fn run_module(
     options: HostOptions,
     args: Vec<String>,
 ) -> Result<(), SgleamError> {
+    let has_args = !args.is_empty();
     let main = get_main(module, args).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
@@ -52,6 +53,9 @@ pub fn run_module(
         }
         err => err,
     })?;
+    if has_args && main == MainFunction::Main {
+        return Err(SgleamError::MainWithArgs { path: path.into() });
+    }
     JsEngine::new(project.fs.clone(), options)?.run_main(&module.name, main)?;
 
     Ok(())

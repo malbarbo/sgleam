@@ -3072,6 +3072,14 @@ fn smain_string() {
 }
 
 #[test]
+fn main_with_args() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/main_empty.gleam");
+    let (out, err) = run_sgleam_cmd_native_only(&["run", input, "easy"], None);
+    assert_eq!(out, "");
+    assert!(err.contains("main does not take arguments"), "{err}");
+}
+
+#[test]
 fn smain_type_alias() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),

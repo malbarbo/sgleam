@@ -35,6 +35,11 @@ pub enum SgleamError {
         path: Utf8PathBuf,
     },
 
+    /// Command-line arguments for a module that has `main` and no `smain`.
+    /// Only `smain` receives them.
+    #[error("main does not take arguments")]
+    MainWithArgs { path: Utf8PathBuf },
+
     /// A directory in the place of a module.
     #[error("path is a directory")]
     PathIsADirectory { path: Utf8PathBuf },
@@ -135,6 +140,13 @@ pub fn show_error(err: &SgleamError) {
             }
             write_diagnostics(&mut buffer, &mut diags);
         }
+
+        SgleamError::MainWithArgs { path } => error_diagnostic(
+            "main does not take arguments",
+            format!("`{path}` has `main` and no `smain`, so it can not receive arguments."),
+            "Add `pub fn smain(env: Env)` and read the arguments with `env.args`.".into(),
+        )
+        .write(&mut buffer),
 
         SgleamError::PathIsADirectory { path } => error_diagnostic(
             "path is a directory",
