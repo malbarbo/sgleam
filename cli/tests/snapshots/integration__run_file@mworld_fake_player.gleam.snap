@@ -2,5 +2,5 @@
 source: cli/tests/integration.rs
 ---
 STDOUT
-#(Ok(#(2, "ana")), True)
+#(Ok(#(2, "ana")), True, True)
 STDERR

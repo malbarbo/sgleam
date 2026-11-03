@@ -23,9 +23,9 @@ pub fn player_nickname(player: Player) -> String {
 }
 
 /// A player for tests, with `index` and `nickname`. Returns `Error(Nil)` when
-/// `index` is less than 1, since the runtime numbers the players from 1.
+/// `index` is not between 1 and 1024, the players the runtime can make.
 pub fn fake_player(index: Int, nickname: String) -> Result(Player, Nil) {
-  case index >= 1 {
+  case index >= 1 && index <= max_player_count {
     True -> Ok(Player(index, nickname))
     False -> Error(Nil)
   }

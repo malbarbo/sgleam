@@ -7,5 +7,9 @@ pub fn smain() {
     |> result.map(fn(player) {
       #(mworld.player_index(player), mworld.player_nickname(player))
     })
-  #(player, mworld.fake_player(0, "bia") |> result.is_error)
+  #(
+    player,
+    mworld.fake_player(0, "bia") |> result.is_error,
+    mworld.fake_player(1025, "caio") |> result.is_error,
+  )
 }
