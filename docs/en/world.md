@@ -302,7 +302,7 @@ fn(a, mworld.Player, pad.Event) -> a
 Use `mworld.player_index(player)` for the one-based position and
 `mworld.player_nickname(player)` for the nickname selected by the room.
 A test can make a player with `mworld.fake_player`, which returns
-`Error(Nil)` for an index less than 1:
+`Error(Nil)` for an index outside 1 to 1024:
 
 ```gleam
 let assert Ok(ana) = mworld.fake_player(1, "ana")

@@ -303,7 +303,7 @@ fn(a, mworld.Player, pad.Event) -> a
 Use `mworld.player_index(player)` para obter a posição iniciada em 1 e
 `mworld.player_nickname(player)` para obter o apelido escolhido pela sala.
 Um teste pode criar um jogador com `mworld.fake_player`, que devolve
-`Error(Nil)` para um índice menor que 1:
+`Error(Nil)` para um índice fora de 1 a 1024:
 
 ```gleam
 let assert Ok(ana) = mworld.fake_player(1, "ana")
