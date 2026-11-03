@@ -21,10 +21,10 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
 libc = "0.2"
 
 [features]
-# Enables the WASM backend in the CLI integration tests: every `run_sgleam_cmd`
-# invocation also runs the Deno `wasm/sgleam.ts` wrapper and asserts both
-# backends produce identical output. Enabled in CI only on Linux (needs
-# wasm32-wasip1 target and Deno installed).
+# Runs each `run_sgleam_cmd` of the CLI tests on the Deno `wasm/sgleam.ts`
+# wrapper as well, and checks that both backends print the same output. It
+# needs the wasm32-wasip1 target and Deno, so CI turns it on only in the Linux
+# job that runs `make test-wasm-cli`.
 wasm-backend = []
 
 [dev-dependencies]
