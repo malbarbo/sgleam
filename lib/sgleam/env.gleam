@@ -15,7 +15,8 @@ pub fn random(env: Env) -> Generator {
   env.random
 }
 
-/// The milliseconds since 1970-01-01 00:00 UTC when the program started.
+/// The milliseconds since 1970-01-01 00:00 UTC when `smain` or the world
+/// started. A world starts after its players join.
 pub fn time(env: Env) -> Int {
   env.time
 }
@@ -37,8 +38,8 @@ pub fn with_time(env: Env, time: Int) -> Env {
   Env(..env, time:)
 }
 
-/// The env of this run. The run calls it once for each `smain` and each
-/// world that takes an env.
+/// The env of this run. The run calls it when `smain` starts and when a
+/// world starts.
 @internal
 pub fn from_host() -> Env {
   Env(args: host_args(), random: random.new(host_seed()), time: host_time())
