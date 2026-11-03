@@ -2,7 +2,6 @@ import gleam/dynamic.{type Dynamic}
 import gleam/float
 import gleam/int
 import gleam/list
-import gleam/result
 import gleam/string
 
 /// A generator of pseudo-random numbers. A generator is a value, so the same
@@ -17,8 +16,8 @@ pub opaque type Generator {
 pub opaque type Call {
   IntCall(from: Int, to: Int, result: Int)
   FloatCall(result: Float)
-  PickCall(items: Dynamic, index: Result(Int, Nil))
-  ShuffleCall(items: Dynamic, order: List(Int))
+  PickCall(items: Dynamic, result: Dynamic)
+  ShuffleCall(items: Dynamic, result: Dynamic)
 }
 
 /// Creates a generator from `seed`. The same seed gives the same sequence.
@@ -63,14 +62,13 @@ pub fn float_returns(result: Float) -> Call {
 
 /// The call `pick(gen, items)`, which returns `result`.
 pub fn pick_returns(items: List(a), result: Result(a, Nil)) -> Call {
-  let index = case result, items {
-    Error(Nil), [] -> Ok(Error(Nil))
-    Error(Nil), _ -> Error(Nil)
-    Ok(item), _ -> index_of(items, item, 0) |> result.map(Ok)
+  let valid = case result {
+    Error(Nil) -> items == []
+    Ok(item) -> list.contains(items, item)
   }
-  case index {
-    Ok(index) -> PickCall(coerce(items), index)
-    Error(Nil) ->
+  case valid {
+    True -> PickCall(coerce(items), coerce(result))
+    False ->
       panic as {
         "random.pick_returns: "
         <> string.inspect(result)
@@ -82,14 +80,9 @@ pub fn pick_returns(items: List(a), result: Result(a, Nil)) -> Call {
 
 /// The call `shuffle(gen, items)`, which returns `result`.
 pub fn shuffle_returns(items: List(a), result: List(a)) -> Call {
-  case
-    permutation(
-      list.index_map(items, fn(item, index) { #(index, item) }),
-      result,
-    )
-  {
-    Ok(order) -> ShuffleCall(coerce(items), order)
-    Error(Nil) ->
+  case is_permutation(items, result) {
+    True -> ShuffleCall(coerce(items), coerce(result))
+    False ->
       panic as {
         "random.shuffle_returns: "
         <> string.inspect(result)
@@ -114,11 +107,7 @@ pub fn int(gen: Generator, from: Int, to: Int) -> #(Int, Generator) {
       result,
       Mock(calls),
     )
-    Mock(calls) ->
-      mismatch(
-        calls,
-        "random.int(" <> int.to_string(from) <> ", " <> int.to_string(to) <> ")",
-      )
+    Mock(calls) -> mismatch(calls, int_text(from, to))
   }
 }
 
@@ -142,9 +131,9 @@ pub fn pick(gen: Generator, items: List(a)) -> #(Result(a, Nil), Generator) {
       let #(index, gen) = int(gen, 0, list.length(items) - 1)
       #(at(items, index), gen)
     }
-    Mock([PickCall(expected, index), ..rest] as calls), _ ->
+    Mock([PickCall(expected, result), ..rest] as calls), _ ->
       case coerce(expected) == items {
-        True -> #(result.try(index, at(items, _)), Mock(rest))
+        True -> #(coerce(result), Mock(rest))
         False -> mismatch(calls, pick_text(items))
       }
     Mock(calls), _ -> mismatch(calls, pick_text(items))
@@ -166,12 +155,9 @@ pub fn shuffle(gen: Generator, items: List(a)) -> #(List(a), Generator) {
         |> list.map(fn(pair) { pair.1 })
       #(items, gen)
     }
-    Mock([ShuffleCall(expected, order), ..rest] as calls) ->
+    Mock([ShuffleCall(expected, result), ..rest] as calls) ->
       case coerce(expected) == items {
-        True -> #(
-          list.filter_map(order, fn(index) { at(items, index) }),
-          Mock(rest),
-        )
+        True -> #(coerce(result), Mock(rest))
         False -> mismatch(calls, shuffle_text(items))
       }
     Mock(calls) -> mismatch(calls, shuffle_text(items))
@@ -188,12 +174,15 @@ fn mismatch(calls: List(Call), got: String) -> a {
 
 fn call_text(call: Call) -> String {
   case call {
-    IntCall(from, to, _) ->
-      "random.int(" <> int.to_string(from) <> ", " <> int.to_string(to) <> ")"
+    IntCall(from, to, _) -> int_text(from, to)
     FloatCall(_) -> "random.float()"
     PickCall(items, _) -> pick_text(coerce(items))
     ShuffleCall(items, _) -> shuffle_text(coerce(items))
   }
+}
+
+fn int_text(from: Int, to: Int) -> String {
+  "random.int(" <> int.to_string(from) <> ", " <> int.to_string(to) <> ")"
 }
 
 fn pick_text(items: List(a)) -> String {
@@ -208,42 +197,17 @@ fn at(items: List(a), index: Int) -> Result(a, Nil) {
   items |> list.drop(index) |> list.first
 }
 
-fn index_of(items: List(a), item: a, index: Int) -> Result(Int, Nil) {
-  case items {
-    [] -> Error(Nil)
-    [first, ..] if first == item -> Ok(index)
-    [_, ..rest] -> index_of(rest, item, index + 1)
-  }
-}
-
-/// The indices in `available` of the items of `result`, each index used once.
-fn permutation(
-  available: List(#(Int, a)),
-  result: List(a),
-) -> Result(List(Int), Nil) {
+/// Returns `True` if `result` has the items of `items`, each one as many
+/// times, `False` otherwise.
+fn is_permutation(items: List(a), result: List(a)) -> Bool {
   case result {
-    [] if available == [] -> Ok([])
-    [] -> Error(Nil)
-    [item, ..rest] -> {
-      use #(index, available) <- result.try(take(available, item))
-      use order <- result.map(permutation(available, rest))
-      [index, ..order]
-    }
-  }
-}
-
-/// The index of the first pair with `item`, and `available` without it.
-fn take(
-  available: List(#(Int, a)),
-  item: a,
-) -> Result(#(Int, List(#(Int, a))), Nil) {
-  case available {
-    [] -> Error(Nil)
-    [#(index, first), ..rest] if first == item -> Ok(#(index, rest))
-    [pair, ..rest] -> {
-      use #(index, rest) <- result.map(take(rest, item))
-      #(index, [pair, ..rest])
-    }
+    [] -> items == []
+    [item, ..rest] ->
+      case list.split_while(items, fn(x) { x != item }) {
+        #(_, []) -> False
+        #(before, [_, ..after]) ->
+          is_permutation(list.append(before, after), rest)
+      }
   }
 }
 
