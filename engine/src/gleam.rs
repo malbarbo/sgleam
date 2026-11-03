@@ -116,7 +116,7 @@ impl Project {
     /// `.gleam`.
     pub fn copy_file_to_source(&mut self, input: &Utf8Path) -> Result<EcoString, Error> {
         let content =
-            std::fs::read_to_string(input).map_err(|err| read_error(input.into(), &err))?;
+            std::fs::read_to_string(input).map_err(|err| read_error(input.into(), err))?;
         // A module name always separates with `/`, and on Windows a path does
         // not.
         let path = input.as_str().replace('\\', "/");
@@ -204,12 +204,12 @@ pub fn relocate_to_user_paths(diagnostic: &mut Diagnostic) {
 }
 
 /// Why a file could not be read, in the shape the compiler reports its own.
-fn read_error(path: Utf8PathBuf, err: &std::io::Error) -> Error {
+fn read_error(path: Utf8PathBuf, err: std::io::Error) -> Error {
     Error::FileIo {
         kind: FileKind::File,
         action: FileIoAction::Read,
         path,
-        cause: FileIoCause::Other(err.to_string()),
+        cause: FileIoCause::std_io(err),
     }
 }
 
@@ -309,7 +309,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
             // Nothing here can compile the import, and the compiler says so
             // at the line that wrote it.
             Err(err) if !given && err.kind() == std::io::ErrorKind::NotFound => continue,
-            Err(err) => return Err(read_error(path, &err)),
+            Err(err) => return Err(read_error(path, err)),
         };
 
         files.push(path.clone());
