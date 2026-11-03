@@ -34,7 +34,7 @@ fn main() {
             for case in cases {
                 println!("# {case}");
                 let paths = find_imports(vec![case.clone()]).expect("the imports of the case");
-                if let Err(err) = run_main(&paths, HostOptions::default()) {
+                if let Err(err) = run_main(&paths, HostOptions::default(), vec![]) {
                     println!("{case} failed: {err}");
                 }
             }
