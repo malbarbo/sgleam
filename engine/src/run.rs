@@ -53,8 +53,23 @@ pub fn run_module(
         }
         err => err,
     })?;
-    if has_args && main == MainFunction::Main {
-        return Err(SgleamError::MainWithArgs { path: path.into() });
+    if has_args
+        && !matches!(
+            main,
+            MainFunction::Smain {
+                kind: SMAIN_ENV,
+                ..
+            }
+        )
+    {
+        return Err(SgleamError::ArgsWithoutEnv {
+            path: path.into(),
+            entry: if main == MainFunction::Main {
+                "main"
+            } else {
+                SMAIN
+            },
+        });
     }
     JsEngine::new(project.fs.clone(), options)?.run_main(&module.name, main)?;
 
@@ -85,6 +100,10 @@ pub fn run_test(
     JsEngine::new(project.fs.clone(), options)?.run_tests(&user_modules)?;
     Ok(())
 }
+
+/// The kind of `smain(env: Env)`, the only entry point that receives the
+/// command-line arguments.
+const SMAIN_ENV: &str = "SmainEnv";
 
 /// A signature of `smain` that a run accepts.
 pub struct SmainSignature {
@@ -119,7 +138,7 @@ pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
             matches!(args, [arg] if arg.named_type_name()
                 .is_some_and(|(module, name)| module == "sgleam/env" && name == "Env"))
         },
-        kind: "SmainEnv",
+        kind: SMAIN_ENV,
         text: "fn(Env) -> a",
     },
 ];

@@ -3072,11 +3072,28 @@ fn smain_string() {
 }
 
 #[test]
-fn main_with_args() {
-    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/main_empty.gleam");
-    let (out, err) = run_sgleam_cmd_native_only(&["run", input, "easy"], None);
-    assert_eq!(out, "");
-    assert!(err.contains("main does not take arguments"), "{err}");
+fn args_without_env() {
+    for (name, entry) in [
+        ("main_empty", "main"),
+        ("smain", "smain"),
+        ("smain_string", "smain"),
+        ("smain_list_string", "smain"),
+    ] {
+        let input = format!("{}/tests/inputs/{name}.gleam", env!("CARGO_MANIFEST_DIR"));
+        let (out, err) = run_sgleam_cmd_native_only(&["run", &input, "easy"], Some("x"));
+        assert_eq!(out, "", "{name}");
+        assert!(
+            err.contains(&format!("{entry} does not take arguments")),
+            "{name}: {err}"
+        );
+    }
+}
+
+#[test]
+fn smain_env_receives_the_args() {
+    let input = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/inputs/smain_env.gleam");
+    let (out, err) = run_sgleam_cmd_native_only(&["run", input, "easy", "2"], None);
+    assert!(out.starts_with(r#"#(["easy", "2"], True,"#), "{out}{err}");
 }
 
 #[test]
