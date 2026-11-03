@@ -276,6 +276,8 @@ fn add_console(ctx: &Ctx, host: &Rc<Host>) -> Result<()> {
 
 fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> Result<()> {
     let sgleam = Object::new(ctx.clone())?;
+    // A run replaces it with the command-line arguments. The repl has none.
+    sgleam.set("args", Vec::<String>::new())?;
     set_fn(&sgleam, "getline", getline)?;
     set_fn(&sgleam, "sleep", sleep)?;
     set_fn(&sgleam, "unix_time_ms", unix_time_ms)?;
