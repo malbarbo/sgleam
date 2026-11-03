@@ -64,7 +64,7 @@ function readAllStdin(): Promise<string> {
 
 function wasmPath(): string {
   return new URL(
-    "../target/wasm32-wasip1/release-small/sgleam.wasm",
+    "../target/wasm-test/wasm32-wasip1/release-small/sgleam.wasm",
     import.meta.url,
   ).pathname;
 }

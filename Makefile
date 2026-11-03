@@ -40,12 +40,14 @@ wasm:
 	cargo build -p wasm --target $(WASM_TARGET) --profile release-small
 	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
 
-# Like wasm, plus the `wasm-backend` feature, which adds the `run` export the
-# dual-run and wasm/bench need. Used by test-wasm-cli, never by a release
-# build.
+# Like wasm, plus the `wasm-backend` feature, which adds the `run` export that
+# the dual run and wasm/bench use. Used by test-wasm-cli, never by a release
+# build. A target dir of its own keeps it from replacing the binary of wasm.
+WASM_TEST_DIR = target/wasm-test
+WASM_TEST_BIN = $(WASM_TEST_DIR)/$(WASM_TARGET)/release-small/sgleam.wasm
 wasm-test:
-	cargo build -p wasm --target $(WASM_TARGET) --profile release-small --features wasm-backend
-	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int target/$(WASM_TARGET)/release-small/sgleam.wasm -o target/$(WASM_TARGET)/release-small/sgleam.wasm
+	cargo build -p wasm --target $(WASM_TARGET) --profile release-small --features wasm-backend --target-dir $(WASM_TEST_DIR)
+	wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int $(WASM_TEST_BIN) -o $(WASM_TEST_BIN)
 
 # Como wasm, mas recompila std com optimize_for_size (requer nightly +
 # `rustup component add rust-src --toolchain nightly`). Target-dir dedicado

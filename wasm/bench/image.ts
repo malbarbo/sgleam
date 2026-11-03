@@ -21,7 +21,7 @@ interface WasmExports {
 const encoder = new TextEncoder();
 const cases = new URL("../../engine/benches/image/", import.meta.url);
 const wasm = new URL(
-  "../../target/wasm32-wasip1/release-small/sgleam.wasm",
+  "../../target/wasm-test/wasm32-wasip1/release-small/sgleam.wasm",
   import.meta.url,
 );
 
