@@ -43,8 +43,7 @@ pub fn run_module(
     options: HostOptions,
     args: Vec<String>,
 ) -> Result<(), SgleamError> {
-    let has_args = !args.is_empty();
-    let main = get_main(module, args).map_err(|err| match err {
+    let main = get_main(module).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
                 module,
@@ -53,25 +52,15 @@ pub fn run_module(
         }
         err => err,
     })?;
-    if has_args
-        && !matches!(
-            main,
-            MainFunction::Smain {
-                kind: SMAIN_ENV,
-                ..
-            }
-        )
-    {
+    if !args.is_empty() && main != (MainFunction::Smain { kind: SMAIN_ENV }) {
         return Err(SgleamError::ArgsWithoutEnv {
             path: path.into(),
-            entry: if main == MainFunction::Main {
-                "main"
-            } else {
-                SMAIN
-            },
+            has_smain: main != MainFunction::Main,
         });
     }
-    JsEngine::new(project.fs.clone(), options)?.run_main(&module.name, main)?;
+    let engine = JsEngine::new(project.fs.clone(), options)?;
+    engine.set_args(args)?;
+    engine.run_main(&module.name, main)?;
 
     Ok(())
 }
@@ -143,8 +132,8 @@ pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
     },
 ];
 
-fn get_main(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamError> {
-    match get_smain(module, args) {
+fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
+    match get_smain(module) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
         _ => Ok(module
             .ast
@@ -154,7 +143,7 @@ fn get_main(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamEr
     }
 }
 
-fn get_smain(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamError> {
+fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
     let smain = get_function(module, SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
@@ -181,7 +170,6 @@ fn get_smain(module: &Module, args: Vec<String>) -> Result<MainFunction, SgleamE
     {
         Some(signature) => Ok(MainFunction::Smain {
             kind: signature.kind,
-            args,
         }),
         None => Err(SgleamError::InvalidSMain {
             module: module.name.clone(),

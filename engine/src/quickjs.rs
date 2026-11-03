@@ -59,6 +59,13 @@ impl QuickJsEngine {
             host,
         })
     }
+
+    /// Gives the command-line arguments to `env.args`.
+    pub fn set_args(&self, args: Vec<String>) -> std::result::Result<(), SgleamError> {
+        self.context
+            .with(|ctx| ctx.globals().get::<_, Object>("sgleam")?.set("args", args))?;
+        Ok(())
+    }
 }
 
 impl Engine for QuickJsEngine {
@@ -146,13 +153,6 @@ fn run_main(
             .join(", "),
         _ => String::new(),
     };
-    if let MainFunction::Smain { args, .. } = &main {
-        context.with(|ctx| {
-            ctx.globals()
-                .get::<_, Object>("sgleam")?
-                .set("args", args.clone())
-        })?;
-    }
     let code = formatdoc! {r#"
         import {{ try_main }} from "{SGLEAM_FFI}";
         import {{ {name} }} from "./{module}.mjs";

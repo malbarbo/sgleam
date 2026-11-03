@@ -41,11 +41,9 @@ pub enum MainFunction {
         name: String,
         files: Vec<ReplFile>,
     },
-    /// An `smain`. `kind` names its row of `SMAIN_SIGNATURES`, and `args`
-    /// are what its env holds.
+    /// An `smain`. `kind` names its row of `SMAIN_SIGNATURES`.
     Smain {
         kind: &'static str,
-        args: Vec<String>,
     },
 }
 
@@ -64,7 +62,7 @@ impl MainFunction {
         match self {
             MainFunction::Main => "Main",
             MainFunction::ReplMain { .. } => "ReplMain",
-            MainFunction::Smain { kind, .. } => kind,
+            MainFunction::Smain { kind } => kind,
         }
     }
 
