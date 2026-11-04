@@ -124,6 +124,7 @@ stroke.black                  // cor nomeada
 stroke.width(3)               // largura do contorno
 stroke.rgb(255, 0, 0)         // cor RGB
 stroke.dash_array([5, 3])     // linha tracejada
+stroke.dash_arrayf([4.5, 2.5]) // linha tracejada com medidas Float
 stroke.none                   // sem contorno
 ```
 

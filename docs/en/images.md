@@ -124,6 +124,7 @@ stroke.black                  // named color
 stroke.width(3)               // stroke width
 stroke.rgb(255, 0, 0)         // RGB color
 stroke.dash_array([5, 3])     // dashed line
+stroke.dash_arrayf([4.5, 2.5]) // dashed line with Float lengths
 stroke.none                   // no stroke
 ```
 
