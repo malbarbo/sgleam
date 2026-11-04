@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.9.0 (unreleased)
+## 0.9.0 (2026-11-04)
 
 - New `sgleam/mworld` library for multiplayer interactive programs, with `--players` to choose the number of players
 - `smain` and the REPL run the `World`, `MultiWorld`, or `Animation` they return, so `world.run` is no longer needed
