@@ -7,21 +7,16 @@
 - `world.animate` replaced by `world.animation`, which returns an `Animation`
 - Images, worlds, and animations shown in a window or in the terminal (kitty, sixel, or blocks), chosen with `-d`
 - Keys moved from `sgleam/world` to the new `sgleam/key` module, and pad events in the new `sgleam/pad` module
-- `gleam/io` and `sgleam/io` removed, use `echo` or the value of `smain` to print, and the argument of `smain` to read input
-- `image.bitmap` removed, and `image.bitmap_data_uri` takes only the data URI
+- `gleam/io` and `sgleam/io` removed
 - `image.same` and `check.same` to compare images, and a failed check shows its images
 - Fixes to checks, shapes, and `scale_xy`
 - Stack overflows show the Gleam file and line
 - `smain` can take an `Env` with the command-line arguments, a random generator, and the time
 - New `sgleam/random` library, with `random.mock` for tests
 - `create_from`, `on_frame`, `on_frame_delta`, and `keys_as_pad` in `world` and `mworld`
-- `stroke.dash_arrayf`
 - `Style` is a record, and the last style wins in `style.join`
-- A `Color` or a `Style` prints as the call that makes it
-- `help COMMAND` shows the help of a command
-- `NO_COLOR` and `FORCE_COLOR` control the colors
 - The version shows the git hash and the build date
-- Updated to Gleam 1.19.2
+- Updated to Gleam 1.19.2 and rquickjs 0.14.0
 
 ## 0.8.0 (2026-09-02)
 
