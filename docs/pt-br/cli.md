@@ -333,3 +333,11 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 | `--players N` | Jogar um mundo multijogador com N jogadores, cada um em uma janela |
 | `-q` | Não exibir mensagem de boas-vindas no REPL |
 | `--version` | Exibir versão |
+
+# Cores
+
+O sgleam colore suas mensagens quando escreve em um terminal. Um `NO_COLOR` não vazio desliga as cores. Um `FORCE_COLOR` não vazio liga as cores quando a saída vai para um arquivo ou um pipe. Quando os dois têm valor, vale o `NO_COLOR`.
+
+```sh
+NO_COLOR=1 sgleam check jogo.gleam
+```

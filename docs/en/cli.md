@@ -331,3 +331,11 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 | `--players N` | Play a multiplayer world with N players, each in a window |
 | `-q` | Don't print welcome message in REPL |
 | `--version` | Print version |
+
+# Colors
+
+sgleam colors its messages when it writes to a terminal. A non-empty `NO_COLOR` turns the colors off. A non-empty `FORCE_COLOR` turns them on when the output goes to a file or a pipe. When both have a value, `NO_COLOR` wins.
+
+```sh
+NO_COLOR=1 sgleam check game.gleam
+```
