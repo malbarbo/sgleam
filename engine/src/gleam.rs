@@ -32,7 +32,7 @@ use std::{
 };
 use tar::Archive;
 
-use crate::{GLEAM_STDLIB, error::show_diagnostics};
+use crate::{GLEAM_IO, GLEAM_STDLIB, error::show_diagnostics};
 
 #[derive(Clone)]
 pub struct Project {
@@ -233,6 +233,12 @@ impl Project {
             target: Target::WebAssembly,
             ..Default::default()
         };
+        // The user's code still can not import gleam/io, as the compile to
+        // JavaScript comes first and has no gleam/io.
+        self.fs.write(
+            Utf8Path::new(&format!("{}/src/gleam/io.gleam", Project::stdlib_root())),
+            GLEAM_IO,
+        )?;
         let mut modules = imbl::HashMap::new();
         let stdlib = self.compile_package(
             &stdlib_config,

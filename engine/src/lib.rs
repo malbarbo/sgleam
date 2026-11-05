@@ -27,6 +27,10 @@ use rust_embed::Embed;
 pub const GLEAM_VERSION: &str = gleam_core::version::COMPILER_VERSION;
 
 pub const GLEAM_STDLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/gleam-stdlib.tar"));
+/// The gleam/io that `build.rs` leaves out of `GLEAM_STDLIB`. Only the
+/// compile to WebAssembly has it, for the launcher of a program.
+pub const GLEAM_IO: &str =
+    include_str!(concat!(env!("OUT_DIR"), "/gleam-stdlib/src/gleam/io.gleam"));
 pub const GLEAM_STDLIB_VERSION: &str = "1.0.5";
 
 #[derive(Embed)]
