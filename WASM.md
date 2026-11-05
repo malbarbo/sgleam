@@ -229,7 +229,7 @@ avisa que as entradas se perderam.
    `cli/tests/inputs` que não as usam passam, com os snapshots revistos.
 4. No fork, os caminhos, a cor, o cabeçalho e os valores dos erros, os
    rótulos e o gancho do inspect, a reescrita do `check`, a lista dos
-   `*_examples` e o `panic` que pode ser pego.
+   `*_examples`, o `panic` que pode ser pego e o erro no estouro do `Int`.
 5. O `sgleam-builtins`, com o alocador do estado e o sinteract sem
    `std::time`, e os externals de `lib/sgleam/`, junto com o `IMAGE.md`
    reescrito.
@@ -247,18 +247,18 @@ avisa que as entradas se perderam.
 - O nativo fica para depois de medir o tempo de compilação de uma entrada
   no wasmtime (decidido em 2026-11-05). O navegador muda primeiro.
 - O `Float` tem 64 bits (decidido em 2026-11-05).
+- O `Int` tem 64 bits, e um estouro é um erro com o arquivo e a linha, como
+  um `panic` (decidido em 2026-11-05). O padrão do sgleam hoje é BigInt, que
+  é exato, então `fat(30)`, que funciona hoje, passa a parar com o erro. O
+  fork ganha uma opção para conferir a soma, a subtração, a multiplicação,
+  o `MIN / -1`, o `absolute_value` e os deslocamentos, e o
+  `float.truncate` e o `float.round` de um valor fora do alcance. O
+  `int.parse` de um número grande continua `Error(Nil)`.
 - O REPL, o `echo` e o `string.inspect` escrevem os rótulos dos campos,
   como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05).
 
 ## Questões abertas
 
-- O `Int`. A decisão de 64 bits com volta no estouro foi tomada contra uma
-  informação errada. O padrão do sgleam hoje é BigInt, que é exato, e não
-  um `Number` do JavaScript. Com 64 bits, `fat(21)` dá
-  `-4249290049419214848`, `int.bitwise_shift_left(1, 70)` dá 0,
-  `float.truncate(1.0e30)` satura em silêncio,
-  `int.absolute_value(min)` dá `min` e `int.parse` de um número grande dá
-  `Error(Nil)`.
 - Enquanto o nativo usa o QuickJS, a ordem de um `dict` muda entre o
   terminal e a página. `dict.keys` das mesmas chaves sai em ordens
   diferentes. A documentação diz que a ordem não é definida, ou o sgleam a
