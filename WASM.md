@@ -168,6 +168,6 @@ A recomendação é a primeira.
 
 ## Questões abertas
 
-- O `string.inspect` e o `echo` do backend wasm escrevem `1.0` e
-  `Ponto(1, 2.0)`, e o sgleam de hoje escreve `1` e `Ponto(x: 1, y: 2)`. Os
-  snapshots de `cli/tests` dependem disso.
+- O `string.inspect` e o `echo` do backend wasm escrevem `Ponto(1, 2.0)`,
+  sem os rótulos, e o sgleam de hoje escreve `Ponto(x: 1, y: 2.0)`. O
+  `Float` sai com ponto nos dois.
