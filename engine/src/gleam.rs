@@ -13,6 +13,7 @@ use gleam_core::{
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
+    requirement::Requirement,
     type_::{
         Type,
         printer::{Names, Printer},
@@ -145,8 +146,16 @@ impl Project {
         existing_modules: &mut imbl::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
         defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
+        // The stdlib is in this package, but echo looks for a dict only when
+        // gleam_stdlib is a dependency. Its import goes back to this package
+        // in `resolve_path`.
         let config = PackageConfig {
             target: Target::JavaScript,
+            dependencies: [(
+                "gleam_stdlib".into(),
+                Requirement::Path { path: "/".into() },
+            )]
+            .into(),
             ..Default::default()
         };
 
