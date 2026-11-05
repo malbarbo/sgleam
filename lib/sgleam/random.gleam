@@ -1,4 +1,3 @@
-import gleam/dynamic.{type Dynamic}
 import gleam/float
 import gleam/int
 import gleam/list
@@ -12,12 +11,14 @@ pub opaque type Generator {
   Mock(calls: List(Call))
 }
 
-/// A call that a mock generator expects, with the result it returns.
+/// A call that a mock generator expects, with the result it returns. The
+/// items can be of any type, so a call keeps their text, and keeps the
+/// result as positions in the items.
 pub opaque type Call {
   IntCall(from: Int, to: Int, result: Int)
   FloatCall(result: Float)
-  PickCall(items: Dynamic, result: Dynamic)
-  ShuffleCall(items: Dynamic, result: Dynamic)
+  PickCall(items: String, position: Int)
+  ShuffleCall(items: String, positions: List(Int))
 }
 
 /// Creates a generator from `seed`. The same seed gives the same sequence.
@@ -62,13 +63,14 @@ pub fn float_returns(result: Float) -> Call {
 
 /// The call `pick(gen, items)`, which returns `result`.
 pub fn pick_returns(items: List(a), result: Result(a, Nil)) -> Call {
-  let valid = case result {
-    Error(Nil) -> items == []
-    Ok(item) -> list.contains(items, item)
+  let position = case result {
+    Error(Nil) if items == [] -> Ok(0)
+    Error(Nil) -> Error(Nil)
+    Ok(item) -> index_of(items, item)
   }
-  case valid {
-    True -> PickCall(coerce(items), coerce(result))
-    False ->
+  case position {
+    Ok(position) -> PickCall(string.inspect(items), position)
+    Error(Nil) ->
       panic as {
         "random.pick_returns: "
         <> string.inspect(result)
@@ -80,9 +82,9 @@ pub fn pick_returns(items: List(a), result: Result(a, Nil)) -> Call {
 
 /// The call `shuffle(gen, items)`, which returns `result`.
 pub fn shuffle_returns(items: List(a), result: List(a)) -> Call {
-  case is_permutation(items, result) {
-    True -> ShuffleCall(coerce(items), coerce(result))
-    False ->
+  case positions(items, result) {
+    Ok(positions) -> ShuffleCall(string.inspect(items), positions)
+    Error(Nil) ->
       panic as {
         "random.shuffle_returns: "
         <> string.inspect(result)
@@ -131,12 +133,12 @@ pub fn pick(gen: Generator, items: List(a)) -> #(Result(a, Nil), Generator) {
       let #(index, gen) = int(gen, 0, list.length(items) - 1)
       #(at(items, index), gen)
     }
-    Mock([PickCall(expected, result), ..rest] as calls), _ ->
-      case coerce(expected) == items {
-        True -> #(coerce(result), Mock(rest))
-        False -> mismatch(calls, pick_text(items))
+    Mock([PickCall(expected, position), ..rest] as calls), _ ->
+      case expected == string.inspect(items) {
+        True -> #(at(items, position), Mock(rest))
+        False -> mismatch(calls, pick_text(string.inspect(items)))
       }
-    Mock(calls), _ -> mismatch(calls, pick_text(items))
+    Mock(calls), _ -> mismatch(calls, pick_text(string.inspect(items)))
   }
 }
 
@@ -155,12 +157,12 @@ pub fn shuffle(gen: Generator, items: List(a)) -> #(List(a), Generator) {
         |> list.map(fn(pair) { pair.1 })
       #(items, gen)
     }
-    Mock([ShuffleCall(expected, result), ..rest] as calls) ->
-      case coerce(expected) == items {
-        True -> #(coerce(result), Mock(rest))
-        False -> mismatch(calls, shuffle_text(items))
+    Mock([ShuffleCall(expected, positions), ..rest] as calls) ->
+      case expected == string.inspect(items) {
+        True -> #(list.filter_map(positions, at(items, _)), Mock(rest))
+        False -> mismatch(calls, shuffle_text(string.inspect(items)))
       }
-    Mock(calls) -> mismatch(calls, shuffle_text(items))
+    Mock(calls) -> mismatch(calls, shuffle_text(string.inspect(items)))
   }
 }
 
@@ -176,8 +178,8 @@ fn call_text(call: Call) -> String {
   case call {
     IntCall(from, to, _) -> int_text(from, to)
     FloatCall(_) -> "random.float()"
-    PickCall(items, _) -> pick_text(coerce(items))
-    ShuffleCall(items, _) -> shuffle_text(coerce(items))
+    PickCall(items, _) -> pick_text(items)
+    ShuffleCall(items, _) -> shuffle_text(items)
   }
 }
 
@@ -185,28 +187,45 @@ fn int_text(from: Int, to: Int) -> String {
   "random.int(" <> int.to_string(from) <> ", " <> int.to_string(to) <> ")"
 }
 
-fn pick_text(items: List(a)) -> String {
-  "random.pick(" <> string.inspect(items) <> ")"
+fn pick_text(items: String) -> String {
+  "random.pick(" <> items <> ")"
 }
 
-fn shuffle_text(items: List(a)) -> String {
-  "random.shuffle(" <> string.inspect(items) <> ")"
+fn shuffle_text(items: String) -> String {
+  "random.shuffle(" <> items <> ")"
 }
 
 fn at(items: List(a), index: Int) -> Result(a, Nil) {
   items |> list.drop(index) |> list.first
 }
 
-/// Returns `True` if `result` has the items of `items`, each one as many
-/// times, `False` otherwise.
-fn is_permutation(items: List(a), result: List(a)) -> Bool {
-  case result {
-    [] -> items == []
-    [item, ..rest] ->
-      case list.split_while(items, fn(x) { x != item }) {
-        #(_, []) -> False
-        #(before, [_, ..after]) ->
-          is_permutation(list.append(before, after), rest)
+/// The position of the first `item` in `items`.
+fn index_of(items: List(a), item: a) -> Result(Int, Nil) {
+  case list.split_while(items, fn(x) { x != item }) {
+    #(_, []) -> Error(Nil)
+    #(before, _) -> Ok(list.length(before))
+  }
+}
+
+/// The position in `items` of each item of `result`, with each position
+/// used once, or `Error(Nil)` if `result` is not a permutation of `items`.
+fn positions(items: List(a), result: List(a)) -> Result(List(Int), Nil) {
+  positions_loop(list.index_map(items, fn(item, i) { #(i, item) }), result, [])
+}
+
+fn positions_loop(
+  left: List(#(Int, a)),
+  result: List(a),
+  found: List(Int),
+) -> Result(List(Int), Nil) {
+  case result, left {
+    [], [] -> Ok(list.reverse(found))
+    [], _ -> Error(Nil)
+    [item, ..rest], _ ->
+      case list.split_while(left, fn(pair) { pair.1 != item }) {
+        #(_, []) -> Error(Nil)
+        #(before, [#(i, _), ..after]) ->
+          positions_loop(list.append(before, after), rest, [i, ..found])
       }
   }
 }
@@ -245,6 +264,3 @@ fn mul32(a: Int, b: Int) -> Int {
 fn u32(x: Int) -> Int {
   int.bitwise_and(x, 0xffffffff)
 }
-
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "coerce")
-fn coerce(value: a) -> b
