@@ -3834,3 +3834,23 @@ fn wasmtime_smain_stdin_lines() {
     );
     assert_eq!(out, "[\"a \\\"b\\\"\", \"\\\\c\", \"\"]\n");
 }
+
+#[cfg(feature = "wasmtime")]
+#[test]
+fn wasmtime_smain_env_args() {
+    let out = out_in_dir(
+        &[(
+            "args.gleam",
+            indoc! {"
+                import sgleam/env.{type Env}
+
+                pub fn smain(env: Env) {
+                  env.args(env)
+                }
+            "},
+        )],
+        &["wasm", "args.gleam", "a b", "\"c\\"],
+        None,
+    );
+    assert_eq!(out, "[\"a b\", \"\\\"c\\\\\"]\n");
+}

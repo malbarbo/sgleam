@@ -107,6 +107,9 @@ enum Command {
         /// Gleam file to run.
         #[bpaf(positional("FILE"))]
         file: String,
+        /// Arguments for the program.
+        #[bpaf(positional("ARG"), many)]
+        args: Vec<String>,
     },
     /// Run tests.
     #[bpaf(command)]
@@ -285,10 +288,10 @@ fn run() -> Result<(), SgleamError> {
             let files = find_imports(vec![file])?;
             run_check(&files)
         }
-        Command::Wasm { file } => {
+        Command::Wasm { file, args } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_wasmtime(&build_webassembly(&files, &[])?)
+            run_wasmtime(&build_webassembly(&files, &args)?)
         }
     }
 }
