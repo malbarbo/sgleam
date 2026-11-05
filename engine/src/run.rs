@@ -65,6 +65,18 @@ pub fn run_module(
     Ok(())
 }
 
+/// The WebAssembly program of the first of `paths`, which imports the rest.
+pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> {
+    let program = paths.first().expect("a path to build");
+    let mut project = Project::default();
+    let built = copy_files_and_build(&mut project, paths)?;
+    let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
+        path: program.clone(),
+    })?;
+    project.compile_webassembly()?;
+    Ok(project.read_webassembly(&module.name)?)
+}
+
 pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {
     let mut project = Project::default();
     copy_files_and_build(&mut project, paths)?;

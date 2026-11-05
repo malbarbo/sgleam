@@ -21,7 +21,7 @@ use engine::{
     host::{DisplayMode, HostOptions, check_display},
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::{run_check, run_main, run_test},
+    run::{build_webassembly, run_check, run_main, run_test},
     shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{
@@ -97,6 +97,13 @@ enum Command {
     Server {
         #[bpaf(external(number_arg))]
         number: bool,
+        /// Gleam file to run.
+        #[bpaf(positional("FILE"))]
+        file: String,
+    },
+    /// Run a program on the webassembly backend, with wasmtime.
+    #[bpaf(command, hide)]
+    Wasm {
         /// Gleam file to run.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -278,7 +285,29 @@ fn run() -> Result<(), SgleamError> {
             let files = find_imports(vec![file])?;
             run_check(&files)
         }
+        Command::Wasm { file } => {
+            let file = user_module(file)?;
+            let files = find_imports(vec![file])?;
+            run_wasmtime(&build_webassembly(&files)?)
+        }
     }
+}
+
+/// Runs `program` on the wasmtime of the system, and exits with its code if
+/// it fails.
+fn run_wasmtime(program: &[u8]) -> Result<(), SgleamError> {
+    let path = std::env::temp_dir().join(format!("sgleam-{}.wasm", std::process::id()));
+    std::fs::write(&path, program).map_err(|err| SgleamError::Other(err.into()))?;
+    let status = std::process::Command::new("wasmtime")
+        .args(["-W", "gc,function-references,tail-call,exceptions"])
+        .arg(&path)
+        .status();
+    let _ = std::fs::remove_file(&path);
+    let status = status.map_err(|err| SgleamError::Other(err.into()))?;
+    if !status.success() {
+        std::process::exit(status.code().unwrap_or(1));
+    }
+    Ok(())
 }
 
 /// The file a command names, as a path the module name can come from.
