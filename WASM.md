@@ -159,9 +159,15 @@ A recomendação é a primeira.
    que as implementa.
 7. Remover o `rquickjs` e o `sgleam_ffi.mjs`.
 
+## Decisões
+
+- O nativo fica para depois de medir o tempo de compilação de uma entrada
+  no wasmtime (decidido em 2026-11-05). O navegador muda primeiro.
+- O `Int` e o `Float` têm 64 bits (decidido em 2026-11-05). A soma e a
+  multiplicação de `Int` dão a volta no estouro, sem erro.
+
 ## Questões abertas
 
-- O nativo vai para o wasmtime?
-- O `Int` de 64 bits e o `Float` de 64 bits como padrão do sgleam?
-- O `string.inspect` e o `echo` do backend wasm escrevem os valores como o
-  JavaScript? Os snapshots de `cli/tests` dependem disso.
+- O `string.inspect` e o `echo` do backend wasm escrevem `1.0` e
+  `Ponto(1, 2.0)`, e o sgleam de hoje escreve `1` e `Ponto(x: 1, y: 2)`. Os
+  snapshots de `cli/tests` dependem disso.
