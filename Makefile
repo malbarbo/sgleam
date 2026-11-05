@@ -1,7 +1,7 @@
 WASM_TARGET = wasm32-wasip1
 WASM_OPT = wasm-opt -Oz --enable-bulk-memory --enable-mutable-globals --enable-sign-ext --enable-nontrapping-float-to-int
 
-.PHONY: release release-min release-nightly wasm wasm-test wasm-nightly test test-rs test-wasm test-wasm-cli check docs clean
+.PHONY: release release-min release-nightly wasm wasm-test wasm-nightly test test-rs test-wasm test-wasm-cli test-wasmtime check docs clean
 
 NIGHTLY_BIN = target/min-nightly/x86_64-unknown-linux-gnu/release/sgleam
 
@@ -81,6 +81,11 @@ test-wasm: wasm
 # platform (e.g., Linux) to avoid redundant WASM runs across the matrix.
 test-wasm-cli: wasm-test
 	cargo test -p sgleam --features wasm-backend --test cli
+
+# Runs the CLI integration tests that do not import the library of sgleam on
+# the webassembly backend of gleam. Requires wasmtime.
+test-wasmtime:
+	cargo test -p sgleam --features wasmtime --test integration run_wasm
 
 check:
 	cargo clippy --all-targets -- -D warnings

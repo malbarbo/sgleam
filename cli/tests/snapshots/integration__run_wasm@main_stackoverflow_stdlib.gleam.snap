@@ -1,0 +1,31 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+Error: failed to run main module `program.wasm`
+
+Caused by:
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0: main_stackoverflow_stdlib!floop
+    1:    0x172 - main_stackoverflow_stdlib!floop
+    2:    0x172 - main_stackoverflow_stdlib!floop
+    3:    0x172 - main_stackoverflow_stdlib!floop
+    4:    0x172 - main_stackoverflow_stdlib!floop
+    5:    0x172 - main_stackoverflow_stdlib!floop
+    6:    0x172 - main_stackoverflow_stdlib!floop
+    7:    0x172 - main_stackoverflow_stdlib!floop
+    8:    0x172 - main_stackoverflow_stdlib!floop
+    9:    0x172 - main_stackoverflow_stdlib!floop
+   10:    0x172 - main_stackoverflow_stdlib!floop
+   11:    0x172 - main_stackoverflow_stdlib!floop
+   12:    0x172 - main_stackoverflow_stdlib!floop
+   13:    0x172 - main_stackoverflow_stdlib!floop
+   14:    0x172 - main_stackoverflow_stdlib!floop
+   15:    0x172 - main_stackoverflow_stdlib!floop
+   16:    0x172 - main_stackoverflow_stdlib!floop
+   17:    0x172 - main_stackoverflow_stdlib!floop
+   18:    0x172 - main_stackoverflow_stdlib!floop
+   19:    0x172 - main_stackoverflow_stdlib!floop
+    2: wasm trap: call stack exhausted

@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+panic at src/main_panic.gleam:2
+  `panic` expression evaluated.

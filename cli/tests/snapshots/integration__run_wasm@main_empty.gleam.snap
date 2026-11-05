@@ -1,0 +1,19 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+warning: Unimplemented function
+  ┌─ main_empty.gleam:1:1
+  │
+1 │ pub fn main() {}
+  │ ^^^^^^^^^^^^^ This code is incomplete
+
+A function must always have an implementation.
+
+A todo expression has been used in place of the missing body,
+so this code will crash if it is run. Be sure to finish it before
+running your program.
+
+todo at src/main_empty.gleam:1
+  `todo` expression evaluated. This code has not yet been implemented.

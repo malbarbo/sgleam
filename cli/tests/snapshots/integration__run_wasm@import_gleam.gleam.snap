@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+[90msrc/import_gleam.gleam:6[39m
+42

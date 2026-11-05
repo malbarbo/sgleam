@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+[90msrc/float_infinity.gleam:6[39m
+Infinity.0
+[90msrc/float_infinity.gleam:7[39m
+"Infinity.0"
+[90msrc/float_infinity.gleam:8[39m
+"-Infinity.0"
+[90msrc/float_infinity.gleam:9[39m
+"NaN.0"

@@ -1,0 +1,18 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+warning: Assertion that will always fail
+  ┌─ runtime_panic.gleam:2:14
+  │
+2 │   let assert Ok(x) = Error("boom")
+  │              ^^^^^
+
+We can tell from the code above that the value will never match this
+pattern and that this code will always crash.
+
+Either change the pattern or use `panic` to unconditionally fail.
+
+let_assert at src/runtime_panic.gleam:2
+  Pattern match failed, no pattern matched the value.

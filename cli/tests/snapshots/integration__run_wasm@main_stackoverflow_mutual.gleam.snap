@@ -1,0 +1,31 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+Error: failed to run main module `program.wasm`
+
+Caused by:
+    0: failed to invoke command default
+    1: error while executing at wasm backtrace:
+    0: main_stackoverflow_mutual!float
+    1:     0x61 - main_stackoverflow_mutual!__float128
+    2:     0x59 - main_stackoverflow_mutual!float
+    3:     0x61 - main_stackoverflow_mutual!__float128
+    4:     0x59 - main_stackoverflow_mutual!float
+    5:     0x61 - main_stackoverflow_mutual!__float128
+    6:     0x59 - main_stackoverflow_mutual!float
+    7:     0x61 - main_stackoverflow_mutual!__float128
+    8:     0x59 - main_stackoverflow_mutual!float
+    9:     0x61 - main_stackoverflow_mutual!__float128
+   10:     0x59 - main_stackoverflow_mutual!float
+   11:     0x61 - main_stackoverflow_mutual!__float128
+   12:     0x59 - main_stackoverflow_mutual!float
+   13:     0x61 - main_stackoverflow_mutual!__float128
+   14:     0x59 - main_stackoverflow_mutual!float
+   15:     0x61 - main_stackoverflow_mutual!__float128
+   16:     0x59 - main_stackoverflow_mutual!float
+   17:     0x61 - main_stackoverflow_mutual!__float128
+   18:     0x59 - main_stackoverflow_mutual!float
+   19:     0x61 - main_stackoverflow_mutual!__float128
+    2: wasm trap: call stack exhausted

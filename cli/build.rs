@@ -8,21 +8,27 @@ fn main() {
 
     let mut src = String::new();
     tests(&mut src, "tests/inputs", "run_file", "run", |_| true);
-    tests(&mut src, "tests/inputs", "run_tests", "test", |name| {
-        name.starts_with("check")
+    tests(&mut src, "tests/inputs", "run_tests", "test", |path| {
+        file_name(path).starts_with("check")
     });
     tests(&mut src, "tests/images", "run_images", "run", |_| true);
+    // The library of sgleam calls a JavaScript host, which wasmtime is not.
+    tests(&mut src, "tests/inputs", "run_wasm", "wasm", |path| {
+        !fs::read_to_string(path)
+            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+            .contains("import sgleam/")
+    });
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out).join("file_tests.rs"), src).expect("write the generated tests");
 }
 
-fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&str) -> bool) {
+fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&Path) -> bool) {
     let mut names: Vec<String> = fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("read {dir}: {e}"))
-        .map(|entry| entry.expect("a directory entry").file_name())
-        .map(|name| name.to_str().expect("a utf8 file name").to_string())
-        .filter(|name| name.ends_with(".gleam") && keep(name))
+        .map(|entry| entry.expect("a directory entry").path())
+        .filter(|path| file_name(path).ends_with(".gleam") && keep(path))
+        .map(|path| file_name(&path).to_string())
         .collect();
     names.sort();
 
@@ -35,6 +41,10 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&s
         // The deep recursion needs a stack the other platforms do not give it.
         if name.contains("stackoverflow") {
             let _ = writeln!(src, r#"#[cfg(target_os = "linux")]"#);
+        }
+        // Only a machine with wasmtime runs these.
+        if snapshot == "run_wasm" {
+            let _ = writeln!(src, r#"#[cfg(feature = "wasmtime")]"#);
         }
         // The image snapshots are long and many; CI runs them with --ignored.
         if snapshot == "run_images" {
@@ -51,6 +61,12 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&s
             "#[test]\nfn {ident}() {{ {check}(\"{snapshot}\", \"{command}\", \"{dir}/{name}\"); }}"
         );
     }
+}
+
+fn file_name(path: &Path) -> &str {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .expect("a utf8 file name")
 }
 
 /// A file name is not an identifier: `.invalid.gleam` and `Invalid.gleam` are

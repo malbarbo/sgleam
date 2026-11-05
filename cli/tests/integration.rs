@@ -19,9 +19,17 @@ fn sgleam() -> assert_cmd::Command {
 /// no display, and prints the word `Image` for each frame.
 fn output_of(command: &str, file: &str) -> (String, String) {
     let (dir, name) = file.rsplit_once('/').expect("a file in a directory");
+    // wasmtime opens no display, so `wasm` takes no `-d`.
+    let display: &[&str] = if command == "wasm" {
+        &[]
+    } else {
+        &["-d", "none"]
+    };
     let out = sgleam()
         .current_dir(format!("{}/{dir}", env!("CARGO_MANIFEST_DIR")))
-        .args([command, "-d", "none", name])
+        .arg(command)
+        .args(display)
+        .arg(name)
         .output()
         .expect("run sgleam");
     let text = |bytes: &[u8]| {
