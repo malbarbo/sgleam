@@ -220,7 +220,8 @@ impl Project {
     }
 
     /// Compiles the stdlib and the user's package to WebAssembly, which gives
-    /// a program for each module of the user's package.
+    /// a program for each module of the user's package. It shows no warning,
+    /// as the compilation to JavaScript shows the same ones.
     pub fn compile_webassembly(&self) -> Result<Vec<Module>, Error> {
         let config = WebAssemblyConfig {
             int: WasmInt::I64,
@@ -255,7 +256,7 @@ impl Project {
             &stdlib,
             Project::root(),
             &Project::webassembly_out("build"),
-            Rc::new(ConsoleWarningEmitter::with_repl(false)),
+            Rc::new(NullWarningEmitterIO),
             &mut modules,
             &mut imbl::HashMap::new(),
         )
