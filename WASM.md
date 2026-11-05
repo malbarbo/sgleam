@@ -266,8 +266,8 @@ avisa que as entradas se perderam.
   backends do Gleam, e o sgleam não faz nada a respeito.
 - O REPL, o `echo` e o `string.inspect` escrevem os rótulos dos campos,
   como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05).
-
-## Questões abertas
-
-- O `:debug` mostra hoje o `.mjs` gerado. No wasm, mostra o texto do módulo
-  ou sai. O `:time` passa a incluir a compilação e a instanciação.
+- O `:debug` sai do REPL do navegador (decidido em 2026-11-05). O nativo
+  continua mostrando o `.mjs`.
+- O `:time` mede só a chamada que roda a entrada, sem a compilação e a
+  instanciação, como hoje mede só a execução no QuickJS
+  (`engine/src/repl.rs:677`).
