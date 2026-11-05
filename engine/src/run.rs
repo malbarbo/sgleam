@@ -59,9 +59,39 @@ pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> 
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
-    entry_point(module, program, Target::WebAssembly, &[])?;
+    let name = match entry_point(module, program, Target::WebAssembly, &[])? {
+        MainFunction::Smain { kind: "Smain" } => {
+            project.write_source(&format!("{LAUNCHER}.gleam"), &launcher(module));
+            LAUNCHER
+        }
+        _ => &module.name,
+    };
     project.compile_webassembly()?;
-    Ok(project.read_webassembly(&module.name)?)
+    Ok(project.read_webassembly(name)?)
+}
+
+/// The module whose `main` calls the `smain` of a program on the WebAssembly
+/// target, which has no launcher of its own.
+const LAUNCHER: &str = "sgleam/launcher";
+
+/// The source of `LAUNCHER` for `module`. It prints the result of `smain` as
+/// `try_main` does, with the printer that the type of the result picks.
+fn launcher(module: &Module) -> String {
+    let smain = get_function(module, SMAIN).expect("a module with smain");
+    let call = "program.smain()".to_string();
+    let show = if smain.return_type.same_as(&type_::string()) {
+        format!("io.println({call})")
+    } else if smain.return_type.same_as(&type_::nil()) {
+        call
+    } else {
+        format!("io.println(string.inspect({call}))")
+    };
+    // The alias keeps a module of the user's named `io` or `string` apart
+    // from the stdlib.
+    format!(
+        "import gleam/io\nimport gleam/string\nimport {} as program\n\npub fn main() {{\n  {show}\n}}\n",
+        module.name
+    )
 }
 
 /// The `main` or the `smain` of `module` on `target`, which receives `args`.
