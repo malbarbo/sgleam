@@ -43,21 +43,7 @@ pub fn run_module(
     options: HostOptions,
     args: Vec<String>,
 ) -> Result<(), SgleamError> {
-    let main = get_main(module, Target::JavaScript).map_err(|err| match err {
-        SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
-            SgleamError::NoMainFunction {
-                module,
-                path: path.into(),
-            }
-        }
-        err => err,
-    })?;
-    if !args.is_empty() && main != (MainFunction::Smain { kind: SMAIN_ENV }) {
-        return Err(SgleamError::ArgsWithoutEnv {
-            path: path.into(),
-            has_smain: main != MainFunction::Main,
-        });
-    }
+    let main = entry_point(module, path, Target::JavaScript, &args)?;
     let engine = JsEngine::new(project.fs.clone(), options)?;
     engine.set_args(args)?;
     engine.run_main(&module.name, main)?;
@@ -73,8 +59,35 @@ pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> 
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
+    entry_point(module, program, Target::WebAssembly, &[])?;
     project.compile_webassembly()?;
     Ok(project.read_webassembly(&module.name)?)
+}
+
+/// The `main` or the `smain` of `module` on `target`, which receives `args`.
+/// An error names the module by `path`.
+fn entry_point(
+    module: &Module,
+    path: &Utf8Path,
+    target: Target,
+    args: &[String],
+) -> Result<MainFunction, SgleamError> {
+    let main = get_main(module, target).map_err(|err| match err {
+        SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
+            SgleamError::NoMainFunction {
+                module,
+                path: path.into(),
+            }
+        }
+        err => err,
+    })?;
+    if !args.is_empty() && main != (MainFunction::Smain { kind: SMAIN_ENV }) {
+        return Err(SgleamError::ArgsWithoutEnv {
+            path: path.into(),
+            has_smain: main != MainFunction::Main,
+        });
+    }
+    Ok(main)
 }
 
 pub fn run_check(paths: &[Utf8PathBuf]) -> Result<(), SgleamError> {

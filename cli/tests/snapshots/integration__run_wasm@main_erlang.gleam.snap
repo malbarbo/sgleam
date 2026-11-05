@@ -3,8 +3,7 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 STDERR
-Error: failed to compile: wasm[0]::function[3]::main
+error: Target not supported
 
-Caused by:
-    0: WebAssembly translation error
-    1: Invalid input WebAssembly code at offset 118: type mismatch: expected i32 but nothing on stack
+`main_erlang` has a main function, but it does not support the WebAssembly
+target, so it cannot be run.
