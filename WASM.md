@@ -28,6 +28,12 @@ sgleam inteiro com o QuickJS compilado para `wasm32-wasip1`, sai.
   simplecode não tem como dar isso a um módulo qualquer.
 - O host precisa de WasmGC, tail calls e exceções. O V8, o SpiderMonkey, o
   JSC e o wasmtime têm os três.
+- O sgleam usa as strings `UTF8`, que são o padrão do backend. As strings
+  `JSString` pedem os builtins `wasm:js-string`, que o wasmtime não tem e
+  que o host do simplecode não passa ao compilar um módulo.
+- A função de início do módulo só configura os builtins e cria as strings e
+  as constantes. O `main` roda pelo export `_start`, então o WASI ligado à
+  memória depois da instanciação basta.
 
 ## A proposta
 
