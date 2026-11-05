@@ -410,7 +410,8 @@ fn stop_on_interrupt(ctx: &Ctx<'_>) -> Result<()> {
     Err(ctx.throw(error.into_value()))
 }
 
-fn getline() -> Option<String> {
+/// The next line of stdin, without its end, or `None` at the end of stdin.
+pub(crate) fn getline() -> Option<String> {
     let mut buffer = String::new();
     let stdin = std::io::stdin();
     match stdin.read_line(&mut buffer) {

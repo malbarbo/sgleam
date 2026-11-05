@@ -3814,3 +3814,23 @@ fn help_shows_the_help_of_the_command_it_names() {
     assert!(output.status.success(), "got: {out}");
     assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
 }
+
+// The program on the gleam wasm backend reads no stdin, so the launcher
+// carries it, escaped, as a literal.
+#[cfg(feature = "wasmtime")]
+#[test]
+fn wasmtime_smain_stdin_lines() {
+    let out = out_in_dir(
+        &[(
+            "lines.gleam",
+            indoc! {"
+                pub fn smain(lines: List(String)) {
+                  lines
+                }
+            "},
+        )],
+        &["wasm", "lines.gleam"],
+        Some("a \"b\"\n\\c\r\n\n"),
+    );
+    assert_eq!(out, "[\"a \\\"b\\\"\", \"\\\\c\", \"\"]\n");
+}

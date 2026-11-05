@@ -60,8 +60,9 @@ pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> 
         path: program.clone(),
     })?;
     let name = match entry_point(module, program, Target::WebAssembly, &[])? {
-        MainFunction::Smain { kind: "Smain" } => {
-            project.write_source(&format!("{LAUNCHER}.gleam"), &launcher(module));
+        MainFunction::Smain { kind } if kind != SMAIN_ENV => {
+            let launcher = launcher(module, &smain_argument(kind));
+            project.write_source(&format!("{LAUNCHER}.gleam"), &launcher);
             LAUNCHER
         }
         _ => &module.name,
@@ -74,11 +75,44 @@ pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> 
 /// target, which has no launcher of its own.
 const LAUNCHER: &str = "sgleam/launcher";
 
-/// The source of `LAUNCHER` for `module`. It prints the result of `smain` as
-/// `try_main` does, with the printer that the type of the result picks.
-fn launcher(module: &Module) -> String {
+/// The argument, as a Gleam expression, that `try_main` passes to an `smain`
+/// of `kind`. The program can not read stdin, so stdin goes into the
+/// expression, read to its end as `try_main` reads it.
+fn smain_argument(kind: &str) -> String {
+    let read_lines = || std::iter::from_fn(crate::quickjs::getline).collect::<Vec<_>>();
+    match kind {
+        SMAIN_STDIN => gleam_string(&read_lines().join("\n")),
+        // No lines and one empty line join to the same text.
+        SMAIN_STDIN_LINES => match read_lines() {
+            lines if lines.is_empty() => "[]".into(),
+            lines => format!("string.split({}, \"\\n\")", gleam_string(&lines.join("\n"))),
+        },
+        _ => String::new(),
+    }
+}
+
+/// A Gleam string literal with `text`.
+fn gleam_string(text: &str) -> String {
+    let mut literal = String::from('"');
+    for c in text.chars() {
+        match c {
+            '"' => literal.push_str("\\\""),
+            '\\' => literal.push_str("\\\\"),
+            '\n' => literal.push('\n'),
+            c if c.is_control() => literal.push_str(&format!("\\u{{{:x}}}", c as u32)),
+            c => literal.push(c),
+        }
+    }
+    literal.push('"');
+    literal
+}
+
+/// The source of `LAUNCHER` for `module`, which passes `argument` to
+/// `smain`. It prints the result of `smain` as `try_main` does, with the
+/// printer that the type of the result picks.
+fn launcher(module: &Module, argument: &str) -> String {
     let smain = get_function(module, SMAIN).expect("a module with smain");
-    let call = "program.smain()".to_string();
+    let call = format!("program.smain({argument})");
     let show = if smain.return_type.same_as(&type_::string()) {
         format!("io.println({call})")
     } else if smain.return_type.same_as(&type_::nil()) {
@@ -149,6 +183,10 @@ pub fn run_test(
 /// command-line arguments.
 const SMAIN_ENV: &str = "SmainEnv";
 
+const SMAIN_STDIN: &str = "SmainStdin";
+
+const SMAIN_STDIN_LINES: &str = "SmainStdinLines";
+
 /// A signature of `smain` that a run accepts.
 pub struct SmainSignature {
     /// Returns `true` if `smain` with these argument types has this
@@ -169,12 +207,12 @@ pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
     },
     SmainSignature {
         accepts: |args| matches!(args, [arg] if arg.same_as(&type_::string())),
-        kind: "SmainStdin",
+        kind: SMAIN_STDIN,
         text: "fn(String) -> a",
     },
     SmainSignature {
         accepts: |args| matches!(args, [arg] if arg.same_as(&type_::list(type_::string()))),
-        kind: "SmainStdinLines",
+        kind: SMAIN_STDIN_LINES,
         text: "fn(List(String)) -> a",
     },
     SmainSignature {
