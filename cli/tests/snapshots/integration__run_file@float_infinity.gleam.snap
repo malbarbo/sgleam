@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+float_infinity.gleam:6
+//js(Infinity)
+float_infinity.gleam:7
+"//js(Infinity)"
+float_infinity.gleam:8
+"//js(-Infinity)"
+float_infinity.gleam:9
+"//js(NaN)"
+STDERR
