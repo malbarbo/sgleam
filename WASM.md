@@ -221,7 +221,7 @@ avisa que as entradas se perderam.
 ## Passos
 
 1. O host do simplecode dá o `env.draw_svg` no tipo 0, lendo a memória do
-   módulo que chama.
+   módulo que chama. O agente do `sc` já o fez, sem commit no simplecode.
 2. No fork, o runtime pelo `WebAssemblyConfig`, a lista de pacotes que podem
    usar `"builtins"`, e o modo em que o módulo importa o runtime.
 3. No sgleam, a stdlib como o pacote `gleam_stdlib`, e um arquivo sem as
@@ -229,7 +229,8 @@ avisa que as entradas se perderam.
    `cli/tests/inputs` que não as usam passam, com os snapshots revistos.
 4. No fork, os caminhos, a cor, o cabeçalho e os valores dos erros, os
    rótulos e o gancho do inspect, a reescrita do `check`, a lista dos
-   `*_examples`, o `panic` que pode ser pego e o erro no estouro do `Int`.
+   `*_examples`, o `panic` que pode ser pego e a opção das verificações de
+   estouro do `Int`.
 5. O `sgleam-builtins`, com o alocador do estado e o sinteract sem
    `std::time`, e os externals de `lib/sgleam/`, junto com o `IMAGE.md`
    reescrito.
@@ -249,20 +250,20 @@ avisa que as entradas se perderam.
 - O `Float` tem 64 bits (decidido em 2026-11-05).
 - O `Int` tem 64 bits, e um estouro é um erro com o arquivo e a linha, como
   um `panic` (decidido em 2026-11-05). O padrão do sgleam hoje é BigInt, que
-  é exato, então `fat(30)`, que funciona hoje, passa a parar com o erro. O
-  fork ganha uma opção para conferir a soma, a subtração, a multiplicação,
-  o `MIN / -1`, o `absolute_value` e os deslocamentos, e o
+  é exato, então `fat(30)`, que funciona hoje, passa a parar com o erro.
+  As verificações são uma opção do backend, desligada por padrão, e o
+  sgleam a liga. Com ela, o código confere a soma, a subtração, a
+  multiplicação, o `MIN / -1`, o `absolute_value` e os deslocamentos, e o
   `float.truncate` e o `float.round` de um valor fora do alcance. O
   `int.parse` de um número grande continua `Error(Nil)`.
+- A ordem de um `dict` pode mudar entre o terminal e a página enquanto o
+  nativo usa o QuickJS (decidido em 2026-11-05). Ela já muda entre os
+  backends do Gleam, e o sgleam não faz nada a respeito.
 - O REPL, o `echo` e o `string.inspect` escrevem os rótulos dos campos,
   como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05).
 
 ## Questões abertas
 
-- Enquanto o nativo usa o QuickJS, a ordem de um `dict` muda entre o
-  terminal e a página. `dict.keys` das mesmas chaves sai em ordens
-  diferentes. A documentação diz que a ordem não é definida, ou o sgleam a
-  fixa.
 - Como o REPL guarda um `let` cujo tipo tem uma variável sem ligação.
 - O `:debug` mostra hoje o `.mjs` gerado. No wasm, mostra o texto do módulo
   ou sai. O `:time` passa a incluir a compilação e a instanciação.
