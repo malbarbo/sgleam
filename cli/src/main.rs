@@ -294,15 +294,20 @@ fn run() -> Result<(), SgleamError> {
 }
 
 /// Runs `program` on the wasmtime of the system, and exits with its code if
-/// it fails.
+/// it fails. The program goes in a directory of its own, under a fixed name,
+/// as wasmtime names the file in its errors.
 fn run_wasmtime(program: &[u8]) -> Result<(), SgleamError> {
-    let path = std::env::temp_dir().join(format!("sgleam-{}.wasm", std::process::id()));
-    std::fs::write(&path, program).map_err(|err| SgleamError::Other(err.into()))?;
-    let status = std::process::Command::new("wasmtime")
-        .args(["-W", "gc,function-references,tail-call,exceptions"])
-        .arg(&path)
-        .status();
-    let _ = std::fs::remove_file(&path);
+    let dir = std::env::temp_dir().join(format!("sgleam-{}", std::process::id()));
+    let status = std::fs::create_dir_all(&dir)
+        .and_then(|()| std::fs::write(dir.join("program.wasm"), program))
+        .and_then(|()| {
+            std::process::Command::new("wasmtime")
+                .args(["-W", "gc,function-references,tail-call,exceptions"])
+                .arg("program.wasm")
+                .current_dir(&dir)
+                .status()
+        });
+    let _ = std::fs::remove_dir_all(&dir);
     let status = status.map_err(|err| SgleamError::Other(err.into()))?;
     if !status.success() {
         std::process::exit(status.code().unwrap_or(1));
