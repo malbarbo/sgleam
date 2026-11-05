@@ -165,9 +165,7 @@ A recomendação é a primeira.
   no wasmtime (decidido em 2026-11-05). O navegador muda primeiro.
 - O `Int` e o `Float` têm 64 bits (decidido em 2026-11-05). A soma e a
   multiplicação de `Int` dão a volta no estouro, sem erro.
-
-## Questões abertas
-
-- O `string.inspect` e o `echo` do backend wasm escrevem `Ponto(1, 2.0)`,
-  sem os rótulos, e o sgleam de hoje escreve `Ponto(x: 1, y: 2.0)`. O
-  `Float` sai com ponto nos dois.
+- O REPL, o `echo` e o `string.inspect` escrevem os rótulos dos campos,
+  como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05). O backend wasm hoje
+  escreve `Ponto(1, 2.0)`, e o fork passa a guardar os rótulos junto do
+  nome do construtor.
