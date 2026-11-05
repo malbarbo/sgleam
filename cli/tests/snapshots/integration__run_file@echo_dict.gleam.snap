@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+echo_dict.gleam:4
+dict.from_list([#(1, "a")])
+STDERR

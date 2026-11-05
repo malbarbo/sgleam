@@ -473,7 +473,12 @@ fn resolve_path(base: &str, name: &str) -> Option<String> {
             part => parts.push(part),
         }
     }
-    Some(parts.join("/"))
+    let path = parts.join("/");
+    // The stdlib is compiled with the user's modules, in the same directory.
+    Some(match path.strip_prefix("/gleam_stdlib/") {
+        Some(module) => format!("{}/{module}", Project::out()),
+        None => path,
+    })
 }
 
 struct ScriptLoader {
@@ -516,6 +521,10 @@ mod tests {
         // A `..` does not climb above the root.
         assert_eq!(resolve("/build/b.mjs", "../../x.mjs"), "/x.mjs");
         assert_eq!(resolve_path("eval_script", "./b.mjs"), None);
+        assert_eq!(
+            resolve("/build/b.mjs", "../gleam_stdlib/gleam/dict.mjs"),
+            "/build/gleam/dict.mjs"
+        );
     }
 
     #[test]
