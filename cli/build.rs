@@ -12,11 +12,14 @@ fn main() {
         file_name(path).starts_with("check")
     });
     tests(&mut src, "tests/images", "run_images", "run", |_| true);
-    // The library of sgleam calls a JavaScript host, which wasmtime is not.
+    // Most of the library of sgleam calls a JavaScript host, which wasmtime
+    // is not. Only env and random do without one.
     tests(&mut src, "tests/inputs", "run_wasm", "wasm", |path| {
-        !fs::read_to_string(path)
+        fs::read_to_string(path)
             .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-            .contains("import sgleam/")
+            .lines()
+            .filter_map(|line| line.strip_prefix("import sgleam/"))
+            .all(|module| matches!(module.split(['.', ' ']).next(), Some("env" | "random")))
     });
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");

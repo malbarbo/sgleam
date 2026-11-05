@@ -1,0 +1,6 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+#(4, 2, 0.5, Ok("c"), Error(Nil), [1, 2, 1])
+STDERR

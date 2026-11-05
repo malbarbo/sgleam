@@ -288,7 +288,7 @@ fn run() -> Result<(), SgleamError> {
         Command::Wasm { file } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_wasmtime(&build_webassembly(&files)?)
+            run_wasmtime(&build_webassembly(&files, &[])?)
         }
     }
 }

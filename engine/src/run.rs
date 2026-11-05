@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    hash::{BuildHasher, RandomState},
+    sync::Arc,
+};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
@@ -11,7 +14,7 @@ use crate::{
     engine::{Engine, MainFunction, SMAIN},
     error::SgleamError,
     gleam::{Project, copy_files_and_build, fn_type_to_string, get_function},
-    host::HostOptions,
+    host::{HostOptions, unix_time_ms},
 };
 
 // Running a program is what picks a runtime. Nothing above this module names
@@ -52,16 +55,17 @@ pub fn run_module(
 }
 
 /// The WebAssembly program of the first of `paths`, which imports the rest.
-pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> {
+/// `args` are what `smain` finds in its env.
+pub fn build_webassembly(paths: &[Utf8PathBuf], args: &[String]) -> Result<Vec<u8>, SgleamError> {
     let program = paths.first().expect("a path to build");
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
-    let name = match entry_point(module, program, Target::WebAssembly, &[])? {
-        MainFunction::Smain { kind } if kind != SMAIN_ENV => {
-            let launcher = launcher(module, &smain_argument(kind));
+    let name = match entry_point(module, program, Target::WebAssembly, args)? {
+        MainFunction::Smain { kind } => {
+            let launcher = launcher(module, &smain_argument(kind, args));
             project.write_source(&format!("{LAUNCHER}.gleam"), &launcher);
             LAUNCHER
         }
@@ -76,9 +80,10 @@ pub fn build_webassembly(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> 
 const LAUNCHER: &str = "sgleam/launcher";
 
 /// The argument, as a Gleam expression, that `try_main` passes to an `smain`
-/// of `kind`. The program can not read stdin, so stdin goes into the
-/// expression, read to its end as `try_main` reads it.
-fn smain_argument(kind: &str) -> String {
+/// of `kind`. The program can not read stdin or ask the host, so stdin and
+/// the env go into the expression. Stdin is read to its end as `try_main`
+/// reads it, and the time of the env is the time before the compile.
+fn smain_argument(kind: &str, args: &[String]) -> String {
     let read_lines = || std::iter::from_fn(crate::quickjs::getline).collect::<Vec<_>>();
     match kind {
         SMAIN_STDIN => gleam_string(&read_lines().join("\n")),
@@ -87,8 +92,24 @@ fn smain_argument(kind: &str) -> String {
             lines if lines.is_empty() => "[]".into(),
             lines => format!("string.split({}, \"\\n\")", gleam_string(&lines.join("\n"))),
         },
+        SMAIN_ENV => {
+            let args: Vec<_> = args.iter().map(|arg| gleam_string(arg)).collect();
+            format!(
+                "env.fake() |> env.with_args([{}]) |> env.with_random(random.new({})) \
+                 |> env.with_time({})",
+                args.join(", "),
+                host_seed(),
+                unix_time_ms()
+            )
+        }
         _ => String::new(),
     }
+}
+
+/// A seed that changes from one run to the next, in 0..2^32 as the seed of
+/// `host_seed` in the JavaScript library.
+fn host_seed() -> u32 {
+    RandomState::new().hash_one(0) as u32
 }
 
 /// A Gleam string literal with `text`.
@@ -120,10 +141,11 @@ fn launcher(module: &Module, argument: &str) -> String {
     } else {
         format!("io.println(string.inspect({call}))")
     };
-    // The alias keeps a module of the user's named `io` or `string` apart
-    // from the stdlib.
+    // The alias keeps a module of the user's named `io` or `env` apart from
+    // the modules of the launcher.
     format!(
-        "import gleam/io\nimport gleam/string\nimport {} as program\n\npub fn main() {{\n  {show}\n}}\n",
+        "import gleam/io\nimport gleam/string\nimport sgleam/env\nimport sgleam/random\n\
+         import {} as program\n\npub fn main() {{\n  {show}\n}}\n",
         module.name
     )
 }
