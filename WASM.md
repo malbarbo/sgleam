@@ -1,9 +1,15 @@
 # sgleam sobre o backend WebAssembly do gleam
 
-Proposta. Nada foi implementado. O sgleam deixa de rodar o JavaScript gerado
-pelo Gleam no QuickJS e passa a rodar o WebAssembly que o backend do fork
-`malbarbo/gleam` gera (branch `wasm-array`). O `wasm/` de hoje, que é o
-sgleam inteiro com o QuickJS compilado para `wasm32-wasip1`, sai.
+Proposta. Nada foi implementado. No navegador, o sgleam deixa de rodar o
+JavaScript gerado pelo Gleam no QuickJS e passa a rodar o WebAssembly que o
+backend do fork `malbarbo/gleam` gera (branch `wasm-array`). O `wasm/` de
+hoje, que é o sgleam inteiro com o QuickJS compilado para `wasm32-wasip1`,
+sai. O nativo continua no QuickJS por enquanto.
+
+Três revisores conferiram a primeira versão em 2026-11-05, contra o código
+e com experimentos. Os programas dos experimentos estão no scratchpad da
+sessão (`review-backend`, `review-student`). Esta versão incorpora o que
+eles acharam.
 
 ## Como é hoje
 
@@ -13,159 +19,250 @@ sgleam inteiro com o QuickJS compilado para `wasm32-wasip1`, sai.
 - As bibliotecas de `lib/sgleam/` chamam o Rust por 32 `@external(javascript,
   ...)` no `sgleam_ffi.mjs`, que chama as funções que `add_sgleam`
   (`engine/src/quickjs.rs`) registra no objeto global `sgleam`.
+- O `sgleam_ffi.mjs` faz mais que os externals. Ele tem a cola do REPL
+  (`try_main`, `repl_memo`, `has_var`, `repl_print`), o gancho
+  `gleam_inspect` do fork da stdlib (commit `67cf194`), que escreve
+  `//world` e as cores e estilos, os caminhos do usuário no `echo` e nos
+  erros, o rastro de um estouro de pilha pelos source maps, e o `check` e os
+  testes, que pegam um `panic` com try/catch e seguem.
+- O `check` usa uma reescrita do gerador de JavaScript que só o fork do
+  sgleam tem (`compiler-core/src/javascript/expression.rs:1975`), e os
+  `*_examples` são achados por reflexão no JavaScript.
 - O `wasm/` exporta o engine para o navegador na API do `ENGINE.md` do
-  simplecode, e o QuickJS roda dentro do mesmo módulo.
+  simplecode, com o `font_face` das fontes do sinteract.
 
 ## O que o backend do gleam gera
 
 - Um módulo por programa, com o programa inteiro. O compilador monomorfiza o
-  código, liga dentro do módulo as funções do `builtins-wasm` que o programa
-  usa e dá ao módulo a própria memória linear.
-- Os valores do Gleam são valores do WasmGC (structs e arrays). A memória
-  linear serve só de rascunho para o Rust do `builtins-wasm`.
-- O módulo importa só `wasi_snapshot_preview1`. Um `@external(webassembly,
-  "x.mjs", ...)` fora da stdlib importa uma função de JavaScript, e o
-  simplecode não tem como dar isso a um módulo qualquer.
-- O host precisa de WasmGC, tail calls e exceções. O V8, o SpiderMonkey, o
-  JSC e o wasmtime têm os três.
-- O sgleam usa as strings `UTF8`, que são o padrão do backend. As strings
-  `JSString` pedem os builtins `wasm:js-string`, que o wasmtime não tem e
-  que o host do simplecode não passa ao compilar um módulo.
-- A função de início do módulo só configura os builtins e cria as strings e
-  as constantes. O `main` roda pelo export `_start`, então o WASI ligado à
-  memória depois da instanciação basta.
+  código, copia para dentro do módulo as funções do `builtins-wasm` que o
+  programa usa e dá ao módulo a própria memória linear, de 17 páginas.
+- Os valores do Gleam são valores do WasmGC. A memória linear serve de
+  rascunho para o Rust do `builtins-wasm`, que a usa como uma arena. Cada
+  chamada de cola marca a arena antes e a solta depois.
+- O `link.rs` não é um ligador. Ele lê um binário só do `builtins-wasm`, por
+  `include_bytes`, e conta com uma memória, um global (o ponteiro da pilha)
+  e dados em endereços fixos, sem relocação.
+- Só os pacotes `gleam_stdlib` e `gleam_wasm_runtime` podem usar o módulo
+  `"builtins"` (`reaches_builtins`, `webassembly.rs:6669`). Um external com
+  outro nome de módulo vira uma função de JavaScript, com conversões de
+  `externref`, e o módulo passa a precisar de um host JavaScript.
+- Um módulo só com WASI importa `fd_write` e `proc_exit`, e mais o que o
+  programa usar. Um `panic`, um `todo` ou um `let assert` escrevem
+  `let_assert at src/a.gleam:4` e a mensagem no fd 2, e chamam
+  `proc_exit(1)`. Nada disso dá trap.
+- O `echo` escreve no fd 2, sempre com cor, e com o caminho relativo ao
+  pacote.
+- O host precisa de WasmGC e tail calls. O código gerado não usa exceções,
+  mas o desenho do `check` abaixo pode passar a usar.
+- O sgleam usa as strings `UTF8`, que são o padrão. As `JSString` pedem os
+  builtins `wasm:js-string`, que o host do simplecode não dá.
+- A função de início só configura os builtins e cria as strings e as
+  constantes, sem WASI. O `main` roda pelo export `_start`.
+- O `gleam-core` com o backend compila para `wasm32-wasip1` sem mudança
+  (`cargo build -p gleam-core --target wasm32-wasip1`), desde que o binário
+  do `builtins-wasm` já esteja feito.
 
 ## A proposta
 
-### O compilador dentro do `sgleam.wasm`
+### Uma instância de runtime e uma instância por entrada
 
-O `sgleam.wasm` passa a ter o compilador e mais nada. Ele compila o arquivo e
-cada entrada do REPL para um módulo wasm e pede ao host que o instancie e o
-chame. O host faz isso pelas primitivas genéricas do `env` que o `sc` já
-usa (abaixo). O `sgleam.wasm` perde o QuickJS e fica com o `gleam-core`, o
-`walrus` e o binário do `builtins-wasm` embutido.
+O `sgleam.wasm` tem o compilador, as fontes do `font_face` e um binário de
+runtime embutido. O runtime é o `builtins-wasm` junto com o Rust do sgleam,
+num cdylib só, com a memória linear e o estado que dura entre chamadas. O
+engine instancia o runtime uma vez por sessão.
+
+Cada programa e cada entrada do REPL viram um módulo sem memória própria. O
+módulo importa do runtime a memória e as funções do Rust, pelo tipo 1 do
+`wasm_instantiate`. O WASI do host já sabe ler a memória importada. Assim
+uma entrada não custa 1,1 MB de memória, e duzentas entradas não custam
+duzentas memórias.
+
+Isso pede ao fork um modo em que o `link.rs` importa as funções do runtime
+em vez de copiá-las para dentro do módulo.
+
+### O Rust do sgleam
+
+Os externals de `lib/sgleam/` passam a ser `@external(webassembly,
+"builtins", ...)`. O crate `sgleam-builtins` depende do `builtins-wasm` como
+biblioteca e gera o cdylib do runtime. O fork recebe pelo
+`WebAssemblyConfig` os bytes do runtime e a lista dos pacotes que podem usar
+o módulo `"builtins"`, que passa a incluir o `sgleam`.
+
+A arena é o alocador global do `builtins-wasm`, e cada chamada a solta no
+fim. O estado que dura entre chamadas, como a sessão do mundo, o relógio e
+os bitmaps de um `Loaded`, precisa de um alocador próprio fora da arena.
+
+O sinteract abre a sessão no fd 3 e no fd 4 só com `target_os = "wasi"`, e
+usa `std::fs::File` e `std::time::Instant`, que não existem em
+`wasm32-unknown-unknown`. O runtime chama o WASI direto, pelo crate `wasi`,
+como o `builtins-wasm/src/io.rs` já faz, e o sinteract ganha um caminho sem
+o `std::time`.
+
+O ABI da cola só passa números, `String`, `List`, tuplas e `Result`. Uma
+`Image` continua uma árvore Gleam, e o `==` continua estrutural
+(`check_image_trees`). O Gleam escreve a árvore num formato plano antes de
+chamar o Rust. O commit 2 do `IMAGE.md`, que troca a árvore por uma classe
+opaca do rquickjs, precisa ser reescrito para o wasm.
+
+O `random.coerce` é a identidade no JavaScript (`random.gleam:217`). Com a
+monomorfização, ele não tem equivalente, e o mock do `random.gleam` precisa
+de outro desenho.
 
 ### O REPL
 
-Cada entrada continua um módulo, como hoje no JavaScript. A entrada N+1
-importa da instância da entrada N as funções que devolvem os valores das
-variáveis, com o tipo GC delas. O WasmGC identifica dois grupos recursivos
-iguais em módulos diferentes, então o tipo de um valor da entrada N é o
-mesmo tipo na entrada N+1 desde que o compilador emita o tipo sempre igual.
-Nenhum valor GC passa pelo host. A entrada mostra o próprio resultado pelo
-`fd_write`.
+O backend monomorfiza, então a entrada N+1 não pode chamar uma função
+genérica da entrada N num tipo novo. Cada entrada compila de novo, como
+fonte, todas as definições do REPL (`fn`, `type`, `const`), como o
+`build_source` já faz. Só os valores dos `let` passam de uma instância para
+outra.
 
-Isso pede ao fork um tipo wasm determinado pelo nome qualificado do tipo
-Gleam. Hoje o backend usa o nome impresso, que não é injetivo (item 1 do
-`WASM_REVIEW.md` do gleam). A correção que a revisão propõe serve aos dois.
+O fork ganha um tipo de import novo, com um nome de módulo como `repl:N`,
+que importa um valor com o tipo GC dele, sem conversão e sem tornar o
+módulo um módulo de host JavaScript. São cerca de 100 a 200 linhas no
+`host.rs` e na validação.
 
-Cada entrada carrega a própria cópia do que usa da stdlib e do
-`builtins-wasm`. O tamanho e o tempo de compilação de uma entrada precisam
-ser medidos antes do passo 4.
+O WasmGC identifica dois grupos recursivos iguais pela estrutura. O que o
+backend emite serve, mas o `rec_group_from` (`webassembly.rs:2784`) ordena
+os membros de um grupo pela ordem de criação. Com `type A { A(fn() -> B) }`
+e `type B { B(fn() -> A) }`, o `A` de um programa vira o `B` do outro. O
+fork passa a ordenar os membros de cada grupo pelo nome qualificado.
 
-### As bibliotecas do sgleam
+Uma variável de tipo sem ligação vira `Never`. Um `let id = fn(a) { a }`
+sai como `fn(Never) -> Never` e não pode ser importado depois num tipo
+concreto. Isso fica nas questões abertas.
 
-Os 32 externals de `lib/sgleam/` não podem continuar em JavaScript. A
-proposta é um crate `sgleam-builtins`, compilado para
-`wasm32-unknown-unknown` como o `builtins-wasm`, com o que o FFI faz hoje em
-Rust: as imagens do `sinteract::image`, o SVG, a cena, a semente e o
-relógio. O fork passa a ligar ao programa as funções de mais de um binário
-de builtins, e o sgleam dá o seu. Os externals de `lib/sgleam/` viram
-`@external(webassembly, "sgleam", ...)`.
+O sgleam compila hoje o código do usuário, a stdlib e o `lib/sgleam` como um
+pacote só, com o nome `""` (`engine/src/gleam.rs:148`). Com o backend, a
+stdlib passa a ser o pacote `gleam_stdlib`, e o REPL guarda os `Module`
+tipados de todas as dependências, não só as `ModuleInterface`.
 
-O ABI da cola só passa números, `String`, `List`, tuplas e `Result`. Uma
-`Image` é uma árvore Gleam, então o Gleam a escreve num formato plano antes
-de chamar o Rust. Isso conversa com o `IMAGE.md`, que também leva as
-imagens para o `sinteract::image`, e as duas mudanças devem ser feitas
-juntas.
+Um `panic` numa entrada volta como `EXIT` com código 1. O REPL o trata como
+erro daquela entrada, e a sessão continua.
 
-O mundo usa a sessão do sinteract nos fd 3 e fd 4 pelo WASI, como hoje. O
-programa a abre pelo `fd_write` do próprio módulo.
+### O `check` e os testes
+
+Hoje um `panic` dentro de um `check` não encerra o programa. No wasm, o
+`panic` chama `proc_exit`. O fork ganha três coisas:
+
+- a reescrita do `check`, que hoje só existe no gerador de JavaScript;
+- uma lista dos `*_examples` exportada pelo módulo, no lugar da reflexão;
+- um `panic` que o `check` consegue pegar. A proposta é o `panic` lançar uma
+  exceção wasm com uma tag, e o `check` a pegar com `try_table`. Assim o
+  host precisa de exceções. A alternativa é um `wasm_call` por teste, que
+  não serve para vários `check` dentro de uma mesma função.
+
+### O que o aluno vê
+
+- O `echo` e os erros dizem o caminho que o aluno deu. O fork recebe os
+  caminhos como opção, e o REPL recebe a linha da entrada.
+- A cor do `echo` e dos erros segue o `color_stdout` e o `color_stderr`. O
+  fork recebe a decisão como opção, e o `echo` volta para o stdout.
+- O cabeçalho do erro mantém a forma do sgleam (`Error at a.gleam (f:3)`),
+  e não o `let_assert at`. O `assert` mostra o operador e os dois lados, e
+  o `let assert` mostra o valor, como hoje. O fork precisa guardar esses
+  valores.
+- O inspect escreve os rótulos dos campos, e o gancho do inspect escreve
+  `//world`, as cores e os estilos como hoje.
+- O estouro de pilha vira a mensagem do sgleam (`Stack overflow` e as
+  funções), tirada da seção de nomes, sem os 20 endereços do trap. O wasm
+  não tem linhas, então a mensagem diz só a função.
+- O wasm é de 10 a 30 vezes mais rápido. `fib(30)` sai em 0,02 s no
+  wasmtime, contra 0,55 s no sgleam nativo.
+
+### A pilha
+
+No Node e no Deno, uma recursão que não é de cauda passa de 5.000 níveis e
+falha antes de 10.000 com o código frio. Depois que o V8 otimiza a função,
+ela chega a 70.000. Uma entrada do REPL é sempre um módulo novo, então o
+aluno vê sempre o caso frio. O navegador de hoje falha antes, entre 2.000 e
+4.000, e o sgleam nativo chega a 88.000. A pilha do worker do navegador não
+pode ser configurada. O limite precisa ser medido no worker real do
+simplecode, no Chrome e no Firefox, e documentado.
 
 ### A API do `env` no simplecode
 
-Combinada com o agente do `sc` em 2026-11-05. O `ENGINE.md` de hoje permite
-no `env` só o `check_interrupt` e o `draw_svg`. Ele passa a ter também as
-primitivas genéricas que o `sc.wasm` já importa (`sc/src/loader/host.rs`), e
-a exigir do host WasmGC, tail calls e exceções. O agente do `sc` escreve a
-seção do `ENGINE.md` e o `env.ts` do simplecode.
+Combinada com o agente do `sc` em 2026-11-05 e escrita por ele no
+`ENGINE.md` e no `src/wasm_host.ts` do simplecode, ainda sem commit lá.
 
 - `wasm_instantiate(bytes, len, slots, n, out) -> status`. Cada import tem
   um slot `{u32 kind, i32 value}`, na ordem dos imports. O tipo 0 é o padrão
-  do host, o 1 é o handle em `value` (um export de outra instância, como
-  vem), o 2 é um global i32 constante e o 3 é um global i32 mutável novo.
+  do host, o 1 é o handle em `value`, o 2 é um global i32 constante e o 3 é
+  um global i32 mutável novo. O detalhe de uma falha fica em `*out`.
 - `wasm_export(inst, name, len) -> handle`, com 0 se o nome não existe. A
-  instância 0 é a do próprio engine.
+  instância 0 é a do próprio engine. Cada resposta é um handle novo, então
+  o engine guarda um handle por export.
 - `wasm_call(func, sig, sig_len, vals) -> status`. A assinatura é
-  `params:results` com `i j f d r`, e os resultados ficam em `vals`.
-- `wasm_error(buf, cap)` dá a mensagem do último `ERROR`.
-- `wasm_drop(handle)` solta uma instância, um export ou um global.
-- O status é `OK`, `TRAP` (com o tipo em `vals[0]`, 1 para interrupção),
-  `EXIT` (com o código do `proc_exit`), `STOP` e `ERROR`.
-- `wasm_frames`, `wasm_memory_read` e `wasm_memory_write` são do `sc`. O
-  sgleam não os usa.
+  `params:results` com `i j f d r`.
+- `wasm_error`, `wasm_drop`, e `wasm_frames`, `wasm_memory_read` e
+  `wasm_memory_write`, que o sgleam não usa.
+- O status é `OK`, `TRAP` (com o tipo em `vals[0]`), `EXIT` (com o código
+  do `proc_exit`), `STOP` e `ERROR`.
+- O tipo 0 vale para o WASI, para o `env.check_interrupt` e para o
+  `env.wasm_stack`. Uma função do WASI que o host não tem responde `ENOSYS`.
 
-O REPL liga a entrada N+1 à entrada N pelo tipo 1, com os handles dos
-exports da entrada N. O tipo 0 num import de `wasi_snapshot_preview1` é o
-WASI do host. Num módulo que não importa memória, como os do Gleam, o host
-liga esse WASI à `memory` que o módulo exporta, depois de instanciá-lo.
-Assim a função de início do módulo não pode usar o WASI, e o sgleam não
-precisa disso, porque chama o `run` da entrada depois. Todas as instâncias
-dividem os fd 0, 1 e 2 com o engine. O tipo 0 em `env.check_interrupt` é o
-`check_interrupt` do host.
+Falta uma coisa para o sgleam. Uma entrada que mostra uma imagem chama o
+`env.draw_svg`, que hoje é só do engine e lê a memória dele. O tipo 0 em
+`env.draw_svg` passa a ler a memória do módulo que chama, como o WASI faz.
 
 ### O Stop
 
-O código gerado consulta o `env.check_interrupt` sem chamar o host a cada
-passo. Um global conta as entradas de função, e quando chega a zero o código
-chama o `check_interrupt` e volta a contar. O Gleam não tem laços, então a
-entrada de função basta. Com 1, o código dá `unreachable`, o `wasm_call`
-volta com um trap, e o `sgleam.wasm` chama o `check_interrupt` para separar
-o Stop de um erro. Um host que para a chamada sozinho, como o wasmtime com
-épocas, devolve `STOP`, e o engine trata os dois casos do mesmo jeito. O
+Um global conta as entradas de função, e quando chega a zero o código chama
+o `env.check_interrupt` e volta a contar. O código Gleam gerado não tem
+laços, e uma chamada de cauda (`return_call`) passa pela entrada da função
+chamada, então a entrada de função basta. Os laços estão só nos builtins,
+como `_i64_to_str`, e uma chamada longa de um builtin não para no meio. O
 fork ganha uma opção para emitir a contagem.
 
-Se o Stop não tiver resposta em cerca de um segundo, o host encerra o
-worker, abre outro e carrega de novo o código do editor, como o Run faz. O
-REPL avisa que as entradas se perderam. O host não refaz as entradas, porque
-isso repetiria a saída e as leituras do stdin delas.
-
-### O nativo
-
-Duas escolhas:
-
-- O `sgleam` nativo roda o mesmo wasm no wasmtime, e o QuickJS sai do
-  projeto. A linguagem tem uma semântica só. O `Int` é inteiro de 64 bits
-  nos dois lados, e não um `Number` do JavaScript em um e inteiro no outro.
-  O `sc` já roda um wasmtime mínimo com JIT.
-- O nativo continua no QuickJS, e só o navegador muda. É menos trabalho
-  agora, e o mesmo programa pode dar resultados diferentes na página e no
-  terminal.
-
-A recomendação é a primeira.
+Com 1, o código dá `unreachable`, e o engine chama o `check_interrupt` para
+separar o Stop de um estouro de pilha ou de outro trap. Se o Stop não tiver
+resposta em um segundo, o host encerra o worker e abre outro, e o REPL
+avisa que as entradas se perderam.
 
 ## Passos
 
-1. O `sc` escreve a API do `env` no `ENGINE.md` e no `env.ts` do
-   simplecode, e o sgleam a testa com o próprio backend.
-2. No fork, compilar o `gleam-core` com o backend wasm para
-   `wasm32-wasip1`, e corrigir os bugs altos do `WASM_REVIEW.md`.
-3. `sgleam` roda um arquivo sem as bibliotecas do sgleam pelo wasmtime, e
-   os testes de `cli/tests/inputs` que não as usam passam.
-4. O `sgleam-builtins` e os externals de `lib/sgleam/`, junto com o
-   `IMAGE.md`.
-5. O REPL com uma instância por entrada.
-6. O `wasm/` sobre as primitivas do `env`, e os testes do Deno com um host
-   que as implementa.
-7. Remover o `rquickjs` e o `sgleam_ffi.mjs`.
+1. O host do simplecode dá o `env.draw_svg` no tipo 0, lendo a memória do
+   módulo que chama.
+2. No fork, o runtime pelo `WebAssemblyConfig`, a lista de pacotes que podem
+   usar `"builtins"`, e o modo em que o módulo importa o runtime.
+3. No sgleam, a stdlib como o pacote `gleam_stdlib`, e um arquivo sem as
+   bibliotecas do sgleam roda no `wasmtime`. Os testes de
+   `cli/tests/inputs` que não as usam passam, com os snapshots revistos.
+4. No fork, os caminhos, a cor, o cabeçalho e os valores dos erros, os
+   rótulos e o gancho do inspect, a reescrita do `check`, a lista dos
+   `*_examples` e o `panic` que pode ser pego.
+5. O `sgleam-builtins`, com o alocador do estado e o sinteract sem
+   `std::time`, e os externals de `lib/sgleam/`, junto com o `IMAGE.md`
+   reescrito.
+6. No fork, o import `repl:N`, a ordem dos grupos recursivos e a opção do
+   Stop. Antes do REPL, medir no navegador o tempo de compilação de uma
+   entrada, já que o compilador roda dentro do `sgleam.wasm`, e a memória
+   de uma sessão longa.
+7. O REPL com uma instância por entrada.
+8. O `wasm/` sobre as primitivas do `env`, com o `font_face`, e os testes do
+   Deno com um host que as implementa. Medir a pilha no worker real.
+9. Remover do `wasm/` o `rquickjs`. O nativo continua com ele.
 
 ## Decisões
 
 - O nativo fica para depois de medir o tempo de compilação de uma entrada
   no wasmtime (decidido em 2026-11-05). O navegador muda primeiro.
-- O `Int` e o `Float` têm 64 bits (decidido em 2026-11-05). A soma e a
-  multiplicação de `Int` dão a volta no estouro, sem erro.
+- O `Float` tem 64 bits (decidido em 2026-11-05).
 - O REPL, o `echo` e o `string.inspect` escrevem os rótulos dos campos,
-  como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05). O backend wasm hoje
-  escreve `Ponto(1, 2.0)`, e o fork passa a guardar os rótulos junto do
-  nome do construtor.
+  como `Ponto(x: 1, y: 2.0)` (decidido em 2026-11-05).
+
+## Questões abertas
+
+- O `Int`. A decisão de 64 bits com volta no estouro foi tomada contra uma
+  informação errada. O padrão do sgleam hoje é BigInt, que é exato, e não
+  um `Number` do JavaScript. Com 64 bits, `fat(21)` dá
+  `-4249290049419214848`, `int.bitwise_shift_left(1, 70)` dá 0,
+  `float.truncate(1.0e30)` satura em silêncio,
+  `int.absolute_value(min)` dá `min` e `int.parse` de um número grande dá
+  `Error(Nil)`.
+- Enquanto o nativo usa o QuickJS, a ordem de um `dict` muda entre o
+  terminal e a página. `dict.keys` das mesmas chaves sai em ordens
+  diferentes. A documentação diz que a ordem não é definida, ou o sgleam a
+  fixa.
+- Como o REPL guarda um `let` cujo tipo tem uma variável sem ligação.
+- O `:debug` mostra hoje o `.mjs` gerado. No wasm, mostra o texto do módulo
+  ou sai. O `:time` passa a incluir a compilação e a instanciação.
