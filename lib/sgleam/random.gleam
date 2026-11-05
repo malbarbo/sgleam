@@ -211,8 +211,40 @@ fn is_permutation(items: List(a), result: List(a)) -> Bool {
   }
 }
 
+/// The body is the mulberry32 of `random_step`, for the WebAssembly target.
+/// Int has 64 bits there, so each operation keeps the low 32 of its result.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "random_step")
-fn step(state: Int) -> #(Float, Int)
+fn step(state: Int) -> #(Float, Int) {
+  let #(high, state) = mulberry32(u32(state))
+  let #(low, state) = mulberry32(state)
+  let high = int.bitwise_shift_right(high, 5)
+  let low = int.bitwise_shift_right(low, 6)
+  #(int.to_float(high * 67_108_864 + low) /. 9_007_199_254_740_992.0, state)
+}
+
+/// The next 32 bits of mulberry32 from `state`, and the next state.
+fn mulberry32(state: Int) -> #(Int, Int) {
+  let state = u32(state + 0x6d2b79f5)
+  let t = mul32(xor_shift(state, 15), int.bitwise_or(state, 1))
+  let t =
+    int.bitwise_exclusive_or(
+      t,
+      u32(t + mul32(xor_shift(t, 7), int.bitwise_or(t, 61))),
+    )
+  #(xor_shift(t, 14), state)
+}
+
+fn xor_shift(x: Int, bits: Int) -> Int {
+  int.bitwise_exclusive_or(x, int.bitwise_shift_right(x, bits))
+}
+
+fn mul32(a: Int, b: Int) -> Int {
+  u32(a * b)
+}
+
+fn u32(x: Int) -> Int {
+  int.bitwise_and(x, 0xffffffff)
+}
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "coerce")
 fn coerce(value: a) -> b
