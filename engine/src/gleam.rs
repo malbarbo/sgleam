@@ -15,11 +15,11 @@ use gleam_core::{
     parse::parse_module,
     requirement::Requirement,
     type_::{
-        Type,
+        ModuleInterface, Type,
         printer::{Names, Printer},
     },
     uid::UniqueIdGenerator,
-    warning::{VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
+    warning::{NullWarningEmitterIO, VectorWarningEmitterIO, WarningEmitter, WarningEmitterIO},
 };
 use src_span::SrcSpan;
 use std::{
@@ -37,15 +37,26 @@ use crate::{GLEAM_STDLIB, error::show_diagnostics};
 #[derive(Clone)]
 pub struct Project {
     pub fs: InMemoryFileSystem,
+    stdlib: imbl::HashMap<EcoString, ModuleInterface>,
+    /// One generator for every package, as an interface keeps the ids of its
+    /// type variables and the next package must not reuse them.
+    ids: UniqueIdGenerator,
 }
 
 impl Default for Project {
     fn default() -> Project {
         let mut project = Project {
             fs: InMemoryFileSystem::new(),
+            stdlib: imbl::HashMap::new(),
+            ids: UniqueIdGenerator::new(),
         };
 
-        extract_tar(&mut project.fs, GLEAM_STDLIB).expect("Extract stdlib");
+        extract_tar(
+            &mut project.fs,
+            GLEAM_STDLIB,
+            format!("{}/src", Project::stdlib_root()).as_ref(),
+        )
+        .expect("Extract stdlib");
 
         for path in crate::SgleamLib::iter() {
             let file = crate::SgleamLib::get(&path).expect("Read an embedded sgleam file");
@@ -54,6 +65,7 @@ impl Default for Project {
         }
 
         project.write_out("prelude.mjs", gleam_core::javascript::PRELUDE);
+        project.stdlib = project.compile_stdlib();
         project
     }
 }
@@ -69,6 +81,32 @@ impl Project {
 
     pub fn out() -> &'static Utf8Path {
         "/build".into()
+    }
+
+    fn stdlib_root() -> &'static Utf8Path {
+        "/stdlib".into()
+    }
+
+    /// The JavaScript of the user's modules imports the stdlib from
+    /// `../gleam_stdlib`, next to their output root.
+    fn stdlib_out() -> &'static Utf8Path {
+        "/gleam_stdlib".into()
+    }
+
+    /// The module that the JavaScript file at `path` holds, or `None` if the
+    /// file is not the output of a module.
+    pub fn out_module(path: &Utf8Path) -> Option<&str> {
+        [Project::out(), Project::stdlib_out()]
+            .iter()
+            .find_map(|out| path.strip_prefix(out).ok())?
+            .as_str()
+            .strip_suffix(".mjs")
+    }
+
+    /// The interfaces of the stdlib modules, which a compilation of the user's
+    /// package starts from.
+    pub fn stdlib_modules(&self) -> imbl::HashMap<EcoString, ModuleInterface> {
+        self.stdlib.clone()
     }
 
     /// The path the compiled JavaScript uses for a source file: relative to the
@@ -135,30 +173,69 @@ impl Project {
     pub fn compile(&mut self, repl: bool) -> Result<Vec<Module>, Error> {
         self.compile_with_modules(
             Rc::new(ConsoleWarningEmitter::with_repl(repl)),
-            &mut imbl::HashMap::new(),
+            &mut self.stdlib_modules(),
             &mut imbl::HashMap::new(),
         )
+    }
+
+    /// The stdlib is its own package, as only `gleam_stdlib` can call the
+    /// builtins of the webassembly backend. Its warnings are not the user's.
+    fn compile_stdlib(&self) -> imbl::HashMap<EcoString, ModuleInterface> {
+        let config = PackageConfig {
+            name: "gleam_stdlib".into(),
+            target: Target::JavaScript,
+            ..Default::default()
+        };
+        let mut modules = imbl::HashMap::new();
+        self.compile_package(
+            &config,
+            Project::stdlib_root(),
+            Project::stdlib_out(),
+            Rc::new(NullWarningEmitterIO),
+            &mut modules,
+            &mut imbl::HashMap::new(),
+        )
+        .expect("Compile the stdlib");
+        modules
     }
 
     pub fn compile_with_modules(
         &mut self,
         warnings: Rc<dyn WarningEmitterIO>,
-        existing_modules: &mut imbl::HashMap<EcoString, gleam_core::type_::ModuleInterface>,
+        existing_modules: &mut imbl::HashMap<EcoString, ModuleInterface>,
         defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
-        // The stdlib is in this package, but echo looks for a dict only when
-        // gleam_stdlib is a dependency. Its import goes back to this package
-        // in `resolve_path`.
+        // echo shows a dict only when gleam_stdlib is a dependency.
         let config = PackageConfig {
             target: Target::JavaScript,
             dependencies: [(
                 "gleam_stdlib".into(),
-                Requirement::Path { path: "/".into() },
+                Requirement::Path {
+                    path: Project::stdlib_root().into(),
+                },
             )]
             .into(),
             ..Default::default()
         };
+        self.compile_package(
+            &config,
+            Project::root(),
+            Project::out(),
+            warnings,
+            existing_modules,
+            defined_modules,
+        )
+    }
 
+    fn compile_package(
+        &self,
+        config: &PackageConfig,
+        root: &Utf8Path,
+        out: &Utf8Path,
+        warnings: Rc<dyn WarningEmitterIO>,
+        existing_modules: &mut imbl::HashMap<EcoString, ModuleInterface>,
+        defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
+    ) -> Result<Vec<Module>, Error> {
         let target = TargetCodegenConfiguration::JavaScript {
             emit_typescript_definitions: false,
             emit_source_maps: true,
@@ -166,13 +243,13 @@ impl Project {
         };
 
         let mut compiler = PackageCompiler::new(
-            &config,
+            config,
             Mode::Dev,
-            Project::root(),
-            Project::out(),
-            Project::out(),
+            root,
+            out,
+            out,
             &target,
-            UniqueIdGenerator::new(),
+            self.ids.clone(),
             self.fs.clone(),
         );
 
@@ -407,7 +484,7 @@ fn validate_path(path: &Utf8Path) -> bool {
     true
 }
 
-fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8]) -> Result<(), Error> {
+fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8], dir: &Utf8Path) -> Result<(), Error> {
     let decoder = GzDecoder::new(data);
     let mut arch = Archive::new(decoder);
     let mut buf = vec![];
@@ -416,7 +493,7 @@ fn extract_tar(fs: &mut InMemoryFileSystem, data: &[u8]) -> Result<(), Error> {
         let is_dir = entry.header().entry_type().is_dir();
         let entry_path = entry.path().map_err(to_error_stdio)?.into_owned();
         let entry_path = Utf8PathBuf::from_path_buf(entry_path).map_err(to_error_nonutf8_path)?;
-        let path = Project::source_file(entry_path.as_str());
+        let path = Utf8PathBuf::from(format!("{dir}/{entry_path}"));
         if is_dir {
             fs.mkdir(&path)?;
         } else {

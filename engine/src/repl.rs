@@ -155,8 +155,8 @@ impl<E: Engine> Repl<E> {
         );
         let mut repl = Repl {
             scope: Scope::default(),
+            existing_modules: project.stdlib_modules(),
             project,
-            existing_modules: imbl::HashMap::new(),
             engine,
             input_number: 0,
             item_number: 0,

@@ -352,11 +352,7 @@ fn source_location(
     line: u32,
     column: u32,
 ) -> Option<(String, u32)> {
-    let module = Utf8Path::new(&path)
-        .strip_prefix(Project::out())
-        .ok()?
-        .as_str()
-        .strip_suffix(".mjs")?;
+    let module = Project::out_module(Utf8Path::new(&path))?;
     let map = fs.read(format!("{path}.map").as_str().into()).ok()?;
     let map = SourceMap::from_slice(map.as_bytes()).ok()?;
     let token = map.lookup_token(line.checked_sub(1)?, column.checked_sub(1)?)?;
@@ -473,12 +469,7 @@ fn resolve_path(base: &str, name: &str) -> Option<String> {
             part => parts.push(part),
         }
     }
-    let path = parts.join("/");
-    // The stdlib is compiled with the user's modules, in the same directory.
-    Some(match path.strip_prefix("/gleam_stdlib/") {
-        Some(module) => format!("{}/{module}", Project::out()),
-        None => path,
-    })
+    Some(parts.join("/"))
 }
 
 struct ScriptLoader {
@@ -523,7 +514,7 @@ mod tests {
         assert_eq!(resolve_path("eval_script", "./b.mjs"), None);
         assert_eq!(
             resolve("/build/b.mjs", "../gleam_stdlib/gleam/dict.mjs"),
-            "/build/gleam/dict.mjs"
+            "/gleam_stdlib/gleam/dict.mjs"
         );
     }
 
