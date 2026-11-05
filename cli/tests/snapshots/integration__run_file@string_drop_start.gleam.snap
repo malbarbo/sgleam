@@ -1,0 +1,9 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+string_drop_start.gleam:4
+"ão"
+string_drop_start.gleam:5
+"abc"
+STDERR
