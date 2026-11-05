@@ -129,7 +129,7 @@ fork passa a ordenar os membros de cada grupo pelo nome qualificado.
 
 Uma variável de tipo sem ligação vira `Never`. Um `let id = fn(a) { a }`
 sai como `fn(Never) -> Never` e não pode ser importado depois num tipo
-concreto. Isso fica nas questões abertas.
+concreto. O primeiro uso fixa o tipo (veja as decisões).
 
 O sgleam compila hoje o código do usuário, a stdlib e o `lib/sgleam` como um
 pacote só, com o nome `""` (`engine/src/gleam.rs:148`). Com o backend, a
@@ -256,6 +256,11 @@ avisa que as entradas se perderam.
   multiplicação, o `MIN / -1`, o `absolute_value` e os deslocamentos, e o
   `float.truncate` e o `float.round` de um valor fora do alcance. O
   `int.parse` de um número grande continua `Error(Nil)`.
+- Um `let` do REPL cujo tipo ainda é genérico, como `let xs = []`, tem o
+  tipo fixado pelo primeiro uso (decidido em 2026-11-05). Depois de
+  `[1, ..xs]`, `["a", ..xs]` é um erro de tipo. Hoje o sgleam aceita os dois.
+  A entrada que fixa o tipo calcula a expressão de novo nesse tipo, uma vez,
+  e as seguintes importam esse valor.
 - A ordem de um `dict` pode mudar entre o terminal e a página enquanto o
   nativo usa o QuickJS (decidido em 2026-11-05). Ela já muda entre os
   backends do Gleam, e o sgleam não faz nada a respeito.
@@ -264,6 +269,5 @@ avisa que as entradas se perderam.
 
 ## Questões abertas
 
-- Como o REPL guarda um `let` cujo tipo tem uma variável sem ligação.
 - O `:debug` mostra hoje o `.mjs` gerado. No wasm, mostra o texto do módulo
   ou sai. O `:time` passa a incluir a compilação e a instanciação.
