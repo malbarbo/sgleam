@@ -8,10 +8,10 @@ use gleam_core::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
     },
-    config::PackageConfig,
+    config::{PackageConfig, WasmFloat, WasmInt, WebAssemblyConfig},
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
-    io::{FileSystemWriter, memory::InMemoryFileSystem},
+    io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
     parse::parse_module,
     requirement::Requirement,
     type_::{
@@ -189,6 +189,8 @@ impl Project {
         let mut modules = imbl::HashMap::new();
         self.compile_package(
             &config,
+            &Project::javascript(),
+            &[],
             Project::stdlib_root(),
             Project::stdlib_out(),
             Rc::new(NullWarningEmitterIO),
@@ -205,20 +207,10 @@ impl Project {
         existing_modules: &mut imbl::HashMap<EcoString, ModuleInterface>,
         defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
-        // echo shows a dict only when gleam_stdlib is a dependency.
-        let config = PackageConfig {
-            target: Target::JavaScript,
-            dependencies: [(
-                "gleam_stdlib".into(),
-                Requirement::Path {
-                    path: Project::stdlib_root().into(),
-                },
-            )]
-            .into(),
-            ..Default::default()
-        };
         self.compile_package(
-            &config,
+            &Project::user_config(Target::JavaScript),
+            &Project::javascript(),
+            &[],
             Project::root(),
             Project::out(),
             warnings,
@@ -227,33 +219,108 @@ impl Project {
         )
     }
 
+    /// Compiles the stdlib and the user's package to WebAssembly, which gives
+    /// a program for each module of the user's package.
+    pub fn compile_webassembly(&self) -> Result<Vec<Module>, Error> {
+        let config = WebAssemblyConfig {
+            int: WasmInt::I64,
+            float: WasmFloat::F64,
+            ..Default::default()
+        };
+        let stdlib_config = PackageConfig {
+            name: "gleam_stdlib".into(),
+            target: Target::WebAssembly,
+            ..Default::default()
+        };
+        let mut modules = imbl::HashMap::new();
+        let stdlib = self.compile_package(
+            &stdlib_config,
+            &TargetCodegenConfiguration::WebAssembly {
+                config,
+                programs: false,
+            },
+            &[],
+            Project::stdlib_root(),
+            &Project::webassembly_out("gleam_stdlib"),
+            Rc::new(NullWarningEmitterIO),
+            &mut modules,
+            &mut imbl::HashMap::new(),
+        )?;
+        self.compile_package(
+            &Project::user_config(Target::WebAssembly),
+            &TargetCodegenConfiguration::WebAssembly {
+                config,
+                programs: true,
+            },
+            &stdlib,
+            Project::root(),
+            &Project::webassembly_out("build"),
+            Rc::new(ConsoleWarningEmitter::with_repl(false)),
+            &mut modules,
+            &mut imbl::HashMap::new(),
+        )
+    }
+
+    /// The program that `compile_webassembly` wrote for `module`.
+    pub fn read_webassembly(&self, module: &str) -> Result<Vec<u8>, Error> {
+        let path = format!("{}/{module}.wasm", Project::webassembly_out("build"));
+        self.fs.read_bytes(Utf8Path::new(&path))
+    }
+
+    /// The output root of the package `name` on WebAssembly, separated with
+    /// `/` as `source_file` is.
+    fn webassembly_out(name: &str) -> Utf8PathBuf {
+        format!("/webassembly/{name}").into()
+    }
+
+    fn javascript() -> TargetCodegenConfiguration {
+        TargetCodegenConfiguration::JavaScript {
+            emit_typescript_definitions: false,
+            emit_source_maps: true,
+            prelude_location: Project::prelude().into(),
+        }
+    }
+
+    fn user_config(target: Target) -> PackageConfig {
+        // echo shows a dict only when gleam_stdlib is a dependency.
+        PackageConfig {
+            target,
+            dependencies: [(
+                "gleam_stdlib".into(),
+                Requirement::Path {
+                    path: Project::stdlib_root().into(),
+                },
+            )]
+            .into(),
+            ..Default::default()
+        }
+    }
+
+    #[allow(clippy::too_many_arguments)]
     fn compile_package(
         &self,
         config: &PackageConfig,
+        target: &TargetCodegenConfiguration,
+        webassembly_dependencies: &[Module],
         root: &Utf8Path,
         out: &Utf8Path,
         warnings: Rc<dyn WarningEmitterIO>,
         existing_modules: &mut imbl::HashMap<EcoString, ModuleInterface>,
         defined_modules: &mut imbl::HashMap<EcoString, DefinedModuleOrigin>,
     ) -> Result<Vec<Module>, Error> {
-        let target = TargetCodegenConfiguration::JavaScript {
-            emit_typescript_definitions: false,
-            emit_source_maps: true,
-            prelude_location: Project::prelude().into(),
-        };
-
         let mut compiler = PackageCompiler::new(
             config,
             Mode::Dev,
             root,
             out,
             out,
-            &target,
+            target,
             self.ids.clone(),
             self.fs.clone(),
         );
 
         compiler.write_metadata = true;
+        compiler.webassembly_dependencies = webassembly_dependencies;
 
         compiler
             .compile(
