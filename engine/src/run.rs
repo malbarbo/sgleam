@@ -43,7 +43,7 @@ pub fn run_module(
     options: HostOptions,
     args: Vec<String>,
 ) -> Result<(), SgleamError> {
-    let main = get_main(module).map_err(|err| match err {
+    let main = get_main(module, Target::JavaScript).map_err(|err| match err {
         SgleamError::Gleam(gleam_core::Error::ModuleDoesNotHaveMainFunction { module, .. }) => {
             SgleamError::NoMainFunction {
                 module,
@@ -144,18 +144,18 @@ pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
     },
 ];
 
-fn get_main(module: &Module) -> Result<MainFunction, SgleamError> {
-    match get_smain(module) {
+fn get_main(module: &Module, target: Target) -> Result<MainFunction, SgleamError> {
+    match get_smain(module, target) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
         _ => Ok(module
             .ast
             .type_info
-            .get_main_function(Target::JavaScript)
+            .get_main_function(target)
             .map(|_| MainFunction::Main)?),
     }
 }
 
-fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
+fn get_smain(module: &Module, target: Target) -> Result<MainFunction, SgleamError> {
     let smain = get_function(module, SMAIN).ok_or_else(|| {
         gleam_core::Error::ModuleDoesNotHaveMainFunction {
             module: module.name.clone(),
@@ -163,10 +163,10 @@ fn get_smain(module: &Module) -> Result<MainFunction, SgleamError> {
         }
     })?;
 
-    if !smain.implementations.supports(Target::JavaScript) {
+    if !smain.implementations.supports(target) {
         return Err(gleam_core::Error::MainFunctionDoesNotSupportTarget {
             module: module.name.clone(),
-            target: Target::JavaScript,
+            target,
         }
         .into());
     }
