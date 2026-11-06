@@ -6,6 +6,6 @@ STDERR
 [90msrc/echo_float.gleam:6[39m
 1.0
 [90msrc/echo_float.gleam:7[39m
-Point(1, 2.0)
+Point(x: 1, y: 2.0)
 [90msrc/echo_float.gleam:8[39m
 [1.5, 2.0]
