@@ -15,5 +15,5 @@ pub fn smain() {
   mworld.create(0, min: 2, max: 3, to_image: draw)
   |> mworld.tick_rate(20)
   |> mworld.on_tick(tick)
-  |> mworld.stop_when(fn(state) { state == 2 })
+  |> mworld.stop_when(fn(state) { state == 1 })
 }
