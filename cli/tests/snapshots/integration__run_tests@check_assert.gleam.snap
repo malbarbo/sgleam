@@ -1,0 +1,26 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Running tests...
+  check_assert.gleam/double_examples
+    Error at line 25
+      Assertion failed.
+      operator: ==
+      left: 6
+      right: 5
+  check_assert.gleam/helper_examples
+    Error at is_double:20
+      Assertion failed.
+      operator: ==
+      left: 2
+      right: 3
+  check_assert.gleam/let_assert_examples
+    Error at line 36
+      Pattern match failed, no pattern matched the value.
+      value: Error(Nil)
+  check_assert.gleam/panic_examples
+    Error at line 41
+      not ready
+4 tests, 0 successes, 0 failures and 4 errors.
+STDERR

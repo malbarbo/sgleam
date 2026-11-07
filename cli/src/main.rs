@@ -21,7 +21,7 @@ use engine::{
     host::{DisplayMode, HostOptions, check_display},
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::{build_webassembly, run_check, run_main, run_test},
+    run::{build_webassembly, build_webassembly_tests, run_check, run_main, run_test},
     shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{
@@ -110,6 +110,13 @@ enum Command {
         /// Arguments for the program.
         #[bpaf(positional("ARG"), many)]
         args: Vec<String>,
+    },
+    /// Run tests on the webassembly backend, with wasmtime.
+    #[bpaf(command("wasm-test"), hide)]
+    WasmTest {
+        /// Gleam file to test.
+        #[bpaf(positional("FILE"))]
+        file: String,
     },
     /// Run tests.
     #[bpaf(command)]
@@ -292,6 +299,11 @@ fn run() -> Result<(), SgleamError> {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
             run_wasmtime(&build_webassembly(&files, &args)?, &args)
+        }
+        Command::WasmTest { file } => {
+            let file = user_module(file)?;
+            let files = find_imports(vec![file])?;
+            run_wasmtime(&build_webassembly_tests(&files)?, &[])
         }
     }
 }

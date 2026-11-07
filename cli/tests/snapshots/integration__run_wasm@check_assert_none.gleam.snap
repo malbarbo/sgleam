@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+[90msrc/check_assert_none.gleam:7[39m
+4

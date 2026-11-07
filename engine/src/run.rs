@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Write, sync::Arc};
 
 use camino::{Utf8Path, Utf8PathBuf};
 
@@ -12,6 +12,7 @@ use crate::{
     error::SgleamError,
     gleam::{Project, copy_files_and_build, fn_type_to_string, get_function},
     host::HostOptions,
+    swriteln,
 };
 
 // Running a program is what picks a runtime. Nothing above this module names
@@ -71,6 +72,52 @@ pub fn build_webassembly(paths: &[Utf8PathBuf], args: &[String]) -> Result<Vec<u
     };
     project.compile_webassembly()?;
     Ok(project.read_webassembly(name)?)
+}
+
+/// The WebAssembly program that runs the `_examples` functions of the first
+/// of `paths`, as `run_test` runs them on JavaScript.
+pub fn build_webassembly_tests(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamError> {
+    let program = paths.first().expect("a path to build");
+    let mut project = Project::default();
+    let built = copy_files_and_build(&mut project, paths)?;
+    let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
+        path: program.clone(),
+    })?;
+    project.write_source(&format!("{LAUNCHER}.gleam"), &tests_launcher(module));
+    project.compile_webassembly()?;
+    Ok(project.read_webassembly(LAUNCHER)?)
+}
+
+/// The source of `LAUNCHER` that runs each public `_examples` function of
+/// `module` without arguments with `check.run_tests`, in the order of their
+/// names, and exits with 1 when one does not pass.
+fn tests_launcher(module: &Module) -> String {
+    let mut names: Vec<_> = module
+        .ast
+        .definitions
+        .functions
+        .iter()
+        .filter(|f| f.publicity.is_public() && f.arguments.is_empty())
+        .filter_map(|f| f.name.as_ref().map(|(_, name)| name.as_str()))
+        .filter(|name| name.ends_with("_examples"))
+        .collect();
+    names.sort_unstable();
+    let mut tests = String::new();
+    for name in names {
+        // A test gives back what its last check gave, which `run_tests` does
+        // not take.
+        swriteln!(
+            &mut tests,
+            "    #(\"{module}.gleam\", \"{name}\", fn() {{\n      let _ = program.{name}()\n      Nil\n    }}),",
+            module = module.name
+        );
+    }
+    format!(
+        "import sgleam/check\nimport sgleam/wasi\nimport {} as program\n\n\
+         pub fn main() {{\n  case check.run_tests([\n{tests}  ]) {{\n    \
+         True -> Nil\n    False -> wasi.exit(1)\n  }}\n}}\n",
+        module.name
+    )
 }
 
 /// The module whose `main` calls the `smain` of a program on the WebAssembly

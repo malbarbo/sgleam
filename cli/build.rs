@@ -14,12 +14,9 @@ fn main() {
     tests(&mut src, "tests/images", "run_images", "run", |_| true);
     // Most of the library of sgleam calls a JavaScript host, which wasmtime
     // is not. Only env and random do without one.
-    tests(&mut src, "tests/inputs", "run_wasm", "wasm", |path| {
-        fs::read_to_string(path)
-            .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
-            .lines()
-            .filter_map(|line| line.strip_prefix("import sgleam/"))
-            .all(|module| matches!(module.split(['.', ' ']).next(), Some("env" | "random")))
+    tests(&mut src, "tests/inputs", "run_wasm", "wasm", without_host);
+    tests(&mut src, "tests/inputs", "test_wasm", "wasm-test", |path| {
+        file_name(path).starts_with("check") && without_host(path)
     });
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");
@@ -46,7 +43,7 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&P
             let _ = writeln!(src, r#"#[cfg(target_os = "linux")]"#);
         }
         // Only a machine with wasmtime runs these.
-        if snapshot == "run_wasm" {
+        if snapshot == "run_wasm" || snapshot == "test_wasm" {
             let _ = writeln!(src, r#"#[cfg(feature = "wasmtime")]"#);
         }
         // The image snapshots are long and many; CI runs them with --ignored.
@@ -64,6 +61,16 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&P
             "#[test]\nfn {ident}() {{ {check}(\"{snapshot}\", \"{command}\", \"{dir}/{name}\"); }}"
         );
     }
+}
+
+/// Returns `true` if the file at `path` imports only the modules of sgleam
+/// that do without a host, `false` otherwise.
+fn without_host(path: &Path) -> bool {
+    fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+        .lines()
+        .filter_map(|line| line.strip_prefix("import sgleam/"))
+        .all(|module| matches!(module.split(['.', ' ']).next(), Some("env" | "random")))
 }
 
 fn file_name(path: &Path) -> &str {

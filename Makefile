@@ -86,6 +86,7 @@ test-wasm-cli: wasm-test
 # the webassembly backend of gleam. Requires wasmtime.
 test-wasmtime:
 	cargo test -p sgleam --features wasmtime --test integration run_wasm
+	cargo test -p sgleam --features wasmtime --test integration test_wasm
 	cargo test -p sgleam --features wasmtime --test cli wasmtime_
 
 check:
