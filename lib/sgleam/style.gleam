@@ -54,6 +54,33 @@ pub const none =
     stroke_dash_array: None,
   )
 
+/// The style with these fields, for `sgleam/debug`, which reads them from a
+/// `Dynamic`.
+@internal
+pub fn new(
+  fill: Option(Color),
+  fill_opacity: Option(Float),
+  fill_rule: Option(String),
+  stroke: Option(Color),
+  stroke_linecap: Option(String),
+  stroke_linejoin: Option(String),
+  stroke_width: Option(Float),
+  stroke_opacity: Option(Float),
+  stroke_dash_array: Option(List(Float)),
+) -> Style {
+  Style(
+    fill:,
+    fill_opacity:,
+    fill_rule:,
+    stroke:,
+    stroke_linecap:,
+    stroke_linejoin:,
+    stroke_width:,
+    stroke_opacity:,
+    stroke_dash_array:,
+  )
+}
+
 /// The text `inspect` prints for `style`, an expression the user could write.
 @internal
 pub fn to_source(style: Style) -> String {

@@ -274,6 +274,10 @@ impl Project {
                         module: "sgleam/debug".into(),
                         function: "print".into(),
                     }),
+                    inspect: Some(WasmFunction {
+                        module: "sgleam/debug".into(),
+                        function: "show".into(),
+                    }),
                     ..config
                 },
                 programs: true,

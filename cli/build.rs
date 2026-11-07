@@ -13,7 +13,7 @@ fn main() {
     });
     tests(&mut src, "tests/images", "run_images", "run", |_| true);
     // Most of the library of sgleam calls a JavaScript host, which wasmtime
-    // is not. Only env and random do without one.
+    // is not. Only env, random, and the colors and styles do without one.
     tests(&mut src, "tests/inputs", "run_wasm", "wasm", without_host);
     tests(&mut src, "tests/inputs", "test_wasm", "wasm-test", |path| {
         file_name(path).starts_with("check") && without_host(path)
@@ -70,7 +70,12 @@ fn without_host(path: &Path) -> bool {
         .unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
         .lines()
         .filter_map(|line| line.strip_prefix("import sgleam/"))
-        .all(|module| matches!(module.split(['.', ' ']).next(), Some("env" | "random")))
+        .all(|module| {
+            matches!(
+                module.split(['.', ' ']).next(),
+                Some("env" | "random" | "color" | "fill" | "stroke" | "style")
+            )
+        })
 }
 
 fn file_name(path: &Path) -> &str {
