@@ -243,7 +243,7 @@ impl Project {
         let stdlib = self.compile_package(
             &stdlib_config,
             &TargetCodegenConfiguration::WebAssembly {
-                config,
+                config: config.clone(),
                 programs: false,
             },
             &[],
