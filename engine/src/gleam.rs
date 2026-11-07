@@ -8,7 +8,10 @@ use gleam_core::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
     },
-    config::{PackageConfig, WasmAssert, WasmFailure, WasmFloat, WasmInt, WebAssemblyConfig},
+    config::{
+        PackageConfig, WasmAssert, WasmFailure, WasmFloat, WasmInt, WasmIntOverflow,
+        WebAssemblyConfig,
+    },
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
@@ -227,6 +230,7 @@ impl Project {
             int: WasmInt::I64,
             float: WasmFloat::F64,
             failure: WasmFailure::Exception,
+            int_overflow: WasmIntOverflow::Fail,
             ..Default::default()
         };
         let stdlib_config = PackageConfig {

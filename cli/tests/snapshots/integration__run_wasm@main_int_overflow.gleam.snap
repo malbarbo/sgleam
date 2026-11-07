@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+STDERR
+int_overflow at src/main_int_overflow.gleam:8
+  Int overflow.

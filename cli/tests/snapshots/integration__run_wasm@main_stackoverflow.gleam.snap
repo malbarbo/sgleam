@@ -9,23 +9,23 @@ Caused by:
     0: failed to invoke command default
     1: error while executing at wasm backtrace:
     0: main_stackoverflow!float
-    1:     0x58 - main_stackoverflow!float
-    2:     0x58 - main_stackoverflow!float
-    3:     0x58 - main_stackoverflow!float
-    4:     0x58 - main_stackoverflow!float
-    5:     0x58 - main_stackoverflow!float
-    6:     0x58 - main_stackoverflow!float
-    7:     0x58 - main_stackoverflow!float
-    8:     0x58 - main_stackoverflow!float
-    9:     0x58 - main_stackoverflow!float
-   10:     0x58 - main_stackoverflow!float
-   11:     0x58 - main_stackoverflow!float
-   12:     0x58 - main_stackoverflow!float
-   13:     0x58 - main_stackoverflow!float
-   14:     0x58 - main_stackoverflow!float
-   15:     0x58 - main_stackoverflow!float
-   16:     0x58 - main_stackoverflow!float
-   17:     0x58 - main_stackoverflow!float
-   18:     0x58 - main_stackoverflow!float
-   19:     0x58 - main_stackoverflow!float
+    1:    0x304 - main_stackoverflow!float
+    2:    0x304 - main_stackoverflow!float
+    3:    0x304 - main_stackoverflow!float
+    4:    0x304 - main_stackoverflow!float
+    5:    0x304 - main_stackoverflow!float
+    6:    0x304 - main_stackoverflow!float
+    7:    0x304 - main_stackoverflow!float
+    8:    0x304 - main_stackoverflow!float
+    9:    0x304 - main_stackoverflow!float
+   10:    0x304 - main_stackoverflow!float
+   11:    0x304 - main_stackoverflow!float
+   12:    0x304 - main_stackoverflow!float
+   13:    0x304 - main_stackoverflow!float
+   14:    0x304 - main_stackoverflow!float
+   15:    0x304 - main_stackoverflow!float
+   16:    0x304 - main_stackoverflow!float
+   17:    0x304 - main_stackoverflow!float
+   18:    0x304 - main_stackoverflow!float
+   19:    0x304 - main_stackoverflow!float
     2: wasm trap: call stack exhausted

@@ -1,0 +1,7 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+main_int_overflow.gleam:2
+15511210043330985984000000
+STDERR
