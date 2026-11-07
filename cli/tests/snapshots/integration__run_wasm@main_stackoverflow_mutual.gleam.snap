@@ -3,29 +3,5 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 STDERR
-Error: failed to run main module `program.wasm`
-
-Caused by:
-    0: failed to invoke command default
-    1: error while executing at wasm backtrace:
-    0: main_stackoverflow_mutual!__float128
-    1:    0x329 - main_stackoverflow_mutual!float
-    2:    0x33e - main_stackoverflow_mutual!__float128
-    3:    0x329 - main_stackoverflow_mutual!float
-    4:    0x33e - main_stackoverflow_mutual!__float128
-    5:    0x329 - main_stackoverflow_mutual!float
-    6:    0x33e - main_stackoverflow_mutual!__float128
-    7:    0x329 - main_stackoverflow_mutual!float
-    8:    0x33e - main_stackoverflow_mutual!__float128
-    9:    0x329 - main_stackoverflow_mutual!float
-   10:    0x33e - main_stackoverflow_mutual!__float128
-   11:    0x329 - main_stackoverflow_mutual!float
-   12:    0x33e - main_stackoverflow_mutual!__float128
-   13:    0x329 - main_stackoverflow_mutual!float
-   14:    0x33e - main_stackoverflow_mutual!__float128
-   15:    0x329 - main_stackoverflow_mutual!float
-   16:    0x33e - main_stackoverflow_mutual!__float128
-   17:    0x329 - main_stackoverflow_mutual!float
-   18:    0x33e - main_stackoverflow_mutual!__float128
-   19:    0x329 - main_stackoverflow_mutual!float
-    2: wasm trap: call stack exhausted
+stack_overflow at src/main_stackoverflow_mutual.gleam:5
+  Stack overflow.

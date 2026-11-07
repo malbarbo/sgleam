@@ -1,0 +1,13 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Running tests...
+  check_assert_overflow.gleam/fact_examples
+    Error at fact:4
+      Int overflow.
+  check_assert_overflow.gleam/loop_examples
+    Error at loop:8
+      Stack overflow.
+4 tests, 2 successes, 0 failures and 2 errors.
+STDERR

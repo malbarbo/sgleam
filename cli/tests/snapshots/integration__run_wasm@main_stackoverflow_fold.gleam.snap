@@ -3,29 +3,5 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 STDERR
-Error: failed to run main module `program.wasm`
-
-Caused by:
-    0: failed to invoke command default
-    1: error while executing at wasm backtrace:
-    0: main_stackoverflow_fold!_create_variant
-    1:    0x3e5 - main_stackoverflow_fold!float
-    2:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-    3:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-    4:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-    5:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-    6:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-    7:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-    8:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-    9:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-   10:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-   11:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-   12:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-   13:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-   14:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-   15:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-   16:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-   17:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-   18:    0x3a9 - main_stackoverflow_fold!anonymous@87-112#2:fn(Int,Int)->Int
-   19:    0x362 - main_stackoverflow_fold!gleam/list.fold(List(Int), Int, fn(Int, Int) -> Int) -> Int$4
-    2: wasm trap: call stack exhausted
+stack_overflow at src/main_stackoverflow_fold.gleam:7
+  Stack overflow.

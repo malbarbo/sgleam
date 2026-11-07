@@ -1,0 +1,12 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Running tests...
+  check_assert_overflow.gleam/fact_examples
+  check_assert_overflow.gleam/loop_examples
+    Stack overflow
+      at loop (check_assert_overflow.gleam:9)
+      ...
+1 test, 0 successes, 0 failures and 1 error.
+STDERR

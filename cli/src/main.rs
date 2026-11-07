@@ -318,6 +318,9 @@ fn run_wasmtime(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
         .and_then(|()| {
             std::process::Command::new("wasmtime")
                 .args(["-W", "gc,function-references,tail-call,exceptions"])
+                // The engine stops a program at 100_000 nested calls, which
+                // need more than the 512 KiB of stack that wasmtime gives.
+                .args(["-W", "max-wasm-stack=67108864"])
                 .arg("program.wasm")
                 .args(args)
                 .current_dir(&dir)
