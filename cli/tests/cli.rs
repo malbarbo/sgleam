@@ -3815,8 +3815,8 @@ fn help_shows_the_help_of_the_command_it_names() {
     assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
 }
 
-// The program on the gleam wasm backend reads no stdin, so the launcher
-// carries it, escaped, as a literal.
+// The program on the gleam wasm backend reads stdin from WASI, and a `\r\n`
+// ends a line as a `\n` does.
 #[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_stdin_lines() {

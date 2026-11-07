@@ -291,15 +291,15 @@ fn run() -> Result<(), SgleamError> {
         Command::Wasm { file, args } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_wasmtime(&build_webassembly(&files, &args)?)
+            run_wasmtime(&build_webassembly(&files, &args)?, &args)
         }
     }
 }
 
-/// Runs `program` on the wasmtime of the system, and exits with its code if
-/// it fails. The program goes in a directory of its own, under a fixed name,
-/// as wasmtime names the file in its errors.
-fn run_wasmtime(program: &[u8]) -> Result<(), SgleamError> {
+/// Runs `program` with `args` on the wasmtime of the system, and exits with
+/// its code if it fails. The program goes in a directory of its own, under a
+/// fixed name, as wasmtime names the file in its errors.
+fn run_wasmtime(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
     let dir = std::env::temp_dir().join(format!("sgleam-{}", std::process::id()));
     let status = std::fs::create_dir_all(&dir)
         .and_then(|()| std::fs::write(dir.join("program.wasm"), program))
@@ -307,6 +307,7 @@ fn run_wasmtime(program: &[u8]) -> Result<(), SgleamError> {
             std::process::Command::new("wasmtime")
                 .args(["-W", "gc,function-references,tail-call,exceptions"])
                 .arg("program.wasm")
+                .args(args)
                 .current_dir(&dir)
                 .status()
         });
