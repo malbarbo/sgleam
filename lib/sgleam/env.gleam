@@ -1,4 +1,5 @@
 import sgleam/random.{type Generator}
+import sgleam/wasi
 
 /// What the host knows when the program starts.
 pub opaque type Env {
@@ -46,10 +47,16 @@ pub fn from_host() -> Env {
 }
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "host_args")
-fn host_args() -> List(String)
+fn host_args() -> List(String) {
+  wasi.args()
+}
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "host_seed")
-fn host_seed() -> Int
+fn host_seed() -> Int {
+  wasi.seed()
+}
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "unix_time_ms")
-fn host_time() -> Int
+fn host_time() -> Int {
+  wasi.time()
+}
