@@ -257,8 +257,12 @@ fn xor_shift(x: Int, bits: Int) -> Int {
   int.bitwise_exclusive_or(x, int.bitwise_shift_right(x, bits))
 }
 
+/// `a * b` modulo 2^32. A product of two u32 can pass 2^63, so `b` goes in
+/// halves of 16 bits, and each product stays under 2^48.
 fn mul32(a: Int, b: Int) -> Int {
-  u32(a * b)
+  let low = a * int.bitwise_and(b, 0xffff)
+  let high = int.bitwise_and(a * int.bitwise_shift_right(b, 16), 0xffff)
+  u32(low + int.bitwise_shift_left(high, 16))
 }
 
 fn u32(x: Int) -> Int {
