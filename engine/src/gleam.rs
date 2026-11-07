@@ -9,7 +9,7 @@ use gleam_core::{
         TargetCodegenConfiguration,
     },
     config::{
-        PackageConfig, WasmAssert, WasmFailure, WasmFloat, WasmInt, WasmIntOverflow,
+        PackageConfig, WasmFailure, WasmFloat, WasmFunction, WasmInt, WasmIntOverflow,
         WasmStackOverflow, WebAssemblyConfig,
     },
     diagnostic::Diagnostic,
@@ -266,7 +266,7 @@ impl Project {
             // a test counts and goes on from.
             &TargetCodegenConfiguration::WebAssembly {
                 config: WebAssemblyConfig {
-                    assert: Some(WasmAssert {
+                    assert: Some(WasmFunction {
                         module: "sgleam/check".into(),
                         function: "run".into(),
                     }),
