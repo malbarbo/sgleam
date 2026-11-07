@@ -278,6 +278,10 @@ impl Project {
                         module: "sgleam/debug".into(),
                         function: "show".into(),
                     }),
+                    start: Some(WasmFunction {
+                        module: "sgleam/run".into(),
+                        function: "start".into(),
+                    }),
                     ..config
                 },
                 programs: true,

@@ -2,6 +2,6 @@
 source: cli/tests/integration.rs
 ---
 STDOUT
-STDERR
-panic at src/main_panic.gleam:2
+Error at main_panic.gleam (main:2)
   `panic` expression evaluated.
+STDERR

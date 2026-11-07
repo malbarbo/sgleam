@@ -2,6 +2,7 @@
 source: cli/tests/integration.rs
 ---
 STDOUT
+Stack overflow
+  at f (main_stackoverflow.gleam:5)
+  ...
 STDERR
-stack_overflow at src/main_stackoverflow.gleam:5
-  Stack overflow.
