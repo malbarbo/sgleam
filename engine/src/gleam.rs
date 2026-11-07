@@ -270,6 +270,10 @@ impl Project {
                         module: "sgleam/check".into(),
                         function: "run".into(),
                     }),
+                    echo: Some(WasmFunction {
+                        module: "sgleam/debug".into(),
+                        function: "print".into(),
+                    }),
                     ..config
                 },
                 programs: true,
