@@ -1,11 +1,13 @@
-//// What a program on the WebAssembly target reads from WASI when it starts:
-//// the arguments, a seed, the time and stdin. The run calls these
-//// functions, and a program does not.
+//// What a program on the WebAssembly target reads from WASI when it starts,
+//// the arguments, a seed, the time and stdin, and what the run of the
+//// program writes to it. The run calls these functions, and a program does
+//// not.
 ////
 //// A call that WASI fails gives what an empty source gives: no arguments, a
 //// seed of 0, the time 0 and no lines.
 
 import gleam/bit_array
+import gleam/bool
 import gleam/list
 import gleam/result
 import gleam/string
@@ -81,6 +83,41 @@ pub fn stdin_lines() -> List(String) {
   }
   let bytes = result.unwrap(bytes, <<>>)
   split_lines(bytes, bytes, 0, 0, [])
+}
+
+/// Writes `text` and a line feed to stdout.
+pub fn println(text: String) -> Nil {
+  let _ = {
+    use <- memory.scope
+    use #(address, size) <- result.try(
+      memory.write(bit_array.from_string(text <> "\n")),
+    )
+    // An iovec, the address and the size of the text, then the size written.
+    use iovec <- result.try(memory.alloc(12))
+    write_stdout(iovec, address, size)
+  }
+  Nil
+}
+
+/// Writes the `size` bytes at `address` to stdout. `fd_write` can write
+/// fewer bytes than it was given, so it goes on from where it stopped.
+fn write_stdout(iovec: Int, address: Int, size: Int) -> Result(Nil, Nil) {
+  use <- bool.guard(size <= 0, Ok(Nil))
+  use _ <- result.try(memory.store_u32(iovec, address))
+  use _ <- result.try(memory.store_u32(iovec + 4, size))
+  let stdout = i32(1)
+  use _ <- result.try(
+    succeeded(fd_write(stdout, i32(iovec), i32(1), i32(iovec + 8))),
+  )
+  use written <- result.try(memory.load_u32(iovec + 8))
+  // Nothing written would never end.
+  use <- bool.guard(written == 0, Error(Nil))
+  write_stdout(iovec, address + written, size - written)
+}
+
+/// Ends the program with the exit `code`.
+pub fn exit(code: Int) -> Nil {
+  proc_exit(i32(code))
 }
 
 fn read_stdin(iovec: Int, buffer: Int, chunks: List(BitArray)) -> BitArray {
@@ -167,5 +204,15 @@ fn clock_time_get(_clock: I32, _precision: I64, _time: I32) -> I32 {
 
 @external(webassembly, "wasi_snapshot_preview1", "fd_read")
 fn fd_read(_fd: I32, _iovecs: I32, _count: I32, _size_read: I32) -> I32 {
+  panic as "only on the WebAssembly target"
+}
+
+@external(webassembly, "wasi_snapshot_preview1", "fd_write")
+fn fd_write(_fd: I32, _iovecs: I32, _count: I32, _size_written: I32) -> I32 {
+  panic as "only on the WebAssembly target"
+}
+
+@external(webassembly, "wasi_snapshot_preview1", "proc_exit")
+fn proc_exit(_code: I32) -> Nil {
   panic as "only on the WebAssembly target"
 }
