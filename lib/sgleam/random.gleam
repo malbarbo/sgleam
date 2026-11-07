@@ -2,6 +2,7 @@ import gleam/float
 import gleam/int
 import gleam/list
 import gleam/string
+import gleam/wasm
 
 /// A generator of pseudo-random numbers. A generator is a value, so the same
 /// generator always gives the same number. Each function returns the next
@@ -257,12 +258,10 @@ fn xor_shift(x: Int, bits: Int) -> Int {
   int.bitwise_exclusive_or(x, int.bitwise_shift_right(x, bits))
 }
 
-/// `a * b` modulo 2^32. A product of two u32 can pass 2^63, so `b` goes in
-/// halves of 16 bits, and each product stays under 2^48.
+/// `a * b` modulo 2^32. A product of two u32 can pass 2^63, which overflows
+/// an Int, so the product is an `I32`, which wraps.
 fn mul32(a: Int, b: Int) -> Int {
-  let low = a * int.bitwise_and(b, 0xffff)
-  let high = int.bitwise_and(a * int.bitwise_shift_right(b, 16), 0xffff)
-  u32(low + int.bitwise_shift_left(high, 16))
+  u32(wasm.i32_to_int(wasm.i32_mul(wasm.i32_wrap(a), wasm.i32_wrap(b))))
 }
 
 fn u32(x: Int) -> Int {

@@ -2,6 +2,6 @@
 source: cli/tests/integration.rs
 ---
 STDOUT
-Error at sgleam/random.gleam (mismatch:173)
+Error at sgleam/random.gleam (mismatch:174)
   random.mock: expected random.int(1, 6), got random.pick(["a", "b"])
 STDERR

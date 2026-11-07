@@ -3,5 +3,5 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 STDERR
-panic at src/sgleam/random.gleam:173
+panic at src/sgleam/random.gleam:174
   random.mock: expected random.int(1, 6), got random.pick(["a", "b"])
