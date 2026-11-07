@@ -47,7 +47,7 @@ pub fn main() {
     create_tar(
         &outdir,
         "gleam-stdlib.tar",
-        "e609cc3fce25074dbe0d61834065107b058c048a",
+        "8d277b5e92990465c3f0db04b864c99327e84505",
     );
 }
 
