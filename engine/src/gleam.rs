@@ -8,7 +8,7 @@ use gleam_core::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
         TargetCodegenConfiguration,
     },
-    config::{PackageConfig, WasmFloat, WasmInt, WebAssemblyConfig},
+    config::{PackageConfig, WasmAssert, WasmFailure, WasmFloat, WasmInt, WebAssemblyConfig},
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemReader, FileSystemWriter, memory::InMemoryFileSystem},
@@ -226,6 +226,7 @@ impl Project {
         let config = WebAssemblyConfig {
             int: WasmInt::I64,
             float: WasmFloat::F64,
+            failure: WasmFailure::Exception,
             ..Default::default()
         };
         let stdlib_config = PackageConfig {
@@ -255,8 +256,16 @@ impl Project {
         )?;
         self.compile_package(
             &Project::user_config(Target::WebAssembly),
+            // Each `assert` of the user's code is a check of its own, which
+            // a test counts and goes on from.
             &TargetCodegenConfiguration::WebAssembly {
-                config,
+                config: WebAssemblyConfig {
+                    assert: Some(WasmAssert {
+                        module: "sgleam/check".into(),
+                        function: "run".into(),
+                    }),
+                    ..config
+                },
                 programs: true,
             },
             &stdlib,
