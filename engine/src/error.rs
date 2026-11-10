@@ -35,6 +35,11 @@ pub enum SgleamError {
         path: Utf8PathBuf,
     },
 
+    /// An `_examples` function that calls a function that the WebAssembly
+    /// target does not have.
+    #[error("examples do not support the target")]
+    ExamplesNotSupported { path: Utf8PathBuf, name: EcoString },
+
     /// Command-line arguments for an entry point that can not receive them.
     /// Only `smain(env: Env)` receives them.
     #[error("the entry point does not take arguments")]
@@ -140,6 +145,16 @@ pub fn show_error(err: &SgleamError) {
             }
             write_diagnostics(&mut buffer, &mut diags);
         }
+
+        SgleamError::ExamplesNotSupported { path, name } => error_diagnostic(
+            "Target not supported",
+            format!(
+                "`{name}` of `{path}` calls a function that the WebAssembly target does not \
+                 have, so the examples can not be run."
+            ),
+            "Run the examples with `sgleam test`.".into(),
+        )
+        .write(&mut buffer),
 
         SgleamError::ArgsWithoutEnv { path, has_smain } => {
             let (title, text) = if *has_smain {

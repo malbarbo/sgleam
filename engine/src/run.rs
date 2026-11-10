@@ -83,27 +83,37 @@ pub fn build_webassembly_tests(paths: &[Utf8PathBuf]) -> Result<Vec<u8>, SgleamE
     let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
         path: program.clone(),
     })?;
-    project.write_source(&format!("{LAUNCHER}.gleam"), &tests_launcher(module));
+    let launcher = tests_launcher(module, program)?;
+    project.write_source(&format!("{LAUNCHER}.gleam"), &launcher);
     project.compile_webassembly()?;
     Ok(project.read_webassembly(LAUNCHER)?)
 }
 
 /// The source of `LAUNCHER` that runs each public `_examples` function of
 /// `module` without arguments with `check.run_tests`, in the order of their
-/// names, and exits with 1 when one does not pass.
-fn tests_launcher(module: &Module) -> String {
-    let mut names: Vec<_> = module
+/// names, and exits with 1 when one does not pass. An error names the module
+/// by `path`.
+fn tests_launcher(module: &Module, path: &Utf8Path) -> Result<String, SgleamError> {
+    let mut examples: Vec<_> = module
         .ast
         .definitions
         .functions
         .iter()
         .filter(|f| f.publicity.is_public() && f.arguments.is_empty())
-        .filter_map(|f| f.name.as_ref().map(|(_, name)| name.as_str()))
-        .filter(|name| name.ends_with("_examples"))
+        .filter_map(|f| Some((f.name.as_ref()?.1.as_str(), f)))
+        .filter(|(name, _)| name.ends_with("_examples"))
         .collect();
-    names.sort_unstable();
+    examples.sort_unstable_by_key(|(name, _)| *name);
     let mut tests = String::new();
-    for name in names {
+    for (name, function) in examples {
+        // The launcher calls every one of them, so it would not support the
+        // target either, and the program would have no `main` to run.
+        if !function.implementations.supports(Target::WebAssembly) {
+            return Err(SgleamError::ExamplesNotSupported {
+                path: path.into(),
+                name: name.into(),
+            });
+        }
         // A test gives back what its last check gave, which `run_tests` does
         // not take.
         swriteln!(
@@ -112,12 +122,12 @@ fn tests_launcher(module: &Module) -> String {
             module = module.name
         );
     }
-    format!(
+    Ok(format!(
         "import sgleam/check\nimport sgleam/wasi\nimport {} as program\n\n\
          pub fn main() {{\n  case check.run_tests([\n{tests}  ]) {{\n    \
          True -> Nil\n    False -> wasi.exit(1)\n  }}\n}}\n",
         module.name
-    )
+    ))
 }
 
 /// The module whose `main` calls the `smain` of a program on the WebAssembly

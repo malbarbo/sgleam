@@ -3862,6 +3862,36 @@ fn wasmtime_smain_of_another_target() {
     );
 }
 
+// The program that runs the examples calls every one of them, so with an
+// example that only JavaScript runs it would have no `main`, and would run
+// nothing.
+#[cfg(feature = "wasmtime")]
+#[test]
+fn wasmtime_test_example_of_another_target() {
+    let output = run_in_dir(
+        &[(
+            "js.gleam",
+            indoc! {r#"
+                @external(javascript, "./js.mjs", "f")
+                fn f() -> Int
+
+                pub fn a_examples() {
+                  assert 1 + 1 == 3
+                }
+
+                pub fn b_examples() {
+                  f()
+                }
+            "#},
+        )],
+        &["wasm-test", "js.gleam"],
+        None,
+    );
+    assert_eq!(output.status.code(), Some(1));
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("`b_examples` of `js.gleam`"), "{err}");
+}
+
 #[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_env_args() {
