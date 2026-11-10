@@ -1,0 +1,8 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+Stack overflow
+  at f (main_stackoverflow_wide.gleam:48)
+  ...
+STDERR

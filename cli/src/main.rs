@@ -320,7 +320,9 @@ fn run_wasmtime(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
                 .args(["-W", "gc,function-references,tail-call,exceptions"])
                 // The engine stops a program at 100_000 nested calls, which
                 // need more than the 512 KiB of stack that wasmtime gives.
-                .args(["-W", "max-wasm-stack=67108864"])
+                // 1 GiB is about 10 KiB for each call, and wasmtime only
+                // takes the memory that the calls use.
+                .args(["-W", "max-wasm-stack=1073741824"])
                 .arg("program.wasm")
                 .args(args)
                 .current_dir(&dir)
