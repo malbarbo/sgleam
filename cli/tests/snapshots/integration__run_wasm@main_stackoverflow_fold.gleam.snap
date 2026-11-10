@@ -3,6 +3,6 @@ source: cli/tests/integration.rs
 ---
 STDOUT
 Stack overflow
-  at f (main_stackoverflow_fold.gleam:7)
+  at f (main_stackoverflow_fold.gleam:8)
   ...
 STDERR
