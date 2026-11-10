@@ -3815,6 +3815,23 @@ fn help_shows_the_help_of_the_command_it_names() {
     assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
 }
 
+// The error of the system for a program that is not there does not name the
+// program.
+#[test]
+fn wasm_without_wasmtime() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(dir.path().join("a.gleam"), "pub fn main() {\n  1\n}\n")
+        .expect("write the module");
+    let output = sgleam()
+        .current_dir(dir.path())
+        .env("PATH", dir.path())
+        .args(["wasm", "a.gleam"])
+        .output()
+        .expect("run sgleam");
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(err.contains("wasmtime was not found"), "{err}");
+}
+
 // The program on the gleam wasm backend reads stdin from WASI, and a `\r\n`
 // ends a line as a `\n` does. A `\r` without a `\n` stays in the line.
 #[cfg(feature = "wasmtime")]

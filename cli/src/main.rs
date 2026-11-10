@@ -327,6 +327,15 @@ fn run_wasmtime(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
                 .args(args)
                 .current_dir(&dir)
                 .status()
+                // The error of the system does not name the program.
+                .map_err(|err| match err.kind() {
+                    std::io::ErrorKind::NotFound => std::io::Error::new(
+                        err.kind(),
+                        "wasmtime was not found. Install it from https://wasmtime.dev \
+                         and add it to the PATH.",
+                    ),
+                    _ => err,
+                })
         });
     let _ = std::fs::remove_dir_all(&dir);
     let status = status.map_err(|err| SgleamError::Other(err.into()))?;
