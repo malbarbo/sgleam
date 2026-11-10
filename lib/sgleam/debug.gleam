@@ -61,6 +61,8 @@ pub fn show(value: Dynamic) -> String {
         |> list.map(fn(entry) { "#(" <> entry.0 <> ", " <> entry.1 <> ")" })
       "dict.from_list([" <> string.join(entries, ", ") <> "])"
     }
+    // The JavaScript target shows `-0.0` as `0.0`.
+    reflect.Float(x) if x == 0.0 -> "0.0"
     _ -> reflect.inspect(value)
   }
 }

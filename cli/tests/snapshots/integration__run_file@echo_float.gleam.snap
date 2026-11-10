@@ -8,4 +8,6 @@ echo_float.gleam:7
 Point(x: 1, y: 2.0)
 echo_float.gleam:8
 [1.5, 2.0]
+echo_float.gleam:9
+Point(x: 1, y: 0.0)
 STDERR
