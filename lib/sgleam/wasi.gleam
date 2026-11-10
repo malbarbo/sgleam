@@ -146,7 +146,7 @@ fn split_lines(
 ) -> List(String) {
   case rest {
     <<byte, rest:bytes>> if byte == line_feed ->
-      case line(bytes, start, at) {
+      case line(bytes, start, before_carriage_return(bytes, start, at)) {
         Ok(line) -> split_lines(bytes, rest, at + 1, at + 1, [line, ..lines])
         Error(Nil) -> list.reverse(lines)
       }
@@ -160,12 +160,17 @@ fn split_lines(
   }
 }
 
-/// The line of `bytes` from `start` to `end`, without a `\r` at its end.
-fn line(bytes: BitArray, start: Int, end: Int) -> Result(String, Nil) {
-  let end = case bit_array.slice(bytes, end - 1, 1) {
+/// The end of the line of `bytes` from `start` to the line feed at `end`,
+/// which is before the `\r` of a `\r\n`.
+fn before_carriage_return(bytes: BitArray, start: Int, end: Int) -> Int {
+  case bit_array.slice(bytes, end - 1, 1) {
     Ok(<<byte>>) if byte == carriage_return && end > start -> end - 1
     _ -> end
   }
+}
+
+/// The line of `bytes` from `start` to `end`.
+fn line(bytes: BitArray, start: Int, end: Int) -> Result(String, Nil) {
   use line <- result.try(bit_array.slice(bytes, start, end - start))
   bit_array.to_string(line)
 }

@@ -3816,7 +3816,7 @@ fn help_shows_the_help_of_the_command_it_names() {
 }
 
 // The program on the gleam wasm backend reads stdin from WASI, and a `\r\n`
-// ends a line as a `\n` does.
+// ends a line as a `\n` does. A `\r` without a `\n` stays in the line.
 #[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_stdin_lines() {
@@ -3830,9 +3830,9 @@ fn wasmtime_smain_stdin_lines() {
             "},
         )],
         &["wasm", "lines.gleam"],
-        Some("a \"b\"\n\\c\r\n\n"),
+        Some("a \"b\"\n\\c\r\n\nd\r"),
     );
-    assert_eq!(out, "[\"a \\\"b\\\"\", \"\\\\c\", \"\"]\n");
+    assert_eq!(out, "[\"a \\\"b\\\"\", \"\\\\c\", \"\", \"d\\r\"]\n");
 }
 
 #[cfg(feature = "wasmtime")]
