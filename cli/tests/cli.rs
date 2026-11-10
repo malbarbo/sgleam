@@ -3815,6 +3815,44 @@ fn help_shows_the_help_of_the_command_it_names() {
     assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
 }
 
+// An interrupt that only sgleam receives stops wasmtime too, and sgleam
+// removes the directory of the program.
+#[cfg(all(unix, feature = "wasmtime"))]
+#[test]
+fn wasmtime_interrupt_removes_the_program() {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let temp = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(
+        dir.path().join("forever.gleam"),
+        "pub fn main() {\n  count(0)\n}\n\nfn count(n: Int) -> Int {\n  count(n + 1)\n}\n",
+    )
+    .expect("write the module");
+    let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin!("sgleam"))
+        .current_dir(dir.path())
+        .env("TMPDIR", temp.path())
+        .args(["wasm", "forever.gleam"])
+        .spawn()
+        .expect("run sgleam");
+    let programs = || {
+        std::fs::read_dir(temp.path())
+            .expect("read the directory")
+            .count()
+    };
+    let start = std::time::Instant::now();
+    while programs() == 0 {
+        assert!(start.elapsed().as_secs() < 120, "no program to run");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    // The interrupt comes while the program runs.
+    std::thread::sleep(std::time::Duration::from_millis(500));
+    let id = libc::pid_t::try_from(child.id()).expect("a process id");
+    // SAFETY: `kill` only sends a signal.
+    let _ = unsafe { libc::kill(id, libc::SIGINT) };
+    let status = child.wait().expect("wait for sgleam");
+    assert_eq!(status.code(), Some(1));
+    assert_eq!(programs(), 0);
+}
+
 // The error of the system for a program that is not there does not name the
 // program.
 #[test]

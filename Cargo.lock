@@ -4066,6 +4066,7 @@ dependencies = [
  "bpaf",
  "camino",
  "command-fds",
+ "ctrlc",
  "dirs",
  "engine",
  "gleam-core",

@@ -10,8 +10,10 @@ workspace = true
 [dependencies]
 engine = { path = "../engine" }
 camino = "1.1.9"
+ctrlc = "3.4.6"
 bpaf = { version = "0.9", features = ["derive", "bright-color"] }
 dirs = "5"
+tempfile = "3"
 rustyline = { git = "https://github.com/malbarbo/rustyline.git", features = ["derive", "custom-bindings"] }
 gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-wasm", default-features = false, features = [
     "disable-erlang", "disable-hide-internal",
