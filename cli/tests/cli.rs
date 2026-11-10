@@ -3835,6 +3835,33 @@ fn wasmtime_smain_stdin_lines() {
     assert_eq!(out, "[\"a \\\"b\\\"\", \"\\\\c\", \"\", \"d\\r\"]\n");
 }
 
+// An `smain` that only JavaScript runs is an entry point, so the error is the
+// target, and not a module without a main function.
+#[cfg(feature = "wasmtime")]
+#[test]
+fn wasmtime_smain_of_another_target() {
+    let output = run_in_dir(
+        &[(
+            "js.gleam",
+            indoc! {r#"
+                @external(javascript, "./js.mjs", "f")
+                fn f() -> Int
+
+                pub fn smain() {
+                  f()
+                }
+            "#},
+        )],
+        &["wasm", "js.gleam"],
+        None,
+    );
+    let err = String::from_utf8_lossy(&output.stderr);
+    assert!(
+        err.contains("does not support the WebAssembly target"),
+        "{err}"
+    );
+}
+
 #[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_env_args() {

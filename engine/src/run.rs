@@ -258,11 +258,22 @@ pub const SMAIN_SIGNATURES: &[SmainSignature] = &[
 fn get_main(module: &Module, target: Target) -> Result<MainFunction, SgleamError> {
     match get_smain(module, target) {
         r @ Ok(_) | r @ Err(SgleamError::InvalidSMain { .. }) => r,
-        _ => Ok(module
-            .ast
-            .type_info
-            .get_main_function(target)
-            .map(|_| MainFunction::Main)?),
+        smain => match module.ast.type_info.get_main_function(target) {
+            Ok(_) => Ok(MainFunction::Main),
+            // The module has an entry point, the `smain` that the target
+            // does not support.
+            Err(gleam_core::Error::ModuleDoesNotHaveMainFunction { .. })
+                if matches!(
+                    smain,
+                    Err(SgleamError::Gleam(
+                        gleam_core::Error::MainFunctionDoesNotSupportTarget { .. }
+                    ))
+                ) =>
+            {
+                smain
+            }
+            Err(err) => Err(err.into()),
+        },
     }
 }
 
