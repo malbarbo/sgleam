@@ -74,17 +74,31 @@ fn show_field(field: Field) -> String {
 
 /// The items of the list `value`.
 fn items(value: Dynamic) -> List(Dynamic) {
+  items_loop(value, [])
+}
+
+// A call for each item would go past the limit of nested calls in a long
+// list.
+fn items_loop(value: Dynamic, items: List(Dynamic)) -> List(Dynamic) {
   case reflect.view(value) {
-    reflect.Cons(first:, rest:) -> [first, ..items(rest)]
-    _ -> []
+    reflect.Cons(first:, rest:) -> items_loop(rest, [first, ..items])
+    _ -> list.reverse(items)
   }
 }
 
 /// The keys and the values of the dict `value`.
 fn entries(value: Dynamic) -> List(#(Dynamic, Dynamic)) {
+  entries_loop(value, [])
+}
+
+fn entries_loop(
+  value: Dynamic,
+  entries: List(#(Dynamic, Dynamic)),
+) -> List(#(Dynamic, Dynamic)) {
   case reflect.view(value) {
-    reflect.Entry(key:, value:, rest:) -> [#(key, value), ..entries(rest)]
-    _ -> []
+    reflect.Entry(key:, value:, rest:) ->
+      entries_loop(rest, [#(key, value), ..entries])
+    _ -> list.reverse(entries)
   }
 }
 
