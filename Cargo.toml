@@ -21,3 +21,19 @@ panic = "abort"
 [profile.release-small]
 inherits = "release"
 opt-level = 's'
+
+# A test runs each program of the webassembly backend through cranelift, which
+# takes seconds per program without optimizations.
+[profile.dev.package]
+cranelift-assembler-x64.opt-level = 3
+cranelift-bforest.opt-level = 3
+cranelift-bitset.opt-level = 3
+cranelift-codegen.opt-level = 3
+cranelift-control.opt-level = 3
+cranelift-entity.opt-level = 3
+cranelift-frontend.opt-level = 3
+regalloc2.opt-level = 3
+wasmparser.opt-level = 3
+wasmtime.opt-level = 3
+wasmtime-environ.opt-level = 3
+wasmtime-internal-cranelift.opt-level = 3
