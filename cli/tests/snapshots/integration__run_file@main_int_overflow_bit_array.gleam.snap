@@ -1,0 +1,17 @@
+---
+source: cli/tests/integration.rs
+---
+STDOUT
+main_int_overflow_bit_array.gleam:3
+18446744073709551616
+STDERR
+warning: Truncated bit array segment
+  ┌─ main_int_overflow_bit_array.gleam:2:16
+  │
+2 │   let assert <<x:64-unsigned>> = <<255, 255, 255, 255, 255, 255, 255, 255>>
+  │                ^^^^^^^^^^^^^
+
+This segment is a 64-bit long int, but on the JavaScript target numbers
+have at most 52 bits. It would be truncated to its first 52 bits.
+
+Hint: Did you mean to use the `bytes` segment option?
