@@ -13,3 +13,8 @@
   o `JS_SetMaxStackSize` do engine não vale lá. O simplecode recria a
   instância e o aluno perde as entradas do REPL. No nativo o limite é 88.000.
   O plano do wasm tira o QuickJS do navegador.
+- Bug: no `sgleam run`, um Ctrl-C durante uma leitura de stdin não para o
+  programa. O handler só levanta a flag, e o QuickJS só a vê quando volta a
+  rodar código, o que não acontece até chegar uma linha ou o EOF. O
+  `sgleam wasm` resolve com uma thread que encerra o processo se o programa
+  não parar até 200 ms depois do Ctrl-C (`engine/src/wasmtime.rs`).
