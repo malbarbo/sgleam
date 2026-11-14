@@ -85,6 +85,11 @@ pub enum SgleamError {
     #[error("tests failed")]
     TestsFailed,
 
+    /// An import of a program for the WebAssembly target that sgleam does not
+    /// provide. An `@external` of the user names it.
+    #[error("unknown import")]
+    UnknownImport { module: String, name: String },
+
     /// A run stopped by Ctrl-C. The handler installed with the engine only
     /// raises a flag, which QuickJS turns into an exception at the next
     /// statement of whatever was running.
@@ -194,6 +199,17 @@ pub fn show_error(err: &SgleamError) {
             "display not supported",
             format!("The terminal does not support the `{mode}` display."),
             "Use another value for `-d`, or leave `-d` out so sgleam picks one.".into(),
+        )
+        .write(&mut buffer),
+        SgleamError::UnknownImport { module, name } => error_diagnostic(
+            "unknown external function",
+            format!(
+                "The program imports `{name}` from the module `{module}`, and sgleam does \
+                 not provide it."
+            ),
+            "On the WebAssembly target, an `@external` can only name the functions of \
+             `wasi_snapshot_preview1` that sgleam provides."
+                .into(),
         )
         .write(&mut buffer),
         SgleamError::Interrupted => {

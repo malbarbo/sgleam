@@ -44,6 +44,11 @@ sinteract = { git = "https://github.com/malbarbo/sinteract.git", branch = "maste
 ctrlc = "3.4.6"
 stacker = "0.1.23"
 tracing-subscriber = { version = "0.3.18", features = ["fmt"] }
+# Runs a program of the webassembly backend of gleam.
+wasmtime = { version = "48", default-features = false, features = ["cranelift", "gc", "gc-drc", "parallel-compilation", "runtime"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+wat = "1"
 
 [[bench]]
 name = "image"

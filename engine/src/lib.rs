@@ -21,6 +21,8 @@ mod scene;
 pub mod scope;
 pub mod shell;
 pub mod source;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod wasmtime;
 
 use rust_embed::Embed;
 
