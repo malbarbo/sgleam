@@ -2,8 +2,10 @@
 //// user's package makes `start` run each `main`.
 
 import gleam/int
+import gleam/list
 import gleam/option
-import gleam/wasm/failure.{type Failure}
+import gleam/wasm/failure.{type Asserted, type Failure}
+import sgleam/debug
 import sgleam/wasi
 
 /// Runs `main`. A failure that `main` does not catch is printed as on the
@@ -45,6 +47,35 @@ fn show(failure: Failure) -> Nil {
         "Error at " <> file <> " (" <> failure.function <> ":" <> line <> ")",
       )
       wasi.println("  " <> message)
+      list.each(details(failure), fn(detail) {
+        wasi.println("  " <> detail.0 <> ": " <> detail.1)
+      })
     }
+  }
+}
+
+/// The values that explain `failure`, by name, as the JavaScript target
+/// shows them after the message.
+pub fn details(failure: Failure) -> List(#(String, String)) {
+  case failure.details {
+    failure.LetAssertValue(value) -> [#("value", debug.show(value))]
+    failure.BinaryOperator(operator:, left:, right:) -> [
+      #("operator", operator),
+      #("left", asserted(left)),
+      #("right", asserted(right)),
+    ]
+    failure.FunctionCall(arguments) ->
+      list.index_map(arguments, fn(argument, i) {
+        #("argument " <> int.to_string(i + 1), asserted(argument))
+      })
+    // The value of a plain expression is always `False`.
+    failure.Expression(_) | failure.NoDetails -> []
+  }
+}
+
+fn asserted(expression: Asserted) -> String {
+  case expression {
+    failure.Evaluated(value:, ..) -> debug.show(value)
+    failure.Unevaluated -> "not evaluated"
   }
 }

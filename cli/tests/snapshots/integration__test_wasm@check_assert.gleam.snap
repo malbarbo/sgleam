@@ -6,14 +6,21 @@ Running tests...
   check_assert.gleam/double_examples
     Failure at line 25
       Assertion failed.
+      operator: ==
+      left: 6
+      right: 5
     Error at positive:8
       not positive
   check_assert.gleam/helper_examples
     Failure at is_double:20
       Assertion failed.
+      operator: ==
+      left: 2
+      right: 3
   check_assert.gleam/let_assert_examples
     Error at line 36
       Pattern match failed, no pattern matched the value.
+      value: Error(Nil)
   check_assert.gleam/panic_examples
     Error at line 41
       not ready

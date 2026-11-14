@@ -7,6 +7,7 @@ import gleam/result
 import gleam/wasm/failure.{type Failure}
 import gleam/wasm/global
 import sgleam/image.{type Image}
+import sgleam/run
 import sgleam/wasi
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "check_equal")
@@ -137,6 +138,9 @@ fn show(kind: String, failure: Failure, running: #(String, String)) -> Nil {
     })
   wasi.println("    " <> kind <> " at " <> location(failure, running))
   wasi.println("      " <> message)
+  list.each(run.details(failure), fn(detail) {
+    wasi.println("      " <> detail.0 <> ": " <> detail.1)
+  })
 }
 
 /// Where `failure` is, with only what the name of `running` does not already
