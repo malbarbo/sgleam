@@ -3815,59 +3815,77 @@ fn help_shows_the_help_of_the_command_it_names() {
     assert!(out.contains("Usage: sgleam COMMAND ..."), "got: {out}");
 }
 
-// An interrupt that only sgleam receives stops wasmtime too, and sgleam
-// removes the directory of the program.
-#[cfg(all(unix, feature = "wasmtime"))]
-#[test]
-fn wasmtime_interrupt_removes_the_program() {
+/// Runs `main.gleam` with `source` on the webassembly backend, sends it
+/// Ctrl-C after its first line, and returns the code and the stderr of
+/// sgleam. Stdin stays open, so a read of stdin waits.
+#[cfg(unix)]
+fn interrupt_wasm(source: &str) -> (Option<i32>, String) {
+    use std::io::{BufRead, BufReader, Read};
+    use std::process::Stdio;
+
     let dir = tempfile::tempdir().expect("a temporary directory");
-    let temp = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(
-        dir.path().join("forever.gleam"),
-        "pub fn main() {\n  count(0)\n}\n\nfn count(n: Int) -> Int {\n  count(n + 1)\n}\n",
-    )
-    .expect("write the module");
+    std::fs::write(dir.path().join("main.gleam"), source).expect("write the module");
     let mut child = std::process::Command::new(assert_cmd::cargo::cargo_bin!("sgleam"))
         .current_dir(dir.path())
-        .env("TMPDIR", temp.path())
-        .args(["wasm", "forever.gleam"])
+        .args(["wasm", "main.gleam"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("run sgleam");
-    let programs = || {
-        std::fs::read_dir(temp.path())
-            .expect("read the directory")
-            .count()
-    };
-    let start = std::time::Instant::now();
-    while programs() == 0 {
-        assert!(start.elapsed().as_secs() < 120, "no program to run");
-        std::thread::sleep(std::time::Duration::from_millis(50));
-    }
-    // The interrupt comes while the program runs.
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    let _stdin = child.stdin.take();
+    let mut stdout = BufReader::new(child.stdout.take().expect("the stdout of sgleam"));
+    let mut line = String::new();
+    stdout.read_line(&mut line).expect("read the first line");
+    assert_eq!(line, "started\n");
     let id = libc::pid_t::try_from(child.id()).expect("a process id");
     // SAFETY: `kill` only sends a signal.
     let _ = unsafe { libc::kill(id, libc::SIGINT) };
     let status = child.wait().expect("wait for sgleam");
-    assert_eq!(status.code(), Some(1));
-    assert_eq!(programs(), 0);
+    let mut err = String::new();
+    child
+        .stderr
+        .take()
+        .expect("the stderr of sgleam")
+        .read_to_string(&mut err)
+        .expect("read the stderr");
+    (status.code(), err)
 }
 
-// The error of the system for a program that is not there does not name the
-// program.
+#[cfg(unix)]
 #[test]
-fn wasm_without_wasmtime() {
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(dir.path().join("a.gleam"), "pub fn main() {\n  1\n}\n")
-        .expect("write the module");
-    let output = sgleam()
-        .current_dir(dir.path())
-        .env("PATH", dir.path())
-        .args(["wasm", "a.gleam"])
-        .output()
-        .expect("run sgleam");
-    let err = String::from_utf8_lossy(&output.stderr);
-    assert!(err.contains("wasmtime was not found"), "{err}");
+fn wasm_interrupt_stops_the_program() {
+    let (code, err) = interrupt_wasm(indoc! {"
+        import sgleam/wasi
+
+        pub fn main() {
+          wasi.println(\"started\")
+          count(0)
+        }
+
+        fn count(n: Int) -> Int {
+          count(n + 1)
+        }
+    "});
+    assert_eq!(code, Some(1));
+    assert_eq!(err, "Interrupted.\n");
+}
+
+// The program waits in a call of WASI and runs no code that sees the
+// interrupt.
+#[cfg(unix)]
+#[test]
+fn wasm_interrupt_stops_a_read_of_stdin() {
+    let (code, err) = interrupt_wasm(indoc! {"
+        import sgleam/wasi
+
+        pub fn main() {
+          wasi.println(\"started\")
+          wasi.stdin_lines()
+        }
+    "});
+    assert_eq!(code, Some(1));
+    assert_eq!(err, "Interrupted.\n");
 }
 
 // The program on the gleam wasm backend reads stdin from WASI, and a `\r\n`

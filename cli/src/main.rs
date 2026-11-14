@@ -29,12 +29,7 @@ use gleam_core::{
     javascript::set_bigint_enabled,
 };
 use repl_reader::Theme;
-use std::{
-    cell::Cell,
-    num::NonZeroU32,
-    rc::Rc,
-    sync::atomic::{AtomicBool, AtomicU32, Ordering},
-};
+use std::{cell::Cell, num::NonZeroU32, rc::Rc};
 
 fn number_arg() -> impl bpaf::Parser<bool> {
     bpaf::short('n')
@@ -106,7 +101,7 @@ enum Command {
         #[bpaf(positional("FILE"))]
         file: String,
     },
-    /// Run a program on the webassembly backend, with wasmtime.
+    /// Run a program on the webassembly backend.
     #[bpaf(command, hide)]
     Wasm {
         /// Gleam file to run.
@@ -116,7 +111,7 @@ enum Command {
         #[bpaf(positional("ARG"), many)]
         args: Vec<String>,
     },
-    /// Run tests on the webassembly backend, with wasmtime.
+    /// Run tests on the webassembly backend.
     #[bpaf(command("wasm-test"), hide)]
     WasmTest {
         /// Gleam file to test.
@@ -303,83 +298,22 @@ fn run() -> Result<(), SgleamError> {
         Command::Wasm { file, args } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_wasmtime(&build_webassembly(&files, &args)?, &args)
+            run_webassembly(&build_webassembly(&files, &args)?, &args)
         }
         Command::WasmTest { file } => {
             let file = user_module(file)?;
             let files = find_imports(vec![file])?;
-            run_wasmtime(&build_webassembly_tests(&files)?, &[])
+            run_webassembly(&build_webassembly_tests(&files)?, &[])
         }
     }
 }
 
-/// Runs `program` with `args` on the wasmtime of the system, and exits with
-/// its code if it fails. The program goes in a directory of its own, under a
-/// fixed name, as wasmtime names the file in its errors. Only this user reads
-/// the directory, and no one can guess its name.
-fn run_wasmtime(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
-    let other = |err: std::io::Error| SgleamError::Other(err.into());
-    stop_wasmtime_on_interrupt();
-    let dir = tempfile::Builder::new()
-        .prefix("sgleam-")
-        .tempdir()
-        .map_err(other)?;
-    std::fs::write(dir.path().join("program.wasm"), program).map_err(other)?;
-    let mut child = std::process::Command::new("wasmtime")
-        .args(["-W", "gc,function-references,tail-call,exceptions"])
-        // The engine stops a program at 100_000 nested calls, which
-        // need more than the 512 KiB of stack that wasmtime gives.
-        // 1 GiB is about 10 KiB for each call, and wasmtime only
-        // takes the memory that the calls use.
-        .args(["-W", "max-wasm-stack=1073741824"])
-        .arg("program.wasm")
-        .args(args)
-        .current_dir(dir.path())
-        .spawn()
-        // The error of the system does not name the program.
-        .map_err(|err| match err.kind() {
-            std::io::ErrorKind::NotFound => std::io::Error::new(
-                err.kind(),
-                "wasmtime was not found. Install it from https://wasmtime.dev \
-                 and add it to the PATH.",
-            ),
-            _ => err,
-        })
-        .map_err(other)?;
-    WASMTIME.store(child.id(), Ordering::Relaxed);
-    if INTERRUPTED.load(Ordering::Relaxed) {
-        let _ = child.kill();
+/// Runs `program` with `args`, and exits with its code if it is not 0.
+fn run_webassembly(program: &[u8], args: &[String]) -> Result<(), SgleamError> {
+    match engine::wasmtime::run(program, args)? {
+        0 => Ok(()),
+        code => std::process::exit(code),
     }
-    let status = child.wait();
-    WASMTIME.store(0, Ordering::Relaxed);
-    // `exit` drops nothing, so the directory is removed here.
-    drop(dir);
-    let status = status.map_err(other)?;
-    if !status.success() {
-        std::process::exit(status.code().unwrap_or(1));
-    }
-    Ok(())
-}
-
-/// The process of wasmtime that Ctrl-C stops, or 0 when there is none.
-static WASMTIME: AtomicU32 = AtomicU32::new(0);
-
-/// `true` after a Ctrl-C, which may come before wasmtime starts.
-static INTERRUPTED: AtomicBool = AtomicBool::new(false);
-
-/// Makes Ctrl-C stop wasmtime and not sgleam, which still has to remove the
-/// directory of the program. The terminal sends the signal to both, and a
-/// signal that only sgleam receives goes on to wasmtime.
-fn stop_wasmtime_on_interrupt() {
-    // Without the handler Ctrl-C stops sgleam too, and the directory stays.
-    let _ = ctrlc::set_handler(|| {
-        INTERRUPTED.store(true, Ordering::Relaxed);
-        #[cfg(unix)]
-        if let Ok(id @ 1..) = libc::pid_t::try_from(WASMTIME.load(Ordering::Relaxed)) {
-            // SAFETY: `kill` only sends a signal.
-            let _ = unsafe { libc::kill(id, libc::SIGINT) };
-        }
-    });
 }
 
 /// The file a command names, as a path the module name can come from.
