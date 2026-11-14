@@ -399,7 +399,16 @@ fn open_mworld(
     max_players: u32,
 ) -> Result<Vec<String>> {
     host.open_mworld(min_players, max_players)
-        .map_err(|error| Exception::throw_message(&ctx, &error))
+        .map_err(|error| throw_host_error(&ctx, &error))
+}
+
+/// Throws `message`, or stops the program if an interruption arrived. A Stop
+/// makes the session fail to open, and that error is not the program's.
+pub(crate) fn throw_host_error(ctx: &Ctx<'_>, message: &str) -> rquickjs::Error {
+    match stop_on_interrupt(ctx) {
+        Err(error) => error,
+        Ok(()) => Exception::throw_message(ctx, message),
+    }
 }
 
 fn stop_on_interrupt(ctx: &Ctx<'_>) -> Result<()> {

@@ -29,6 +29,7 @@ use sinteract::scene::{
 };
 
 use crate::host::Host;
+use crate::quickjs::throw_host_error;
 
 /// The number in the id prefix of the next svg. The page puts every svg of a
 /// run into one HTML document, so two svgs must not share an id.
@@ -62,7 +63,7 @@ pub fn print_image(host: &Host, image: Object<'_>, width: f64, height: f64) -> R
 /// throws its error.
 pub fn show_image(host: &Host, image: Object<'_>, width: f64, height: f64) -> Result<bool> {
     host.show_scene(to_scene(&image, width, height)?)
-        .map_err(|error| Exception::throw_message(image.ctx(), &error))
+        .map_err(|error| throw_host_error(image.ctx(), &error))
 }
 
 /// Keeps `image` as the next frame of one player of a multiplayer world. A
@@ -75,7 +76,7 @@ pub fn show_player_image(
     height: f64,
 ) -> Result<bool> {
     host.show_player_scene(player, to_scene(&image, width, height)?)
-        .map_err(|error| Exception::throw_message(image.ctx(), &error))
+        .map_err(|error| throw_host_error(image.ctx(), &error))
 }
 
 /// `image` drawn on a canvas of `width` by `height`.

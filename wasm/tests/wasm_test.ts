@@ -75,13 +75,14 @@ function makeEnv(
   getBuffer: () => ArrayBufferLike,
   svgs: string[],
   interruptAfter = Infinity,
+  stopped = () => false,
 ): WebAssembly.ModuleImports {
   let interruptCount = 0;
 
   return {
     check_interrupt: (): number => {
       interruptCount++;
-      return interruptCount >= interruptAfter ? 1 : 0;
+      return stopped() || interruptCount >= interruptAfter ? 1 : 0;
     },
     draw_svg: (ptr: number, len: number): void => {
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
@@ -107,6 +108,9 @@ interface LoadOptions {
   // What the player does in a world.
   steps?: Step[];
   nickname?: string;
+  // A Stop that comes before the first frame, so the write that opens the
+  // session fails.
+  stopAtOpen?: boolean;
 }
 
 async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
@@ -126,6 +130,16 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
   // The engine reads the time through WASI, and a wait moves it on, so a
   // world runs its ticks without burning wall-clock time.
   const room = new FakeRoom(options.steps, options.nickname);
+  let stopped = false;
+  const session = options.stopAtOpen
+    ? {
+      ...room.pipe,
+      write: () => {
+        stopped = true;
+        throw new Error("the page stopped the session");
+      },
+    }
+    : room.pipe;
 
   const wasi = makeWasi({
     getBuffer: () => exports.memory.buffer,
@@ -136,13 +150,14 @@ async function loadWasm(options: LoadOptions = {}): Promise<WasmContext> {
     env: ["RUST_BACKTRACE=1"],
     now: () => room.ms,
     advance: (until) => room.advance(until),
-    session: room.pipe,
+    session,
   });
 
   const env = makeEnv(
     () => exports.memory.buffer,
     svgs,
     options.interruptAfter,
+    () => stopped,
   );
 
   const instance = await WebAssembly.instantiate(module, {
@@ -812,6 +827,14 @@ Deno.test("every key name decodes to its Key", async () => {
     .map((k) => `user.gleam:8\n${k}\n`)
     .join("");
   assertEquals(r.stdout, expected, `stderr:\n${r.stderr}`);
+  destroy(ctx);
+});
+
+Deno.test("a Stop before the first frame of a world says Interrupted", async () => {
+  const ctx = await newRepl(MOVE_SQUARE, { stopAtOpen: true });
+  const r = run(ctx, "main()");
+  assertEquals(r.stdout, "");
+  assertEquals(r.stderr, "Interrupted.\n");
   destroy(ctx);
 });
 
