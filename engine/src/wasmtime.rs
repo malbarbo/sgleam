@@ -4,13 +4,17 @@
 
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::io::{ErrorKind, Read, Write};
-use std::time::{Instant, SystemTime};
+use std::sync::mpsc::{self, RecvTimeoutError};
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant, SystemTime};
 
 use wasmtime::{
-    Caller, Config, Engine, Extern, GcHeapOutOfMemory, Linker, Module, Store, ThrownException, Trap,
+    Caller, Config, Engine, Extern, GcHeapOutOfMemory, Linker, Module, Store, ThrownException,
+    Trap, UpdateDeadline,
 };
 
-use crate::error::SgleamError;
+use crate::error::{SgleamError, show_error};
+use crate::host::{self, check_interrupt};
 
 /// The stack of a program. The library stops a program at 100_000 nested
 /// calls, and each call takes up to about 10 KiB. Only the part that the
@@ -91,7 +95,9 @@ pub fn run_with(program: &[u8], args: &[String], io: Io) -> Result<i32, SgleamEr
 }
 
 fn run_here(program: &[u8], args: &[String], io: Io) -> Result<i32, SgleamError> {
+    host::init()?;
     let engine = Engine::new(&config()).map_err(other)?;
+    let _ticker = Ticker::start(engine.clone());
     let module = Module::new(&engine, program).map_err(other)?;
     check_imports(&module)?;
     let mut linker = Linker::new(&engine);
@@ -102,6 +108,16 @@ fn run_here(program: &[u8], args: &[String], io: Io) -> Result<i32, SgleamError>
         start: Instant::now(),
     };
     let mut store = Store::new(&engine, wasi);
+    // The callback runs at each tick, so an interrupt that came before the
+    // store also stops the program.
+    store.set_epoch_deadline(1);
+    store.epoch_deadline_callback(|_| {
+        Ok(if check_interrupt() {
+            UpdateDeadline::Interrupt
+        } else {
+            UpdateDeadline::Continue(1)
+        })
+    });
     let result = linker
         .instantiate(&mut store, &module)
         .and_then(|instance| instance.get_typed_func::<(), ()>(&mut store, "_start"))
@@ -119,11 +135,58 @@ fn config() -> Config {
         .wasm_function_references(true)
         .wasm_tail_call(true)
         .wasm_exceptions(true)
+        .epoch_interruption(true)
         .max_wasm_stack(MAX_WASM_STACK)
         // `Engine::new` turns down a wasm stack larger than this one, which
         // only a call with `async` takes.
         .async_stack_size(MAX_WASM_STACK + HOST_STACK);
     config
+}
+
+/// How often the program checks for an interrupt.
+const TICK: Duration = Duration::from_millis(10);
+
+/// How long a program has to stop after an interrupt. A program that waits
+/// in a call of WASI, such as a read of stdin, does not see the interrupt.
+const GRACE: Duration = Duration::from_millis(200);
+
+/// A thread that moves the epoch of the engine on at each tick, while the
+/// program runs, and ends the process when the program does not stop in
+/// `GRACE` after an interrupt.
+struct Ticker {
+    done: Option<mpsc::Sender<()>>,
+    thread: Option<JoinHandle<()>>,
+}
+
+impl Ticker {
+    fn start(engine: Engine) -> Ticker {
+        let (done, until) = mpsc::channel();
+        let thread = std::thread::spawn(move || tick(&engine, &until));
+        Ticker {
+            done: Some(done),
+            thread: Some(thread),
+        }
+    }
+}
+
+impl Drop for Ticker {
+    fn drop(&mut self) {
+        drop(self.done.take());
+        if let Some(thread) = self.thread.take() {
+            let _ = thread.join();
+        }
+    }
+}
+
+fn tick(engine: &Engine, until: &mpsc::Receiver<()>) {
+    let mut interrupted = None;
+    while let Err(RecvTimeoutError::Timeout) = until.recv_timeout(TICK) {
+        engine.increment_epoch();
+        if check_interrupt() && interrupted.get_or_insert_with(Instant::now).elapsed() >= GRACE {
+            show_error(&SgleamError::Interrupted);
+            std::process::exit(1);
+        }
+    }
 }
 
 fn other(err: wasmtime::Error) -> SgleamError {

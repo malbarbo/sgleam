@@ -1452,6 +1452,7 @@ dependencies = [
  "imbl",
  "indoc",
  "kurbo",
+ "libc",
  "rquickjs",
  "rust-embed",
  "sinteract",

@@ -50,6 +50,10 @@ wasmtime = { version = "48", default-features = false, features = ["cranelift", 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 wat = "1"
 
+# tests/wasmtime.rs sends itself the signal of Ctrl-C.
+[target.'cfg(unix)'.dev-dependencies]
+libc = "0.2"
+
 [[bench]]
 name = "image"
 harness = false
