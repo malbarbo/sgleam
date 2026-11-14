@@ -3890,7 +3890,6 @@ fn wasm_interrupt_stops_a_read_of_stdin() {
 
 // The program on the gleam wasm backend reads stdin from WASI, and a `\r\n`
 // ends a line as a `\n` does. A `\r` without a `\n` stays in the line.
-#[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_stdin_lines() {
     let out = out_in_dir(
@@ -3910,7 +3909,6 @@ fn wasmtime_smain_stdin_lines() {
 
 // An `smain` that only JavaScript runs is an entry point, so the error is the
 // target, and not a module without a main function.
-#[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_of_another_target() {
     let output = run_in_dir(
@@ -3938,7 +3936,6 @@ fn wasmtime_smain_of_another_target() {
 // The program that runs the examples calls every one of them, so with an
 // example that only JavaScript runs it would have no `main`, and would run
 // nothing.
-#[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_test_example_of_another_target() {
     let output = run_in_dir(
@@ -3965,7 +3962,6 @@ fn wasmtime_test_example_of_another_target() {
     assert!(err.contains("`b_examples` of `js.gleam`"), "{err}");
 }
 
-#[cfg(feature = "wasmtime")]
 #[test]
 fn wasmtime_smain_env_args() {
     let out = out_in_dir(

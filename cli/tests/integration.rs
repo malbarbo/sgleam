@@ -19,7 +19,8 @@ fn sgleam() -> assert_cmd::Command {
 /// no display, and prints the word `Image` for each frame.
 fn output_of(command: &str, file: &str) -> (String, String) {
     let (dir, name) = file.rsplit_once('/').expect("a file in a directory");
-    // wasmtime opens no display, so `wasm` and `wasm-test` take no `-d`.
+    // The webassembly backend opens no display, so `wasm` and `wasm-test`
+    // take no `-d`.
     let display: &[&str] = if command.starts_with("wasm") {
         &[]
     } else {

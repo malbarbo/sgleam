@@ -55,11 +55,6 @@ jobs:
       - name: Test the CLI against both backends
         run: make test-wasm-cli
 
-      - uses: bytecodealliance/actions/wasmtime/setup@v1
-
-      - name: Test the CLI on the webassembly backend of gleam
-        run: make test-wasmtime
-
   test:
     name: Test (${{ matrix.os }} / ${{ matrix.target }})
     runs-on: ${{ matrix.os }}

@@ -42,10 +42,6 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&P
         if name.contains("stackoverflow") {
             let _ = writeln!(src, r#"#[cfg(target_os = "linux")]"#);
         }
-        // Only a machine with wasmtime runs these.
-        if snapshot == "run_wasm" || snapshot == "test_wasm" {
-            let _ = writeln!(src, r#"#[cfg(feature = "wasmtime")]"#);
-        }
         // The image snapshots are long and many; CI runs them with --ignored.
         if snapshot == "run_images" {
             let _ = writeln!(src, "#[ignore]");

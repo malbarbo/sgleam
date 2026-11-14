@@ -26,9 +26,6 @@ libc = "0.2"
 # needs the wasm32-wasip1 target and Deno, so CI turns it on only in the Linux
 # job that runs `make test-wasm-cli`.
 wasm-backend = []
-# Runs the files of the CLI tests that do not import the library of sgleam on
-# the webassembly backend of gleam, with the wasmtime of the system.
-wasmtime = []
 
 [dev-dependencies]
 assert_cmd = "2.1"

@@ -15,7 +15,6 @@ make test         # cargo test and the deno tests (needs the wasm32-wasip1 targe
 make wasm         # the WASM binary
 cargo test -p sgleam --test integration   # snapshots of what the binary prints
 cargo test -- --ignored                   # image snapshots, slow
-make test-wasmtime                        # the snapshots of the gleam wasm backend (needs wasmtime)
 ```
 
 `cli/tests/integration.rs` has one test per file under `cli/tests/inputs`
