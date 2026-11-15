@@ -1,6 +1,7 @@
 //! Runs a program that gleam compiled to WebAssembly. The program calls the
-//! seven WASI functions that `sgleam/wasi` and `gleam/io` import, and this
-//! module answers them.
+//! seven WASI functions that `sgleam/wasi` and `gleam/io` import, and
+//! `env.wasm_try`, which `failure.isolate` imports, and this module answers
+//! them.
 
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::io::{ErrorKind, Read, Write};
@@ -11,8 +12,8 @@ use std::time::{Duration, Instant, SystemTime};
 
 use gleam_core::webassembly::Lines;
 use wasmtime::{
-    Caller, Config, Engine, Extern, GcHeapOutOfMemory, Linker, Module, Store, ThrownException,
-    Trap, UpdateDeadline, WasmBacktrace,
+    AnyRef, Caller, Config, Engine, Extern, Func, GcHeapOutOfMemory, Linker, Module, Rooted, Store,
+    ThrownException, Trap, UpdateDeadline, Val, WasmBacktrace,
 };
 
 use crate::error::{SgleamError, show_error};
@@ -38,6 +39,10 @@ const WASI_FUNCTIONS: [&str; 7] = [
     "fd_write",
     "proc_exit",
 ];
+
+/// The import of `failure.isolate`, which calls a function of the program
+/// and returns 1 when a stack overflow ended the call.
+const WASM_TRY: (&str, &str) = ("env", "wasm_try");
 
 const SUCCESS: i32 = 0;
 const EBADF: i32 = 8;
@@ -201,7 +206,12 @@ fn other(err: wasmtime::Error) -> SgleamError {
 /// user, so it is an error of the user and not of sgleam.
 fn check_imports(module: &Module) -> Result<(), SgleamError> {
     for import in module.imports() {
-        if import.module() != WASI || !WASI_FUNCTIONS.contains(&import.name()) {
+        let known = if import.module() == WASI {
+            WASI_FUNCTIONS.contains(&import.name())
+        } else {
+            (import.module(), import.name()) == WASM_TRY
+        };
+        if !known {
             return Err(SgleamError::UnknownImport {
                 module: import.module().into(),
                 name: import.name().into(),
@@ -350,7 +360,25 @@ fn add_wasi(linker: &mut Linker<Wasi>) -> wasmtime::Result<()> {
     linker.func_wrap(WASI, "proc_exit", |code: i32| -> wasmtime::Result<()> {
         Err(wasmtime::Error::new(Exit(code)))
     })?;
+    let (module, name) = WASM_TRY;
+    linker.func_wrap(module, name, wasm_try)?;
     Ok(())
+}
+
+/// Calls `f` with `x`, and returns 0, or 1 when a stack overflow ended the
+/// call. Every other error goes on, as an exit, an interrupt or an exception
+/// has to end the call of the program too.
+fn wasm_try(
+    mut caller: Caller<'_, Wasi>,
+    f: Option<Func>,
+    x: Option<Rooted<AnyRef>>,
+) -> wasmtime::Result<i32> {
+    let f = f.ok_or_else(|| wasmtime::Error::new(Trap::NullReference))?;
+    match f.call(&mut caller, &[Val::AnyRef(x)], &mut []) {
+        Ok(()) => Ok(0),
+        Err(err) if err.downcast_ref::<Trap>() == Some(&Trap::StackOverflow) => Ok(1),
+        Err(err) => Err(err),
+    }
 }
 
 fn errno(result: Result<(), i32>) -> i32 {
@@ -672,6 +700,55 @@ mod tests {
             out,
             "Stack overflow\n  at f (m.gleam:6)\n  at g (m.gleam:10)\n  ...\n"
         );
+    }
+
+    /// A module that calls `env.wasm_try` with `$f` twice, and exits with
+    /// the sum of the results, or with the code that `$f` exits with.
+    fn wasm_try_module(f: &str) -> String {
+        format!(
+            r#"(module
+                (import "env" "wasm_try" (func $try (param funcref anyref) (result i32)))
+                (import "wasi_snapshot_preview1" "proc_exit" (func $exit (param i32)))
+                (func $forever (param $n i32) (result i32)
+                  (i32.add (i32.const 1) (call $forever (local.get $n))))
+                (func $f (param anyref) {f})
+                (elem declare func $f)
+                (memory (export "memory") 1)
+                (func (export "_start")
+                  (call $exit (i32.add
+                    (call $try (ref.func $f) (ref.null any))
+                    (call $try (ref.func $f) (ref.null any))))))"#
+        )
+    }
+
+    #[test]
+    fn wasm_try_returns_0_when_the_call_returns() {
+        let (result, _) = run(&wasm_try_module(""), &[], "");
+        assert_eq!(result.ok(), Some(0));
+    }
+
+    /// The program goes on after each stack overflow.
+    #[test]
+    fn wasm_try_returns_1_after_a_stack_overflow() {
+        let (result, _) = run(
+            &wasm_try_module("(drop (call $forever (i32.const 0)))"),
+            &[],
+            "",
+        );
+        assert_eq!(result.ok(), Some(2));
+    }
+
+    #[test]
+    fn an_exit_goes_through_wasm_try() {
+        let (result, _) = run(&wasm_try_module("(call $exit (i32.const 7))"), &[], "");
+        assert_eq!(result.ok(), Some(7));
+    }
+
+    #[test]
+    fn another_trap_goes_through_wasm_try() {
+        let (result, out) = run(&wasm_try_module("(unreachable)"), &[], "");
+        assert!(matches!(result, Err(SgleamError::UserProgramFailed)));
+        assert!(out.starts_with("WebAssembly trap: "), "{out}");
     }
 
     #[test]
