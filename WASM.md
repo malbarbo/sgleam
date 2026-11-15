@@ -243,6 +243,39 @@ avisa que as entradas se perderam.
    Deno com um host que as implementa. Medir a pilha no worker real.
 9. Remover do `wasm/` o `rquickjs`. O nativo continua com ele.
 
+## Pendências (2026-11-14)
+
+Os passos 2 e 3 estão feitos, e o `sgleam wasm` roda no wasmtime embutido
+(`WASMTIME.md`). Para fechar o passo 4 e os restos de `WASM_REVIEW.md`:
+
+- **A, feito em 2026-11-14.** O `let assert` que não casa não mostrava o
+  valor, e o `assert` não mostrava o operador e os lados
+  (`dbb5ab847`).
+- **B, feito em 2026-11-14.** O contador de chamadas saiu, e um estouro de
+  pilha é sempre a trap do motor (`WASM_STACK.md`). No `main`, o host
+  mostra o ciclo pelo `gleam.lines`, e três dos cinco snapshots ficaram
+  iguais aos do JS. Num teste, `failure.isolate` pede ao host, por
+  `env.wasm_try`, que capture a trap, e o próximo `assert` roda (fork
+  `faae6a8cd` e `eccea31c0`, stdlib `665358d`, sgleam `ccb72e9f4` a
+  `3d31ead77`, simplecode `5ffdd6e` a `edaddc2`).
+- **C, feito em 2026-11-14.** Item 18 do review. Uma trap de pilha mostrava
+  só "Stack overflow". Com a pilha de 1 GiB, só uma função de centenas de
+  argumentos chega lá. O compilador ganhou `call_lines`, a section
+  `gleam.lines` com a linha de cada chamada (fork `1dc6620a5`), e o host
+  mostra o ciclo de chamadas como o JS (`WASM_LINES.md`).
+- **D, feito em 2026-11-14.** Item 12 do review. `<<x:64-unsigned>>` com
+  todos os bits ligados lia -1. Com `int_overflow = "fail"`, a leitura de
+  um segmento que não cabe no `Int` agora falha com "Int overflow."
+  (fork `3f26cc42d`, sgleam `1e56bfbb1`).
+- **E, feito em 2026-11-14.** Item 15 do review. `float.to_string(-0.0)`
+  dava `"-0.0"` e agora dá `"0.0"`, como no JS (fork `722afe7e9`, sgleam
+  `86364a79b` e `fb92c1bad`). Fica aceita a diferença do NaN e do
+  Infinity, que aparecem como `NaN.0` e `Infinity.0`, enquanto o JS mostra
+  `//js(NaN)` e `//js(Infinity)`.
+- A decisão de `image_to_svg` em Gleam ou no host passa para o passo 5.
+- Depois, atualizar o topo de `WASM_REVIEW.md` e a decisão sobre o nativo
+  aqui embaixo.
+
 ## Decisões
 
 - O nativo fica para depois de medir o tempo de compilação de uma entrada
