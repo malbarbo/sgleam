@@ -1,0 +1,14 @@
+---
+source: cli/tests/integration.rs
+assertion_line: 56
+---
+STDOUT
+Running tests...
+  check_assert_stackoverflow.gleam/after_examples
+  check_assert_stackoverflow.gleam/inside_examples
+    Error at line 6
+      Maximum call stack size exceeded
+  check_assert_stackoverflow.gleam/outside_examples
+    Stack overflow
+4 tests, 2 successes, 0 failures and 2 errors.
+STDERR

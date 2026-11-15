@@ -1,0 +1,17 @@
+---
+source: cli/tests/integration.rs
+assertion_line: 56
+---
+STDOUT
+Running tests...
+  check_assert_stackoverflow.gleam/after_examples
+  check_assert_stackoverflow.gleam/inside_examples
+    Stack overflow
+      at forever (check_assert_stackoverflow.gleam:2)
+      ...
+  check_assert_stackoverflow.gleam/outside_examples
+    Stack overflow
+      at forever (check_assert_stackoverflow.gleam:2)
+      ...
+2 tests, 0 successes, 0 failures and 2 errors.
+STDERR

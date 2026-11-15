@@ -1,0 +1,12 @@
+---
+source: cli/tests/integration.rs
+assertion_line: 56
+---
+STDOUT
+STDERR
+error: Module does not have a main function
+
+`check_assert_stackoverflow` does not have a main function so the module
+can not be run.
+
+Hint: Add a public `main` function to `check_assert_stackoverflow.gleam`.

@@ -40,23 +40,33 @@ const errors = "sgleam/check/errors"
 
 /// Runs `assertion`, an `assert` of the user's code at `line` of `function`
 /// in `file`, on the WebAssembly target. Inside a test, a true `assert` is a
-/// success, a false one is a failure, and a `panic` in its expression is an
-/// error. The test goes on to the next `assert` in the three cases. Outside
-/// a test, a false `assert` stops the program, as on the JavaScript target.
+/// success, a false one is a failure, and a `panic` or a stack overflow in
+/// its expression is an error. The test goes on to the next `assert` in
+/// every case. Outside a test, a false `assert` stops the program, as on the
+/// JavaScript target.
 pub fn run(
-  _file: String,
-  _function: String,
-  _line: Int,
+  file: String,
+  function: String,
+  line: Int,
   assertion: fn() -> Nil,
 ) -> Nil {
   case current() {
     Error(Nil) -> assertion()
     Ok(running) ->
-      case failure.catch(assertion) {
+      case failure.isolate(assertion) {
         Ok(Nil) -> count(successes)
         Error(failure) if failure.kind == failure.Assert -> {
           show("Failure", failure, running)
           count(failures)
+        }
+        // A stack overflow has no location, and the JavaScript target
+        // shows the one of the `assert`, with the message of the engine.
+        Error(failure) if failure.kind == failure.StackOverflow -> {
+          let message = option.Some("Maximum call stack size exceeded")
+          let failure =
+            failure.Failure(..failure, file:, function:, line:, message:)
+          show("Error", failure, running)
+          count(errors)
         }
         Error(failure) -> {
           show("Error", failure, running)
@@ -83,8 +93,14 @@ pub fn run_tests(tests: List(#(String, String, fn() -> Nil))) -> Bool {
         wasi.println("  " <> file <> "/" <> function)
         global.set(test_file, dynamic.string(file))
         global.set(test_function, dynamic.string(function))
-        case failure.catch(run) {
+        case failure.isolate(run) {
           Ok(Nil) -> Nil
+          // A stack overflow has no location. The JavaScript target shows
+          // the calls that repeat after this line, which only the host knows.
+          Error(failure) if failure.kind == failure.StackOverflow -> {
+            wasi.println("    Stack overflow")
+            count(errors)
+          }
           Error(failure) -> {
             show("Error", failure, #(file, function))
             count(errors)

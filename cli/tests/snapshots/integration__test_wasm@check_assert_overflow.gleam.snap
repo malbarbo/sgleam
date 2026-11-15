@@ -1,5 +1,6 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 56
 ---
 STDOUT
 Running tests...
@@ -7,7 +8,7 @@ Running tests...
     Error at fact:4
       Int overflow.
   check_assert_overflow.gleam/loop_examples
-    Error at loop:8
-      Stack overflow.
+    Error at line 19
+      Maximum call stack size exceeded
 4 tests, 2 successes, 0 failures and 2 errors.
 STDERR
