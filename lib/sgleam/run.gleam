@@ -9,7 +9,8 @@ import sgleam/debug
 import sgleam/wasi
 
 /// Runs `main`. A failure that `main` does not catch is printed as on the
-/// JavaScript target, and the program exits with 1.
+/// JavaScript target, and the program exits with 1. A stack overflow is a
+/// trap, which goes to the host.
 pub fn start(main: fn() -> a) -> Nil {
   case failure.catch(main) {
     Ok(_) -> Nil
@@ -28,30 +29,17 @@ fn show(failure: Failure) -> Nil {
     file -> file
   }
   let line = int.to_string(failure.line)
-  case failure.kind {
-    // The JavaScript target shows the calls that repeat, and the WebAssembly
-    // target only knows the call that went past the limit.
-    failure.StackOverflow -> {
-      wasi.println("Stack overflow")
-      wasi.println(
-        "  at " <> failure.function <> " (" <> file <> ":" <> line <> ")",
-      )
-      wasi.println("  ...")
-    }
-    _ -> {
-      let message =
-        option.lazy_unwrap(failure.message, fn() {
-          failure.default_message(failure.kind)
-        })
-      wasi.println(
-        "Error at " <> file <> " (" <> failure.function <> ":" <> line <> ")",
-      )
-      wasi.println("  " <> message)
-      list.each(details(failure), fn(detail) {
-        wasi.println("  " <> detail.0 <> ": " <> detail.1)
-      })
-    }
-  }
+  let message =
+    option.lazy_unwrap(failure.message, fn() {
+      failure.default_message(failure.kind)
+    })
+  wasi.println(
+    "Error at " <> file <> " (" <> failure.function <> ":" <> line <> ")",
+  )
+  wasi.println("  " <> message)
+  list.each(details(failure), fn(detail) {
+    wasi.println("  " <> detail.0 <> ": " <> detail.1)
+  })
 }
 
 /// The values that explain `failure`, by name, as the JavaScript target
