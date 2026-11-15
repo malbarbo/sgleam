@@ -38,12 +38,17 @@ const failures = "sgleam/check/failures"
 
 const errors = "sgleam/check/errors"
 
-/// Runs `assertion`, an `assert` of the user's code, on the WebAssembly
-/// target. Inside a test, a true `assert` is a success, a false one is a
-/// failure, and a `panic` in its expression is an error. The test goes on to
-/// the next `assert` in the three cases. Outside a test, a false `assert`
-/// stops the program, as on the JavaScript target.
-pub fn run(assertion: fn() -> Nil) -> Nil {
+/// Runs `assertion`, an `assert` of the user's code at `line` of `function`
+/// in `file`, on the WebAssembly target. Inside a test, a true `assert` is a
+/// success, a false one is a failure, and a `panic` in its expression is an
+/// error. The test goes on to the next `assert` in the three cases. Outside
+/// a test, a false `assert` stops the program, as on the JavaScript target.
+pub fn run(
+  _file: String,
+  _function: String,
+  _line: Int,
+  assertion: fn() -> Nil,
+) -> Nil {
   case current() {
     Error(Nil) -> assertion()
     Ok(running) ->
