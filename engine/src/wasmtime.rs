@@ -4,13 +4,15 @@
 
 use std::hash::{BuildHasher, Hasher, RandomState};
 use std::io::{ErrorKind, Read, Write};
+use std::num::NonZeroUsize;
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant, SystemTime};
 
+use gleam_core::webassembly::Lines;
 use wasmtime::{
     Caller, Config, Engine, Extern, GcHeapOutOfMemory, Linker, Module, Store, ThrownException,
-    Trap, UpdateDeadline,
+    Trap, UpdateDeadline, WasmBacktrace,
 };
 
 use crate::error::{SgleamError, show_error};
@@ -124,7 +126,7 @@ fn run_here(program: &[u8], args: &[String], io: Io) -> Result<i32, SgleamError>
         .and_then(|start| start.call(&mut store, ()));
     match result {
         Ok(()) => Ok(0),
-        Err(err) => failure(err, &mut store.data_mut().io.stdout),
+        Err(err) => failure(err, program, &mut store.data_mut().io.stdout),
     }
 }
 
@@ -137,6 +139,8 @@ fn config() -> Config {
         .wasm_exceptions(true)
         .epoch_interruption(true)
         .max_wasm_stack(MAX_WASM_STACK)
+        // A cycle of n calls shows in 2n frames.
+        .wasm_backtrace_max_frames(NonZeroUsize::new(100))
         // `Engine::new` turns down a wasm stack larger than this one, which
         // only a call with `async` takes.
         .async_stack_size(MAX_WASM_STACK + HOST_STACK);
@@ -209,13 +213,13 @@ fn check_imports(module: &Module) -> Result<(), SgleamError> {
 
 /// What a program that stopped with `err` ends with. A trap or an exception
 /// that no one caught says so on `out`.
-fn failure(err: wasmtime::Error, out: &mut dyn Write) -> Result<i32, SgleamError> {
+fn failure(err: wasmtime::Error, program: &[u8], out: &mut dyn Write) -> Result<i32, SgleamError> {
     let message = if let Some(Exit(code)) = err.downcast_ref::<Exit>() {
         return Ok(if (0..=255).contains(code) { *code } else { 1 });
     } else if let Some(trap) = err.downcast_ref::<Trap>() {
         match trap {
             Trap::Interrupt => return Err(SgleamError::Interrupted),
-            Trap::StackOverflow => "Stack overflow".into(),
+            Trap::StackOverflow => stack_overflow(&err, program),
             Trap::AllocationTooLarge => "Out of memory".into(),
             trap => format!("WebAssembly trap: {trap}"),
         }
@@ -229,6 +233,77 @@ fn failure(err: wasmtime::Error, out: &mut dyn Write) -> Result<i32, SgleamError
     let _ = writeln!(out, "{message}");
     let _ = out.flush();
     Err(SgleamError::UserProgramFailed)
+}
+
+/// "Stack overflow", followed by the calls that repeat, as on the
+/// JavaScript target, when `program` has the lines of its calls.
+fn stack_overflow(err: &wasmtime::Error, program: &[u8]) -> String {
+    let mut text = String::from("Stack overflow");
+    let (Some(backtrace), Some(lines)) = (err.downcast_ref::<WasmBacktrace>(), Lines::of(program))
+    else {
+        return text;
+    };
+    let frames: Vec<String> = backtrace
+        .frames()
+        .iter()
+        .filter_map(|frame| {
+            // The frame where the stack ran out has no offset, and a function
+            // of the runtime has no lines.
+            let index = frame.func_index();
+            let offset = u32::try_from(frame.func_offset()?).ok()?;
+            let function = lines.functions.get(&index)?;
+            let line = lines.calls.get(&(index, offset))?;
+            // The path of a module starts at the root of the package, and the
+            // user gave the path from `src`.
+            let file = function.file.strip_prefix("src/").unwrap_or(&function.file);
+            Some(format!("at {} ({file}:{line})", function.name))
+        })
+        .collect();
+    if !frames.is_empty() {
+        for frame in first_cycle(&frames) {
+            text.push_str("\n  ");
+            text.push_str(&frame);
+        }
+        text.push_str("\n  ...");
+    }
+    text
+}
+
+/// One round of the cycle that repeats until the end of `frames`, at its
+/// smallest rotation, or every frame when no cycle repeats twice. This is
+/// `first_cycle` of `sgleam_ffi.mjs`.
+fn first_cycle(frames: &[String]) -> Vec<String> {
+    for start in 0..frames.len() {
+        for period in 1..=(frames.len() - start) / 2 {
+            let mut rest = frames.iter().skip(start);
+            if rest
+                .clone()
+                .zip(rest.clone().skip(period))
+                .all(|(a, b)| a == b)
+            {
+                let round: Vec<String> = rest.by_ref().take(period).cloned().collect();
+                return smallest_rotation(&round);
+            }
+        }
+    }
+    frames.to_vec()
+}
+
+/// The rotation of `round` that comes first in the order of the text, so the
+/// trace does not depend on the frame where the stack ran out.
+fn smallest_rotation(round: &[String]) -> Vec<String> {
+    (0..round.len())
+        .map(|i| {
+            round
+                .iter()
+                .cycle()
+                .skip(i)
+                .take(round.len())
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+        .min_by_key(|rotation| rotation.join("\n"))
+        .unwrap_or_default()
 }
 
 fn add_wasi(linker: &mut Linker<Wasi>) -> wasmtime::Result<()> {
@@ -571,6 +646,32 @@ mod tests {
         );
         assert!(matches!(result, Err(SgleamError::UserProgramFailed)));
         assert_eq!(out, "Stack overflow\n");
+    }
+
+    /// The calls of `$f` and `$g` are at the offset 5 of their bodies, after
+    /// the declarations of the locals, `i32.const 1` and `local.get 0`, and
+    /// `gleam.lines` gives them the lines 6 and 10 of `src/m.gleam`.
+    #[test]
+    fn a_stack_overflow_shows_the_calls_that_repeat() {
+        let (result, out) = run(
+            r#"(module
+                (func $f (param $n i32) (result i32)
+                  (i32.add (i32.const 1) (call $g (local.get $n))))
+                (func $g (param $n i32) (result i32)
+                  (i32.add (i32.const 1) (call $f (local.get $n))))
+                (func (export "_start") (drop (call $f (i32.const 0))))
+                (@custom "gleam.lines"
+                  "\03\01f\01g\0bsrc/m.gleam"
+                  "\02\00\00\02\01\01\02"
+                  "\02\00\05\06\01\05\0a"))"#,
+            &[],
+            "",
+        );
+        assert!(matches!(result, Err(SgleamError::UserProgramFailed)));
+        assert_eq!(
+            out,
+            "Stack overflow\n  at f (m.gleam:6)\n  at g (m.gleam:10)\n  ...\n"
+        );
     }
 
     #[test]

@@ -233,6 +233,7 @@ impl Project {
             int_overflow: WasmIntOverflow::Fail,
             stack_overflow: WasmStackOverflow::Fail,
             stack_limit: 100_000,
+            call_lines: true,
             ..Default::default()
         };
         let stdlib_config = PackageConfig {
