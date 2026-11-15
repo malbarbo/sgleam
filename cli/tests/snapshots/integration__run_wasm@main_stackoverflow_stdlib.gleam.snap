@@ -1,8 +1,9 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 56
 ---
 STDOUT
 Stack overflow
-  at floop (main_stackoverflow_stdlib.gleam:7)
+  at floop (main_stackoverflow_stdlib.gleam:8)
   ...
 STDERR

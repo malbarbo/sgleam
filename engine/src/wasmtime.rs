@@ -19,10 +19,11 @@ use wasmtime::{
 use crate::error::{SgleamError, show_error};
 use crate::host::{self, check_interrupt};
 
-/// The stack of a program. The library stops a program at 100_000 nested
-/// calls, and each call takes up to about 10 KiB. Only the part that the
-/// calls touch takes memory.
-const MAX_WASM_STACK: usize = 1024 * 1024 * 1024;
+/// The stack of a program, which fits about 500_000 calls of a small
+/// function. wasmtime walks the whole stack for the backtrace of a stack
+/// overflow, so a larger stack makes each overflow slower, and a test can
+/// have many of them. Only the part that the calls touch takes memory.
+const MAX_WASM_STACK: usize = 16 * 1024 * 1024;
 
 /// The stack of the host under the program, for the compile and the calls of
 /// WASI.
@@ -646,8 +647,9 @@ mod tests {
         }
     }
 
+    /// More than the 88_000 calls of the JavaScript target.
     #[test]
-    fn a_million_nested_calls_fit_in_the_stack() {
+    fn four_hundred_thousand_nested_calls_fit_in_the_stack() {
         let (result, _) = run(
             r#"(module
                 (func $down (param $n i32) (result i32)
@@ -655,7 +657,7 @@ mod tests {
                     (then (i32.const 0))
                     (else (i32.add (i32.const 1)
                       (call $down (i32.sub (local.get $n) (i32.const 1)))))))
-                (func (export "_start") (drop (call $down (i32.const 1000000)))))"#,
+                (func (export "_start") (drop (call $down (i32.const 400000)))))"#,
             &[],
             "",
         );

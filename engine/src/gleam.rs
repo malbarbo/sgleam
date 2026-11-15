@@ -10,7 +10,7 @@ use gleam_core::{
     },
     config::{
         PackageConfig, WasmFailure, WasmFloat, WasmFunction, WasmInt, WasmIntOverflow,
-        WasmStackOverflow, WebAssemblyConfig,
+        WebAssemblyConfig,
     },
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
@@ -231,8 +231,6 @@ impl Project {
             float: WasmFloat::F64,
             failure: WasmFailure::Exception,
             int_overflow: WasmIntOverflow::Fail,
-            stack_overflow: WasmStackOverflow::Fail,
-            stack_limit: 100_000,
             call_lines: true,
             ..Default::default()
         };

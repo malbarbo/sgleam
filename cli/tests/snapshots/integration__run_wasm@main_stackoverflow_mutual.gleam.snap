@@ -1,8 +1,10 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 56
 ---
 STDOUT
 Stack overflow
-  at g (main_stackoverflow_mutual.gleam:9)
+  at f (main_stackoverflow_mutual.gleam:6)
+  at g (main_stackoverflow_mutual.gleam:10)
   ...
 STDERR

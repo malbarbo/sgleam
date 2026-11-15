@@ -1,8 +1,9 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 56
 ---
 STDOUT
 Stack overflow
-  at f (main_stackoverflow_wide.gleam:48)
+  at f (main_stackoverflow_wide.gleam:92)
   ...
 STDERR

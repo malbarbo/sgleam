@@ -1,8 +1,10 @@
 ---
 source: cli/tests/integration.rs
+assertion_line: 56
 ---
 STDOUT
 Stack overflow
-  at f (main_stackoverflow_fold.gleam:8)
+  at <anonymous> (main_stackoverflow_fold.gleam:8)
+  at fold (gleam/list.gleam:699)
   ...
 STDERR
