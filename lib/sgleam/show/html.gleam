@@ -54,7 +54,7 @@ fn render_element(
       let #(label, message, enabled) = element.button_data(repr)
 
       let #(event_attr, handlers, after) =
-        register_message_handler("press", message, next, handlers)
+        register_message_handler("click", message, next, handlers)
 
       #(
         indent(level)
@@ -122,7 +122,7 @@ fn render_element(
       let #(checked, on_change, enabled) = element.checkbox_data(repr)
 
       let #(event_attr, handlers, after) =
-        register_bool_handler("toggle", on_change, next, handlers)
+        register_bool_handler("check", on_change, next, handlers)
 
       #(
         indent(level)
@@ -144,7 +144,7 @@ fn render_element(
       let #(label, uri, message) = element.link_data(repr)
 
       let #(event_attr, handlers, after) =
-        register_message_handler("press", message, next, handlers)
+        register_message_handler("click", message, next, handlers)
 
       #(
         indent(level)
@@ -281,7 +281,7 @@ fn render_picker(
   let #(choices, selected, on_select, enabled) = element.picker_data(repr)
 
   let #(event_attr, handlers, after) =
-    register_string_handler("selection", on_select, next, handlers)
+    register_string_handler("select", on_select, next, handlers)
 
   let options =
     choices
@@ -424,7 +424,7 @@ fn register_radio_handler(
       event.from_string(fn(_value) { message })
     })
 
-  register_handler("selection", handler, next, handlers)
+  register_handler("select", handler, next, handlers)
 }
 
 fn register_handler(
@@ -440,7 +440,7 @@ fn register_handler(
       let handlers = dict.insert(handlers, next, handler)
 
       #(
-        " data-sgleam-" <> name <> "=\"" <> int.to_string(next) <> "\"",
+        " data-on-" <> name <> "=\"" <> int.to_string(next) <> "\"",
         handlers,
         next + 1,
       )
