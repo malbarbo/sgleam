@@ -1,4 +1,4 @@
-# Task: efeitos web descritivos e executor de demonstração
+# Task: efeitos web descritivos
 
 ## Escopo
 
@@ -6,9 +6,10 @@ A biblioteca descreve GET, POST e um despertar após um intervalo (`wake_up`).
 O programa permanece funcional: init/update/view e as continuações calculam
 valores e descrevem pedidos. O ambiente interpreta esses pedidos.
 
-**Somente o executor fake está implementado.** Não há requisições reais,
-temporizador real, agendador assíncrono ou renderizador desktop. O foco da UI é
-web. As funções `task.write_file` e `task.println` foram removidas, junto com
+`app.run` interpreta as tarefas na versão web: GET e POST fazem requisições
+reais e `wake_up` espera de verdade, sem bloquear os eventos da interface. O
+executor fake continua disponível para testes, com `app.run_with`. Não há
+renderizador desktop; o foco da UI é web. As funções `task.write_file` e `task.println` foram removidas, junto com
 seus construtores e respostas no fake. Isso não remove APIs de console da
 linguagem nem a apresentação de resultados pelo ambiente.
 
@@ -33,7 +34,7 @@ nem a variante BadBody: decodificar JSON é uma etapa pura do programa.
 
 [Process.sleep](https://github.com/elm/core/blob/1.0.5/src/Process.elm) descreve
 uma espera em milissegundos antes de continuar. Nosso wake_up representa uma
-espera única; o fake apenas confirma o pedido. Uma repetição precisa ser
+espera única. Uma repetição precisa ser
 explicitamente solicitada pelo programa.
 
 ### JavaScript no navegador
@@ -44,9 +45,9 @@ separada de erros. Uma resposta 404/500 não rejeita automaticamente a Promise:
 o código precisa examinar `response.ok` ou `response.status`.
 
 Nossa API escolhe expor esses status como `BadStatus`, seguindo a conveniência
-do Elm. Um futuro executor web precisará fazer essa conversão explicitamente.
-Erros de rede e restrições como CORS nem sempre podem ser distinguidos pelo
-código do navegador; não prometemos variantes detalhadas de DNS, TLS ou CORS.
+do Elm, e o executor web faz essa conversão. Erros de rede e restrições de CORS
+não podem ser distinguidos pelo código do navegador e aparecem como
+`NetworkError`. Só funcionam servidores HTTPS que permitem CORS.
 
 ### Rust
 
@@ -58,8 +59,8 @@ requisições, independentemente de GET ou POST.
 transforma status 4xx/5xx em erros. Isso não é idêntico à regra escolhida aqui,
 que só aceita 2xx no resultado final, como expectString do Elm.
 
-Não adicionamos reqwest ao projeto: o escopo solicitado é web e fake. A pesquisa
-orienta o contrato público, não representa a implementação de um cliente real.
+Não adicionamos reqwest ao projeto: o escopo é web. Na execução nativa, uma
+aplicação `sgleam/show` termina com um erro dizendo que só roda na versão web.
 
 ## API pública
 
@@ -149,7 +150,7 @@ zero significa sem atraso solicitado. Construir a tarefa não espera nada.
 No fake, só `WakeUpResponse(1000)` confirma esse pedido. Uma resposta de 999
 não corresponde. A confirmação é imediata; o fake não mede nem avança um
 relógio virtual e não usa sleep. O histórico registra o intervalo solicitado.
-Uma repetição infinita não deve ser usada com esse executor imediato.
+Uma repetição infinita não deve ser usada com o fake.
 [app_wake_up](../../examples/app_wake_up.gleam) usa uma contagem limitada a três
 pedidos e para com stop_when.
 
@@ -239,14 +240,14 @@ app.create(init, view, update)
 |> app.run_with(fn(program) { fake.messages(program, responses) })
 ```
 
-`app.run` usa demo_messages. Para outros pedidos, forneça fixtures explícitas.
-Os exemplos HTTP/notas convertem falhas do fake em mensagens SimulationError;
-essas mensagens passam por update, sem o executor modificar o modelo.
+`app.run` usa o executor web. Um GET ou POST segura o programa até a resposta
+chegar, e os eventos da interface esperam na fila. Um `wake_up` não segura nada:
+o laço guarda o prazo e continua atendendo eventos até ele vencer.
 
 `task.none()` é usado quando não há mensagem a produzir. `task.done(msg)`
 provoca outra atualização: retornar a mesma mensagem repetidamente causa um
-ciclo infinito. Cada update apresenta sua view; o fake síncrono não garante
-que o navegador pinte todos os estados intermediários.
+ciclo infinito. Cada update apresenta sua view, mas o navegador não pinta
+necessariamente todos os estados intermediários.
 
 `stop_when` apresenta o modelo final e retorna antes da tarefa desse estado,
 das mensagens pendentes e de novos eventos. Não interrompe interpretação já
@@ -254,17 +255,13 @@ em andamento. A view final permanece, sem fechar aba ou processo.
 
 ## Execução e migração
 
-`main() -> Task(Int)` continua sendo reconhecido pelo ambiente sgleam e
-interpretado com demo_value. O inteiro não é convertido em exit status.
 `smain()` pode devolver Report ou uma lista de verificações ao ambiente.
 O fake é Gleam puro e funciona na execução nativa e WASM; a interface interativa
 é web. Não existe integração desktop de controles nativos.
 
 ```sh
-cargo run -- examples/task_web.gleam
 cargo run -- examples/task_fake.gleam
-cargo test -p sgleam --test tasks
-cargo test -p engine --test task_app
+cargo test -p engine --test show_app
 ```
 
 Migração:
@@ -273,7 +270,6 @@ Migração:
 - Envio ao servidor usa post com Body, não caminho de arquivo.
 - Troque erros String por HttpError e faça case sobre suas variantes.
 - Use wake_up para descrever uma espera; configure WakeUpResponse no fake.
-- task_download foi substituído por task_web, sem download para disco.
 - Mantenha init/update com a tupla e use messages/run_messages no App.
 - Sincronize a biblioteca no engine do SimpleCode e reconstrua seu WASM.
 
@@ -289,6 +285,5 @@ Gleam não impede que um usuário chame uma função impura dentro da continuaç
 a separação é arquitetural, não um sistema de efeitos verificado pelo compilador.
 Compare relatórios, não Tasks estruturalmente, pois Tasks contêm funções.
 
-Um executor real web futuro precisará agendar HTTP e temporizadores sem bloquear
-interações, mapear falhas para HttpError e respeitar o encerramento da aplicação.
-Esse executor não faz parte desta etapa, por decisão explícita de manter o fake.
+O executor web faz as requisições de forma síncrona: enquanto uma resposta não
+chega, a interface não responde. Um Stop encerra o programa.
