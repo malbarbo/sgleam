@@ -4,7 +4,10 @@ pub fn new(value: String) -> TextAreaRepr(msg) {
   element.new_text_area(value)
 }
 
-pub fn placeholder(area: TextAreaRepr(msg), value: String) -> TextAreaRepr(msg) {
+pub fn placeholder(
+  area: TextAreaRepr(msg),
+  value: String,
+) -> TextAreaRepr(msg) {
   element.text_area_placeholder(area, value)
 }
 

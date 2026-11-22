@@ -1,6 +1,6 @@
-import sgleam/task.{type Task}
 import sgleam/show/element.{type Element}
 import sgleam/show/internal/application
+import sgleam/task.{type Task}
 
 /// An MVU application whose init/update return a model and a task.
 pub type App(model, msg) =
