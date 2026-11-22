@@ -188,3 +188,31 @@ export function verify() {{
         ),
     );
 }
+
+#[test]
+fn a_long_run_does_not_grow_the_stack() {
+    run(
+        &format!(
+            r#"{IMPORTS}
+pub fn main() {{
+  setup()
+  let tick = fn(_) {{ task.done(Nil) }}
+  app.create(fn() {{ #(0, task.wake_up(0, tick)) }},
+    fn(n) {{ button.new(int.to_string(n)) |> button.done }},
+    fn(n, _) {{ #(n + 1, task.wake_up(0, tick)) }})
+  |> app.stop_when(fn(n) {{ n >= 20000 }})
+  |> app.run
+  verify()
+}}
+"#
+        ),
+        &format!(
+            r#"{PAGE}
+function on_wait(ms) {{ if (ms > 0) throw new Error("waited " + ms); }}
+export function verify() {{
+    if (!log.at(-1).includes(">20000<")) throw new Error(log.at(-1));
+}}
+"#
+        ),
+    );
+}

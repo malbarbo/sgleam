@@ -100,28 +100,71 @@ fn handlers_of(
 
 fn start(app: App(model, msg), execute: fn(Task(msg)) -> Outcome(msg)) -> Nil {
   let #(model, task) = app.init()
-  draw(app, execute, Frame([]), model, task, [], [])
+  run_loop(app, execute, Draw(model, Frame([]), task, [], []))
+}
+
+/// What the loop does next. Each phase gives the next one back to
+/// `run_loop`, which calls only itself, so an app that runs for a long time
+/// does not grow the stack.
+type Phase(model, msg) {
+  /// Draws the model, then runs `task` and the messages in `pending`.
+  Draw(
+    model: model,
+    frame: Frame(msg),
+    task: Task(msg),
+    pending: List(msg),
+    wakes: List(Wake(msg)),
+  )
+  /// Runs `task` against the model on screen, then the messages it produced.
+  Step(
+    model: model,
+    frame: Frame(msg),
+    task: Task(msg),
+    pending: List(msg),
+    wakes: List(Wake(msg)),
+  )
+  /// Waits for the next wake-up or event.
+  Idle(model: model, frame: Frame(msg), wakes: List(Wake(msg)))
+  Stopped
+}
+
+fn run_loop(
+  app: App(model, msg),
+  execute: fn(Task(msg)) -> Outcome(msg),
+  phase: Phase(model, msg),
+) -> Nil {
+  case phase {
+    Stopped -> Nil
+    Draw(model, frame, task, pending, wakes) ->
+      run_loop(app, execute, draw(app, frame, model, task, pending, wakes))
+    Step(model, frame, task, pending, wakes) ->
+      run_loop(
+        app,
+        execute,
+        step(app, execute, model, frame, task, pending, wakes),
+      )
+    Idle(model, frame, wakes) ->
+      run_loop(app, execute, idle(app, model, frame, wakes))
+  }
 }
 
 fn draw(
   app: App(model, msg),
-  execute: fn(Task(msg)) -> Outcome(msg),
   frame: Frame(msg),
   model: model,
   task: Task(msg),
   pending: List(msg),
   wakes: List(Wake(msg)),
-) -> Nil {
+) -> Phase(model, msg) {
   let #(markup, handlers) = app.view(model) |> html.render
   let frame =
     Frame([
       #(host.show_view(markup), handlers),
       ..list.take(frame.recent, kept_frames - 1)
     ])
-  step(app, execute, model, frame, task, pending, wakes)
+  Step(model, frame, task, pending, wakes)
 }
 
-/// Runs `task` against the model on screen, then the messages it produced.
 fn step(
   app: App(model, msg),
   execute: fn(Task(msg)) -> Outcome(msg),
@@ -130,9 +173,9 @@ fn step(
   task: Task(msg),
   pending: List(msg),
   wakes: List(Wake(msg)),
-) -> Nil {
+) -> Phase(model, msg) {
   case app.should_stop(model) {
-    True -> Nil
+    True -> Stopped
     False -> {
       let #(messages, delays) = execute(task)
       let now = system.elapsed_ms()
@@ -144,26 +187,25 @@ fn step(
       case list.append(pending, messages) {
         [message, ..rest] -> {
           let #(model, task) = app.update(model, message)
-          draw(app, execute, frame, model, task, rest, wakes)
+          Draw(model, frame, task, rest, wakes)
         }
-        [] -> idle(app, execute, model, frame, wakes)
+        [] -> Idle(model, frame, wakes)
       }
     }
   }
 }
 
-/// Waits for the next wake-up or event. A wake-up that is due runs first, so
-/// a steady stream of events does not hold a timer back.
+/// A wake-up that is due runs first, so a steady stream of events does not
+/// hold a timer back.
 fn idle(
   app: App(model, msg),
-  execute: fn(Task(msg)) -> Outcome(msg),
   model: model,
   frame: Frame(msg),
   wakes: List(Wake(msg)),
-) -> Nil {
+) -> Phase(model, msg) {
   let now = system.elapsed_ms()
   case take_due(wakes, now, []) {
-    Ok(#(next, wakes)) -> step(app, execute, model, frame, next(Nil), [], wakes)
+    Ok(#(next, wakes)) -> Step(model, frame, next(Nil), [], wakes)
     Error(_) ->
       case host.next_event() {
         Ok(raw) ->
@@ -172,19 +214,19 @@ fn idle(
               case app.mode {
                 EachUpdate -> {
                   let #(model, task) = app.update(model, message)
-                  draw(app, execute, frame, model, task, [], wakes)
+                  Draw(model, frame, task, [], wakes)
                 }
                 BatchEvents -> {
                   let #(model, _) = app.update(model, message)
                   let model = drain(app, frame, model)
-                  draw(app, execute, frame, model, task.none(), [], wakes)
+                  Draw(model, frame, task.none(), [], wakes)
                 }
               }
-            Error(_) -> idle(app, execute, model, frame, wakes)
+            Error(_) -> Idle(model, frame, wakes)
           }
         Error(_) -> {
           host.wait_event(timeout(wakes, now))
-          idle(app, execute, model, frame, wakes)
+          Idle(model, frame, wakes)
         }
       }
   }
