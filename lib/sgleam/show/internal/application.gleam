@@ -90,7 +90,7 @@ type Frame(msg) {
 }
 
 /// How many frames `Frame` keeps.
-const kept_frames = 32
+const kept_frames = 256
 
 fn handlers_of(
   frame: Frame(msg),
