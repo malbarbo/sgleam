@@ -296,7 +296,13 @@ fn add_sgleam<'js>(ctx: &Ctx<'js>, fs: InMemoryFileSystem, host: &Rc<Host>) -> R
     // Only the browser draws an svg in the repl. The library asks whether the
     // property is there, so a native run simply has none.
     #[cfg(target_arch = "wasm32")]
-    set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
+    {
+        set_fn(&sgleam, "draw_svg", crate::host::draw_svg)?;
+        set_fn(&sgleam, "draw_view", crate::host::draw_view)?;
+        set_fn(&sgleam, "next_view_event", crate::host::next_view_event)?;
+        set_fn(&sgleam, "wait_view_event", wait_view_event)?;
+        set_fn(&sgleam, "http_request", http_request)?;
+    }
     #[cfg(not(target_arch = "wasm32"))]
     {
         let h = host.clone();
@@ -390,6 +396,23 @@ fn wait_event(host: &Host, ctx: Ctx<'_>, ms: u64) -> Result<Vec<String>> {
     let event = host.wait_event(ms);
     stop_on_interrupt(&ctx)?;
     Ok(event)
+}
+
+/// The wait of `sgleam/show`, which stops the program on an interruption, as
+/// `sleep` does.
+#[cfg(target_arch = "wasm32")]
+fn wait_view_event(ctx: Ctx<'_>, timeout_ms: i32) -> Result<()> {
+    host::wait_view_event(timeout_ms);
+    stop_on_interrupt(&ctx)
+}
+
+/// A request of `sgleam/task`. A Stop during it stops the program, and the
+/// answer is not the program's.
+#[cfg(target_arch = "wasm32")]
+fn http_request(ctx: Ctx<'_>, request: String) -> Result<String> {
+    let answer = host::http_request(request);
+    stop_on_interrupt(&ctx)?;
+    Ok(answer)
 }
 
 fn open_mworld(

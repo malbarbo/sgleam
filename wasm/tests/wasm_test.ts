@@ -88,6 +88,16 @@ function makeEnv(
       const b = new Uint8Array(getBuffer() as ArrayBuffer);
       svgs.push(decoder.decode(b.slice(ptr, ptr + len)));
     },
+    // No page answers sgleam/show here.
+    draw_view: (): number => {
+      throw new Error("sgleam/show needs a page");
+    },
+    next_event: (): number => 0,
+    wait_event: (): number => 0,
+    http_request: (): number => {
+      throw new Error("sgleam/task needs a page");
+    },
+    http_response: (): number => 0,
   };
 }
 

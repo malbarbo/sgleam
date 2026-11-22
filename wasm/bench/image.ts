@@ -69,6 +69,16 @@ async function run(module: WebAssembly.Module, source: string) {
   const env = {
     check_interrupt: () => 0,
     draw_svg: () => {},
+    // No page answers sgleam/show here.
+    draw_view: (): number => {
+      throw new Error("sgleam/show needs a page");
+    },
+    next_event: (): number => 0,
+    wait_event: (): number => 0,
+    http_request: (): number => {
+      throw new Error("sgleam/task needs a page");
+    },
+    http_response: (): number => 0,
   };
   const instance = await WebAssembly.instantiate(module, {
     env,

@@ -14,6 +14,11 @@ mod ffi {
     unsafe extern "C" {
         pub fn check_interrupt() -> bool;
         pub fn draw_svg(str: *const u8, len: usize);
+        pub fn draw_view(str: *const u8, len: usize) -> u32;
+        pub fn next_event(buf: *mut u8, len: usize) -> usize;
+        pub fn wait_event(timeout_ms: i32) -> i32;
+        pub fn http_request(str: *const u8, len: usize) -> usize;
+        pub fn http_response(buf: *mut u8, len: usize) -> usize;
     }
 }
 
@@ -38,6 +43,35 @@ pub fn sleep(ms: u64) {
 
 pub fn draw_svg(str: String) {
     unsafe { ffi::draw_svg(str.as_ptr(), str.len()) }
+}
+
+pub fn draw_view(html: String) -> u32 {
+    unsafe { ffi::draw_view(html.as_ptr(), html.len()) }
+}
+
+pub fn next_view_event() -> String {
+    let mut buf = vec![0u8; 512];
+    loop {
+        let n = unsafe { ffi::next_event(buf.as_mut_ptr(), buf.len()) };
+        if n <= buf.len() {
+            buf.truncate(n);
+            return String::from_utf8_lossy(&buf).into_owned();
+        }
+        // The event stays in the queue until a buffer big enough takes it.
+        buf.resize(n, 0);
+    }
+}
+
+pub fn wait_view_event(timeout_ms: i32) {
+    unsafe { ffi::wait_event(timeout_ms) };
+}
+
+pub fn http_request(request: String) -> String {
+    let n = unsafe { ffi::http_request(request.as_ptr(), request.len()) };
+    let mut buf = vec![0u8; n];
+    let n = unsafe { ffi::http_response(buf.as_mut_ptr(), buf.len()) };
+    buf.truncate(n);
+    String::from_utf8_lossy(&buf).into_owned()
 }
 
 /// The session decides the players of a world on the page.

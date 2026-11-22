@@ -40,6 +40,27 @@ pub use target::sleep;
 #[cfg(target_arch = "wasm32")]
 pub use target::draw_svg;
 
+/// `sgleam/show` puts a frame of an interface on the page, as html that
+/// replaces the frame before it, and gets back the number of the frame. Only
+/// the browser draws, so a native run has no such function.
+#[cfg(target_arch = "wasm32")]
+pub use target::draw_view;
+
+/// Takes the next event of an interface off the page's queue, as json, or an
+/// empty string when the queue is empty.
+#[cfg(target_arch = "wasm32")]
+pub use target::next_view_event;
+
+/// Holds the program until an event of an interface arrives, `timeout_ms`
+/// passes or the user asks to stop. A negative timeout has no end.
+#[cfg(target_arch = "wasm32")]
+pub use target::wait_view_event;
+
+/// Makes the HTTP request that the json `request` describes and returns the
+/// answer as json. ENGINE.md in simplecode has both.
+#[cfg(target_arch = "wasm32")]
+pub use target::http_request;
+
 /// The choice of the display for the frames of a world and the images of the
 /// repl. The browser always draws on the page, so it has no such choice.
 #[cfg(not(target_arch = "wasm32"))]
