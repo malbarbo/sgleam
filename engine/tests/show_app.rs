@@ -84,17 +84,31 @@ export function verify() {{
 }
 
 #[test]
-fn an_event_from_an_older_frame_is_dropped() {
+fn an_event_runs_the_handler_of_the_frame_it_came_from() {
     run(
         &format!(
             r#"{IMPORTS}
-type Msg {{ Click }}
+import sgleam/show/layout
+type Msg {{ Up Down }}
 pub fn main() {{
   setup()
   app.create(fn() {{ #(0, task.none()) }},
-    fn(n) {{ button.new(int.to_string(n)) |> button.on_press(Click) |> button.done }},
-    fn(n, _) {{ #(n + 1, task.none()) }})
-  |> app.stop_when(fn(n) {{ n >= 2 }})
+    // Handler 0 is Up on the first frame and Down on every other.
+    fn(n) {{
+      let up = button.new("up") |> button.on_press(Up) |> button.done
+      let down = button.new("down") |> button.on_press(Down) |> button.done
+      case n {{
+        0 -> layout.column([up, down]) |> layout.done
+        _ -> layout.column([down, up]) |> layout.done
+      }}
+    }},
+    fn(n, msg) {{
+      case msg {{
+        Up -> #(n + 10, task.none())
+        Down -> #(n + 1, task.none())
+      }}
+    }})
+  |> app.stop_when(fn(n) {{ n >= 21 }})
   |> app.run
   verify()
 }}
@@ -102,15 +116,16 @@ pub fn main() {{
         ),
         &format!(
             r#"{PAGE}
-// Two clicks on the first frame, read after the first one drew the second.
+// Two clicks on Up of the first frame, the second read after the first drew
+// the next frame, and one from a frame the engine never drew.
 click(1);
 click(1);
-let waits = 0;
+events.push({{kind: "ui", f: 999, h: 0, e: "click"}});
 function on_wait(ms) {{
-    waits++;
     click(frame);
 }}
 export function verify() {{
+    const waits = log.filter(entry => entry.startsWith("wait")).length;
     if (waits !== 1) throw new Error(JSON.stringify(log));
 }}
 "#

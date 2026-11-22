@@ -82,26 +82,42 @@ type Wake(msg) {
   Wake(due: Int, next: fn(Nil) -> Task(msg))
 }
 
-/// The frame on screen and the handlers it registered.
+/// The numbers and the handlers of the last frames, the newest first. An
+/// event drawn on a frame that the page replaced while the event was on its
+/// way still runs the handler it meant.
 type Frame(msg) {
-  Frame(number: Int, handlers: Dict(Int, Handler(msg)))
+  Frame(recent: List(#(Int, Dict(Int, Handler(msg)))))
+}
+
+/// How many frames `Frame` keeps.
+const kept_frames = 32
+
+fn handlers_of(
+  frame: Frame(msg),
+) -> fn(Int) -> Result(Dict(Int, Handler(msg)), Nil) {
+  fn(number) { list.key_find(frame.recent, number) }
 }
 
 fn start(app: App(model, msg), execute: fn(Task(msg)) -> Outcome(msg)) -> Nil {
   let #(model, task) = app.init()
-  draw(app, execute, model, task, [], [])
+  draw(app, execute, Frame([]), model, task, [], [])
 }
 
 fn draw(
   app: App(model, msg),
   execute: fn(Task(msg)) -> Outcome(msg),
+  frame: Frame(msg),
   model: model,
   task: Task(msg),
   pending: List(msg),
   wakes: List(Wake(msg)),
 ) -> Nil {
   let #(markup, handlers) = app.view(model) |> html.render
-  let frame = Frame(host.show_view(markup), handlers)
+  let frame =
+    Frame([
+      #(host.show_view(markup), handlers),
+      ..list.take(frame.recent, kept_frames - 1)
+    ])
   step(app, execute, model, frame, task, pending, wakes)
 }
 
@@ -128,7 +144,7 @@ fn step(
       case list.append(pending, messages) {
         [message, ..rest] -> {
           let #(model, task) = app.update(model, message)
-          draw(app, execute, model, task, rest, wakes)
+          draw(app, execute, frame, model, task, rest, wakes)
         }
         [] -> idle(app, execute, model, frame, wakes)
       }
@@ -151,17 +167,17 @@ fn idle(
     Error(_) ->
       case host.next_event() {
         Ok(raw) ->
-          case incoming.message(raw, frame.number, frame.handlers) {
+          case incoming.message(raw, handlers_of(frame)) {
             Ok(message) ->
               case app.mode {
                 EachUpdate -> {
                   let #(model, task) = app.update(model, message)
-                  draw(app, execute, model, task, [], wakes)
+                  draw(app, execute, frame, model, task, [], wakes)
                 }
                 BatchEvents -> {
                   let #(model, _) = app.update(model, message)
                   let model = drain(app, frame, model)
-                  draw(app, execute, model, task.none(), [], wakes)
+                  draw(app, execute, frame, model, task.none(), [], wakes)
                 }
               }
             Error(_) -> idle(app, execute, model, frame, wakes)
@@ -207,7 +223,7 @@ fn drain(app: App(model, msg), frame: Frame(msg), model: model) -> model {
         Error(_) -> model
         Ok(raw) -> {
           let model =
-            incoming.message(raw, frame.number, frame.handlers)
+            incoming.message(raw, handlers_of(frame))
             |> result.map(fn(message) { app.update(model, message).0 })
             |> result.unwrap(model)
           drain(app, frame, model)

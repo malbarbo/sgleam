@@ -1,4 +1,3 @@
-import gleam/bool
 import gleam/dict.{type Dict}
 import gleam/dynamic.{type Dynamic}
 import gleam/dynamic/decode.{type Decoder}
@@ -7,19 +6,18 @@ import sgleam/show/event.{type Event, type Handler}
 
 /// Decodes a host event and applies its registered handler.
 /// Malformed events, missing handlers and incompatible values are ignored.
-/// An event from a frame other than `frame` is ignored too, since the ids of
-/// its handlers belong to that frame.
+/// The ids of handlers belong to one frame, so `handlers_of` gives the
+/// handlers of the frame the event came from, and an event from a frame it
+/// no longer has is ignored too.
 pub fn message(
   raw: Dynamic,
-  frame: Int,
-  handlers: Dict(Int, Handler(msg)),
+  handlers_of: fn(Int) -> Result(Dict(Int, Handler(msg)), Nil),
 ) -> Result(msg, Nil) {
   use incoming <- result.try(
     decode.run(raw, incoming_decoder()) |> result.replace_error(Nil),
   )
-  let Ui(frame: event_frame, handler: handler_id, event: incoming_event) =
-    incoming
-  use <- bool.guard(event_frame != frame, Error(Nil))
+  let Ui(frame:, handler: handler_id, event: incoming_event) = incoming
+  use handlers <- result.try(handlers_of(frame))
   use handler <- result.try(dict.get(handlers, handler_id))
   event.apply(handler, incoming_event)
 }
