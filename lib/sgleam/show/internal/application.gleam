@@ -89,7 +89,9 @@ type Frame(msg) {
   Frame(recent: List(#(Int, Dict(Int, Handler(msg)))))
 }
 
-/// How many frames `Frame` keeps.
+/// How many frames `Frame` keeps. The page of simplecode counts on this
+/// number to tell the user when an event was dropped (see `next_event` in its
+/// ENGINE.md).
 const kept_frames = 256
 
 fn handlers_of(
