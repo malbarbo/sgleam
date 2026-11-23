@@ -253,3 +253,49 @@ export function verify() {{
         ),
     );
 }
+
+#[test]
+fn a_view_with_thousands_of_children_draws() {
+    run(
+        &format!(
+            r#"{IMPORTS}
+import sgleam/show/element.{{type Element}}
+import sgleam/show/layout
+import sgleam/show/radio_group
+fn buttons(i, acc: List(Element(Int))) -> List(Element(Int)) {{
+  case i {{
+    0 -> acc
+    _ -> buttons(i - 1, [button.new(int.to_string(i)) |> button.on_press(i) |> button.done, ..acc])
+  }}
+}}
+fn options(group, i) {{
+  case i {{
+    0 -> group
+    _ -> options(radio_group.option(group, i, int.to_string(i)), i - 1)
+  }}
+}}
+pub fn main() {{
+  setup()
+  let group = options(radio_group.new(), 50000) |> radio_group.on_select(fn(i) {{ i }}) |> radio_group.done
+  app.create(fn() {{ #(0, task.none()) }},
+    fn(n) {{ layout.column([button.new(int.to_string(n)) |> button.done, group, ..buttons(50000, [])]) |> layout.done }},
+    fn(_, i) {{ #(i, task.none()) }})
+  |> app.stop_when(fn(n) {{ n > 0 }})
+  |> app.run
+  verify()
+}}
+"#
+        ),
+        &format!(
+            r#"{PAGE}
+// Handler 0 is the name of the group, the options take 1 to 50000, and the
+// buttons take 50001 to 100000.
+events.push({{kind: "ui", f: 1, h: 100000, e: "click"}});
+function on_wait() {{ throw new Error("waited"); }}
+export function verify() {{
+    if (!log.at(-1).includes(">50000<")) throw new Error(log.at(-1).slice(0, 300));
+}}
+"#
+        ),
+    );
+}

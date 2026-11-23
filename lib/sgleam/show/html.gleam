@@ -203,6 +203,7 @@ fn render_radio_group(
       next + 1,
       handlers,
       False,
+      [],
     )
   #(
     indent(level)
@@ -218,6 +219,7 @@ fn render_radio_group(
   )
 }
 
+// Tail recursive, since a group can hold thousands of options.
 fn render_radio_options(
   options: List(#(String, Bool, Option(msg))),
   name: String,
@@ -227,9 +229,10 @@ fn render_radio_options(
   next: Int,
   handlers: Dict(Int, Handler(msg)),
   selected: Bool,
-) {
+  done: List(String),
+) -> #(String, Dict(Int, Handler(msg)), Int) {
   case options {
-    [] -> #("", handlers, next)
+    [] -> #(done |> list.reverse |> string.join("\n"), handlers, next)
     [#(label, checked, message), ..rest] -> {
       // At most one checked radio, even if a caller repeats a value.
       let checked = checked && !selected
@@ -252,22 +255,17 @@ fn render_radio_options(
         <> "><span>"
         <> escape(label)
         <> "</span></label>"
-      let #(tail, handlers, after) =
-        render_radio_options(
-          rest,
-          name,
-          enabled,
-          level,
-          index + 1,
-          after,
-          handlers,
-          selected || checked,
-        )
-      let separator = case tail {
-        "" -> ""
-        _ -> "\n"
-      }
-      #(item <> separator <> tail, handlers, after)
+      render_radio_options(
+        rest,
+        name,
+        enabled,
+        level,
+        index + 1,
+        after,
+        handlers,
+        selected || checked,
+        [item, ..done],
+      )
     }
   }
 }
@@ -335,7 +333,7 @@ fn render_layout(
   let children = element.layout_data(repr)
 
   let #(body, handlers, after) =
-    render_children(children, level + 1, next, handlers)
+    render_children(children, level + 1, next, handlers, [])
 
   #(
     indent(level)
@@ -355,28 +353,22 @@ fn render_layout(
   )
 }
 
+// Tail recursive, since a column can hold thousands of children.
 fn render_children(
   children: List(Element(msg)),
   level: Int,
   next: Int,
   handlers: Dict(Int, Handler(msg)),
-) {
+  done: List(String),
+) -> #(String, Dict(Int, Handler(msg)), Int) {
   case children {
-    [] -> #("", handlers, next)
+    [] -> #(done |> list.reverse |> string.join("\n"), handlers, next)
 
     [child, ..rest] -> {
-      let #(html, handlers, after_child) =
+      let #(html, handlers, after) =
         render_element(child, level, next, handlers)
 
-      let #(rest_html, handlers, after) =
-        render_children(rest, level, after_child, handlers)
-
-      let separator = case rest_html {
-        "" -> ""
-        _ -> "\n"
-      }
-
-      #(html <> separator <> rest_html, handlers, after)
+      render_children(rest, level, after, handlers, [html, ..done])
     }
   }
 }
