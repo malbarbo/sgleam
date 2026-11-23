@@ -216,3 +216,40 @@ export function verify() {{
         ),
     );
 }
+
+#[test]
+fn a_wake_up_that_is_always_due_does_not_hold_events() {
+    run(
+        &format!(
+            r#"{IMPORTS}
+type Msg {{ Tick Click }}
+pub fn main() {{
+  setup()
+  let tick = fn(_) {{ task.done(Tick) }}
+  app.create(fn() {{ #(#(0, 0), task.wake_up(0, tick)) }},
+    fn(m: #(Int, Int)) {{ button.new(int.to_string(m.1)) |> button.on_press(Click) |> button.done }},
+    fn(m, msg) {{
+      case msg {{
+        Tick -> #(#(m.0 + 1, m.1), task.wake_up(0, tick))
+        Click -> #(#(m.0, m.1 + 1), task.none())
+      }}
+    }})
+  |> app.stop_when(fn(m) {{ m.1 == 3 || m.0 >= 1000 }})
+  |> app.run
+  verify()
+}}
+"#
+        ),
+        &format!(
+            r#"{PAGE}
+click(1);
+click(1);
+click(1);
+function on_wait(ms) {{ if (ms > 0) throw new Error("waited " + ms); }}
+export function verify() {{
+    if (!log.at(-1).includes(">3<")) throw new Error(log.at(-1));
+}}
+"#
+        ),
+    );
+}

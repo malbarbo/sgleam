@@ -100,12 +100,13 @@ fn handlers_of(
 
 fn start(app: App(model, msg), execute: fn(Task(msg)) -> Outcome(msg)) -> Nil {
   let #(model, task) = app.init()
-  run_loop(app, execute, Draw(model, Frame([]), task, [], []))
+  run_loop(app, execute, Draw(model, Frame([]), task, [], [], False))
 }
 
 /// What the loop does next. Each phase gives the next one back to
 /// `run_loop`, which calls only itself, so an app that runs for a long time
-/// does not grow the stack.
+/// does not grow the stack. `woke` is true from a wake-up that ran until the
+/// next event or wait, and then `idle` looks at the events first.
 type Phase(model, msg) {
   /// Draws the model, then runs `task` and the messages in `pending`.
   Draw(
@@ -114,6 +115,7 @@ type Phase(model, msg) {
     task: Task(msg),
     pending: List(msg),
     wakes: List(Wake(msg)),
+    woke: Bool,
   )
   /// Runs `task` against the model on screen, then the messages it produced.
   Step(
@@ -122,9 +124,10 @@ type Phase(model, msg) {
     task: Task(msg),
     pending: List(msg),
     wakes: List(Wake(msg)),
+    woke: Bool,
   )
   /// Waits for the next wake-up or event.
-  Idle(model: model, frame: Frame(msg), wakes: List(Wake(msg)))
+  Idle(model: model, frame: Frame(msg), wakes: List(Wake(msg)), woke: Bool)
   Stopped
 }
 
@@ -135,26 +138,31 @@ fn run_loop(
 ) -> Nil {
   case phase {
     Stopped -> Nil
-    Draw(model, frame, task, pending, wakes) ->
-      run_loop(app, execute, draw(app, frame, model, task, pending, wakes))
-    Step(model, frame, task, pending, wakes) ->
+    Draw(model, frame, task, pending, wakes, woke) ->
       run_loop(
         app,
         execute,
-        step(app, execute, model, frame, task, pending, wakes),
+        draw(app, model, frame, task, pending, wakes, woke),
       )
-    Idle(model, frame, wakes) ->
-      run_loop(app, execute, idle(app, model, frame, wakes))
+    Step(model, frame, task, pending, wakes, woke) ->
+      run_loop(
+        app,
+        execute,
+        step(app, execute, model, frame, task, pending, wakes, woke),
+      )
+    Idle(model, frame, wakes, woke) ->
+      run_loop(app, execute, idle(app, model, frame, wakes, woke))
   }
 }
 
 fn draw(
   app: App(model, msg),
-  frame: Frame(msg),
   model: model,
+  frame: Frame(msg),
   task: Task(msg),
   pending: List(msg),
   wakes: List(Wake(msg)),
+  woke: Bool,
 ) -> Phase(model, msg) {
   let #(markup, handlers) = app.view(model) |> html.render
   let frame =
@@ -162,7 +170,7 @@ fn draw(
       #(host.show_view(markup), handlers),
       ..list.take(frame.recent, kept_frames - 1)
     ])
-  Step(model, frame, task, pending, wakes)
+  Step(model, frame, task, pending, wakes, woke)
 }
 
 fn step(
@@ -173,6 +181,7 @@ fn step(
   task: Task(msg),
   pending: List(msg),
   wakes: List(Wake(msg)),
+  woke: Bool,
 ) -> Phase(model, msg) {
   case app.should_stop(model) {
     True -> Stopped
@@ -187,48 +196,68 @@ fn step(
       case list.append(pending, messages) {
         [message, ..rest] -> {
           let #(model, task) = app.update(model, message)
-          Draw(model, frame, task, rest, wakes)
+          Draw(model, frame, task, rest, wakes, woke)
         }
-        [] -> Idle(model, frame, wakes)
+        [] -> Idle(model, frame, wakes, woke)
       }
     }
   }
 }
 
-/// A wake-up that is due runs first, so a steady stream of events does not
-/// hold a timer back.
+/// Runs a wake-up that is due or the next event, and waits when there is
+/// neither. After a wake-up the events go first, and otherwise the wake-ups
+/// do, so a timer that is always due does not hold the events back, and a
+/// steady stream of events does not hold a timer back.
 fn idle(
   app: App(model, msg),
   model: model,
   frame: Frame(msg),
   wakes: List(Wake(msg)),
+  woke: Bool,
 ) -> Phase(model, msg) {
   let now = system.elapsed_ms()
-  case take_due(wakes, now, []) {
-    Ok(#(next, wakes)) -> Step(model, frame, next(Nil), [], wakes)
-    Error(_) ->
-      case host.next_event() {
-        Ok(raw) ->
-          case incoming.message(raw, handlers_of(frame)) {
-            Ok(message) ->
-              case app.mode {
-                EachUpdate -> {
-                  let #(model, task) = app.update(model, message)
-                  Draw(model, frame, task, [], wakes)
-                }
-                BatchEvents -> {
-                  let #(model, _) = app.update(model, message)
-                  let model = drain(app, frame, model)
-                  Draw(model, frame, task.none(), [], wakes)
-                }
-              }
-            Error(_) -> Idle(model, frame, wakes)
-          }
-        Error(_) -> {
-          host.wait_event(timeout(wakes, now))
-          Idle(model, frame, wakes)
+  let wake = fn() {
+    take_due(wakes, now, [])
+    |> result.map(fn(due) { Step(model, frame, due.0(Nil), [], due.1, True) })
+  }
+  let event = fn() { next_event(app, model, frame, wakes, woke) }
+  let next = case woke {
+    True -> result.lazy_or(event(), wake)
+    False -> result.lazy_or(wake(), event)
+  }
+  case next {
+    Ok(phase) -> phase
+    Error(_) -> {
+      host.wait_event(timeout(wakes, now))
+      Idle(model, frame, wakes, False)
+    }
+  }
+}
+
+/// Runs the next event, or gives `Error(Nil)` when none waits. An event of a
+/// frame that is gone runs nothing.
+fn next_event(
+  app: App(model, msg),
+  model: model,
+  frame: Frame(msg),
+  wakes: List(Wake(msg)),
+  woke: Bool,
+) -> Result(Phase(model, msg), Nil) {
+  use raw <- result.map(host.next_event())
+  case incoming.message(raw, handlers_of(frame)) {
+    Ok(message) ->
+      case app.mode {
+        EachUpdate -> {
+          let #(model, task) = app.update(model, message)
+          Draw(model, frame, task, [], wakes, False)
+        }
+        BatchEvents -> {
+          let #(model, _) = app.update(model, message)
+          let model = drain(app, frame, model)
+          Draw(model, frame, task.none(), [], wakes, False)
         }
       }
+    Error(_) -> Idle(model, frame, wakes, woke)
   }
 }
 
