@@ -85,31 +85,45 @@ pub fn run_test(
 }
 
 /// Runs the examples as `run_test` does, with the coverage marks in every
-/// file of `user_files`. The files come back with the regions that ran,
-/// also when an example fails or a panic stops the run. They are empty when
-/// the run does not start or Ctrl-C stops it.
+/// file of `user_files`. The files come back as `run_modules_coverage` gives
+/// them, and empty when the program does not compile.
 pub fn run_test_coverage(
     user_files: &[Utf8PathBuf],
     paths: &[Utf8PathBuf],
     options: HostOptions,
 ) -> (Vec<coverage::File>, Result<(), SgleamError>) {
+    let mut project = Project::default();
+    let built = match copy_files_and_build(&mut project, paths) {
+        Ok(built) => built,
+        Err(err) => return (vec![], Err(SgleamError::Gleam(err))),
+    };
+    let user_modules = user_modules(user_files, paths, &built);
+    run_modules_coverage(&mut project, &user_modules, options)
+}
+
+/// Runs the examples of `modules`, which `project` built, with the coverage
+/// marks. The files come back with the regions that ran, also when an
+/// example fails or a panic stops the run. They are empty when the run does
+/// not start or Ctrl-C stops it. `project` keeps the rewritten sources.
+pub fn run_modules_coverage(
+    project: &mut Project,
+    modules: &[(&Utf8Path, &Module)],
+    options: HostOptions,
+) -> (Vec<coverage::File>, Result<(), SgleamError>) {
     let mut files = vec![];
-    let result = run_coverage(user_files, paths, options, &mut files);
+    let result = run_coverage(project, modules, options, &mut files);
     (files, result)
 }
 
 fn run_coverage(
-    user_files: &[Utf8PathBuf],
-    paths: &[Utf8PathBuf],
+    project: &mut Project,
+    modules: &[(&Utf8Path, &Module)],
     options: HostOptions,
     files: &mut Vec<coverage::File>,
 ) -> Result<(), SgleamError> {
-    let mut project = Project::default();
-    let built = copy_files_and_build(&mut project, paths)?;
-    let user_modules = user_modules(user_files, paths, &built);
-    let compiled = coverage::compile(&mut project, &user_modules)?;
+    let compiled = coverage::compile(project, modules)?;
     let engine = JsEngine::new(project.fs.clone(), options)?;
-    let result = engine.run_tests(&names(&user_modules));
+    let result = engine.run_tests(&names(modules));
     if matches!(result, Err(SgleamError::Interrupted)) {
         return result;
     }
