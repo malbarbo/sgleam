@@ -109,9 +109,9 @@ enum Command {
         number: bool,
         #[bpaf(external(display_arg))]
         display: DisplayMode,
-        /// Show the code that no example ran.
-        #[bpaf(long)]
-        coverage: bool,
+        /// Do not show the code that no example ran.
+        #[bpaf(long("no-coverage"))]
+        no_coverage: bool,
         /// Gleam file to test.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -267,14 +267,16 @@ fn run() -> Result<(), SgleamError> {
         }
         Command::Run { file, args, .. } => run_file(file, options, args),
         Command::Server { file, .. } => run_file(file, options, vec![]),
-        Command::Test { file, coverage, .. } => {
+        Command::Test {
+            file, no_coverage, ..
+        } => {
             let file = user_module(file)?;
             let user_files = vec![file];
             let files = find_imports(user_files.clone())?;
-            if coverage {
-                test_coverage(&user_files, &files, options)
-            } else {
+            if no_coverage {
                 run_test(&user_files, &files, options)
+            } else {
+                test_coverage(&user_files, &files, options)
             }
         }
         Command::Format { check, files } => {

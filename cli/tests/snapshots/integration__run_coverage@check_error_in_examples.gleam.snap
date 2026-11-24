@@ -1,9 +1,0 @@
----
-source: cli/tests/integration.rs
----
-
-Code that no example ran:
-
-  check_error_in_examples.gleam:10, in maybe
-    _ -> Ok(x)
-    ^^^^^^^^^^ no example reaches this clause

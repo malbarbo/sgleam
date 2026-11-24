@@ -9,4 +9,6 @@ Running tests...
       Expected : 1.1
       Tolerance: 0.01
 3 tests, 2 successes, 1 failure and 0 errors.
+
+Every part of the code ran in some example.
 STDERR

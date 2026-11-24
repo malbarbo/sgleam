@@ -18,4 +18,10 @@ Running tests...
     Error at line 19
       not ready
 4 tests, 1 success, 0 failures and 3 errors.
+
+Code that no example ran:
+
+  check_error_in_examples.gleam:10, in maybe
+    _ -> Ok(x)
+    ^^^^^^^^^^ no example reaches this clause
 STDERR

@@ -3264,7 +3264,8 @@ fn test_output_agrees_between_backends() {
         "tests/inputs/check_true_false.gleam",
         "tests/inputs/check_progress.gleam",
     ] {
-        run_sgleam_cmd(&["test", file], None);
+        // The wrapper of the wasm has no report of the coverage.
+        run_sgleam_cmd(&["test", "--no-coverage", file], None);
     }
 }
 

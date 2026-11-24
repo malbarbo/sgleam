@@ -15,8 +15,7 @@ fn main() {
     #[rustfmt::skip]
     let rows = [
         ("tests/inputs", "run_file", "run", "check", all),
-        ("tests/inputs", "run_tests", "test", "check", checks),
-        ("tests/inputs", "run_coverage", "test", "check_coverage", checks),
+        ("tests/inputs", "run_tests", "test", "check_test", checks),
         ("tests/images", "run_images", "run", "check_image", all),
     ];
     for (dir, snapshot, command, check, keep) in rows {

@@ -54,18 +54,19 @@ fn check(snapshot: &str, command: &str, file: &str) {
     assert_snapshot!(snapshot, format!("STDOUT\n{out}STDERR\n{err}"));
 }
 
-/// `test --coverage` prints what `test` prints, with the same exit code, and
-/// then the coverage section, which is all that the snapshot keeps.
-fn check_coverage(snapshot: &str, command: &str, file: &str) {
+/// `test` prints what `test --no-coverage` prints, with the same exit code,
+/// and then the coverage section.
+fn check_test(snapshot: &str, command: &str, file: &str) {
     let _guard = bind(file);
     let (out, err, code) = run(&[command], file);
-    let (coverage_out, coverage_err, coverage_code) = run(&[command, "--coverage"], file);
-    assert_eq!(coverage_err, err);
-    assert_eq!(coverage_code, code);
-    let section = coverage_out.strip_prefix(&out).unwrap_or_else(|| {
-        panic!("the output of --coverage starts with\n{out}\nbut is\n{coverage_out}")
-    });
-    assert_snapshot!(snapshot, section);
+    let (plain_out, plain_err, plain_code) = run(&[command, "--no-coverage"], file);
+    assert_eq!(err, plain_err);
+    assert_eq!(code, plain_code);
+    assert!(
+        out.starts_with(&plain_out),
+        "the output of test starts with\n{plain_out}\nbut is\n{out}"
+    );
+    assert_snapshot!(snapshot, format!("STDOUT\n{out}STDERR\n{err}"));
 }
 
 /// An image is the whole of what its file prints, and nothing around it.

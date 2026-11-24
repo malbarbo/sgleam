@@ -11,4 +11,6 @@ check_progress.gleam:5
       Actual  : 4
       Expected: 5
 2 tests, 1 success, 1 failure and 0 errors.
+
+Every part of the code ran in some example.
 STDERR

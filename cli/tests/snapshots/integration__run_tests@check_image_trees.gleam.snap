@@ -5,4 +5,6 @@ STDOUT
 Running tests...
   check_image_trees.gleam/same_tree_examples
 9 tests, 9 successes, 0 failures and 0 errors.
+
+Every part of the code ran in some example.
 STDERR

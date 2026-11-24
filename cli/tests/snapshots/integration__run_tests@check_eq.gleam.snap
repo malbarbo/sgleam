@@ -9,6 +9,8 @@ Running tests...
       Actual  : "wrong string"
       Expected: "not this"
 4 tests, 3 successes, 1 failure and 0 errors.
+
+Every part of the code ran in some example.
 STDERR
 warning: Unused private function
   ┌─ check_eq.gleam:3:1

@@ -361,6 +361,8 @@ function parseArgs(argv: string[]): ParsedArgs {
     const display = displayFlag(arg);
     if (arg === "-q" && command === "repl") quiet = true;
     else if (arg === "-n") number = true;
+    // The wrapper never measures the coverage.
+    else if (arg === "--no-coverage" && command === "test") continue;
     else if (
       display !== null && command !== "check" && command !== "format"
     ) {

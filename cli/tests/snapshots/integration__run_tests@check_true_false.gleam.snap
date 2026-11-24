@@ -15,4 +15,6 @@ Running tests...
       Actual  : True
       Expected: False
 6 tests, 3 successes, 3 failures and 0 errors.
+
+Every part of the code ran in some example.
 STDERR
