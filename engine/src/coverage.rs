@@ -14,8 +14,10 @@ use gleam_core::{
     build::Target,
     warning::VectorWarningEmitterIO,
 };
-use src_span::SrcSpan;
-use std::rc::Rc;
+use src_span::{LineNumbers, SrcSpan};
+use std::{io::Write, rc::Rc};
+use termcolor::{Buffer, Color, ColorSpec, WriteColor};
+use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
 
 use crate::{
     error::SgleamError,
@@ -134,6 +136,72 @@ pub fn not_run<'a>(files: &'a [File], user_files: &[Utf8PathBuf]) -> Vec<(&'a Fi
             (file, spans)
         })
         .collect()
+}
+
+/// The section of `sgleam test --coverage` that lists the spans of
+/// `not_run`. Each span shows its line, without the indentation, and `^`
+/// under the span, in the colour of a warning when `color` is `true`. A
+/// span that goes on to the next line is underlined up to the end of the
+/// first one.
+pub fn report(not_run: &[(&File, Vec<SrcSpan>)], color: bool) -> String {
+    let mut out = if color {
+        Buffer::ansi()
+    } else {
+        Buffer::no_color()
+    };
+    // A write to a buffer in memory does not fail.
+    let _ = write_report(&mut out, not_run);
+    String::from_utf8_lossy(out.as_slice()).into_owned()
+}
+
+fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io::Result<()> {
+    if not_run.iter().all(|(_, spans)| spans.is_empty()) {
+        return writeln!(out, "Every part of the code ran in some example.");
+    }
+    writeln!(out, "Code that no example ran:")?;
+    let mut warning = ColorSpec::new();
+    warning.set_fg(Some(Color::Yellow));
+    for (file, spans) in not_run {
+        let source = file.source.as_str();
+        let numbers = LineNumbers::new(source);
+        for spans in
+            spans.chunk_by(|a, b| numbers.line_number(a.start) == numbers.line_number(b.start))
+        {
+            let Some(first) = spans.first() else {
+                continue;
+            };
+            let start = first.start as usize;
+            let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+            // `lines` drops the `\r` of a file from Windows.
+            let line = source[line_start..].lines().next().unwrap_or_default();
+            let text = line.trim_start();
+            let line_end = line_start + line.len();
+            writeln!(out, "  {}:{}", file.path, numbers.line_number(first.start))?;
+            writeln!(out, "    {text}")?;
+            write!(out, "    ")?;
+            let mut at = line_end - text.len();
+            for span in spans {
+                let start = span.start as usize;
+                let end = (span.end as usize).min(line_end);
+                // A tab stays a tab, so the `^` lines up whatever the width
+                // of a tab in the terminal.
+                let pad: String = source[at..start]
+                    .chars()
+                    .map(|c| match c {
+                        '\t' => "\t".into(),
+                        c => " ".repeat(c.width().unwrap_or(0)),
+                    })
+                    .collect();
+                write!(out, "{pad}")?;
+                out.set_color(&warning)?;
+                write!(out, "{}", "^".repeat(source[start..end].width().max(1)))?;
+                out.reset()?;
+                at = end;
+            }
+            writeln!(out)?;
+        }
+    }
+    Ok(())
 }
 
 /// Returns `true` if an example never calls the function `name`, `false`
@@ -797,6 +865,57 @@ mod tests {
         assert_eq!(
             not_run_text(&files, &["b.gleam"]),
             vec![("b.gleam".into(), vec!["fn g()".into()])]
+        );
+    }
+
+    fn report_of(src: &str, ran: &[usize], color: bool) -> String {
+        let files = [file("a.gleam", src, ran)];
+        report(&not_run(&files, &["a.gleam".into()]), color)
+    }
+
+    #[test]
+    fn report_when_everything_ran() {
+        assert_eq!(
+            report_of("fn f() { 1 }", &[0], false),
+            "Every part of the code ran in some example.\n"
+        );
+    }
+
+    #[test]
+    fn report_underlines_each_span() {
+        let src = "fn f(n) {\n  case n {\n    0 -> \"ação\" == n && b\n    _ -> c\n  }\n}\n";
+        assert_eq!(
+            report_of(src, &[0, 1], false),
+            "Code that no example ran:\n  \
+             a.gleam:3\n    0 -> \"ação\" == n && b\n                        ^\n  \
+             a.gleam:4\n    _ -> c\n    ^^^^^^\n"
+        );
+    }
+
+    #[test]
+    fn report_has_two_spans_of_a_line_once() {
+        let src = "fn f() { a && b || c }";
+        assert_eq!(
+            report_of(src, &[0], false),
+            "Code that no example ran:\n  a.gleam:1\n    fn f() { a && b || c }\n                  ^    ^\n"
+        );
+    }
+
+    #[test]
+    fn report_underlines_a_long_span_to_the_end_of_its_line() {
+        let src = "fn f(n) {\r\n\tcase n {\r\n\t\t0 -> a\t&& {\r\n\t\t\tb\r\n\t\t}\r\n\t}\r\n}\r\n";
+        assert_eq!(
+            report_of(src, &[0, 1], false),
+            "Code that no example ran:\n  a.gleam:3\n    0 -> a\t&& {\n          \t   ^\n"
+        );
+    }
+
+    #[test]
+    fn report_paints_the_underline() {
+        let src = "fn f() { 1 }";
+        assert_eq!(
+            report_of(src, &[], true),
+            "Code that no example ran:\n  a.gleam:1\n    fn f() { 1 }\n    \u{1b}[0m\u{1b}[33m^^^^^^\u{1b}[0m\n"
         );
     }
 

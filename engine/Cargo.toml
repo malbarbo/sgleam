@@ -31,6 +31,8 @@ tar = "0.4.41"
 termcolor = "1"
 thiserror = "2.0.3"
 tracing = "0.1.40"
+# The width of the text above the underline in a coverage report.
+unicode-width = "0.2"
 vec1 = "1.12.1"
 
 [build-dependencies]
