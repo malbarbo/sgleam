@@ -70,6 +70,8 @@ fn ran(files: &[coverage::File]) -> Vec<(RegionKind, String, bool)> {
         .collect()
 }
 
+/// The run rewrites only the file under test, and not `words.gleam`, which
+/// it imports.
 #[test]
 fn a_test_run_says_which_regions_ran() {
     let user_files = vec![Utf8PathBuf::from("tests/coverage/sign.gleam")];
@@ -86,16 +88,6 @@ fn a_test_run_says_which_regions_ran() {
             ),
             (RegionKind::Clause, "True -> words.negative()".into(), true),
             (RegionKind::Clause, "False -> \"positive\"".into(), false),
-            (
-                RegionKind::Function,
-                "pub fn negative() -> String {".into(),
-                true
-            ),
-            (
-                RegionKind::Function,
-                "pub fn zero() -> String {".into(),
-                false
-            ),
         ]
     );
 }

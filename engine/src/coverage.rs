@@ -107,13 +107,12 @@ pub fn compile(
     Ok(files)
 }
 
-/// The spans that a report shows as not run, for each file of `user_files`
-/// in `files`. A region inside another region that did not run stays out.
+/// The spans that a report shows as not run, for each file of `files`. A
+/// region inside another region that did not run stays out.
 /// The spans come in order and do not overlap.
-pub fn not_run<'a>(files: &'a [File], user_files: &[Utf8PathBuf]) -> Vec<(&'a File, Vec<SrcSpan>)> {
+pub fn not_run(files: &[File]) -> Vec<(&File, Vec<SrcSpan>)> {
     files
         .iter()
-        .filter(|file| user_files.contains(&file.path))
         .map(|file| {
             let mut regions: Vec<&Region> =
                 file.regions.iter().filter(|region| !region.ran).collect();
@@ -830,9 +829,8 @@ mod tests {
         }
     }
 
-    fn not_run_text(files: &[File], user_files: &[&str]) -> Vec<(String, Vec<String>)> {
-        let user_files: Vec<Utf8PathBuf> = user_files.iter().map(Utf8PathBuf::from).collect();
-        not_run(files, &user_files)
+    fn not_run_text(files: &[File]) -> Vec<(String, Vec<String>)> {
+        not_run(files)
             .into_iter()
             .map(|(file, spans)| {
                 let texts = spans
@@ -862,7 +860,7 @@ mod tests {
         let src = "fn f(n) { case n { 0 -> a && b  _ -> c } }\nfn g(n) { case n { 0 -> a && b  _ -> c } }";
         // In `g`, only the function and the first clause ran.
         assert_eq!(
-            not_run_text(&[file("a.gleam", src, &[4, 5])], &["a.gleam"]),
+            not_run_text(&[file("a.gleam", src, &[4, 5])]),
             vec![(
                 "a.gleam".into(),
                 vec!["fn f(n)".into(), "b".into(), "_ -> c".into()]
@@ -870,21 +868,9 @@ mod tests {
         );
     }
 
-    #[test]
-    fn not_run_has_only_the_user_files() {
-        let files = [
-            file("a.gleam", "fn f() { 1 }", &[]),
-            file("b.gleam", "fn g() { 1 }", &[]),
-        ];
-        assert_eq!(
-            not_run_text(&files, &["b.gleam"]),
-            vec![("b.gleam".into(), vec!["fn g()".into()])]
-        );
-    }
-
     fn report_of(src: &str, ran: &[usize], color: bool) -> String {
         let files = [file("a.gleam", src, ran)];
-        report(&not_run(&files, &["a.gleam".into()]), color)
+        report(&not_run(&files), color)
     }
 
     #[test]

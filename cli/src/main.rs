@@ -299,7 +299,7 @@ fn test_coverage(
 ) -> Result<(), SgleamError> {
     let (files, result) = run_test_coverage(user_files, paths, options);
     if !files.is_empty() {
-        let not_run = coverage::not_run(&files, user_files);
+        let not_run = coverage::not_run(&files);
         print!("\n{}", coverage::report(&not_run, color_stdout()));
     }
     result

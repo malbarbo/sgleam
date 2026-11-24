@@ -80,14 +80,14 @@ pub fn run_test(
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let user_modules = user_modules(user_files, paths, &built);
-    JsEngine::new(project.fs.clone(), options)?.run_tests(&user_modules)?;
+    JsEngine::new(project.fs.clone(), options)?.run_tests(&names(&user_modules))?;
     Ok(())
 }
 
 /// Runs the examples as `run_test` does, with the coverage marks in every
-/// file of `paths`. The files come back with the regions that ran, also when
-/// an example fails or a panic stops the run. They are empty when the run
-/// does not start or Ctrl-C stops it.
+/// file of `user_files`. The files come back with the regions that ran,
+/// also when an example fails or a panic stops the run. They are empty when
+/// the run does not start or Ctrl-C stops it.
 pub fn run_test_coverage(
     user_files: &[Utf8PathBuf],
     paths: &[Utf8PathBuf],
@@ -107,9 +107,9 @@ fn run_coverage(
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let user_modules = user_modules(user_files, paths, &built);
-    let compiled = coverage::compile(&mut project, &built.with_paths(paths))?;
+    let compiled = coverage::compile(&mut project, &user_modules)?;
     let engine = JsEngine::new(project.fs.clone(), options)?;
-    let result = engine.run_tests(&user_modules);
+    let result = engine.run_tests(&names(&user_modules));
     if matches!(result, Err(SgleamError::Interrupted)) {
         return result;
     }
@@ -128,19 +128,22 @@ fn run_coverage(
     result
 }
 
-/// The names of the modules that `user_files` became, in the order of
+/// The modules that `user_files` became, with their paths, in the order of
 /// `paths`.
 fn user_modules<'a>(
     user_files: &[Utf8PathBuf],
-    paths: &[Utf8PathBuf],
+    paths: &'a [Utf8PathBuf],
     built: &'a Built,
-) -> Vec<&'a str> {
-    paths
+) -> Vec<(&'a Utf8Path, &'a Module)> {
+    let mut modules = built.with_paths(paths);
+    modules.retain(|(path, _)| user_files.iter().any(|file| file == path));
+    modules
+}
+
+fn names<'a>(modules: &[(&Utf8Path, &'a Module)]) -> Vec<&'a str> {
+    modules
         .iter()
-        .enumerate()
-        .filter(|(_, path)| user_files.contains(path))
-        .filter_map(|(index, _)| built.module(index))
-        .map(|module| module.name.as_str())
+        .map(|(_, module)| module.name.as_str())
         .collect()
 }
 
