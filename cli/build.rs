@@ -7,20 +7,34 @@ fn main() {
     println!("cargo:rerun-if-changed=tests/images");
 
     let mut src = String::new();
-    tests(&mut src, "tests/inputs", "run_file", "run", |_| true);
-    tests(&mut src, "tests/inputs", "run_tests", "test", |name| {
-        name.starts_with("check")
-    });
-    tests(&mut src, "tests/inputs", "run_coverage", "test", |name| {
-        name.starts_with("check")
-    });
-    tests(&mut src, "tests/images", "run_images", "run", |_| true);
+    let all: fn(&str) -> bool = |_| true;
+    let checks: fn(&str) -> bool = |name| name.starts_with("check");
+    // Each row is the directory, the snapshot, the command, the function of
+    // `integration.rs` that runs the test, and the files to keep. An image is
+    // a whole snapshot of its own: the svg, and nothing around it.
+    #[rustfmt::skip]
+    let rows = [
+        ("tests/inputs", "run_file", "run", "check", all),
+        ("tests/inputs", "run_tests", "test", "check", checks),
+        ("tests/inputs", "run_coverage", "test", "check_coverage", checks),
+        ("tests/images", "run_images", "run", "check_image", all),
+    ];
+    for (dir, snapshot, command, check, keep) in rows {
+        tests(&mut src, dir, snapshot, command, check, keep);
+    }
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out).join("file_tests.rs"), src).expect("write the generated tests");
 }
 
-fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&str) -> bool) {
+fn tests(
+    src: &mut String,
+    dir: &str,
+    snapshot: &str,
+    command: &str,
+    check: &str,
+    keep: fn(&str) -> bool,
+) {
     let mut names: Vec<String> = fs::read_dir(dir)
         .unwrap_or_else(|e| panic!("read {dir}: {e}"))
         .map(|entry| entry.expect("a directory entry").file_name())
@@ -43,12 +57,6 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&s
         if snapshot == "run_images" {
             let _ = writeln!(src, "#[ignore]");
         }
-        // An image is a whole snapshot of its own: the svg, and nothing around it.
-        let check = match snapshot {
-            "run_images" => "check_image",
-            "run_coverage" => "check_coverage",
-            _ => "check",
-        };
         let _ = writeln!(
             src,
             "#[test]\nfn {ident}() {{ {check}(\"{snapshot}\", \"{command}\", \"{dir}/{name}\"); }}"
