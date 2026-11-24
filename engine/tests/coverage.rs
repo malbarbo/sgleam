@@ -2,6 +2,7 @@
 //! path names the module the compiler makes of it.
 
 use camino::Utf8PathBuf;
+use src_span::SrcSpan;
 
 use engine::{
     coverage::{self, RegionKind},
@@ -132,7 +133,13 @@ fn an_operand_that_panics_ran() {
                 "pub fn positive(n: Int) -> Bool {".into(),
                 true
             ),
-            (RegionKind::Operand, "panic as \"positive\"".into(), true),
+            (
+                RegionKind::And {
+                    left: SrcSpan::new(57, 62)
+                },
+                "panic as \"positive\"".into(),
+                true
+            ),
         ]
     );
 }

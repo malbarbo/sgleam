@@ -28,12 +28,28 @@ use crate::{
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegionKind {
-    /// The body of a function, named or anonymous.
+    /// The body of a top level function.
     Function,
+    /// The body of an anonymous function.
+    AnonymousFunction,
     /// The expression of a `case` clause.
     Clause,
-    /// The right operand of `&&` or `||`.
-    Operand,
+    /// The right operand of `&&`, which runs only when `left` is true.
+    And { left: SrcSpan },
+    /// The right operand of `||`, which runs only when `left` is false.
+    Or { left: SrcSpan },
+}
+
+impl RegionKind {
+    /// The name of the kind, without the span of a left operand.
+    pub fn name(&self) -> &'static str {
+        match self {
+            RegionKind::Function | RegionKind::AnonymousFunction => "function",
+            RegionKind::Clause => "clause",
+            RegionKind::And { .. } => "and",
+            RegionKind::Or { .. } => "or",
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -246,7 +262,12 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
                 continue;
             }
             let span = SrcSpan::new(function.location.start, function.end_position);
-            marker.body(span, function.location, &function.body);
+            marker.body(
+                RegionKind::Function,
+                span,
+                function.location,
+                &function.body,
+            );
         }
     }
 
@@ -319,7 +340,13 @@ impl Marker<'_> {
     }
 
     /// `head` is the part of the function before its body.
-    fn body(&mut self, span: SrcSpan, head: SrcSpan, statements: &[UntypedStatement]) {
+    fn body(
+        &mut self,
+        kind: RegionKind,
+        span: SrcSpan,
+        head: SrcSpan,
+        statements: &[UntypedStatement],
+    ) {
         // An empty body holds the `todo` the parser adds, and a mark before it
         // would make the function return `Nil`.
         let empty = matches!(
@@ -332,7 +359,7 @@ impl Marker<'_> {
         if let Some(statement) = statements.first()
             && !empty
         {
-            let n = self.region(RegionKind::Function, span, head);
+            let n = self.region(kind, span, head);
             self.insert(
                 statement.start_byte_index(),
                 format!("{}.hit({n}.0) ", self.alias),
@@ -419,7 +446,9 @@ impl Marker<'_> {
                 body,
                 ..
             } => match kind {
-                FunctionLiteralKind::Anonymous { head } => self.body(*location, *head, body),
+                FunctionLiteralKind::Anonymous { head } => {
+                    self.body(RegionKind::AnonymousFunction, *location, *head, body)
+                }
                 // A capture has no body in the source. Its body is the call
                 // that it replaces.
                 FunctionLiteralKind::Capture { .. } | FunctionLiteralKind::Use { .. } => {
@@ -454,11 +483,12 @@ impl Marker<'_> {
                     // The mark runs before the operand, so an operand that
                     // panics still shows as run.
                     let location = right.location();
-                    let n = self.region(RegionKind::Operand, location, location);
-                    let (mark, op) = match operator {
-                        BinOp::And => ("hit_true", "&&"),
-                        _ => ("hit_false", "||"),
+                    let left = left.location();
+                    let (kind, mark, op) = match operator {
+                        BinOp::And => (RegionKind::And { left }, "hit_true", "&&"),
+                        _ => (RegionKind::Or { left }, "hit_false", "||"),
                     };
+                    let n = self.region(kind, location, location);
                     self.insert(
                         location.start,
                         format!("{}.{mark}({n}.0) {op} ", self.alias),
@@ -576,6 +606,26 @@ mod tests {
                 (region.kind, text, region.function)
             })
             .collect()
+    }
+
+    #[test]
+    fn an_operand_knows_its_left_side() {
+        let src = "fn f() { a && b || c }";
+        let left = |kind: RegionKind| match kind {
+            RegionKind::And { left } | RegionKind::Or { left } => {
+                &src[left.start as usize..left.end as usize]
+            }
+            _ => "",
+        };
+        let kinds: Vec<_> = rewrite_ok(src, 0)
+            .regions
+            .into_iter()
+            .map(|region| (region.kind.name(), left(region.kind)))
+            .collect();
+        assert_eq!(
+            kinds,
+            vec![("function", ""), ("and", "a"), ("or", "a && b")]
+        );
     }
 
     #[test]
@@ -790,9 +840,15 @@ mod tests {
                     "f".into()
                 ),
                 (RegionKind::Clause, "0 -> a && b", "f".into()),
-                (RegionKind::Operand, "b", "f".into()),
+                (
+                    RegionKind::And {
+                        left: SrcSpan::new(24, 25)
+                    },
+                    "b",
+                    "f".into()
+                ),
                 (RegionKind::Function, "fn g() { fn() { 1 } }", "g".into()),
-                (RegionKind::Function, "fn() { 1 }", "g".into()),
+                (RegionKind::AnonymousFunction, "fn() { 1 }", "g".into()),
             ]
         );
     }
