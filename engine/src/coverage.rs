@@ -326,8 +326,8 @@ impl Marker<'_> {
                 ..
             } => match kind {
                 FunctionLiteralKind::Anonymous { .. } => self.body(*location, body),
-                // A capture has no body in the source, only the call it
-                // stands for.
+                // A capture has no body in the source. Its body is the call
+                // that it replaces.
                 FunctionLiteralKind::Capture { .. } | FunctionLiteralKind::Use { .. } => {
                     for statement in body {
                         self.statement(statement);
