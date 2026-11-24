@@ -167,7 +167,7 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
     // The sort is stable, so at one offset the text keeps the order of the
     // walk, which opens the outer block before the inner one and closes the
     // inner block first.
-    let mut inserts = std::mem::take(&mut marker.inserts);
+    let mut inserts = marker.inserts;
     inserts.sort_by_key(|(at, _)| *at);
     let mut source = String::with_capacity(src.len() + inserts.len() * 32);
     let mut last = 0;
