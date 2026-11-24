@@ -39,6 +39,9 @@ pub struct Region {
     /// The span in the original source. A function spans its head and its
     /// body, and a clause spans its patterns and its expression.
     pub span: SrcSpan,
+    /// The part of the span that a report shows. A function shows its head,
+    /// and a clause or an operand shows all of its span.
+    pub shown: SrcSpan,
     /// The name of the top level function that holds the region.
     pub function: EcoString,
     /// Whether the region ran. Only a run with coverage sets it.
@@ -132,7 +135,7 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
                 .map(|(_, name)| name.clone())
                 .unwrap_or_default();
             let span = SrcSpan::new(function.location.start, function.end_position);
-            marker.body(span, &function.body);
+            marker.body(span, function.location, &function.body);
         }
     }
 
@@ -189,10 +192,11 @@ struct Marker<'a> {
 }
 
 impl Marker<'_> {
-    fn region(&mut self, kind: RegionKind, span: SrcSpan) -> usize {
+    fn region(&mut self, kind: RegionKind, span: SrcSpan, shown: SrcSpan) -> usize {
         self.regions.push(Region {
             kind,
             span,
+            shown,
             function: self.function.clone(),
             ran: false,
         });
@@ -203,7 +207,8 @@ impl Marker<'_> {
         self.inserts.push((at, text));
     }
 
-    fn body(&mut self, span: SrcSpan, statements: &[UntypedStatement]) {
+    /// `head` is the part of the function before its body.
+    fn body(&mut self, span: SrcSpan, head: SrcSpan, statements: &[UntypedStatement]) {
         // An empty body holds the `todo` the parser adds, and a mark before it
         // would make the function return `Nil`.
         let empty = matches!(
@@ -216,7 +221,7 @@ impl Marker<'_> {
         if let Some(statement) = statements.first()
             && !empty
         {
-            let n = self.region(RegionKind::Function, span);
+            let n = self.region(RegionKind::Function, span, head);
             self.insert(
                 statement.start_byte_index(),
                 format!("{}.hit({n}.0) ", self.alias),
@@ -303,7 +308,7 @@ impl Marker<'_> {
                 body,
                 ..
             } => match kind {
-                FunctionLiteralKind::Anonymous { .. } => self.body(*location, body),
+                FunctionLiteralKind::Anonymous { head } => self.body(*location, *head, body),
                 // A capture has no body in the source. Its body is the call
                 // that it replaces.
                 FunctionLiteralKind::Capture { .. } | FunctionLiteralKind::Use { .. } => {
@@ -338,7 +343,7 @@ impl Marker<'_> {
                     // The mark runs before the operand, so an operand that
                     // panics still shows as run.
                     let location = right.location();
-                    let n = self.region(RegionKind::Operand, location);
+                    let n = self.region(RegionKind::Operand, location, location);
                     let (mark, op) = match operator {
                         BinOp::And => ("hit_true", "&&"),
                         _ => ("hit_false", "||"),
@@ -366,7 +371,7 @@ impl Marker<'_> {
                     self.expression(subject);
                 }
                 for clause in clauses.iter().flatten() {
-                    let n = self.region(RegionKind::Clause, clause.location);
+                    let n = self.region(RegionKind::Clause, clause.location, clause.location);
                     let then = clause.then.location();
                     self.insert(then.start, format!("{{ {}.hit({n}.0) ", self.alias));
                     self.leading_minus(&clause.then);
@@ -677,6 +682,26 @@ mod tests {
                 (RegionKind::Operand, "b", "f".into()),
                 (RegionKind::Function, "fn g() { fn() { 1 } }", "g".into()),
                 (RegionKind::Function, "fn() { 1 }", "g".into()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_function_shows_its_head() {
+        let src = "pub fn f(n: Int) -> Int {\n  case n { 0 -> a && b }\n}\nfn g() { fn(x: Int) -> Int { x } }";
+        let shown: Vec<_> = rewrite_ok(src, 0)
+            .regions
+            .into_iter()
+            .map(|region| &src[region.shown.start as usize..region.shown.end as usize])
+            .collect();
+        assert_eq!(
+            shown,
+            vec![
+                "pub fn f(n: Int) -> Int",
+                "0 -> a && b",
+                "b",
+                "fn g()",
+                "fn(x: Int) -> Int",
             ]
         );
     }
