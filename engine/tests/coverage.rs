@@ -20,55 +20,31 @@ fn the_second_compile_runs_the_marks() {
     let built = copy_files_and_build(&mut project, &paths).expect("compile");
     let files = coverage::compile(&mut project, &paths, &built).expect("compile the marks");
 
-    let regions: Vec<_> = files
+    let counts: Vec<_> = files
         .iter()
-        .flat_map(|file| {
-            file.regions.iter().map(|region| {
-                let text = &file.source[region.span.start as usize..region.span.end as usize];
-                (
-                    file.path.clone(),
-                    region.kind,
-                    text.lines().next().map(String::from),
-                )
-            })
-        })
+        .map(|file| (file.path.as_str(), file.regions.len()))
         .collect();
-    let sign = Utf8PathBuf::from("tests/coverage/sign.gleam");
-    let words = Utf8PathBuf::from("tests/coverage/words.gleam");
-    let line = |text: &str| Some(text.to_string());
+    assert_eq!(
+        counts,
+        [
+            ("tests/coverage/sign.gleam", 4),
+            ("tests/coverage/words.gleam", 2)
+        ]
+    );
+    let regions: Vec<_> = ran(&files)
+        .into_iter()
+        .map(|(kind, line, _)| (kind, line))
+        .collect();
+    let region = |kind, line: &str| (kind, line.to_string());
     assert_eq!(
         regions,
         vec![
-            (
-                sign.clone(),
-                RegionKind::Function,
-                line("pub fn sign(n: Int) -> String {")
-            ),
-            (
-                sign.clone(),
-                RegionKind::Clause,
-                line("True -> words.negative()")
-            ),
-            (
-                sign.clone(),
-                RegionKind::Clause,
-                line("False -> \"positive\"")
-            ),
-            (
-                sign.clone(),
-                RegionKind::Function,
-                line("pub fn sign_examples() {")
-            ),
-            (
-                words.clone(),
-                RegionKind::Function,
-                line("pub fn negative() -> String {")
-            ),
-            (
-                words.clone(),
-                RegionKind::Function,
-                line("pub fn zero() -> String {")
-            ),
+            region(RegionKind::Function, "pub fn sign(n: Int) -> String {"),
+            region(RegionKind::Clause, "True -> words.negative()"),
+            region(RegionKind::Clause, "False -> \"positive\""),
+            region(RegionKind::Function, "pub fn sign_examples() {"),
+            region(RegionKind::Function, "pub fn negative() -> String {"),
+            region(RegionKind::Function, "pub fn zero() -> String {"),
         ]
     );
 
