@@ -12,8 +12,6 @@ use gleam_core::{
         UntypedStatement,
     },
     build::Target,
-    io::FileSystemWriter,
-    paths::ARTEFACT_DIRECTORY_NAME,
     warning::VectorWarningEmitterIO,
 };
 use src_span::SrcSpan;
@@ -84,20 +82,7 @@ pub fn compile(
         let name = &module.name;
         let rewrite = rewrite(path.clone(), &module.code, first)?;
         first += rewrite.regions.len();
-        project.write_source(&format!("{name}.gleam"), &rewrite.source);
-        // The build keeps a hard link to the source next to the JavaScript,
-        // and on a second build it asks whether the link is the same file,
-        // which the file system in memory does not implement. The cache files
-        // go too, so the module compiles again, whatever the resolution of
-        // the clock.
-        let fs = &project.fs;
-        fs.delete_file(&Project::out_file(&format!("{name}.gleam")))?;
-        let cache = name.replace("/", "@");
-        for extension in ["cache", "cache_meta"] {
-            fs.delete_file(&Project::out_file(&format!(
-                "{ARTEFACT_DIRECTORY_NAME}/{cache}.{extension}"
-            )))?;
-        }
+        project.rewrite_source(name, &rewrite.source)?;
         files.push(File {
             path: path.clone(),
             source: module.code.clone(),

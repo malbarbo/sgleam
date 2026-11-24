@@ -13,6 +13,7 @@ use gleam_core::{
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemWriter, memory::InMemoryFileSystem},
     parse::{Parsed, parse_module},
+    paths::ARTEFACT_DIRECTORY_NAME,
     requirement::Requirement,
     type_::{
         Type,
@@ -111,6 +112,24 @@ impl Project {
         self.fs
             .try_set_modification_time(&path, SystemTime::now())
             .expect("Set modification time of a file in memory")
+    }
+
+    /// Writes the source of `module` after a build has compiled it. The build
+    /// keeps a hard link to the source next to the JavaScript, and on a second
+    /// build it asks whether the link is the same file, which the file system
+    /// in memory does not implement, so the link goes. The cache files go too,
+    /// so the module compiles again, whatever the resolution of the clock.
+    pub fn rewrite_source(&mut self, module: &str, content: &str) -> Result<(), Error> {
+        self.write_source(&format!("{module}.gleam"), content);
+        self.fs
+            .delete_file(&Project::out_file(&format!("{module}.gleam")))?;
+        let cache = module.replace("/", "@");
+        for extension in ["cache", "cache_meta"] {
+            self.fs.delete_file(&Project::out_file(&format!(
+                "{ARTEFACT_DIRECTORY_NAME}/{cache}.{extension}"
+            )))?;
+        }
+        Ok(())
     }
 
     /// Returns the name of the module the file becomes: its path, minus the
