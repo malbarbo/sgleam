@@ -4,6 +4,7 @@
     clippy::result_large_err
 )]
 
+pub mod coverage;
 pub mod engine;
 pub mod error;
 pub mod format;
