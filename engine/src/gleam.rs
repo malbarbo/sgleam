@@ -6,7 +6,7 @@ use gleam_core::{
     ast::{Definition, TypedFunction, UntypedDefinition},
     build::{
         Mode, Module, NullTelemetry, PackageCompiler, StaleTracker, Target,
-        TargetCodegenConfiguration,
+        TargetCodegenConfiguration, module_erlang_name,
     },
     config::PackageConfig,
     diagnostic::Diagnostic,
@@ -119,11 +119,11 @@ impl Project {
     /// build it asks whether the link is the same file, which the file system
     /// in memory does not implement, so the link goes. The cache files go too,
     /// so the module compiles again, whatever the resolution of the clock.
-    pub fn rewrite_source(&mut self, module: &str, content: &str) -> Result<(), Error> {
+    pub fn rewrite_source(&mut self, module: &EcoString, content: &str) -> Result<(), Error> {
         self.write_source(&format!("{module}.gleam"), content);
         self.fs
             .delete_file(&Project::out_file(&format!("{module}.gleam")))?;
-        let cache = module.replace("/", "@");
+        let cache = module_erlang_name(module);
         for extension in ["cache", "cache_meta"] {
             self.fs.delete_file(&Project::out_file(&format!(
                 "{ARTEFACT_DIRECTORY_NAME}/{cache}.{extension}"
