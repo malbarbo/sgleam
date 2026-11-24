@@ -251,6 +251,10 @@ impl Marker<'_> {
                 self.leading_minus(expression);
             }
         }
+        self.statements(statements);
+    }
+
+    fn statements(&mut self, statements: &[UntypedStatement]) {
         for statement in statements {
             self.statement(statement);
         }
@@ -316,9 +320,7 @@ impl Marker<'_> {
             | UntypedExpr::Var { .. } => {}
 
             UntypedExpr::Block { statements, .. } => {
-                for statement in statements {
-                    self.statement(statement);
-                }
+                self.statements(statements);
             }
 
             UntypedExpr::Fn {
@@ -331,9 +333,7 @@ impl Marker<'_> {
                 // A capture has no body in the source. Its body is the call
                 // that it replaces.
                 FunctionLiteralKind::Capture { .. } | FunctionLiteralKind::Use { .. } => {
-                    for statement in body {
-                        self.statement(statement);
-                    }
+                    self.statements(body);
                 }
             },
 
