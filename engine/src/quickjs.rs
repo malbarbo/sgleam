@@ -69,12 +69,11 @@ impl QuickJsEngine {
 
     /// The numbers of the coverage marks that ran, in increasing order.
     pub fn coverage(&self) -> std::result::Result<Vec<usize>, SgleamError> {
-        let hits = self.context.with(|ctx| {
+        Ok(self.context.with(|ctx| {
             ctx.eval::<Vec<usize>, _>(
                 "(globalThis.__sgleam_coverage ?? []).flatMap((ran, n) => (ran ? [n] : []))",
             )
-        })?;
-        Ok(hits)
+        })?)
     }
 }
 
