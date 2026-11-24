@@ -1,6 +1,8 @@
 #![allow(clippy::missing_safety_doc)]
 
+use camino::Utf8Path;
 use engine::{
+    coverage,
     engine::Engine as _,
     error::{self, show_error},
     format,
@@ -9,6 +11,7 @@ use engine::{
     input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
+    run::run_modules_coverage,
     shell::{self, Shell},
 };
 use gleam_core::build::Module;
@@ -82,13 +85,20 @@ fn to_cstr(s: String) -> *mut std::ffi::c_char {
     }
 }
 
-/// Applies the config the page passed. Only `bigint=true` means anything, and
-/// it turns the bigints on.
-fn configure(ptr: *mut u8, len: usize) {
-    let bigint = new_string(ptr, len)
-        .split_whitespace()
-        .any(|entry| entry == "bigint=true");
-    gleam_core::javascript::set_bigint_enabled(bigint);
+/// Applies the config the page passed, where `bigint=true` turns the bigints
+/// on. Returns `true` if the config has `coverage=true`, `false` otherwise.
+fn configure(ptr: *mut u8, len: usize) -> bool {
+    let config = new_string(ptr, len);
+    let has = |key| config.split_whitespace().any(|entry| entry == key);
+    gleam_core::javascript::set_bigint_enabled(has("bigint=true"));
+    has("coverage=true")
+}
+
+/// What `repl_new` gives the page.
+pub struct Session {
+    shell: Shell<QuickJsEngine>,
+    /// The answer of `repl_coverage`.
+    coverage: Option<String>,
 }
 
 fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
@@ -97,9 +107,15 @@ fn default_repl() -> Result<Repl<QuickJsEngine>, error::SgleamError> {
     Ok(Repl::new(project, None, engine))
 }
 
-fn leak_shell(repl: Result<Repl<QuickJsEngine>, error::SgleamError>) -> *mut Shell<QuickJsEngine> {
+fn leak_session(
+    repl: Result<Repl<QuickJsEngine>, error::SgleamError>,
+    coverage: Option<String>,
+) -> *mut Session {
     match repl {
-        Ok(repl) => Box::leak(Box::new(Shell::new(repl))),
+        Ok(repl) => Box::leak(Box::new(Session {
+            shell: Shell::new(repl),
+            coverage,
+        })),
         Err(err) => {
             show_error(&err);
             std::ptr::null_mut()
@@ -113,14 +129,14 @@ pub unsafe extern "C" fn repl_new(
     code_len: usize,
     config_ptr: *mut u8,
     config_len: usize,
-) -> *mut Shell<QuickJsEngine> {
+) -> *mut Session {
     init();
 
     let source = new_string(code_ptr, code_len);
-    configure(config_ptr, config_len);
+    let coverage = configure(config_ptr, config_len);
 
     if source.trim().is_empty() {
-        return leak_shell(default_repl());
+        return leak_session(default_repl(), None);
     }
 
     let mut project = Project::default();
@@ -133,14 +149,52 @@ pub unsafe extern "C" fn repl_new(
         Ok(modules) => modules,
     };
     let module = get_module(&modules, USER);
-    if module.map(has_examples).unwrap_or(false)
-        && let Ok(engine) = QuickJsEngine::new(project.fs.clone(), HostOptions)
-    {
-        let _ = engine.run_tests(&[USER]);
-    }
+    let not_run = match module {
+        Some(module) if has_examples(module) => run_examples(&mut project, module, coverage),
+        _ => None,
+    };
     let repl = QuickJsEngine::new(project.fs.clone(), HostOptions)
         .map(|engine| Repl::new(project, module, engine));
-    leak_shell(repl)
+    leak_session(repl, not_run)
+}
+
+/// Runs the examples of `module`. With `coverage`, it runs them with the
+/// marks and returns the regions that did not run, as `repl_coverage` gives
+/// them. Returns `None` if it measured nothing.
+fn run_examples(project: &mut Project, module: &Module, coverage: bool) -> Option<String> {
+    if !coverage {
+        if let Ok(engine) = QuickJsEngine::new(project.fs.clone(), HostOptions) {
+            let _ = engine.run_tests(&[USER]);
+        }
+        return None;
+    }
+    let (files, result) =
+        run_modules_coverage(project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
+    // The run prints what an example says. The compile with the marks says
+    // nothing, and without its error the examples would vanish in silence.
+    if let Err(err @ error::SgleamError::CoverageCompile) = &result {
+        show_error(err);
+    }
+    // `Repl::new` compiles the source the user wrote again, so the repl
+    // runs neither the marks nor a source map of them.
+    project
+        .rewrite_source(&module.name, &module.code)
+        .expect("write a file in memory");
+    if files.is_empty() {
+        return None;
+    }
+    let mut out = String::new();
+    for (_, regions) in coverage::not_run(&files) {
+        for region in regions {
+            out.push_str(&format!(
+                "{} {} {}\n",
+                region.shown.start,
+                region.shown.end,
+                region.kind.name()
+            ));
+        }
+    }
+    Some(out)
 }
 
 fn has_examples(module: &Module) -> bool {
@@ -188,22 +242,18 @@ pub unsafe extern "C" fn run(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_run(
-    repl: *mut Shell<QuickJsEngine>,
-    ptr: *mut u8,
-    len: usize,
-) -> u32 {
+pub unsafe extern "C" fn repl_run(repl: *mut Session, ptr: *mut u8, len: usize) -> u32 {
     init();
     assert!(!repl.is_null());
     let repl = unsafe { &mut *repl };
-    repl.run(&new_string(ptr, len)) as u32
+    repl.shell.run(&new_string(ptr, len)) as u32
 }
 
 /// `repl_ready` (see SimpleCode's ENGINE.md). `cursor` is a byte offset into
 /// the text, as `repl_complete` takes one.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_ready(
-    _repl: *mut Shell<QuickJsEngine>,
+    _repl: *mut Session,
     ptr: *mut u8,
     len: usize,
     cursor: usize,
@@ -213,10 +263,10 @@ pub unsafe extern "C" fn repl_ready(
 }
 
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
+pub unsafe extern "C" fn repl_destroy(repl: *mut Session) {
     init();
-    // `repl_new` answers with null when it has no shell to give, and the host
-    // hands that null back here, taking it for a shell.
+    // `repl_new` answers with null when it has no session to give, and the host
+    // hands that null back here, taking it for a session.
     if repl.is_null() {
         return;
     }
@@ -227,7 +277,7 @@ pub unsafe extern "C" fn repl_destroy(repl: *mut Shell<QuickJsEngine>) {
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn repl_complete(
-    repl: *mut Shell<QuickJsEngine>,
+    repl: *mut Session,
     text_ptr: *mut u8,
     text_len: usize,
     cursor_pos: usize,
@@ -236,7 +286,7 @@ pub unsafe extern "C" fn repl_complete(
     assert!(!repl.is_null());
     let state = unsafe { &*repl };
     let text = new_string(text_ptr, text_len);
-    let names = state.completions();
+    let names = state.shell.completions();
     let (start, candidates) = input::complete(&names, &text, cursor_pos);
 
     // Nothing to offer, which is also what an empty word gives back.
@@ -253,6 +303,17 @@ pub unsafe extern "C" fn repl_complete(
     }
 
     to_cstr(result)
+}
+
+/// `repl_coverage` (see SimpleCode's ENGINE.md). The code that the examples
+/// of `repl_new` did not run, one `<start> <end> <kind>` per line, or null if
+/// `repl_new` measured nothing.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn repl_coverage(repl: *mut Session) -> *mut std::ffi::c_char {
+    init();
+    assert!(!repl.is_null());
+    let repl = unsafe { &*repl };
+    repl.coverage.clone().map_or(ptr::null_mut(), to_cstr)
 }
 
 #[unsafe(no_mangle)]

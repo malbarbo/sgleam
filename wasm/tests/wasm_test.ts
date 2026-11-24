@@ -26,6 +26,7 @@ interface WasmExports {
     len: number,
     cursor: number,
   ): number;
+  repl_coverage(repl: number): number;
   string_allocate(size: number): number;
   string_deallocate(ptr: number, size: number): void;
   format(ptr: number, len: number): number;
@@ -993,6 +994,71 @@ Deno.test("repl_ready says what the input still needs", async () => {
     assertEquals(result, expected, JSON.stringify(input));
   }
   destroy(ctx);
+});
+
+// --- Coverage ---
+
+const SIGN = `import sgleam/check
+
+pub fn sign(n: Int) -> String {
+  case n < 0 {
+    True -> "negative"
+    False -> "positive"
+  }
+}
+
+pub fn sign_examples() {
+  check.eq(sign(-1), "negative")
+}
+`;
+
+// What `repl_coverage` gives for `source` and `config`, or null.
+async function coverage(
+  source: string,
+  config: string,
+): Promise<{ lines: string | null; stdout: string; ctx: ReplContext }> {
+  const ctx = await loadWasm();
+  const repl = withSource(ctx.exports, source, config, ctx.exports.repl_new);
+  const ptr = ctx.exports.repl_coverage(repl);
+  const lines = ptr === 0 ? null : readCstr(ctx.exports, ptr);
+  if (ptr !== 0) ctx.exports.cstr_deallocate(ptr);
+  return { lines, stdout: ctx.stdout.join(""), ctx: { ...ctx, repl } };
+}
+
+Deno.test("repl_coverage gives the code the examples did not run", async () => {
+  const { lines, stdout, ctx } = await coverage(SIGN, "coverage=true");
+  const start = SIGN.indexOf(`False -> "positive"`);
+  const end = start + `False -> "positive"`.length;
+  assertEquals(lines, `${start} ${end} clause\n`);
+  assertEquals(stdout.split("Running tests").length, 2, stdout);
+  // The repl still runs the program after the run with the marks.
+  const r = run(ctx, "sign(1)");
+  assertEquals(r.stdout, '"positive"\n');
+  destroy(ctx);
+});
+
+Deno.test("repl_coverage is empty when every part ran", async () => {
+  const source = SIGN.replace(
+    `check.eq(sign(-1), "negative")`,
+    `check.eq(sign(-1), "negative")\n  check.eq(sign(1), "positive")`,
+  );
+  const { lines, ctx } = await coverage(source, "coverage=true");
+  assertEquals(lines, "");
+  destroy(ctx);
+});
+
+Deno.test("repl_coverage is null when repl_new measured nothing", async () => {
+  const noExamples = SIGN.slice(0, SIGN.indexOf("pub fn sign_examples"));
+  const cases: [string, string][] = [
+    [SIGN, ""],
+    [noExamples, "coverage=true"],
+    ["", "coverage=true"],
+  ];
+  for (const [source, config] of cases) {
+    const { lines, ctx } = await coverage(source, config);
+    assertEquals(lines, null, JSON.stringify([source, config]));
+    destroy(ctx);
+  }
 });
 
 // --- Config ---
