@@ -12,7 +12,7 @@ use gleam_core::{
     diagnostic::Diagnostic,
     error::{DefinedModuleOrigin, FileIoAction, FileIoCause, FileKind},
     io::{FileSystemWriter, memory::InMemoryFileSystem},
-    parse::parse_module,
+    parse::{Parsed, parse_module},
     requirement::Requirement,
     type_::{
         Type,
@@ -303,7 +303,6 @@ fn is_builtin_module(module: &str) -> bool {
 
 /// The files of `paths` and of every module they import, directly or not.
 pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_core::Error> {
-    let warning_emitter = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
     let mut files: Vec<Utf8PathBuf> = vec![];
     // A path an import led to is only a guess at where the module sits, so it
     // may be missing. The path the caller gave may not be missing.
@@ -323,13 +322,7 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
 
         files.push(path.clone());
 
-        let parsed = parse_module(path.clone(), &src, &warning_emitter).map_err(|error| {
-            gleam_core::Error::Parse {
-                path,
-                src: src.into(),
-                error: error.into(),
-            }
-        })?;
+        let parsed = parse(path, &src)?;
 
         for definition in &parsed.module.definitions {
             let gleam_core::ast::Definition::Import(import) = &definition.definition else {
@@ -345,6 +338,16 @@ pub fn find_imports(paths: Vec<Utf8PathBuf>) -> Result<Vec<Utf8PathBuf>, gleam_c
         }
     }
     Ok(files)
+}
+
+/// Parses `src` and drops its warnings.
+pub fn parse(path: Utf8PathBuf, src: &str) -> Result<Parsed, Error> {
+    let warnings = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
+    parse_module(path.clone(), src, &warnings).map_err(|error| Error::Parse {
+        path,
+        src: src.into(),
+        error: error.into(),
+    })
 }
 
 /// What a build knows and no one can work out from the paths alone: the module

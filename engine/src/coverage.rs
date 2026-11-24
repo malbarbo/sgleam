@@ -13,16 +13,15 @@ use gleam_core::{
     },
     build::Target,
     io::FileSystemWriter,
-    parse::parse_module,
     paths::ARTEFACT_DIRECTORY_NAME,
-    warning::{VectorWarningEmitterIO, WarningEmitter},
+    warning::VectorWarningEmitterIO,
 };
 use src_span::SrcSpan;
 use std::rc::Rc;
 
 use crate::{
     error::SgleamError,
-    gleam::{Built, Project},
+    gleam::{self, Built, Project},
     scope::mentioned,
 };
 
@@ -125,13 +124,7 @@ pub fn compile(
 /// `sgleam/coverage` when it starts. The numbers start at `first`, so the
 /// files of one program can share a single set of numbers.
 pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gleam_core::Error> {
-    let warnings = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
-    let parsed =
-        parse_module(path.clone(), src, &warnings).map_err(|error| gleam_core::Error::Parse {
-            path,
-            src: src.into(),
-            error: error.into(),
-        })?;
+    let parsed = gleam::parse(path, src)?;
 
     let mut marker = Marker {
         src,
@@ -455,9 +448,7 @@ mod tests {
     fn rewritten(src: &str) -> String {
         let rewrite = rewrite_ok(src, 0);
         // The rewritten source has to parse, and every line keeps its number.
-        let warnings = WarningEmitter::new(Rc::new(VectorWarningEmitterIO::new()));
-        parse_module("/src/a.gleam".into(), &rewrite.source, &warnings)
-            .expect("parse the rewritten source");
+        gleam::parse("/src/a.gleam".into(), &rewrite.source).expect("parse the rewritten source");
         let import = "\nimport sgleam/coverage as sgleam_coverage\n";
         let source = rewrite
             .source
