@@ -27,7 +27,7 @@ fn the_second_compile_runs_the_marks() {
     assert_eq!(
         counts,
         [
-            ("tests/coverage/sign.gleam", 4),
+            ("tests/coverage/sign.gleam", 3),
             ("tests/coverage/words.gleam", 2)
         ]
     );
@@ -42,7 +42,6 @@ fn the_second_compile_runs_the_marks() {
             region(RegionKind::Function, "pub fn sign(n: Int) -> String {"),
             region(RegionKind::Clause, "True -> words.negative()"),
             region(RegionKind::Clause, "False -> \"positive\""),
-            region(RegionKind::Function, "pub fn sign_examples() {"),
             region(RegionKind::Function, "pub fn negative() -> String {"),
             region(RegionKind::Function, "pub fn zero() -> String {"),
         ]
@@ -53,7 +52,7 @@ fn the_second_compile_runs_the_marks() {
     engine
         .run_tests(&["tests/coverage/sign"])
         .expect("run the examples");
-    assert_eq!(engine.coverage().expect("read the marks"), vec![0, 1, 3, 4]);
+    assert_eq!(engine.coverage().expect("read the marks"), vec![0, 1, 3]);
 }
 
 /// Each region as its kind, its first line and whether it ran.
@@ -88,11 +87,6 @@ fn a_test_run_says_which_regions_ran() {
             (RegionKind::Clause, "False -> \"positive\"".into(), false),
             (
                 RegionKind::Function,
-                "pub fn sign_examples() {".into(),
-                true
-            ),
-            (
-                RegionKind::Function,
                 "pub fn negative() -> String {".into(),
                 true
             ),
@@ -120,12 +114,6 @@ fn a_failed_example_and_a_panic_keep_the_regions() {
             ),
             (RegionKind::Clause, "True -> n / 2".into(), true),
             (RegionKind::Clause, "False -> panic as \"odd\"".into(), true),
-            (
-                RegionKind::Function,
-                "pub fn half_examples() {".into(),
-                true
-            ),
-            (RegionKind::Function, "pub fn odd_examples() {".into(), true),
         ]
     );
 }
@@ -152,11 +140,6 @@ fn an_operand_that_panics_ran() {
                 true
             ),
             (RegionKind::Operand, "panic as \"positive\"".into(), true),
-            (
-                RegionKind::Function,
-                "pub fn positive_examples() {".into(),
-                true
-            ),
         ]
     );
 }

@@ -20,6 +20,7 @@ use termcolor::{Buffer, Color, ColorSpec, WriteColor};
 use unicode_width::UnicodeWidthChar;
 
 use crate::{
+    engine::{MainFunction, SMAIN},
     error::SgleamError,
     gleam::{self, Built, Project},
     scope::mentioned,
@@ -111,19 +112,15 @@ pub fn compile(
 }
 
 /// The spans that a report shows as not run, for each file of `user_files`
-/// in `files`. A function that no example calls, as `main`, `smain` and one
-/// that ends in `_examples`, stays out, and so does a region inside another
-/// region that did not run. The spans come in order and do not overlap.
+/// in `files`. A region inside another region that did not run stays out.
+/// The spans come in order and do not overlap.
 pub fn not_run<'a>(files: &'a [File], user_files: &[Utf8PathBuf]) -> Vec<(&'a File, Vec<SrcSpan>)> {
     files
         .iter()
         .filter(|file| user_files.contains(&file.path))
         .map(|file| {
-            let mut regions: Vec<&Region> = file
-                .regions
-                .iter()
-                .filter(|region| !region.ran && !no_example_calls(&region.function))
-                .collect();
+            let mut regions: Vec<&Region> =
+                file.regions.iter().filter(|region| !region.ran).collect();
             regions.sort_by_key(|region| (region.span.start, std::cmp::Reverse(region.span.end)));
             let mut spans = vec![];
             let mut end = 0;
@@ -217,14 +214,16 @@ fn under(text: &str, mark: char) -> String {
 }
 
 /// Returns `true` if an example never calls the function `name`, `false`
-/// otherwise.
+/// otherwise. Such a function would always show as not run.
 fn no_example_calls(name: &str) -> bool {
-    name == "main" || name == "smain" || name.ends_with("_examples")
+    name == MainFunction::Main.name() || name == SMAIN || name.ends_with("_examples")
 }
 
 /// Rewrites `src` so that each region calls `hit`, `hit_true` or
-/// `hit_false` of `sgleam/coverage` when it starts. The numbers start at
-/// `first`, so the files of one program can share a single set of numbers.
+/// `hit_false` of `sgleam/coverage` when it starts. A function that no
+/// example calls, as `main`, `smain` and the examples, has no regions. The
+/// numbers start at `first`, so the files of one program can share a single
+/// set of numbers.
 pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gleam_core::Error> {
     let parsed = gleam::parse(path, src)?;
 
@@ -248,6 +247,9 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
                 .as_ref()
                 .map(|(_, name)| name.clone())
                 .unwrap_or_default();
+            if no_example_calls(&marker.function) {
+                continue;
+            }
             let span = SrcSpan::new(function.location.start, function.end_position);
             marker.body(span, function.location, &function.body);
         }
@@ -847,11 +849,15 @@ mod tests {
     }
 
     #[test]
-    fn not_run_skips_what_no_example_calls() {
+    fn no_regions_for_what_no_example_calls() {
         let src = "pub fn main() { 1 }\npub fn smain() { 2 }\npub fn f_examples() { 3 }\npub fn f_example() { 4 }";
         assert_eq!(
-            not_run_text(&[file("a.gleam", src, &[])], &["a.gleam"]),
-            vec![("a.gleam".into(), vec!["pub fn f_example()".into()])]
+            regions(src),
+            vec![(
+                RegionKind::Function,
+                "pub fn f_example() { 4 }",
+                "f_example".into()
+            )]
         );
     }
 
