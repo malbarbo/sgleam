@@ -159,6 +159,15 @@ impl Project {
         )
     }
 
+    /// Compiles as `compile` does, and drops the warnings.
+    pub fn compile_quietly(&mut self) -> Result<Vec<Module>, Error> {
+        self.compile_with_modules(
+            Rc::new(VectorWarningEmitterIO::new()),
+            &mut imbl::HashMap::new(),
+            &mut imbl::HashMap::new(),
+        )
+    }
+
     pub fn compile_with_modules(
         &mut self,
         warnings: Rc<dyn WarningEmitterIO>,

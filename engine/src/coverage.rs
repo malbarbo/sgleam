@@ -12,10 +12,9 @@ use gleam_core::{
         UntypedStatement,
     },
     build::{Module, Target},
-    warning::VectorWarningEmitterIO,
 };
 use src_span::{LineNumbers, SrcSpan};
-use std::{io::Write, rc::Rc};
+use std::io::Write;
 use termcolor::{Buffer, Color, ColorSpec, WriteColor};
 use unicode_width::UnicodeWidthChar;
 
@@ -108,18 +107,12 @@ pub fn compile(
         });
     }
 
-    project
-        .compile_with_modules(
-            Rc::new(VectorWarningEmitterIO::new()),
-            &mut imbl::HashMap::new(),
-            &mut imbl::HashMap::new(),
-        )
-        .map_err(|err| {
-            // The error names the rewritten source, which the user never
-            // wrote, so only the log has it.
-            tracing::debug!("coverage compile: {err:?}");
-            SgleamError::CoverageCompile
-        })?;
+    project.compile_quietly().map_err(|err| {
+        // The error names the rewritten source, which the user never
+        // wrote, so only the log has it.
+        tracing::debug!("coverage compile: {err:?}");
+        SgleamError::CoverageCompile
+    })?;
     Ok(files)
 }
 
