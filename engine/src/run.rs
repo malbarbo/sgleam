@@ -8,9 +8,10 @@ use gleam_core::{
 };
 
 use crate::{
+    coverage,
     engine::{Engine, MainFunction, SMAIN},
     error::SgleamError,
-    gleam::{Project, copy_files_and_build, fn_type_to_string, get_function},
+    gleam::{Built, Project, copy_files_and_build, fn_type_to_string, get_function},
     host::HostOptions,
 };
 
@@ -78,16 +79,68 @@ pub fn run_test(
 ) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
-    let user_modules: Vec<_> = paths
+    let user_modules = user_modules(user_files, paths, &built);
+    JsEngine::new(project.fs.clone(), options)?.run_tests(&user_modules)?;
+    Ok(())
+}
+
+/// Runs the examples as `run_test` does, with the coverage marks in every
+/// file of `paths`. The files come back with the regions that ran, also when
+/// an example fails or a panic stops the run. They are empty when the run
+/// does not start or Ctrl-C stops it.
+pub fn run_test_coverage(
+    user_files: &[Utf8PathBuf],
+    paths: &[Utf8PathBuf],
+    options: HostOptions,
+) -> (Vec<coverage::File>, Result<(), SgleamError>) {
+    let mut files = vec![];
+    let result = run_coverage(user_files, paths, options, &mut files);
+    if matches!(result, Err(SgleamError::Interrupted)) {
+        files.clear();
+    }
+    (files, result)
+}
+
+fn run_coverage(
+    user_files: &[Utf8PathBuf],
+    paths: &[Utf8PathBuf],
+    options: HostOptions,
+    files: &mut Vec<coverage::File>,
+) -> Result<(), SgleamError> {
+    let mut project = Project::default();
+    let built = copy_files_and_build(&mut project, paths)?;
+    let user_modules = user_modules(user_files, paths, &built);
+    let compiled = coverage::compile(&mut project, paths, &built)?;
+    let engine = JsEngine::new(project.fs.clone(), options)?;
+    let result = engine.run_tests(&user_modules);
+    if matches!(result, Err(SgleamError::Interrupted)) {
+        return result;
+    }
+    // The context outlives a failed example and a panic, so the marks are
+    // still there to read.
+    let hits = engine.coverage()?;
+    *files = compiled;
+    let regions = files.iter_mut().flat_map(|file| file.regions.iter_mut());
+    for (n, region) in regions.enumerate() {
+        region.ran = hits.binary_search(&n).is_ok();
+    }
+    result
+}
+
+/// The names of the modules that `user_files` became, in the order of
+/// `paths`.
+fn user_modules<'a>(
+    user_files: &[Utf8PathBuf],
+    paths: &[Utf8PathBuf],
+    built: &'a Built,
+) -> Vec<&'a str> {
+    paths
         .iter()
         .enumerate()
         .filter(|(_, path)| user_files.contains(path))
         .filter_map(|(index, _)| built.module(index))
         .map(|module| module.name.as_str())
-        .collect();
-
-    JsEngine::new(project.fs.clone(), options)?.run_tests(&user_modules)?;
-    Ok(())
+        .collect()
 }
 
 /// The kind of `smain(env: Env)`, the only entry point that receives the

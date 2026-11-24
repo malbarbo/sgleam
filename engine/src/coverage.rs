@@ -42,6 +42,8 @@ pub struct Region {
     pub span: SrcSpan,
     /// The name of the top level function that holds the region.
     pub function: EcoString,
+    /// Whether the region ran. Only a run with coverage sets it.
+    pub ran: bool,
 }
 
 #[derive(Debug)]
@@ -212,6 +214,7 @@ impl Marker<'_> {
             kind,
             span,
             function: self.function.clone(),
+            ran: false,
         });
         self.first + self.regions.len() - 1
     }
