@@ -13,16 +13,17 @@ use gleam_core::{
     },
     build::Target,
     io::FileSystemWriter,
-    parse::{lexer::make_tokenizer, parse_module, token::Token},
+    parse::parse_module,
     paths::ARTEFACT_DIRECTORY_NAME,
     warning::{VectorWarningEmitterIO, WarningEmitter},
 };
 use src_span::SrcSpan;
-use std::{collections::HashSet, rc::Rc};
+use std::rc::Rc;
 
 use crate::{
     error::SgleamError,
     gleam::{Built, Project},
+    scope::mentioned,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -190,12 +191,7 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
 /// A name for the import of `sgleam/coverage` that no name in `src` uses, as
 /// a local, a function or a module with that name would hide the import.
 fn free_alias(src: &str) -> EcoString {
-    let names: HashSet<EcoString> = make_tokenizer(src)
-        .filter_map(|token| match token {
-            Ok((_, Token::Name { name }, _)) => Some(name),
-            _ => None,
-        })
-        .collect();
+    let names = mentioned(src);
     let mut alias = EcoString::from("sgleam_coverage");
     let mut n = 1;
     while names.contains(&alias) {

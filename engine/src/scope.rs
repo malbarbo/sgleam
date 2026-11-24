@@ -284,7 +284,7 @@ impl Scope {
 
 /// The names the source mentions, as the lexer reads them, a label and a local
 /// included. Over-approximate on purpose, as a missing import is an error.
-fn mentioned(code: &str) -> HashSet<EcoString> {
+pub(crate) fn mentioned(code: &str) -> HashSet<EcoString> {
     parse::lexer::make_tokenizer(code)
         .filter_map(|token| match token {
             Ok((
