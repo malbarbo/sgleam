@@ -24,6 +24,10 @@ enough. `engine/tests/` is for what needs a repl in the test's own process.
 Run `make check` and `make test-rs` before you call a change done. Do not
 leave test files in the root of the repository.
 
+A plan goes in waves of commits. After the last commit of each wave, run
+`/code-review` and then `/simplify` on the commits of the wave, and fix
+what they find in commits of their own.
+
 ## Scope
 
 Change what was asked and nothing else. A problem you see on the way is
