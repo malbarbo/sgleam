@@ -18,7 +18,8 @@ fn the_second_compile_runs_the_marks() {
     let paths = find_imports(vec!["tests/coverage/sign.gleam".into()]).expect("find the imports");
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, &paths).expect("compile");
-    let files = coverage::compile(&mut project, &paths, &built).expect("compile the marks");
+    let files =
+        coverage::compile(&mut project, &built.with_paths(&paths)).expect("compile the marks");
 
     let counts: Vec<_> = files
         .iter()

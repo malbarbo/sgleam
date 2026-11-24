@@ -4,14 +4,14 @@
 //! The rewrite inserts text and never a line break, except before the import
 //! at the end, so every line of the source keeps its number.
 
-use camino::Utf8PathBuf;
+use camino::{Utf8Path, Utf8PathBuf};
 use ecow::{EcoString, eco_format};
 use gleam_core::{
     ast::{
         AssignmentKind, BinOp, Definition, FunctionLiteralKind, Statement, TodoKind, UntypedExpr,
         UntypedStatement,
     },
-    build::Target,
+    build::{Module, Target},
     warning::VectorWarningEmitterIO,
 };
 use src_span::{LineNumbers, SrcSpan};
@@ -22,7 +22,7 @@ use unicode_width::UnicodeWidthChar;
 use crate::{
     engine::{MainFunction, SMAIN},
     error::SgleamError,
-    gleam::{self, Built, Project},
+    gleam::{self, Project},
     scope::mentioned,
 };
 
@@ -71,26 +71,22 @@ pub struct File {
     pub regions: Vec<Region>,
 }
 
-/// Rewrites the modules that `paths` became in `built` with the coverage
-/// marks, and compiles `project` again. The compile drops its warnings, as
-/// the first compile already showed them for the source the user wrote.
+/// Rewrites `modules` with the coverage marks, and compiles `project` again.
+/// Each module comes with the path the user gave for it. The compile drops
+/// its warnings, as the first compile already showed them for the source the
+/// user wrote.
 pub fn compile(
     project: &mut Project,
-    paths: &[Utf8PathBuf],
-    built: &Built,
+    modules: &[(&Utf8Path, &Module)],
 ) -> Result<Vec<File>, SgleamError> {
     let mut files = vec![];
     let mut first = 0;
-    for (index, path) in paths.iter().enumerate() {
-        let Some(module) = built.module(index) else {
-            continue;
-        };
-        let name = &module.name;
-        let rewrite = rewrite(path.clone(), &module.code, first)?;
+    for &(path, module) in modules {
+        let rewrite = rewrite(path.into(), &module.code, first)?;
         first += rewrite.regions.len();
-        project.rewrite_source(name, &rewrite.source)?;
+        project.rewrite_source(&module.name, &rewrite.source)?;
         files.push(File {
-            path: path.clone(),
+            path: path.into(),
             source: module.code.clone(),
             regions: rewrite.regions,
         });

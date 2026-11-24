@@ -384,6 +384,16 @@ impl Built {
         let name = self.names.get(index)?.as_ref()?;
         get_module(&self.modules, name)
     }
+
+    /// Each module with the path in `paths` that it came from. `paths` are
+    /// the paths of the build, in its order.
+    pub fn with_paths<'a>(&'a self, paths: &'a [Utf8PathBuf]) -> Vec<(&'a Utf8Path, &'a Module)> {
+        paths
+            .iter()
+            .enumerate()
+            .filter_map(|(index, path)| Some((path.as_path(), self.module(index)?)))
+            .collect()
+    }
 }
 
 pub fn copy_files_and_build(

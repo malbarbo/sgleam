@@ -107,7 +107,7 @@ fn run_coverage(
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
     let user_modules = user_modules(user_files, paths, &built);
-    let compiled = coverage::compile(&mut project, paths, &built)?;
+    let compiled = coverage::compile(&mut project, &built.with_paths(paths))?;
     let engine = JsEngine::new(project.fs.clone(), options)?;
     let result = engine.run_tests(&user_modules);
     if matches!(result, Err(SgleamError::Interrupted)) {
