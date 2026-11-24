@@ -11,11 +11,18 @@ use gleam_core::{
         AssignmentKind, BinOp, Definition, FunctionLiteralKind, Statement, TodoKind, UntypedExpr,
         UntypedStatement,
     },
+    io::FileSystemWriter,
     parse::{lexer::make_tokenizer, parse_module, token::Token},
+    paths::ARTEFACT_DIRECTORY_NAME,
     warning::{VectorWarningEmitterIO, WarningEmitter},
 };
 use src_span::SrcSpan;
 use std::{collections::HashSet, rc::Rc};
+
+use crate::{
+    error::SgleamError,
+    gleam::{Built, Project},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RegionKind {
@@ -42,6 +49,72 @@ pub struct Rewrite {
     pub source: String,
     /// The region that `hit(first + i)` marks is `regions[i]`.
     pub regions: Vec<Region>,
+}
+
+/// A file of the user, with its coverage regions.
+#[derive(Debug)]
+pub struct File {
+    /// The path the user gave.
+    pub path: Utf8PathBuf,
+    /// The source before the rewrite. The spans of the regions are offsets
+    /// into it.
+    pub source: EcoString,
+    /// The numbers of the marks continue from the last region of the file
+    /// before, so the first region of the first file is the mark 0.
+    pub regions: Vec<Region>,
+}
+
+/// Rewrites the modules that `paths` became in `built` with the coverage
+/// marks, and compiles `project` again. The compile drops its warnings, as
+/// the first compile already showed them for the source the user wrote.
+pub fn compile(
+    project: &mut Project,
+    paths: &[Utf8PathBuf],
+    built: &Built,
+) -> Result<Vec<File>, SgleamError> {
+    let mut files = vec![];
+    let mut first = 0;
+    for (index, path) in paths.iter().enumerate() {
+        let Some(module) = built.module(index) else {
+            continue;
+        };
+        let name = &module.name;
+        let rewrite = rewrite(path.clone(), &module.code, first)?;
+        first += rewrite.regions.len();
+        project.write_source(&format!("{name}.gleam"), &rewrite.source);
+        // The build keeps a hard link to the source next to the JavaScript,
+        // and on a second build it asks whether the link is the same file,
+        // which the file system in memory does not implement. The cache files
+        // go too, so the module compiles again, whatever the resolution of
+        // the clock.
+        let fs = &project.fs;
+        fs.delete_file(&Project::out_file(&format!("{name}.gleam")))?;
+        let cache = name.replace("/", "@");
+        for extension in ["cache", "cache_meta"] {
+            fs.delete_file(&Project::out_file(&format!(
+                "{ARTEFACT_DIRECTORY_NAME}/{cache}.{extension}"
+            )))?;
+        }
+        files.push(File {
+            path: path.clone(),
+            source: module.code.clone(),
+            regions: rewrite.regions,
+        });
+    }
+
+    project
+        .compile_with_modules(
+            Rc::new(VectorWarningEmitterIO::new()),
+            &mut imbl::HashMap::new(),
+            &mut imbl::HashMap::new(),
+        )
+        .map_err(|err| {
+            // The error names the rewritten source, which the user never
+            // wrote, so only the log has it.
+            tracing::debug!("coverage compile: {err:?}");
+            SgleamError::CoverageCompile
+        })?;
+    Ok(files)
 }
 
 /// Rewrites `src` so that each region calls `hit` or `hit_bool` of

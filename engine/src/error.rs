@@ -86,6 +86,11 @@ pub enum SgleamError {
     #[error("interrupted")]
     Interrupted,
 
+    /// A failure to compile the program with the coverage marks, which is a
+    /// bug of sgleam, as the program compiled without them.
+    #[error("coverage compile error")]
+    CoverageCompile,
+
     /// A failure from outside the language: installing the Ctrl-C handler,
     /// starting the repl reader. Shown as it came, as each already names its
     /// own subject.
@@ -179,6 +184,12 @@ pub fn show_error(err: &SgleamError) {
             "display not supported",
             format!("The terminal does not support the `{mode}` display."),
             "Use another value for `-d`, or leave `-d` out so sgleam picks one.".into(),
+        )
+        .write(&mut buffer),
+        SgleamError::CoverageCompile => error_diagnostic(
+            "coverage failed",
+            "sgleam could not compile the program with the marks that measure coverage.".into(),
+            "This is a bug in sgleam. Please report it together with the program.".into(),
         )
         .write(&mut buffer),
         SgleamError::Interrupted => {
