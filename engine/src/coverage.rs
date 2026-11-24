@@ -11,6 +11,7 @@ use gleam_core::{
         AssignmentKind, BinOp, Definition, FunctionLiteralKind, Statement, TodoKind, UntypedExpr,
         UntypedStatement,
     },
+    build::Target,
     io::FileSystemWriter,
     parse::{lexer::make_tokenizer, parse_module, token::Token},
     paths::ARTEFACT_DIRECTORY_NAME,
@@ -140,7 +141,12 @@ pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gl
         inserts: vec![],
     };
     for definition in &parsed.module.definitions {
-        if let Definition::Function(function) = &definition.definition {
+        // A function that never runs on JavaScript would always show as not
+        // run.
+        if let Definition::Function(function) = &definition.definition
+            && definition.is_for(Target::JavaScript)
+            && function.external_javascript.is_none()
+        {
             marker.function = function
                 .name
                 .as_ref()
@@ -602,6 +608,12 @@ mod tests {
             rewritten("fn f() { case x { _ -> a && b } }"),
             "fn f() { hit(0.0) case x { _ -> { hit(1.0) a && hit_bool(2.0, b) } } }"
         );
+    }
+
+    #[test]
+    fn a_function_for_another_target_or_external() {
+        let src = "@target(erlang)\nfn g() { 1 }\n@external(javascript, \"./x.mjs\", \"h\")\nfn h() -> Int { 2 }";
+        assert_eq!(rewrite_ok(src, 0).source, src);
     }
 
     #[test]
