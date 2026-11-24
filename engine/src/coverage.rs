@@ -164,23 +164,31 @@ fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io:
     for (file, spans) in not_run {
         let source = file.source.as_str();
         let numbers = LineNumbers::new(source);
-        for spans in
-            spans.chunk_by(|a, b| numbers.line_number(a.start) == numbers.line_number(b.start))
-        {
-            let Some(first) = spans.first() else {
+        let lines: Vec<(u32, SrcSpan)> = spans
+            .iter()
+            .map(|span| (numbers.line_number(span.start), *span))
+            .collect();
+        for spans in lines.chunk_by(|a, b| a.0 == b.0) {
+            let Some(&(number, _)) = spans.first() else {
                 continue;
             };
-            let start = first.start as usize;
-            let line_start = source[..start].rfind('\n').map_or(0, |i| i + 1);
+            let line_start = numbers
+                .line_starts
+                .get(number as usize - 1)
+                .copied()
+                .unwrap_or(0);
             // `lines` drops the `\r` of a file from Windows.
-            let line = source[line_start..].lines().next().unwrap_or_default();
+            let line = source[line_start as usize..]
+                .lines()
+                .next()
+                .unwrap_or_default();
             let text = line.trim_start();
-            let line_end = line_start + line.len();
-            writeln!(out, "  {}:{}", file.path, numbers.line_number(first.start))?;
+            let line_end = line_start as usize + line.len();
+            writeln!(out, "  {}:{number}", file.path)?;
             writeln!(out, "    {text}")?;
             write!(out, "    ")?;
             let mut at = line_end - text.len();
-            for span in spans {
+            for (_, span) in spans {
                 let start = span.start as usize;
                 let end = (span.end as usize).min(line_end);
                 write!(out, "{}", under(&source[at..start], ' '))?;
