@@ -243,8 +243,10 @@ impl Marker<'_> {
             && !empty
         {
             let n = self.region(RegionKind::Function, span);
-            let alias = self.alias.clone();
-            self.insert(statement.start_byte_index(), format!("{alias}.hit({n}.0) "));
+            self.insert(
+                statement.start_byte_index(),
+                format!("{}.hit({n}.0) ", self.alias),
+            );
             if let Statement::Expression(expression) = statement {
                 self.leading_minus(expression);
             }
@@ -361,8 +363,7 @@ impl Marker<'_> {
                 if matches!(operator, BinOp::And | BinOp::Or) {
                     let location = right.location();
                     let n = self.region(RegionKind::Operand, location);
-                    let alias = self.alias.clone();
-                    self.insert(location.start, format!("{alias}.hit_bool({n}.0, "));
+                    self.insert(location.start, format!("{}.hit_bool({n}.0, ", self.alias));
                     self.expression(right);
                     self.insert(location.end, ")".into());
                 } else {
@@ -384,9 +385,8 @@ impl Marker<'_> {
                 }
                 for clause in clauses.iter().flatten() {
                     let n = self.region(RegionKind::Clause, clause.location);
-                    let alias = self.alias.clone();
                     let then = clause.then.location();
-                    self.insert(then.start, format!("{{ {alias}.hit({n}.0) "));
+                    self.insert(then.start, format!("{{ {}.hit({n}.0) ", self.alias));
                     self.leading_minus(&clause.then);
                     self.expression(&clause.then);
                     self.insert(then.end, " }".into());
