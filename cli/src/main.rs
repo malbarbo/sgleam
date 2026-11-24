@@ -15,13 +15,14 @@ const NAME: &str = env!("CARGO_PKG_NAME");
 use bpaf::{Bpaf, Parser};
 use camino::Utf8PathBuf;
 use engine::{
-    error::{SgleamError, show_error},
+    coverage,
+    error::{SgleamError, color_stdout, show_error},
     format,
     gleam::{Project, copy_files_and_build, find_imports},
     host::{DisplayMode, HostOptions, check_display},
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::{run_check, run_main, run_test},
+    run::{run_check, run_main, run_test, run_test_coverage},
     shell::{Shell, Status, welcome_message},
 };
 use gleam_core::{
@@ -108,6 +109,9 @@ enum Command {
         number: bool,
         #[bpaf(external(display_arg))]
         display: DisplayMode,
+        /// Show the code that no example ran.
+        #[bpaf(long)]
+        coverage: bool,
         /// Gleam file to test.
         #[bpaf(positional("FILE"))]
         file: String,
@@ -263,11 +267,15 @@ fn run() -> Result<(), SgleamError> {
         }
         Command::Run { file, args, .. } => run_file(file, options, args),
         Command::Server { file, .. } => run_file(file, options, vec![]),
-        Command::Test { file, .. } => {
+        Command::Test { file, coverage, .. } => {
             let file = user_module(file)?;
             let user_files = vec![file];
             let files = find_imports(user_files.clone())?;
-            run_test(&user_files, &files, options)
+            if coverage {
+                test_coverage(&user_files, &files, options)
+            } else {
+                run_test(&user_files, &files, options)
+            }
         }
         Command::Format { check, files } => {
             let paths = files.into_iter().map(Utf8PathBuf::from).collect();
@@ -279,6 +287,22 @@ fn run() -> Result<(), SgleamError> {
             run_check(&files)
         }
     }
+}
+
+/// Runs the examples and then shows the code that no example ran. A run
+/// with no files to show, as one that does not compile or that Ctrl-C
+/// stops, shows nothing.
+fn test_coverage(
+    user_files: &[Utf8PathBuf],
+    paths: &[Utf8PathBuf],
+    options: HostOptions,
+) -> Result<(), SgleamError> {
+    let (files, result) = run_test_coverage(user_files, paths, options);
+    if !files.is_empty() {
+        let not_run = coverage::not_run(&files, user_files);
+        print!("\n{}", coverage::report(&not_run, color_stdout()));
+    }
+    result
 }
 
 /// The file a command names, as a path the module name can come from.
