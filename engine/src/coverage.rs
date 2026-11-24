@@ -108,6 +108,40 @@ pub fn compile(
     Ok(files)
 }
 
+/// The spans that a report shows as not run, for each file of `user_files`
+/// in `files`. A function that no example calls, as `main`, `smain` and one
+/// that ends in `_examples`, stays out, and so does a region inside another
+/// region that did not run. The spans come in order and do not overlap.
+pub fn not_run<'a>(files: &'a [File], user_files: &[Utf8PathBuf]) -> Vec<(&'a File, Vec<SrcSpan>)> {
+    files
+        .iter()
+        .filter(|file| user_files.contains(&file.path))
+        .map(|file| {
+            let mut regions: Vec<&Region> = file
+                .regions
+                .iter()
+                .filter(|region| !region.ran && !no_example_calls(&region.function))
+                .collect();
+            regions.sort_by_key(|region| (region.span.start, std::cmp::Reverse(region.span.end)));
+            let mut spans = vec![];
+            let mut end = 0;
+            for region in regions {
+                if region.span.start >= end {
+                    spans.push(region.shown);
+                    end = region.span.end;
+                }
+            }
+            (file, spans)
+        })
+        .collect()
+}
+
+/// Returns `true` if an example never calls the function `name`, `false`
+/// otherwise.
+fn no_example_calls(name: &str) -> bool {
+    name == "main" || name == "smain" || name.ends_with("_examples")
+}
+
 /// Rewrites `src` so that each region calls `hit`, `hit_true` or
 /// `hit_false` of `sgleam/coverage` when it starts. The numbers start at
 /// `first`, so the files of one program can share a single set of numbers.
@@ -703,6 +737,66 @@ mod tests {
                 "fn g()",
                 "fn(x: Int) -> Int",
             ]
+        );
+    }
+
+    fn file(path: &str, src: &str, ran: &[usize]) -> File {
+        let mut regions = rewrite_ok(src, 0).regions;
+        for (n, region) in regions.iter_mut().enumerate() {
+            region.ran = ran.contains(&n);
+        }
+        File {
+            path: path.into(),
+            source: src.into(),
+            regions,
+        }
+    }
+
+    fn not_run_text(files: &[File], user_files: &[&str]) -> Vec<(String, Vec<String>)> {
+        let user_files: Vec<Utf8PathBuf> = user_files.iter().map(Utf8PathBuf::from).collect();
+        not_run(files, &user_files)
+            .into_iter()
+            .map(|(file, spans)| {
+                let texts = spans
+                    .iter()
+                    .map(|span| file.source[span.start as usize..span.end as usize].to_string())
+                    .collect();
+                (file.path.to_string(), texts)
+            })
+            .collect()
+    }
+
+    #[test]
+    fn not_run_skips_what_no_example_calls() {
+        let src = "pub fn main() { 1 }\npub fn smain() { 2 }\npub fn f_examples() { 3 }\npub fn f_example() { 4 }";
+        assert_eq!(
+            not_run_text(&[file("a.gleam", src, &[])], &["a.gleam"]),
+            vec![("a.gleam".into(), vec!["pub fn f_example()".into()])]
+        );
+    }
+
+    #[test]
+    fn not_run_skips_a_region_inside_another_that_did_not_run() {
+        let src = "fn f(n) { case n { 0 -> a && b  _ -> c } }\nfn g(n) { case n { 0 -> a && b  _ -> c } }";
+        // In `g`, only the function and the first clause ran.
+        assert_eq!(
+            not_run_text(&[file("a.gleam", src, &[4, 5])], &["a.gleam"]),
+            vec![(
+                "a.gleam".into(),
+                vec!["fn f(n)".into(), "b".into(), "_ -> c".into()]
+            )]
+        );
+    }
+
+    #[test]
+    fn not_run_has_only_the_user_files() {
+        let files = [
+            file("a.gleam", "fn f() { 1 }", &[]),
+            file("b.gleam", "fn g() { 1 }", &[]),
+        ];
+        assert_eq!(
+            not_run_text(&files, &["b.gleam"]),
+            vec![("b.gleam".into(), vec!["fn g()".into()])]
         );
     }
 
