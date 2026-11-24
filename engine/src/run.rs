@@ -95,9 +95,6 @@ pub fn run_test_coverage(
 ) -> (Vec<coverage::File>, Result<(), SgleamError>) {
     let mut files = vec![];
     let result = run_coverage(user_files, paths, options, &mut files);
-    if matches!(result, Err(SgleamError::Interrupted)) {
-        files.clear();
-    }
     (files, result)
 }
 
