@@ -118,7 +118,11 @@ fn run_coverage(
     }
     // The context outlives a failed example and a panic, so the marks are
     // still there to read.
-    let hits = engine.coverage()?;
+    // An error from the run tells the user more than an error from the read.
+    let hits = match engine.coverage() {
+        Ok(hits) => hits,
+        Err(error) => return result.and(Err(error)),
+    };
     *files = compiled;
     let regions = files.iter_mut().flat_map(|file| file.regions.iter_mut());
     for (n, region) in regions.enumerate() {
