@@ -137,3 +137,26 @@ fn a_program_that_does_not_compile_has_no_regions() {
     assert!(matches!(result, Err(SgleamError::Gleam(_))));
     assert!(files.is_empty());
 }
+
+#[test]
+fn an_operand_that_panics_ran() {
+    let user_files = vec![Utf8PathBuf::from("tests/coverage/operand.gleam")];
+    let (files, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
+    assert!(result.is_err());
+    assert_eq!(
+        ran(&files),
+        vec![
+            (
+                RegionKind::Function,
+                "pub fn positive(n: Int) -> Bool {".into(),
+                true
+            ),
+            (RegionKind::Operand, "panic as \"positive\"".into(), true),
+            (
+                RegionKind::Function,
+                "pub fn positive_examples() {".into(),
+                true
+            ),
+        ]
+    );
+}

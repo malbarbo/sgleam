@@ -569,8 +569,8 @@ mod tests {
             "a.gleam",
             "import sgleam/coverage\n\n\
              pub fn a_examples() {\n  coverage.hit(3.0)\n  \
-             let _ = False && coverage.hit_bool(1.0, True)\n  \
-             let _ = True && coverage.hit_bool(2.0, True)\n  coverage.hit(2.0)\n}\n",
+             let _ = False && coverage.hit_true(1.0) && True\n  \
+             let _ = True && coverage.hit_true(2.0) && True\n  coverage.hit(2.0)\n}\n",
         );
         project.compile(false).expect("compile");
         let engine = QuickJsEngine::new(project.fs.clone(), HostOptions::default())

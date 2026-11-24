@@ -5,6 +5,12 @@
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit")
 pub fn hit(n: Float) -> Nil
 
-/// Returns `b`, after it marks the region `n` as run.
-@external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit_bool")
-pub fn hit_bool(n: Float, b: Bool) -> Bool
+/// Returns `True`, after it marks the region `n` as run. The engine puts
+/// it before the right operand of `&&`.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit_true")
+pub fn hit_true(n: Float) -> Bool
+
+/// Returns `False`, after it marks the region `n` as run. The engine puts
+/// it before the right operand of `||`.
+@external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit_false")
+pub fn hit_false(n: Float) -> Bool

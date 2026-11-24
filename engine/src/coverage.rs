@@ -105,9 +105,9 @@ pub fn compile(
     Ok(files)
 }
 
-/// Rewrites `src` so that each region calls `hit` or `hit_bool` of
-/// `sgleam/coverage` when it starts. The numbers start at `first`, so the
-/// files of one program can share a single set of numbers.
+/// Rewrites `src` so that each region calls `hit`, `hit_true` or
+/// `hit_false` of `sgleam/coverage` when it starts. The numbers start at
+/// `first`, so the files of one program can share a single set of numbers.
 pub fn rewrite(path: Utf8PathBuf, src: &str, first: usize) -> Result<Rewrite, gleam_core::Error> {
     let parsed = gleam::parse(path, src)?;
 
@@ -335,11 +335,19 @@ impl Marker<'_> {
             } => {
                 self.expression(left);
                 if matches!(operator, BinOp::And | BinOp::Or) {
+                    // The mark runs before the operand, so an operand that
+                    // panics still shows as run.
                     let location = right.location();
                     let n = self.region(RegionKind::Operand, location);
-                    self.insert(location.start, format!("{}.hit_bool({n}.0, ", self.alias));
+                    let (mark, op) = match operator {
+                        BinOp::And => ("hit_true", "&&"),
+                        _ => ("hit_false", "||"),
+                    };
+                    self.insert(
+                        location.start,
+                        format!("{}.{mark}({n}.0) {op} ", self.alias),
+                    );
                     self.expression(right);
-                    self.insert(location.end, ")".into());
                 } else {
                     self.expression(right);
                 }
@@ -509,7 +517,7 @@ mod tests {
     fn capture() {
         assert_eq!(
             rewritten("fn f() { g(_, a && b) }"),
-            "fn f() { hit(0.0) g(_, a && hit_bool(1.0, b)) }"
+            "fn f() { hit(0.0) g(_, a && hit_true(1.0) && b) }"
         );
     }
 
@@ -549,7 +557,7 @@ mod tests {
     fn and_or() {
         assert_eq!(
             rewritten("fn f() { a && b || c }"),
-            "fn f() { hit(0.0) a && hit_bool(1.0, b) || hit_bool(2.0, c) }"
+            "fn f() { hit(0.0) a && hit_true(1.0) && b || hit_false(2.0) || c }"
         );
     }
 
@@ -557,7 +565,7 @@ mod tests {
     fn and_with_a_right_operand_that_is_an_and() {
         assert_eq!(
             rewritten("fn f() { a || b && c }"),
-            "fn f() { hit(0.0) a || hit_bool(1.0, b && hit_bool(2.0, c)) }"
+            "fn f() { hit(0.0) a || hit_false(1.0) || b && hit_true(2.0) && c }"
         );
     }
 
@@ -565,7 +573,7 @@ mod tests {
     fn and_in_a_clause() {
         assert_eq!(
             rewritten("fn f() { case x { _ -> a && b } }"),
-            "fn f() { hit(0.0) case x { _ -> { hit(1.0) a && hit_bool(2.0, b) } } }"
+            "fn f() { hit(0.0) case x { _ -> { hit(1.0) a && hit_true(2.0) && b } } }"
         );
     }
 
@@ -579,7 +587,7 @@ mod tests {
     fn and_in_an_assert() {
         assert_eq!(
             rewritten("fn f() { assert a && g(b || c) }"),
-            "fn f() { hit(0.0) assert a && hit_bool(1.0, g(b || hit_bool(2.0, c))) }"
+            "fn f() { hit(0.0) assert a && hit_true(1.0) && g(b || hit_false(2.0) || c) }"
         );
     }
 
@@ -616,7 +624,7 @@ mod tests {
     fn use_() {
         assert_eq!(
             rewritten("fn f() {\n  use x <- g(a && b)\n  x\n}"),
-            "fn f() {\n  hit(0.0) use x <- g(a && hit_bool(1.0, b))\n  x\n}"
+            "fn f() {\n  hit(0.0) use x <- g(a && hit_true(1.0) && b)\n  x\n}"
         );
     }
 
@@ -650,7 +658,7 @@ mod tests {
         assert!(
             rewrite
                 .source
-                .contains("hit(7.0) a && sgleam_coverage.hit_bool(8.0, b)")
+                .contains("hit(7.0) a && sgleam_coverage.hit_true(8.0) && b")
         );
     }
 
@@ -677,7 +685,7 @@ mod tests {
     fn non_ascii_text() {
         assert_eq!(
             rewritten("fn f() { \"ação\" == \"ã\" && b }"),
-            "fn f() { hit(0.0) \"ação\" == \"ã\" && hit_bool(1.0, b) }"
+            "fn f() { hit(0.0) \"ação\" == \"ã\" && hit_true(1.0) && b }"
         );
     }
 }
