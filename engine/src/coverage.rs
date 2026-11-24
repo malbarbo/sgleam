@@ -17,7 +17,7 @@ use gleam_core::{
 use src_span::{LineNumbers, SrcSpan};
 use std::{io::Write, rc::Rc};
 use termcolor::{Buffer, Color, ColorSpec, WriteColor};
-use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+use unicode_width::UnicodeWidthChar;
 
 use crate::{
     error::SgleamError,
@@ -183,18 +183,10 @@ fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io:
             for span in spans {
                 let start = span.start as usize;
                 let end = (span.end as usize).min(line_end);
-                // A tab stays a tab, so the `^` lines up whatever the width
-                // of a tab in the terminal.
-                let pad: String = source[at..start]
-                    .chars()
-                    .map(|c| match c {
-                        '\t' => "\t".into(),
-                        c => " ".repeat(c.width().unwrap_or(0)),
-                    })
-                    .collect();
-                write!(out, "{pad}")?;
+                write!(out, "{}", under(&source[at..start], ' '))?;
+                let marks = under(&source[start..end], '^');
                 out.set_color(&warning)?;
-                write!(out, "{}", "^".repeat(source[start..end].width().max(1)))?;
+                write!(out, "{}", if marks.is_empty() { "^".into() } else { marks })?;
                 out.reset()?;
                 at = end;
             }
@@ -202,6 +194,18 @@ fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io:
         }
     }
     Ok(())
+}
+
+/// The text that goes under `text`, with `mark` as wide as each character.
+/// A tab stays a tab, so the text below lines up whatever the width of a tab
+/// in the terminal.
+fn under(text: &str, mark: char) -> String {
+    text.chars()
+        .map(|c| match c {
+            '\t' => "\t".into(),
+            c => mark.to_string().repeat(c.width().unwrap_or(0)),
+        })
+        .collect()
 }
 
 /// Returns `true` if an example never calls the function `name`, `false`
@@ -907,6 +911,15 @@ mod tests {
         assert_eq!(
             report_of(src, &[0, 1], false),
             "Code that no example ran:\n  a.gleam:3\n    0 -> a\t&& {\n          \t   ^\n"
+        );
+    }
+
+    #[test]
+    fn report_keeps_a_tab_inside_the_span() {
+        let src = "fn f(n) { case n { 0 -> a\t&&\tb } }";
+        assert_eq!(
+            report_of(src, &[0], false),
+            "Code that no example ran:\n  a.gleam:1\n    fn f(n) { case n { 0 -> a\t&&\tb } }\n                       ^^^^^^\t^^\t^\n"
         );
     }
 
