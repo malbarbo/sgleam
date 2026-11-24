@@ -123,35 +123,35 @@ pub fn compile(
     Ok(files)
 }
 
-/// The spans that a report shows as not run, for each file of `files`. A
-/// region inside another region that did not run stays out.
-/// The spans come in order and do not overlap.
-pub fn not_run(files: &[File]) -> Vec<(&File, Vec<SrcSpan>)> {
+/// The regions that a report shows as not run, for each file of `files`.
+/// A region inside another region that did not run stays out. The regions
+/// come in order and do not overlap.
+pub fn not_run(files: &[File]) -> Vec<(&File, Vec<&Region>)> {
     files
         .iter()
         .map(|file| {
             let mut regions: Vec<&Region> =
                 file.regions.iter().filter(|region| !region.ran).collect();
             regions.sort_by_key(|region| (region.span.start, std::cmp::Reverse(region.span.end)));
-            let mut spans = vec![];
+            let mut shown = vec![];
             let mut end = 0;
             for region in regions {
                 if region.span.start >= end {
-                    spans.push(region.shown);
+                    shown.push(region);
                     end = region.span.end;
                 }
             }
-            (file, spans)
+            (file, shown)
         })
         .collect()
 }
 
-/// The section of `sgleam test --coverage` that lists the spans of
-/// `not_run`. Each span shows its line, without the indentation, and `^`
-/// under the span, in the colour of a warning when `color` is `true`. A
-/// span that goes on to the next line is underlined up to the end of the
-/// first one.
-pub fn report(not_run: &[(&File, Vec<SrcSpan>)], color: bool) -> String {
+/// The section of `sgleam test --coverage` that lists the regions of
+/// `not_run`. Each region shows its line without the indentation, then `^`
+/// under the shown span and the reason, in the colour of a warning when
+/// `color` is `true`. A span that goes on to the next line is underlined up
+/// to the end of the first one.
+pub fn report(not_run: &[(&File, Vec<&Region>)], color: bool) -> String {
     let mut out = if color {
         Buffer::ansi()
     } else {
@@ -162,24 +162,19 @@ pub fn report(not_run: &[(&File, Vec<SrcSpan>)], color: bool) -> String {
     String::from_utf8_lossy(out.as_slice()).into_owned()
 }
 
-fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io::Result<()> {
-    if not_run.iter().all(|(_, spans)| spans.is_empty()) {
+fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<&Region>)]) -> std::io::Result<()> {
+    if not_run.iter().all(|(_, regions)| regions.is_empty()) {
         return writeln!(out, "Every part of the code ran in some example.");
     }
     writeln!(out, "Code that no example ran:")?;
     let mut warning = ColorSpec::new();
     warning.set_fg(Some(Color::Yellow));
-    for (file, spans) in not_run {
+    for (file, regions) in not_run {
         let source = file.source.as_str();
         let numbers = LineNumbers::new(source);
-        let lines: Vec<(u32, SrcSpan)> = spans
-            .iter()
-            .map(|span| (numbers.line_number(span.start), *span))
-            .collect();
-        for spans in lines.chunk_by(|a, b| a.0 == b.0) {
-            let Some(&(number, _)) = spans.first() else {
-                continue;
-            };
+        for region in regions {
+            let span = region.shown;
+            let number = numbers.line_number(span.start);
             let line_start = numbers
                 .line_starts
                 .get(number as usize - 1)
@@ -192,24 +187,49 @@ fn write_report(out: &mut Buffer, not_run: &[(&File, Vec<SrcSpan>)]) -> std::io:
                 .unwrap_or_default();
             let text = line.trim_start();
             let line_end = line_start as usize + line.len();
-            writeln!(out, "  {}:{number}", file.path)?;
-            writeln!(out, "    {text}")?;
-            write!(out, "    ")?;
-            let mut at = line_end - text.len();
-            for (_, span) in spans {
-                let start = span.start as usize;
-                let end = (span.end as usize).min(line_end);
-                write!(out, "{}", under(&source[at..start], ' '))?;
-                let marks = under(&source[start..end], '^');
-                out.set_color(&warning)?;
-                write!(out, "{}", if marks.is_empty() { "^".into() } else { marks })?;
-                out.reset()?;
-                at = end;
+            write!(out, "\n  {}:{number}", file.path)?;
+            // A top level function is its own name.
+            if region.kind != RegionKind::Function {
+                write!(out, ", in {}", region.function)?;
             }
+            writeln!(out, "\n    {text}")?;
+            let start = span.start as usize;
+            let end = (span.end as usize).min(line_end);
+            write!(
+                out,
+                "    {}",
+                under(&source[line_end - text.len()..start], ' ')
+            )?;
+            let marks = under(&source[start..end], '^');
+            let marks = if marks.is_empty() { "^".into() } else { marks };
+            out.set_color(&warning)?;
+            write!(out, "{marks} {}", reason(region.kind, source))?;
+            out.reset()?;
             writeln!(out)?;
         }
     }
     Ok(())
+}
+
+/// Why no example ran a region of `kind`.
+fn reason(kind: RegionKind, source: &str) -> String {
+    // A left operand on many lines would not fit in the message.
+    let left = |span: SrcSpan| {
+        let text = &source[span.start as usize..span.end as usize];
+        if text.contains('\n') {
+            "the left side"
+        } else {
+            text
+        }
+    };
+    match kind {
+        RegionKind::Function | RegionKind::AnonymousFunction => {
+            "no example calls this function".into()
+        }
+        RegionKind::Clause => "no example reaches this clause".into(),
+        RegionKind::And { left: span } => format!("{} was never true", left(span)),
+        RegionKind::Or { left: span } => format!("{} was never false", left(span)),
+    }
 }
 
 /// The text that goes under `text`, with `mark` as wide as each character.
@@ -888,10 +908,13 @@ mod tests {
     fn not_run_text(files: &[File]) -> Vec<(String, Vec<String>)> {
         not_run(files)
             .into_iter()
-            .map(|(file, spans)| {
-                let texts = spans
+            .map(|(file, regions)| {
+                let texts = regions
                     .iter()
-                    .map(|span| file.source[span.start as usize..span.end as usize].to_string())
+                    .map(|region| {
+                        let span = region.shown;
+                        file.source[span.start as usize..span.end as usize].to_string()
+                    })
                     .collect();
                 (file.path.to_string(), texts)
             })
@@ -942,18 +965,22 @@ mod tests {
         let src = "fn f(n) {\n  case n {\n    0 -> \"ação\" == n && b\n    _ -> c\n  }\n}\n";
         assert_eq!(
             report_of(src, &[0, 1], false),
-            "Code that no example ran:\n  \
-             a.gleam:3\n    0 -> \"ação\" == n && b\n                        ^\n  \
-             a.gleam:4\n    _ -> c\n    ^^^^^^\n"
+            "Code that no example ran:\n\n  \
+             a.gleam:3, in f\n    0 -> \"ação\" == n && b\n                        \
+             ^ \"ação\" == n was never true\n\n  \
+             a.gleam:4, in f\n    _ -> c\n    ^^^^^^ no example reaches this clause\n"
         );
     }
 
     #[test]
-    fn report_has_two_spans_of_a_line_once() {
+    fn report_has_an_entry_for_each_span_of_a_line() {
         let src = "fn f() { a && b || c }";
         assert_eq!(
             report_of(src, &[0], false),
-            "Code that no example ran:\n  a.gleam:1\n    fn f() { a && b || c }\n                  ^    ^\n"
+            "Code that no example ran:\n\n  \
+             a.gleam:1, in f\n    fn f() { a && b || c }\n                  ^ a was never true\n\n  \
+             a.gleam:1, in f\n    fn f() { a && b || c }\n                       \
+             ^ a && b was never false\n"
         );
     }
 
@@ -962,7 +989,8 @@ mod tests {
         let src = "fn f(n) {\r\n\tcase n {\r\n\t\t0 -> a\t&& {\r\n\t\t\tb\r\n\t\t}\r\n\t}\r\n}\r\n";
         assert_eq!(
             report_of(src, &[0, 1], false),
-            "Code that no example ran:\n  a.gleam:3\n    0 -> a\t&& {\n          \t   ^\n"
+            "Code that no example ran:\n\n  \
+             a.gleam:3, in f\n    0 -> a\t&& {\n          \t   ^ a was never true\n"
         );
     }
 
@@ -971,7 +999,28 @@ mod tests {
         let src = "fn f(n) { case n { 0 -> a\t&&\tb } }";
         assert_eq!(
             report_of(src, &[0], false),
-            "Code that no example ran:\n  a.gleam:1\n    fn f(n) { case n { 0 -> a\t&&\tb } }\n                       ^^^^^^\t^^\t^\n"
+            "Code that no example ran:\n\n  \
+             a.gleam:1, in f\n    fn f(n) { case n { 0 -> a\t&&\tb } }\n                       \
+             ^^^^^^\t^^\t^ no example reaches this clause\n"
+        );
+    }
+
+    #[test]
+    fn report_names_the_function_of_an_anonymous_one() {
+        assert_eq!(
+            report_of("fn g() { fn(x) { x } }", &[0], false),
+            "Code that no example ran:\n\n  \
+             a.gleam:1, in g\n    fn g() { fn(x) { x } }\n             ^^^^^ no example calls this function\n"
+        );
+    }
+
+    #[test]
+    fn report_says_the_left_side_when_it_has_many_lines() {
+        let src = "fn f() {\n  g(\n    a,\n  ) && b\n}";
+        assert_eq!(
+            report_of(src, &[0], false),
+            "Code that no example ran:\n\n  \
+             a.gleam:4, in f\n    ) && b\n         ^ the left side was never true\n"
         );
     }
 
@@ -980,7 +1029,8 @@ mod tests {
         let src = "fn f() { 1 }";
         assert_eq!(
             report_of(src, &[], true),
-            "Code that no example ran:\n  a.gleam:1\n    fn f() { 1 }\n    \u{1b}[0m\u{1b}[33m^^^^^^\u{1b}[0m\n"
+            "Code that no example ran:\n\n  a.gleam:1\n    fn f() { 1 }\n    \
+             \u{1b}[0m\u{1b}[33m^^^^^^ no example calls this function\u{1b}[0m\n"
         );
     }
 
