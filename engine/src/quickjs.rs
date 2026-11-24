@@ -66,6 +66,15 @@ impl QuickJsEngine {
             .with(|ctx| ctx.globals().get::<_, Object>("sgleam")?.set("args", args))?;
         Ok(())
     }
+
+    /// The numbers of the coverage marks that ran, in increasing order.
+    pub fn coverage(&self) -> std::result::Result<Vec<usize>, SgleamError> {
+        let mut hits = self.context.with(|ctx| {
+            ctx.eval::<Vec<usize>, _>("Array.from(globalThis.__sgleam_coverage ?? [])")
+        })?;
+        hits.sort_unstable();
+        Ok(hits)
+    }
 }
 
 impl Engine for QuickJsEngine {
@@ -512,8 +521,8 @@ impl Loader for ScriptLoader {
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_path, source_location};
-    use crate::gleam::Project;
+    use super::{QuickJsEngine, resolve_path, source_location};
+    use crate::{engine::Engine, gleam::Project, host::HostOptions};
 
     #[test]
     fn an_import_resolves_to_a_path_separated_with_slashes() {
@@ -551,5 +560,23 @@ mod tests {
             Some(("src/sub/a.gleam".into(), 6))
         );
         assert_eq!(at("/build/prelude.mjs", 1, 1), None);
+    }
+
+    #[test]
+    fn coverage_has_the_marks_that_ran() {
+        let mut project = Project::default();
+        project.write_source(
+            "a.gleam",
+            "import sgleam/coverage\n\n\
+             pub fn a_examples() {\n  coverage.hit(3)\n  \
+             let _ = False && coverage.hit_bool(1, True)\n  \
+             let _ = True && coverage.hit_bool(2, True)\n  coverage.hit(2)\n}\n",
+        );
+        project.compile(false).expect("compile");
+        let engine = QuickJsEngine::new(project.fs.clone(), HostOptions::default())
+            .expect("start the engine");
+        assert!(engine.coverage().expect("read the marks").is_empty());
+        engine.run_tests(&["a"]).expect("run the examples");
+        assert_eq!(engine.coverage().expect("read the marks"), vec![2, 3]);
     }
 }
