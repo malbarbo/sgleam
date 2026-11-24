@@ -18,10 +18,17 @@ fn sgleam() -> assert_cmd::Command {
 /// and says nothing of where these tests keep it. With `-d none` a world opens
 /// no display, and prints the word `Image` for each frame.
 fn output_of(command: &str, file: &str) -> (String, String) {
+    let (out, err, _) = run(&[command], file);
+    (out, err)
+}
+
+/// The stdout, the stderr and the exit code of sgleam with `args` on `file`.
+fn run(args: &[&str], file: &str) -> (String, String, Option<i32>) {
     let (dir, name) = file.rsplit_once('/').expect("a file in a directory");
     let out = sgleam()
         .current_dir(format!("{}/{dir}", env!("CARGO_MANIFEST_DIR")))
-        .args([command, "-d", "none", name])
+        .args(args)
+        .args(["-d", "none", name])
         .output()
         .expect("run sgleam");
     let text = |bytes: &[u8]| {
@@ -29,7 +36,7 @@ fn output_of(command: &str, file: &str) -> (String, String) {
             .replace('\\', "/")
             .replace("\r\n", "\n")
     };
-    (text(&out.stdout), text(&out.stderr))
+    (text(&out.stdout), text(&out.stderr), out.status.code())
 }
 
 /// The snapshot is named after what the file is run for and the file it was run
@@ -45,6 +52,20 @@ fn check(snapshot: &str, command: &str, file: &str) {
     let _guard = bind(file);
     let (out, err) = output_of(command, file);
     assert_snapshot!(snapshot, format!("STDOUT\n{out}STDERR\n{err}"));
+}
+
+/// `test --coverage` prints what `test` prints, with the same exit code, and
+/// then the coverage section, which is all that the snapshot keeps.
+fn check_coverage(snapshot: &str, command: &str, file: &str) {
+    let _guard = bind(file);
+    let (out, err, code) = run(&[command], file);
+    let (coverage_out, coverage_err, coverage_code) = run(&[command, "--coverage"], file);
+    assert_eq!(coverage_err, err);
+    assert_eq!(coverage_code, code);
+    let section = coverage_out.strip_prefix(&out).unwrap_or_else(|| {
+        panic!("the output of --coverage starts with\n{out}\nbut is\n{coverage_out}")
+    });
+    assert_snapshot!(snapshot, section);
 }
 
 /// An image is the whole of what its file prints, and nothing around it.

@@ -11,6 +11,9 @@ fn main() {
     tests(&mut src, "tests/inputs", "run_tests", "test", |name| {
         name.starts_with("check")
     });
+    tests(&mut src, "tests/inputs", "run_coverage", "test", |name| {
+        name.starts_with("check")
+    });
     tests(&mut src, "tests/images", "run_images", "run", |_| true);
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");
@@ -41,10 +44,10 @@ fn tests(src: &mut String, dir: &str, snapshot: &str, command: &str, keep: fn(&s
             let _ = writeln!(src, "#[ignore]");
         }
         // An image is a whole snapshot of its own: the svg, and nothing around it.
-        let check = if snapshot == "run_images" {
-            "check_image"
-        } else {
-            "check"
+        let check = match snapshot {
+            "run_images" => "check_image",
+            "run_coverage" => "check_coverage",
+            _ => "check",
         };
         let _ = writeln!(
             src,
