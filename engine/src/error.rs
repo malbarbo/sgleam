@@ -188,7 +188,9 @@ pub fn show_error(err: &SgleamError) {
         .write(&mut buffer),
         SgleamError::CoverageCompile => error_diagnostic(
             "coverage failed",
-            "sgleam could not compile the program with the marks that measure coverage.".into(),
+            "sgleam could not compile the program with the marks that measure coverage, \
+             so the examples ran without them."
+                .into(),
             "This is a bug in sgleam. Please report it together with the program.".into(),
         )
         .write(&mut buffer),

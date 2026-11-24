@@ -116,6 +116,15 @@ pub fn compile(
     Ok(files)
 }
 
+/// Writes back the sources of `modules` that `compile` rewrote, so the
+/// next compile of `project` builds the code the user wrote.
+pub fn restore(project: &mut Project, modules: &[(&Utf8Path, &Module)]) -> Result<(), SgleamError> {
+    for (_, module) in modules {
+        project.rewrite_source(&module.name, &module.code)?;
+    }
+    Ok(())
+}
+
 /// The regions that a report shows as not run, for each file of `files`.
 /// A region inside another region that did not run stays out. The regions
 /// come in order and do not overlap.

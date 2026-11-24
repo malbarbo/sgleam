@@ -291,16 +291,21 @@ fn run() -> Result<(), SgleamError> {
 
 /// Runs the examples and then shows the code that no example ran. A run
 /// with no files to show, as one that does not compile or that Ctrl-C
-/// stops, shows nothing.
+/// stops, shows nothing. A coverage that failed is an error of its own, and
+/// the exit code comes from the examples alone.
 fn test_coverage(
     user_files: &[Utf8PathBuf],
     paths: &[Utf8PathBuf],
     options: HostOptions,
 ) -> Result<(), SgleamError> {
-    let (files, result) = run_test_coverage(user_files, paths, options);
-    if !files.is_empty() {
-        let not_run = coverage::not_run(&files);
-        print!("\n{}", coverage::report(&not_run, color_stdout()));
+    let (coverage, result) = run_test_coverage(user_files, paths, options);
+    match coverage {
+        Ok(files) if !files.is_empty() => {
+            let not_run = coverage::not_run(&files);
+            print!("\n{}", coverage::report(&not_run, color_stdout()));
+        }
+        Ok(_) => {}
+        Err(err) => show_error(&err),
     }
     result
 }

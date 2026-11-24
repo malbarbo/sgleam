@@ -168,18 +168,9 @@ fn run_examples(project: &mut Project, module: &Module, coverage: bool) -> Optio
         }
         return None;
     }
-    let (files, result) =
+    let (coverage, _) =
         run_modules_coverage(project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
-    // The run prints what an example says. The compile with the marks says
-    // nothing, and without its error the examples would vanish in silence.
-    if let Err(err @ error::SgleamError::CoverageCompile) = &result {
-        show_error(err);
-    }
-    // `Repl::new` compiles the source the user wrote again, so the repl
-    // runs neither the marks nor a source map of them.
-    project
-        .rewrite_source(&module.name, &module.code)
-        .expect("write a file in memory");
+    let files = coverage.inspect_err(show_error).ok()?;
     if files.is_empty() {
         return None;
     }

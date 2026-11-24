@@ -84,62 +84,78 @@ pub fn run_test(
     Ok(())
 }
 
+/// The files of a run with coverage, with the regions that ran. They are
+/// empty when the run does not start or Ctrl-C stops it. The error says why
+/// the run measured nothing, as when the marks do not compile and the
+/// examples run without them.
+pub type Coverage = Result<Vec<coverage::File>, SgleamError>;
+
 /// Runs the examples as `run_test` does, with the coverage marks in every
-/// file of `user_files`. The files come back as `run_modules_coverage` gives
-/// them, and empty when the program does not compile.
+/// file of `user_files`. The coverage comes back as `run_modules_coverage`
+/// gives it, and empty when the program does not compile.
 pub fn run_test_coverage(
     user_files: &[Utf8PathBuf],
     paths: &[Utf8PathBuf],
     options: HostOptions,
-) -> (Vec<coverage::File>, Result<(), SgleamError>) {
+) -> (Coverage, Result<(), SgleamError>) {
     let mut project = Project::default();
     let built = match copy_files_and_build(&mut project, paths) {
         Ok(built) => built,
-        Err(err) => return (vec![], Err(SgleamError::Gleam(err))),
+        Err(err) => return (Ok(vec![]), Err(SgleamError::Gleam(err))),
     };
     let user_modules = user_modules(user_files, paths, &built);
     run_modules_coverage(&mut project, &user_modules, options)
 }
 
 /// Runs the examples of `modules`, which `project` built, with the coverage
-/// marks. The files come back with the regions that ran, also when an
-/// example fails or a panic stops the run. They are empty when the run does
-/// not start or Ctrl-C stops it. `project` keeps the rewritten sources.
+/// marks. The regions keep what ran also when an example fails or a panic
+/// stops the run. When the marks do not compile, the examples run without
+/// them. `project` ends with the sources the user wrote.
 pub fn run_modules_coverage(
     project: &mut Project,
     modules: &[(&Utf8Path, &Module)],
     options: HostOptions,
-) -> (Vec<coverage::File>, Result<(), SgleamError>) {
-    let mut files = vec![];
-    let result = run_coverage(project, modules, options, &mut files);
-    (files, result)
+) -> (Coverage, Result<(), SgleamError>) {
+    let compiled = match coverage::compile(project, modules) {
+        Ok(compiled) => compiled,
+        Err(err) => {
+            let result = coverage::restore(project, modules)
+                .and_then(|()| Ok(project.compile_quietly()?))
+                .and_then(|_| JsEngine::new(project.fs.clone(), options))
+                .and_then(|engine| engine.run_tests(&names(modules)));
+            return (Err(err), result);
+        }
+    };
+    let (coverage, result) = run_marked(project, modules, options, compiled);
+    let restored = coverage::restore(project, modules);
+    (coverage.and_then(|files| restored.map(|()| files)), result)
 }
 
-fn run_coverage(
-    project: &mut Project,
+fn run_marked(
+    project: &Project,
     modules: &[(&Utf8Path, &Module)],
     options: HostOptions,
-    files: &mut Vec<coverage::File>,
-) -> Result<(), SgleamError> {
-    let compiled = coverage::compile(project, modules)?;
-    let engine = JsEngine::new(project.fs.clone(), options)?;
+    mut files: Vec<coverage::File>,
+) -> (Coverage, Result<(), SgleamError>) {
+    let engine = match JsEngine::new(project.fs.clone(), options) {
+        Ok(engine) => engine,
+        Err(err) => return (Ok(vec![]), Err(err)),
+    };
     let result = engine.run_tests(&names(modules));
     if matches!(result, Err(SgleamError::Interrupted)) {
-        return result;
+        return (Ok(vec![]), result);
     }
     // The context outlives a failed example and a panic, so the marks are
     // still there to read.
-    // An error from the run tells the user more than an error from the read.
     let hits = match engine.coverage() {
         Ok(hits) => hits,
-        Err(error) => return result.and(Err(error)),
+        Err(err) => return (Err(err), result),
     };
-    *files = compiled;
     let regions = files.iter_mut().flat_map(|file| file.regions.iter_mut());
     for (n, region) in regions.enumerate() {
         region.ran = hits.binary_search(&n).is_ok();
     }
-    result
+    (Ok(files), result)
 }
 
 /// The modules that `user_files` became, with their paths, in the order of

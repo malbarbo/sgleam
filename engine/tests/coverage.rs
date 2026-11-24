@@ -11,7 +11,7 @@ use engine::{
     gleam::{Project, copy_files_and_build, find_imports},
     host::HostOptions,
     quickjs::QuickJsEngine,
-    run::run_test_coverage,
+    run::{run_modules_coverage, run_test_coverage},
 };
 
 #[test]
@@ -77,10 +77,10 @@ fn ran(files: &[coverage::File]) -> Vec<(RegionKind, String, bool)> {
 fn a_test_run_says_which_regions_ran() {
     let user_files = vec![Utf8PathBuf::from("tests/coverage/sign.gleam")];
     let paths = find_imports(user_files.clone()).expect("find the imports");
-    let (files, result) = run_test_coverage(&user_files, &paths, HostOptions::default());
+    let (coverage, result) = run_test_coverage(&user_files, &paths, HostOptions::default());
     result.expect("run the examples");
     assert_eq!(
-        ran(&files),
+        ran(&coverage.expect("measure the coverage")),
         vec![
             (
                 RegionKind::Function,
@@ -93,13 +93,36 @@ fn a_test_run_says_which_regions_ran() {
     );
 }
 
+/// The repl of the page compiles the project again after the run, and has
+/// to build the code the user wrote.
+#[test]
+fn the_run_writes_back_the_sources() {
+    let paths = find_imports(vec!["tests/coverage/sign.gleam".into()]).expect("find the imports");
+    let mut project = Project::default();
+    let built = copy_files_and_build(&mut project, &paths).expect("compile");
+    let mut modules = built.with_paths(&paths);
+    // Only the file under test, and not `words.gleam`, which it imports.
+    modules.truncate(1);
+    let (coverage, result) = run_modules_coverage(&mut project, &modules, HostOptions::default());
+    coverage.expect("measure the coverage");
+    result.expect("run the examples");
+
+    project.compile_quietly().expect("compile the sources");
+    let engine =
+        QuickJsEngine::new(project.fs.clone(), HostOptions::default()).expect("start the engine");
+    engine
+        .run_tests(&["tests/coverage/sign"])
+        .expect("run the examples");
+    assert!(engine.coverage().expect("read the marks").is_empty());
+}
+
 #[test]
 fn a_failed_example_and_a_panic_keep_the_regions() {
     let user_files = vec![Utf8PathBuf::from("tests/coverage/half.gleam")];
-    let (files, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
+    let (coverage, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
     assert!(result.is_err());
     assert_eq!(
-        ran(&files),
+        ran(&coverage.expect("measure the coverage")),
         vec![
             (
                 RegionKind::Function,
@@ -115,18 +138,18 @@ fn a_failed_example_and_a_panic_keep_the_regions() {
 #[test]
 fn a_program_that_does_not_compile_has_no_regions() {
     let user_files = vec![Utf8PathBuf::from("tests/coverage/broken.gleam")];
-    let (files, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
+    let (coverage, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
     assert!(matches!(result, Err(SgleamError::Gleam(_))));
-    assert!(files.is_empty());
+    assert!(coverage.expect("measure the coverage").is_empty());
 }
 
 #[test]
 fn an_operand_that_panics_ran() {
     let user_files = vec![Utf8PathBuf::from("tests/coverage/operand.gleam")];
-    let (files, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
+    let (coverage, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
     assert!(result.is_err());
     assert_eq!(
-        ran(&files),
+        ran(&coverage.expect("measure the coverage")),
         vec![
             (
                 RegionKind::Function,
