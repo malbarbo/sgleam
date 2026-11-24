@@ -69,10 +69,11 @@ impl QuickJsEngine {
 
     /// The numbers of the coverage marks that ran, in increasing order.
     pub fn coverage(&self) -> std::result::Result<Vec<usize>, SgleamError> {
-        let mut hits = self.context.with(|ctx| {
-            ctx.eval::<Vec<usize>, _>("Array.from(globalThis.__sgleam_coverage ?? [])")
+        let hits = self.context.with(|ctx| {
+            ctx.eval::<Vec<usize>, _>(
+                "(globalThis.__sgleam_coverage ?? []).flatMap((ran, n) => (ran ? [n] : []))",
+            )
         })?;
-        hits.sort_unstable();
         Ok(hits)
     }
 }
@@ -568,9 +569,9 @@ mod tests {
         project.write_source(
             "a.gleam",
             "import sgleam/coverage\n\n\
-             pub fn a_examples() {\n  coverage.hit(3)\n  \
-             let _ = False && coverage.hit_bool(1, True)\n  \
-             let _ = True && coverage.hit_bool(2, True)\n  coverage.hit(2)\n}\n",
+             pub fn a_examples() {\n  coverage.hit(3.0)\n  \
+             let _ = False && coverage.hit_bool(1.0, True)\n  \
+             let _ = True && coverage.hit_bool(2.0, True)\n  coverage.hit(2.0)\n}\n",
         );
         project.compile(false).expect("compile");
         let engine = QuickJsEngine::new(project.fs.clone(), HostOptions::default())

@@ -238,7 +238,7 @@ impl Marker<'_> {
         {
             let n = self.region(RegionKind::Function, span);
             let alias = self.alias.clone();
-            self.insert(statement.start_byte_index(), format!("{alias}.hit({n}) "));
+            self.insert(statement.start_byte_index(), format!("{alias}.hit({n}.0) "));
             if let Statement::Expression(expression) = statement {
                 self.leading_minus(expression);
             }
@@ -369,7 +369,7 @@ impl Marker<'_> {
                     let location = right.location();
                     let n = self.region(RegionKind::Operand, location);
                     let alias = self.alias.clone();
-                    self.insert(location.start, format!("{alias}.hit_bool({n}, "));
+                    self.insert(location.start, format!("{alias}.hit_bool({n}.0, "));
                     self.expression(right);
                     self.insert(location.end, ")".into());
                 } else {
@@ -393,7 +393,7 @@ impl Marker<'_> {
                     let n = self.region(RegionKind::Clause, clause.location);
                     let alias = self.alias.clone();
                     let then = clause.then.location();
-                    self.insert(then.start, format!("{{ {alias}.hit({n}) "));
+                    self.insert(then.start, format!("{{ {alias}.hit({n}.0) "));
                     self.leading_minus(&clause.then);
                     self.expression(&clause.then);
                     self.insert(then.end, " }".into());
@@ -491,14 +491,14 @@ mod tests {
 
     #[test]
     fn function_body() {
-        assert_eq!(rewritten("fn f(x) { x * 2 }"), "fn f(x) { hit(0) x * 2 }");
+        assert_eq!(rewritten("fn f(x) { x * 2 }"), "fn f(x) { hit(0.0) x * 2 }");
     }
 
     #[test]
     fn function_body_with_many_statements() {
         assert_eq!(
             rewritten("fn f(x) {\n  let y = x\n  y\n}"),
-            "fn f(x) {\n  hit(0) let y = x\n  y\n}"
+            "fn f(x) {\n  hit(0.0) let y = x\n  y\n}"
         );
     }
 
@@ -506,7 +506,7 @@ mod tests {
     fn function_body_after_a_comment() {
         assert_eq!(
             rewritten("fn f(x) { // {\n  x\n}"),
-            "fn f(x) { // {\n  hit(0) x\n}"
+            "fn f(x) { // {\n  hit(0.0) x\n}"
         );
     }
 
@@ -528,20 +528,23 @@ mod tests {
     fn anonymous_function() {
         assert_eq!(
             rewritten("fn f() { fn(x) { x } }"),
-            "fn f() { hit(0) fn(x) { hit(1) x } }"
+            "fn f() { hit(0.0) fn(x) { hit(1.0) x } }"
         );
     }
 
     #[test]
     fn empty_anonymous_function() {
-        assert_eq!(rewritten("fn f() { fn() {} }"), "fn f() { hit(0) fn() {} }");
+        assert_eq!(
+            rewritten("fn f() { fn() {} }"),
+            "fn f() { hit(0.0) fn() {} }"
+        );
     }
 
     #[test]
     fn capture() {
         assert_eq!(
             rewritten("fn f() { g(_, a && b) }"),
-            "fn f() { hit(0) g(_, a && hit_bool(1, b)) }"
+            "fn f() { hit(0.0) g(_, a && hit_bool(1.0, b)) }"
         );
     }
 
@@ -549,7 +552,7 @@ mod tests {
     fn case_clauses() {
         assert_eq!(
             rewritten("fn f(n) {\n  case n {\n    0 -> a\n    _ -> b\n  }\n}"),
-            "fn f(n) {\n  hit(0) case n {\n    0 -> { hit(1) a }\n    _ -> { hit(2) b }\n  }\n}"
+            "fn f(n) {\n  hit(0.0) case n {\n    0 -> { hit(1.0) a }\n    _ -> { hit(2.0) b }\n  }\n}"
         );
     }
 
@@ -557,7 +560,7 @@ mod tests {
     fn case_clause_with_a_block() {
         assert_eq!(
             rewritten("fn f(n) { case n { _ -> { a b } } }"),
-            "fn f(n) { hit(0) case n { _ -> { hit(1) { a b } } } }"
+            "fn f(n) { hit(0.0) case n { _ -> { hit(1.0) { a b } } } }"
         );
     }
 
@@ -565,7 +568,7 @@ mod tests {
     fn case_clause_with_alternatives_and_a_guard() {
         assert_eq!(
             rewritten("fn f(n) { case n { 1 | 2 if a && b -> c } }"),
-            "fn f(n) { hit(0) case n { 1 | 2 if a && b -> { hit(1) c } } }"
+            "fn f(n) { hit(0.0) case n { 1 | 2 if a && b -> { hit(1.0) c } } }"
         );
     }
 
@@ -573,7 +576,7 @@ mod tests {
     fn nested_case() {
         assert_eq!(
             rewritten("fn f(n) { case n { _ -> case n { _ -> a } } }"),
-            "fn f(n) { hit(0) case n { _ -> { hit(1) case n { _ -> { hit(2) a } } } } }"
+            "fn f(n) { hit(0.0) case n { _ -> { hit(1.0) case n { _ -> { hit(2.0) a } } } } }"
         );
     }
 
@@ -581,7 +584,7 @@ mod tests {
     fn and_or() {
         assert_eq!(
             rewritten("fn f() { a && b || c }"),
-            "fn f() { hit(0) a && hit_bool(1, b) || hit_bool(2, c) }"
+            "fn f() { hit(0.0) a && hit_bool(1.0, b) || hit_bool(2.0, c) }"
         );
     }
 
@@ -589,7 +592,7 @@ mod tests {
     fn and_with_a_right_operand_that_is_an_and() {
         assert_eq!(
             rewritten("fn f() { a || b && c }"),
-            "fn f() { hit(0) a || hit_bool(1, b && hit_bool(2, c)) }"
+            "fn f() { hit(0.0) a || hit_bool(1.0, b && hit_bool(2.0, c)) }"
         );
     }
 
@@ -597,7 +600,7 @@ mod tests {
     fn and_in_a_clause() {
         assert_eq!(
             rewritten("fn f() { case x { _ -> a && b } }"),
-            "fn f() { hit(0) case x { _ -> { hit(1) a && hit_bool(2, b) } } }"
+            "fn f() { hit(0.0) case x { _ -> { hit(1.0) a && hit_bool(2.0, b) } } }"
         );
     }
 
@@ -605,7 +608,7 @@ mod tests {
     fn and_in_an_assert() {
         assert_eq!(
             rewritten("fn f() { assert a && g(b || c) }"),
-            "fn f() { hit(0) assert a && g(b || hit_bool(1, c)) }"
+            "fn f() { hit(0.0) assert a && g(b || hit_bool(1.0, c)) }"
         );
     }
 
@@ -613,7 +616,7 @@ mod tests {
     fn leading_minus_in_a_body() {
         assert_eq!(
             rewritten("fn f(x) { -x * 2 }"),
-            "fn f(x) { hit(0) { -x } * 2 }"
+            "fn f(x) { hit(0.0) { -x } * 2 }"
         );
     }
 
@@ -621,7 +624,7 @@ mod tests {
     fn leading_minus_literal() {
         assert_eq!(
             rewritten("fn f() { -1 + 2 }"),
-            "fn f() { hit(0) { -1 } + 2 }"
+            "fn f() { hit(0.0) { -1 } + 2 }"
         );
     }
 
@@ -629,20 +632,20 @@ mod tests {
     fn leading_minus_in_a_clause() {
         assert_eq!(
             rewritten("fn f(x) { case x { _ -> -x } }"),
-            "fn f(x) { hit(0) case x { _ -> { hit(1) { -x } } } }"
+            "fn f(x) { hit(0.0) case x { _ -> { hit(1.0) { -x } } } }"
         );
     }
 
     #[test]
     fn minus_not_at_the_start() {
-        assert_eq!(rewritten("fn f(x) { 1 - x }"), "fn f(x) { hit(0) 1 - x }");
+        assert_eq!(rewritten("fn f(x) { 1 - x }"), "fn f(x) { hit(0.0) 1 - x }");
     }
 
     #[test]
     fn use_() {
         assert_eq!(
             rewritten("fn f() {\n  use x <- g(a && b)\n  x\n}"),
-            "fn f() {\n  hit(0) use x <- g(a && hit_bool(1, b))\n  x\n}"
+            "fn f() {\n  hit(0.0) use x <- g(a && hit_bool(1.0, b))\n  x\n}"
         );
     }
 
@@ -657,7 +660,7 @@ mod tests {
         let src = "fn f() { 1 } // end";
         assert_eq!(
             rewrite_ok(src, 0).source,
-            "fn f() { sgleam_coverage.hit(0) 1 } // end\nimport sgleam/coverage as sgleam_coverage\n"
+            "fn f() { sgleam_coverage.hit(0.0) 1 } // end\nimport sgleam/coverage as sgleam_coverage\n"
         );
     }
 
@@ -666,7 +669,7 @@ mod tests {
         let src = "import sgleam_coverage\nfn f(sgleam_coverage_1) { 1 }";
         assert_eq!(
             rewrite_ok(src, 0).source,
-            "import sgleam_coverage\nfn f(sgleam_coverage_1) { sgleam_coverage_2.hit(0) 1 }\nimport sgleam/coverage as sgleam_coverage_2\n"
+            "import sgleam_coverage\nfn f(sgleam_coverage_1) { sgleam_coverage_2.hit(0.0) 1 }\nimport sgleam/coverage as sgleam_coverage_2\n"
         );
     }
 
@@ -676,7 +679,7 @@ mod tests {
         assert!(
             rewrite
                 .source
-                .contains("hit(7) a && sgleam_coverage.hit_bool(8, b)")
+                .contains("hit(7.0) a && sgleam_coverage.hit_bool(8.0, b)")
         );
     }
 
@@ -703,7 +706,7 @@ mod tests {
     fn non_ascii_text() {
         assert_eq!(
             rewritten("fn f() { \"ação\" == \"ã\" && b }"),
-            "fn f() { hit(0) \"ação\" == \"ã\" && hit_bool(1, b) }"
+            "fn f() { hit(0.0) \"ação\" == \"ã\" && hit_bool(1.0, b) }"
         );
     }
 }

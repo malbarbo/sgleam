@@ -3,8 +3,8 @@
 //// module.
 
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit")
-pub fn hit(n: Int) -> Nil
+pub fn hit(n: Float) -> Nil
 
 /// Returns `b`, after it marks the region `n` as run.
 @external(javascript, "../sgleam/sgleam_ffi.mjs", "coverage_hit_bool")
-pub fn hit_bool(n: Int, b: Bool) -> Bool
+pub fn hit_bool(n: Float, b: Bool) -> Bool
