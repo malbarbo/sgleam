@@ -298,20 +298,7 @@ impl Marker<'_> {
             }
             Statement::Use(use_) => self.expression(&use_.call),
             Statement::Assert(assert) => {
-                // A mark on the operand of the `&&` itself would change what
-                // the failed assert shows.
-                match &assert.value {
-                    UntypedExpr::BinOp {
-                        operator: BinOp::And | BinOp::Or,
-                        left,
-                        right,
-                        ..
-                    } => {
-                        self.expression(left);
-                        self.expression(right);
-                    }
-                    value => self.expression(value),
-                }
+                self.expression(&assert.value);
                 if let Some(message) = &assert.message {
                     self.expression(message);
                 }
@@ -620,7 +607,7 @@ mod tests {
     fn and_in_an_assert() {
         assert_eq!(
             rewritten("fn f() { assert a && g(b || c) }"),
-            "fn f() { hit(0.0) assert a && g(b || hit_bool(1.0, c)) }"
+            "fn f() { hit(0.0) assert a && hit_bool(1.0, g(b || hit_bool(2.0, c))) }"
         );
     }
 
