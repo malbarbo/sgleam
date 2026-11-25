@@ -3,7 +3,6 @@
 use camino::Utf8Path;
 use engine::{
     coverage,
-    engine::Engine as _,
     error::{self, show_error},
     format,
     gleam::{Project, get_module},
@@ -11,7 +10,7 @@ use engine::{
     input, panic,
     quickjs::QuickJsEngine,
     repl::Repl,
-    run::run_modules_coverage,
+    run::{run_modules_coverage, run_modules_tests},
     shell::{self, Shell},
 };
 use gleam_core::build::Module;
@@ -163,9 +162,7 @@ pub unsafe extern "C" fn repl_new(
 /// them. Returns `None` if it measured nothing.
 fn run_examples(project: &mut Project, module: &Module, coverage: bool) -> Option<String> {
     if !coverage {
-        if let Ok(engine) = QuickJsEngine::new(project.fs.clone(), HostOptions) {
-            let _ = engine.run_tests(&[USER]);
-        }
+        let _ = run_modules_tests(project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
         return None;
     }
     let (coverage, _) =

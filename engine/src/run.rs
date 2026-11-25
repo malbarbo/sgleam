@@ -79,9 +79,16 @@ pub fn run_test(
 ) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
-    let user_modules = user_modules(user_files, paths, &built);
-    JsEngine::new(project.fs.clone(), options)?.run_tests(&names(&user_modules))?;
-    Ok(())
+    run_modules_tests(&project, &user_modules(user_files, paths, &built), options)
+}
+
+/// Runs the examples of `modules`, which `project` built.
+pub fn run_modules_tests(
+    project: &Project,
+    modules: &[(&Utf8Path, &Module)],
+    options: HostOptions,
+) -> Result<(), SgleamError> {
+    JsEngine::new(project.fs.clone(), options)?.run_tests(&names(modules))
 }
 
 /// The files of a run with coverage, with the regions that ran. They are
@@ -122,8 +129,7 @@ pub fn run_modules_coverage(
         Err(err) => {
             let result = coverage::restore(project, modules)
                 .and_then(|()| Ok(project.compile_quietly()?))
-                .and_then(|_| JsEngine::new(project.fs.clone(), options))
-                .and_then(|engine| engine.run_tests(&names(modules)));
+                .and_then(|_| run_modules_tests(project, modules, options));
             return (Err(err), result);
         }
     };
