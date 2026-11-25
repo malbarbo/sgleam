@@ -1,5 +1,5 @@
 {
-  description = "The static musl libraries that winit and softbuffer open with dlopen, for a static sgleam on Linux";
+  description = "The static musl libraries of X11 and Wayland that a static sgleam links on Linux";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/b51242d7d43689db2f3be91bd05d5b24fbb469c4";
 
