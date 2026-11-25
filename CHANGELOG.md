@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0 (2026-11-25)
+
+- `sgleam test` shows the code that no example ran (use `--no-coverage` to turn it off)
+- The web version marks the code that no example ran
+- Fix a regression in 0.7.0 that made `sgleam test` refuse more than one file
+- `sgleam test` reports a file with an invalid module name
+- Fixes to `echo` of dicts and floats, and to `string.drop_start` with accents
+- Local players in `mworld` get the names player 1, player 2, and so on
+- Shorter stack overflow traces
+
 ## 0.9.0 (2026-11-04)
 
 - New `sgleam/mworld` library for multiplayer interactive programs, with `--players` to choose the number of players
