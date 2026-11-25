@@ -54,6 +54,11 @@ pub enum SgleamError {
     #[error("display not supported")]
     DisplayNotSupported { mode: &'static str },
 
+    /// `-d window` in a session where no window opens. `cause` says why, such
+    /// as a session with no graphical display.
+    #[error("no window")]
+    NoWindow { cause: String },
+
     /// A failure of the Gleam compiler, shown as the diagnostics it carries,
     /// over the paths the user gave and not the ones the project holds.
     #[error("gleam error")]
@@ -184,6 +189,14 @@ pub fn show_error(err: &SgleamError) {
             "display not supported",
             format!("The terminal does not support the `{mode}` display."),
             "Use another value for `-d`, or leave `-d` out so sgleam picks one.".into(),
+        )
+        .write(&mut buffer),
+        SgleamError::NoWindow { cause } => error_diagnostic(
+            "no window",
+            format!("The window did not open: {cause}."),
+            "Leave out `-d window` to show the images in the terminal, if the terminal \
+             supports them."
+                .into(),
         )
         .write(&mut buffer),
         SgleamError::CoverageCompile => error_diagnostic(

@@ -3658,6 +3658,26 @@ fn mworld_of_several_players_fails_with_no_display() {
     );
 }
 
+/// `-d window` does not fall back to the terminal, so sgleam checks for a
+/// window before the program runs, as it does for `-d kitty`.
+#[test]
+#[cfg(target_os = "linux")]
+fn run_with_a_window_and_no_display_says_how_to_use_the_terminal() {
+    let out = run_without_display(
+        "hello.gleam",
+        "pub fn main() { Nil }",
+        &["run", "-d", "window", "hello.gleam"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success());
+    assert!(out.stdout.is_empty());
+    assert!(
+        stderr.contains("The window did not open: this session has no graphical display.")
+            && stderr.contains("Leave out `-d window` to show the images in the terminal"),
+        "{stderr}"
+    );
+}
+
 /// The binary run on `name` in a fresh directory, with none of the
 /// variables that name a graphical display.
 #[cfg(target_os = "linux")]

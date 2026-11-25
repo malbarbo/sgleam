@@ -8,6 +8,7 @@ use std::sync::{
 };
 use std::time::{Duration, Instant};
 
+use sinteract::display::window::check_window_system;
 use sinteract::display::{Printer, StageMode, TerminalGraphics, TerminalOptions};
 
 use crate::error::SgleamError;
@@ -102,8 +103,9 @@ fn graphics(mode: DisplayMode) -> Option<TerminalGraphics> {
 }
 
 /// Fails when `mode` asks for the graphics of a terminal that does not show
-/// them. A mode of blocks goes on, because a terminal with true color often
-/// does not say so.
+/// them, or for a window in a session with no window system. A mode of
+/// blocks goes on, because a terminal with true color often does not say
+/// so.
 pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
     match mode {
         DisplayMode::Kitty if !TerminalGraphics::Kitty.is_supported() => {
@@ -112,6 +114,9 @@ pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
         DisplayMode::Sixel if !TerminalGraphics::Sixel.is_supported() => {
             Err(SgleamError::DisplayNotSupported { mode: "sixel" })
         }
+        DisplayMode::Window => check_window_system().map_err(|e| SgleamError::NoWindow {
+            cause: e.cause().to_string(),
+        }),
         _ => Ok(()),
     }
 }
