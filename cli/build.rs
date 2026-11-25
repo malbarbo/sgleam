@@ -62,6 +62,12 @@ fn static_libs() {
     );
     println!("cargo:rerun-if-env-changed=SGLEAM_STATIC_LIBS");
     let dir = env::var("SGLEAM_STATIC_LIBS").expect("cfg(no_dlopen) needs SGLEAM_STATIC_LIBS");
+    // The build script runs in cli/ and the linker in the workspace, so a
+    // relative path would name two directories.
+    assert!(
+        Path::new(&dir).is_absolute(),
+        "SGLEAM_STATIC_LIBS is not absolute: {dir}"
+    );
     println!("cargo:rustc-link-search=native={dir}");
     println!("cargo:rustc-link-arg-bins=-Wl,--start-group");
     for lib in STATIC_LIBS {
