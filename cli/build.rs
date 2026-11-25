@@ -28,29 +28,11 @@ fn main() {
     static_libs();
 }
 
-/// The libraries that winit and softbuffer link under `cfg(no_dlopen)`.
-const STATIC_LIBS: &[&str] = &[
-    "X11-xcb",
-    "X11",
-    "Xcursor",
-    "Xi",
-    "Xext",
-    "Xrender",
-    "Xfixes",
-    "xkbcommon-x11",
-    "xkbcommon",
-    "wayland-client",
-    "ffi",
-    "xcb-xkb",
-    "xcb",
-    "Xau",
-    "Xdmcp",
-];
-
-/// Links the libraries of `SGLEAM_STATIC_LIBS` into a static musl binary,
+/// Links the archives of `SGLEAM_STATIC_LIBS` into a static musl binary,
 /// which has no dlopen. The forks of dlib, x11-dl and x11rb refer to their
-/// functions under `cfg(no_dlopen)`. Only the binary links them, so `cargo
-/// test` does not link under the cfg.
+/// functions under `cfg(no_dlopen)`, and static/flake.nix decides the
+/// archives. Only the binary links them, so `cargo test` does not link under
+/// the cfg.
 fn static_libs() {
     if env::var_os("CARGO_CFG_NO_DLOPEN").is_none() {
         return;
@@ -68,22 +50,25 @@ fn static_libs() {
         Path::new(&dir).is_absolute(),
         "SGLEAM_STATIC_LIBS is not absolute: {dir}"
     );
+    println!("cargo:rerun-if-changed={dir}");
+    // The -lxcb of x11rb looks in this directory.
     println!("cargo:rustc-link-search=native={dir}");
-    println!("cargo:rustc-link-arg-bins=-Wl,--start-group");
-    for lib in STATIC_LIBS {
-        let path = Path::new(&dir).join(format!("lib{lib}.a"));
-        println!("cargo:rerun-if-changed={}", path.display());
-        println!("cargo:rustc-link-arg-bins=-l:lib{lib}.a");
-    }
+    let mut archives: Vec<_> = fs::read_dir(&dir)
+        .unwrap_or_else(|e| panic!("read {dir}: {e}"))
+        .map(|entry| entry.expect("an entry of SGLEAM_STATIC_LIBS").path())
+        .filter(|path| path.extension().is_some_and(|ext| ext == "a"))
+        .collect();
+    archives.sort();
     // The link arguments come after the libc of the target, so the group
     // names libc again for the libraries. The libgcc of the directory comes
     // from the compiler of the libraries and has their builtins, such as
     // __popcountdi2.
+    println!("cargo:rustc-link-arg-bins=-Wl,--start-group");
+    for path in &archives {
+        println!("cargo:rerun-if-changed={}", path.display());
+        println!("cargo:rustc-link-arg-bins={}", path.display());
+    }
     println!("cargo:rustc-link-arg-bins=-lc");
-    let libgcc = Path::new(&dir).join("libgcc.a");
-    assert!(libgcc.exists(), "no {}", libgcc.display());
-    println!("cargo:rerun-if-changed={}", libgcc.display());
-    println!("cargo:rustc-link-arg-bins={}", libgcc.display());
     println!("cargo:rustc-link-arg-bins=-Wl,--end-group");
 }
 
