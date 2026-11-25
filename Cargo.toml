@@ -21,3 +21,10 @@ panic = "abort"
 [profile.release-small]
 inherits = "release"
 opt-level = 's'
+
+# A static binary has no dlopen. With `--cfg no_dlopen`, the forks link the
+# libraries that the crates would open with it.
+[patch.crates-io]
+dlib = { git = "https://github.com/malbarbo/dlib", branch = "no-dlopen" }
+x11-dl = { git = "https://github.com/malbarbo/x11-rs", branch = "no-dlopen" }
+x11rb = { git = "https://github.com/malbarbo/x11rb", branch = "no-dlopen" }
