@@ -68,14 +68,13 @@
             # The licenses ask for their notices in every copy of the binary.
             ${lib.concatMapStringsSep "\n" (p: ''
               dir=$out/share/licenses/${p.pname}
-              mkdir -p $dir src-${p.pname}
-              if [ -d ${p.src} ]; then src=${p.src}; else tar xf ${p.src} -C src-${p.pname}; src=$(echo src-${p.pname}/*); fi
+              mkdir -p $dir
+              if [ -d ${p.src} ]; then src=${p.src}; else mkdir src-${p.pname}; tar xf ${p.src} -C src-${p.pname}; src=$(echo src-${p.pname}/*); fi
               for name in COPYING LICENSE LICENSE.md; do
                 if [ -f $src/$name ]; then cp $src/$name $dir/; fi
               done
               [ -n "$(ls $dir)" ] || { echo "no license in ${p.pname}"; exit 1; }
             '') libs}
-            ls $out/lib $out/share/licenses
           '';
         });
     };
