@@ -54,14 +54,24 @@
         in
         {
           default = pkgs.runCommand "sgleam-static-libs" { } ''
-            mkdir -p $out/lib
+            mkdir -p $out/lib $out/share/licenses
             for p in ${lib.concatMapStringsSep " " (p: "${lib.getLib p}") libs}; do
               cp -n $p/lib/*.a $out/lib/
             done
             # The builtins of gcc that the libraries call, such as
             # __popcountdi2, from the compiler that built them.
             cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
-            ls $out/lib
+            # The licenses ask for their notices in every copy of the binary.
+            ${lib.concatMapStringsSep "\n" (p: ''
+              dir=$out/share/licenses/${p.pname}
+              mkdir -p $dir src-${p.pname}
+              if [ -d ${p.src} ]; then src=${p.src}; else tar xf ${p.src} -C src-${p.pname}; src=$(echo src-${p.pname}/*); fi
+              for name in COPYING LICENSE LICENSE.md; do
+                if [ -f $src/$name ]; then cp $src/$name $dir/; fi
+              done
+              [ -n "$(ls $dir)" ] || { echo "no license in ${p.pname}"; exit 1; }
+            '') libs}
+            ls $out/lib $out/share/licenses
           '';
         });
     };

@@ -83,10 +83,17 @@ jobs:
             rm sgleam.exe
           else
             ARCHIVE="sgleam-$VERSION-${{ matrix.target }}.tar.gz"
-            rm -rf sgleam
+            rm -rf sgleam licenses
             cp "target/${{ matrix.target }}/release/sgleam" "sgleam"
-            tar -czvf "$ARCHIVE" "sgleam"
-            rm sgleam
+            FILES=sgleam
+            # The licenses of the static libraries ask for their notices in
+            # every copy of the binary.
+            if [ -d static-libs/share/licenses ]; then
+              cp -r static-libs/share/licenses licenses
+              FILES="sgleam licenses"
+            fi
+            tar -czvf "$ARCHIVE" $FILES
+            rm -rf sgleam licenses
           fi
 
           openssl dgst -r -sha256 -out "$ARCHIVE".sha256 "$ARCHIVE"
