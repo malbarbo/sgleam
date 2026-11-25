@@ -279,9 +279,44 @@ Running tests...
       Expected: 9
   test.gleam/sum_examples
 5 tests, 4 successes, 1 failure and 0 errors.
+
+Every part of the code ran in some example.
 ```
 
 In this case, the test `check.eq(2 * 4, 9)`{.gleam} failed because `2 * 4`{.gleam} is `8`{.gleam}, not `9`{.gleam}.
+
+After the tests, sgleam shows the code that no example ran. For example, given the file `sign.gleam`:
+
+```gleam
+import sgleam/check
+
+pub fn sign(n: Int) -> String {
+  case n < 0 {
+    True -> "negative"
+    False -> "positive"
+  }
+}
+
+pub fn sign_examples() {
+  check.eq(sign(-3), "negative")
+}
+```
+
+```
+Running tests...
+  sign.gleam/sign_examples
+1 test, 1 success, 0 failures and 0 errors.
+
+Code that no example ran:
+
+  sign.gleam:6, in sign
+    False -> "positive"
+    ^^^^^^^^^^^^^^^^^^^ no example reaches this clause
+```
+
+The only example gives `sign` a negative number, so the clause for the others never ran. A function that no example calls shows up the same way. An underlined right side of `a && b`{.gleam} means that `a`{.gleam} was never true, and of `a || b`{.gleam} that `a`{.gleam} was never false.
+
+Code that ran is not code that is right. A clause that only a failed example reaches still counts as run, and a helper function runs through the examples of the functions that call it, even with no examples of its own. To run the tests without this report, use `sgleam test --no-coverage file.gleam`.
 
 
 # Formatting
@@ -330,6 +365,7 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 | `-d MODE` | Show images in `window`, `kitty`, `sixel`, `blocks` or `none` |
 | `--players N` | Play a multiplayer world with N players, each in a window |
 | `-q` | Don't print welcome message in REPL |
+| `--no-coverage` | Don't show the code that no example ran, in `sgleam test` |
 | `--version` | Print version |
 
 # Colors

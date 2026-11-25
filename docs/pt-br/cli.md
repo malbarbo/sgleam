@@ -281,9 +281,44 @@ Running tests...
       Expected: 9
   teste.gleam/soma_examples
 5 tests, 4 successes, 1 failure and 0 errors.
+
+Every part of the code ran in some example.
 ```
 
 Neste caso, o teste `check.eq(2 * 4, 9)`{.gleam} falhou porque `2 * 4`{.gleam} é `8`{.gleam}, não `9`{.gleam}.
+
+Depois dos testes, o sgleam mostra o código que nenhum exemplo executou. Por exemplo, dado o arquivo `sinal.gleam`:
+
+```gleam
+import sgleam/check
+
+pub fn sinal(n: Int) -> String {
+  case n < 0 {
+    True -> "negativo"
+    False -> "positivo"
+  }
+}
+
+pub fn sinal_examples() {
+  check.eq(sinal(-3), "negativo")
+}
+```
+
+```
+Running tests...
+  sinal.gleam/sinal_examples
+1 test, 1 success, 0 failures and 0 errors.
+
+Code that no example ran:
+
+  sinal.gleam:6, in sinal
+    False -> "positivo"
+    ^^^^^^^^^^^^^^^^^^^ no example reaches this clause
+```
+
+O único exemplo passa um número negativo para `sinal`, então o braço dos outros números nunca executou. Uma função que nenhum exemplo chama aparece do mesmo jeito. O lado direito de `a && b`{.gleam} sublinhado quer dizer que `a`{.gleam} nunca foi verdadeiro, e o de `a || b`{.gleam}, que `a`{.gleam} nunca foi falso.
+
+Código executado não é código certo. Um braço que só um exemplo que falha alcança conta como executado, e uma função auxiliar executa pelos exemplos das funções que a chamam, mesmo sem exemplos próprios. Para executar os testes sem esse relatório, use `sgleam test --no-coverage arquivo.gleam`.
 
 
 # Formatação
@@ -332,6 +367,7 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 | `-d MODO` | Mostrar imagens em `window`, `kitty`, `sixel`, `blocks` ou `none` |
 | `--players N` | Jogar um mundo multijogador com N jogadores, cada um em uma janela |
 | `-q` | Não exibir mensagem de boas-vindas no REPL |
+| `--no-coverage` | Não mostrar o código que nenhum exemplo executou, no `sgleam test` |
 | `--version` | Exibir versão |
 
 # Cores
