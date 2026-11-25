@@ -149,7 +149,13 @@ pub unsafe extern "C" fn repl_new(
     };
     let module = get_module(&modules, USER);
     let not_run = match module {
-        Some(module) if has_examples(module) => run_examples(&mut project, module, coverage),
+        Some(module) if has_examples(module) && coverage => {
+            run_examples_with_coverage(&mut project, module)
+        }
+        Some(module) if has_examples(module) => {
+            let _ = run_modules_tests(&project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
+            None
+        }
         _ => None,
     };
     let repl = QuickJsEngine::new(project.fs.clone(), HostOptions)
@@ -157,14 +163,10 @@ pub unsafe extern "C" fn repl_new(
     leak_session(repl, not_run)
 }
 
-/// Runs the examples of `module`. With `coverage`, it runs them with the
-/// marks and returns the regions that did not run, as `repl_coverage` gives
-/// them. Returns `None` if it measured nothing.
-fn run_examples(project: &mut Project, module: &Module, coverage: bool) -> Option<String> {
-    if !coverage {
-        let _ = run_modules_tests(project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
-        return None;
-    }
+/// Runs the examples of `module` with the coverage marks, and returns the
+/// regions that did not run, as `repl_coverage` gives them. Returns `None`
+/// if it measured nothing.
+fn run_examples_with_coverage(project: &mut Project, module: &Module) -> Option<String> {
     let (coverage, _) =
         run_modules_coverage(project, &[(Utf8Path::new(USER_FILE), module)], HostOptions);
     let files = coverage.inspect_err(show_error).ok()?;
