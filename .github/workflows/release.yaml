@@ -133,6 +133,8 @@ jobs:
 
       - name: Ensure the binary opens a window
         if: contains(matrix.target, 'linux-musl')
+        # A window that never closes would hold the job for six hours.
+        timeout-minutes: 2
         run: |
           cat > window.gleam <<'EOF'
           import sgleam/fill
