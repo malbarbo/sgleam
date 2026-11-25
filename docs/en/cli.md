@@ -245,7 +245,7 @@ Imports are supported and automatically merged:
 To run the tests of one or more files:
 
 ```sh
-sgleam test file.gleam
+sgleam test file.gleam other.gleam
 ```
 
 Tests are functions whose names end with `_examples` and use the `sgleam/check`{.gleam} module.
@@ -352,7 +352,7 @@ If there are no errors, no output is produced. Otherwise, the errors are display
 | `sgleam [file]` | Run the file (shorthand for `sgleam run`) |
 | `sgleam repl [file]` | Interactive mode (REPL) |
 | `sgleam run file [args]` | Run the file, with arguments for `smain(env)` |
-| `sgleam test file` | Run tests |
+| `sgleam test files` | Run the tests of the files |
 | `sgleam format [files]` | Format code (reads stdin if no files given) |
 | `sgleam check file` | Check code (compile only) |
 | `sgleam help [command]` | Show help, of the program or of a command |

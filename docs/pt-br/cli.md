@@ -247,7 +247,7 @@ Importações são suportadas e mescladas automaticamente:
 Para executar os testes de um ou mais arquivos:
 
 ```sh
-sgleam test arquivo.gleam
+sgleam test arquivo.gleam outro.gleam
 ```
 
 Os testes são funções cujo nome termina com `_examples` e usam o módulo `sgleam/check`{.gleam}.
@@ -354,7 +354,7 @@ Se não houver erros, nenhuma saída é produzida. Caso contrário, os erros sã
 | `sgleam [arquivo]` | Executa o arquivo (atalho para `sgleam run`) |
 | `sgleam repl [arquivo]` | Modo interativo (REPL) |
 | `sgleam run arquivo [args]` | Executa o arquivo, com argumentos para `smain(env)` |
-| `sgleam test arquivo` | Executa os testes |
+| `sgleam test arquivos` | Executa os testes dos arquivos |
 | `sgleam format [arquivos]` | Formata o código (lê stdin se nenhum arquivo for dado) |
 | `sgleam check arquivo` | Verifica o código (apenas compilação) |
 | `sgleam help [comando]` | Exibe a ajuda do programa ou de um comando |
