@@ -250,7 +250,7 @@ sgleam test file.gleam
 
 Tests are functions whose names end with `_examples` and use the `sgleam/check`{.gleam} module.
 
-For example, given the file `test.gleam`:
+For example, given the file `numbers.gleam`:
 
 ```gleam
 import sgleam/check
@@ -268,16 +268,16 @@ pub fn double_examples() {
 ```
 
 ```sh
-sgleam test test.gleam
+sgleam test numbers.gleam
 ```
 
 ```
 Running tests...
-  test.gleam/double_examples
+  numbers.gleam/double_examples
     Failure at line 11
       Actual  : 8
       Expected: 9
-  test.gleam/sum_examples
+  numbers.gleam/sum_examples
 5 tests, 4 successes, 1 failure and 0 errors.
 
 Every part of the code ran in some example.
