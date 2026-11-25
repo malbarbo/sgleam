@@ -76,7 +76,7 @@ jobs:
       - name: Restore the static libraries
         if: contains(matrix.target, 'linux-musl')
         id: static-libs
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: static-libs
           key: static-libs-${{ matrix.target }}-${{ hashFiles('static/flake.nix', 'static/flake.lock') }}
@@ -90,6 +90,15 @@ jobs:
         run: |
           nix build ./static#default
           cp -rL --no-preserve=mode result static-libs
+
+      # A step that fails later in the job would leave the save of
+      # actions/cache out, and the next run would build the libraries again.
+      - name: Save the static libraries
+        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: static-libs
+          key: ${{ steps.static-libs.outputs.cache-primary-key }}
 
       - name: Link the static libraries
         if: contains(matrix.target, 'linux-musl')
