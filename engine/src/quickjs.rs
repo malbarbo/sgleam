@@ -70,6 +70,7 @@ impl QuickJsEngine {
     /// The numbers of the coverage marks that ran, in increasing order.
     pub fn coverage(&self) -> std::result::Result<Vec<usize>, SgleamError> {
         Ok(self.context.with(|ctx| {
+            update_stack_top(&ctx);
             ctx.eval::<Vec<usize>, _>(
                 "(globalThis.__sgleam_coverage ?? []).flatMap((ran, n) => (ran ? [n] : []))",
             )
@@ -224,11 +225,18 @@ fn eval_script(context: &Context, source: String) -> std::result::Result<(), Sgl
     eval_script_here(context, source)
 }
 
+/// The runtime measures its stack limit from the stack of the last call
+/// that set the top. A script runs on the stack of `eval_script`, so code
+/// that runs JavaScript after it, on the stack of the thread, has to set the
+/// top again, or the runtime sees a stack overflow.
+fn update_stack_top(ctx: &Ctx) {
+    // SAFETY: the runtime is alive while `ctx` is.
+    unsafe { JS_UpdateStackTop(JS_GetRuntime(ctx.as_raw().as_ptr())) };
+}
+
 fn eval_script_here(context: &Context, source: String) -> std::result::Result<(), SgleamError> {
     context.with(|ctx| {
-        // The runtime measures its limit from the stack it was created on.
-        // SAFETY: the runtime is alive while `ctx` is.
-        unsafe { JS_UpdateStackTop(JS_GetRuntime(ctx.as_raw().as_ptr())) };
+        update_stack_top(&ctx);
         let mut options = EvalOptions::default();
         options.global = false;
         // The script imports its neighbors, so it takes the name of one of
