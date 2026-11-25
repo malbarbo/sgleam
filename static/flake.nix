@@ -58,12 +58,23 @@
             libx11 s.libxcb s.libxau s.libxdmcp libxcursor s.libxrender
             s.libxfixes s.libxi s.libxext libxkbcommon s.wayland s.libffi
           ];
+
+          # The archives that sgleam links. build.rs links every archive of
+          # the output, so this list decides.
+          archives = [
+            "X11" "X11-xcb" "xcb" "xcb-xkb" "Xau" "Xdmcp" "Xcursor" "Xrender"
+            "Xfixes" "Xi" "Xext" "xkbcommon" "xkbcommon-x11" "wayland-client"
+            "ffi"
+          ];
         in
         {
           default = pkgs.runCommand "sgleam-static-libs" { } ''
             mkdir -p $out/lib $out/share/licenses
-            for p in ${lib.concatMapStringsSep " " (p: "${lib.getLib p}") libs}; do
-              cp -n $p/lib/*.a $out/lib/
+            for a in ${lib.concatStringsSep " " archives}; do
+              for p in ${lib.concatMapStringsSep " " (p: "${lib.getLib p}") libs}; do
+                if [ -f $p/lib/lib$a.a ]; then cp $p/lib/lib$a.a $out/lib/; continue 2; fi
+              done
+              echo "no lib$a.a"; exit 1
             done
             # The gcc builtins of the libraries, such as __popcountdi2, from
             # the compiler of the libraries.
