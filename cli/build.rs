@@ -24,6 +24,103 @@ fn main() {
 
     let out = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out).join("file_tests.rs"), src).expect("write the generated tests");
+
+    static_libs(Path::new(&out));
+}
+
+/// The libraries that winit and softbuffer open, in the order of the link.
+const STATIC_LIBS: &[&str] = &[
+    "X11-xcb",
+    "X11",
+    "Xcursor",
+    "Xi",
+    "Xext",
+    "Xrender",
+    "Xfixes",
+    "xkbcommon-x11",
+    "xkbcommon",
+    "wayland-client",
+    "ffi",
+    "xcb-xkb",
+    "xcb",
+    "Xau",
+    "Xdmcp",
+];
+
+/// Links the libraries of `SGLEAM_STATIC_LIBS` into a static musl binary,
+/// with the dlopen of static/dlshim.c that finds their symbols.
+fn static_libs(out: &Path) {
+    println!("cargo:rerun-if-env-changed=SGLEAM_STATIC_LIBS");
+    println!("cargo:rerun-if-changed=../static/dlshim.c");
+    let Ok(dir) = env::var("SGLEAM_STATIC_LIBS") else {
+        return;
+    };
+    if env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("musl") {
+        return;
+    }
+    let mut names = std::collections::BTreeSet::new();
+    for lib in STATIC_LIBS {
+        let path = Path::new(&dir).join(format!("lib{lib}.a"));
+        let nm = std::process::Command::new("nm")
+            .args(["-g", "--defined-only", "-P"])
+            .arg(&path)
+            .output()
+            .expect("run nm");
+        assert!(nm.status.success(), "nm {}", path.display());
+        for line in String::from_utf8_lossy(&nm.stdout).lines() {
+            let mut fields = line.split_whitespace();
+            let (Some(name), Some(kind)) = (fields.next(), fields.next()) else {
+                continue;
+            };
+            if name.ends_with(':') || !"TDBRVWC".contains(kind) {
+                continue;
+            }
+            names.insert(name.to_string());
+        }
+    }
+    let mut table = String::from("#include <stddef.h>\n");
+    for name in &names {
+        writeln!(table, "extern char {name};").expect("write to a String");
+    }
+    table.push_str("const struct { const char *name; void *address; } dlshim_symbols[] = {\n");
+    for name in &names {
+        writeln!(table, "    {{\"{name}\", &{name}}},").expect("write to a String");
+    }
+    table.push_str("};\n");
+    writeln!(table, "const size_t dlshim_symbols_len = {};", names.len())
+        .expect("write to a String");
+    table.push_str("const char *const dlshim_libraries[] = {\n");
+    for lib in STATIC_LIBS {
+        writeln!(table, "    \"lib{lib}\",").expect("write to a String");
+    }
+    table.push_str("};\n");
+    writeln!(
+        table,
+        "const size_t dlshim_libraries_len = {};",
+        STATIC_LIBS.len()
+    )
+    .expect("write to a String");
+    let table_path = out.join("dltable.c");
+    fs::write(&table_path, table).expect("write dltable.c");
+
+    cc::Build::new()
+        .file("../static/dlshim.c")
+        .file(&table_path)
+        .warnings(false)
+        // The weak dlopen of libc.a must not win over this one.
+        .link_lib_modifier("+whole-archive")
+        .compile("dlshim");
+    println!("cargo:rustc-link-search=native={dir}");
+    println!("cargo:rustc-link-arg-bins=-Wl,--start-group");
+    for lib in STATIC_LIBS {
+        println!("cargo:rustc-link-arg-bins=-l:lib{lib}.a");
+    }
+    // The link arguments come after the libc of the target, so the group
+    // names it again for what the libraries call, and libgcc for the
+    // builtins of gcc, such as __popcountdi2.
+    println!("cargo:rustc-link-arg-bins=-lc");
+    println!("cargo:rustc-link-arg-bins=-lgcc");
+    println!("cargo:rustc-link-arg-bins=-Wl,--end-group");
 }
 
 fn tests(
