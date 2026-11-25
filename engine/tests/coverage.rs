@@ -145,7 +145,11 @@ fn a_program_that_does_not_compile_has_no_regions() {
 
 #[test]
 fn an_operand_that_panics_ran() {
-    let user_files = vec![Utf8PathBuf::from("tests/coverage/operand.gleam")];
+    let path = Utf8PathBuf::from("tests/coverage/operand.gleam");
+    // Git on Windows can check the file out with CRLF, which moves the offsets.
+    let source = std::fs::read_to_string(&path).expect("read the source");
+    let user_files = vec![path];
+    let start = source.find("n > 0").expect("the left operand") as u32;
     let (coverage, result) = run_test_coverage(&user_files, &user_files, HostOptions::default());
     assert!(result.is_err());
     assert_eq!(
@@ -158,7 +162,7 @@ fn an_operand_that_panics_ran() {
             ),
             (
                 RegionKind::And {
-                    left: SrcSpan::new(57, 62)
+                    left: SrcSpan::new(start, start + 5)
                 },
                 "panic as \"positive\"".into(),
                 true
