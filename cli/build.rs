@@ -25,10 +25,10 @@ fn main() {
     let out = env::var("OUT_DIR").expect("OUT_DIR");
     fs::write(Path::new(&out).join("file_tests.rs"), src).expect("write the generated tests");
 
-    static_libs(Path::new(&out));
+    static_libs();
 }
 
-/// The libraries that winit and softbuffer open.
+/// The libraries that winit and softbuffer link under `cfg(no_dlopen)`.
 const STATIC_LIBS: &[&str] = &[
     "X11-xcb",
     "X11",
@@ -48,68 +48,25 @@ const STATIC_LIBS: &[&str] = &[
 ];
 
 /// Links the libraries of `SGLEAM_STATIC_LIBS` into a static musl binary,
-/// with the dlopen of static/dlshim.c that finds their symbols.
-fn static_libs(out: &Path) {
-    println!("cargo:rerun-if-env-changed=SGLEAM_STATIC_LIBS");
-    println!("cargo:rerun-if-changed=../static/dlshim.c");
-    let Ok(dir) = env::var("SGLEAM_STATIC_LIBS") else {
-        return;
-    };
-    if env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("musl") {
+/// which has no dlopen. The forks of dlib, x11-dl and x11rb refer to their
+/// functions under `cfg(no_dlopen)`. Only the binary links them, so a test
+/// that opens a window does not build under the cfg.
+fn static_libs() {
+    if env::var_os("CARGO_CFG_NO_DLOPEN").is_none() {
         return;
     }
-    let paths: Vec<_> = STATIC_LIBS
-        .iter()
-        .map(|lib| Path::new(&dir).join(format!("lib{lib}.a")))
-        .collect();
-    for path in &paths {
-        println!("cargo:rerun-if-changed={}", path.display());
-    }
-    let nm = std::process::Command::new("nm")
-        .args(["-g", "--defined-only", "-P"])
-        .args(&paths)
-        .output()
-        .expect("run nm");
-    assert!(nm.status.success(), "nm {dir}");
-    let mut names = std::collections::BTreeSet::new();
-    for line in String::from_utf8_lossy(&nm.stdout).lines() {
-        let mut fields = line.split_whitespace();
-        let (Some(name), Some(kind)) = (fields.next(), fields.next()) else {
-            continue;
-        };
-        if name.ends_with(':') || !"TDBRVWC".contains(kind) {
-            continue;
-        }
-        names.insert(name.to_string());
-    }
-    let externs: String = names
-        .iter()
-        .map(|n| format!("extern char {n};\n"))
-        .collect();
-    let symbols: String = names
-        .iter()
-        .map(|n| format!("    {{\"{n}\", &{n}}},\n"))
-        .collect();
-    let libraries: String = STATIC_LIBS
-        .iter()
-        .map(|l| format!("    \"lib{l}\",\n"))
-        .collect();
-    let table = format!(
-        "{externs}static const struct dlshim_symbol dlshim_symbols[] = {{\n{symbols}}};\n\
-         static const char *const dlshim_libraries[] = {{\n{libraries}}};\n"
+    assert_eq!(
+        env::var("CARGO_CFG_TARGET_ENV").as_deref(),
+        Ok("musl"),
+        "cfg(no_dlopen) links the musl libraries of SGLEAM_STATIC_LIBS"
     );
-    fs::write(out.join("dltable.inc"), table).expect("write dltable.inc");
-
-    cc::Build::new()
-        .file("../static/dlshim.c")
-        .include(out)
-        .warnings(false)
-        // The weak dlopen of libc.a must not win over this one.
-        .link_lib_modifier("+whole-archive")
-        .compile("dlshim");
+    println!("cargo:rerun-if-env-changed=SGLEAM_STATIC_LIBS");
+    let dir = env::var("SGLEAM_STATIC_LIBS").expect("cfg(no_dlopen) needs SGLEAM_STATIC_LIBS");
     println!("cargo:rustc-link-search=native={dir}");
     println!("cargo:rustc-link-arg-bins=-Wl,--start-group");
     for lib in STATIC_LIBS {
+        let path = Path::new(&dir).join(format!("lib{lib}.a"));
+        println!("cargo:rerun-if-changed={}", path.display());
         println!("cargo:rustc-link-arg-bins=-l:lib{lib}.a");
     }
     // The link arguments come after the libc of the target, so the group

@@ -4028,7 +4028,6 @@ dependencies = [
  "assert_cmd",
  "bpaf",
  "camino",
- "cc",
  "command-fds",
  "dirs",
  "engine",

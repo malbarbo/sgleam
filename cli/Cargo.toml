@@ -17,10 +17,6 @@ gleam-core = { git = "https://github.com/malbarbo/gleam.git", branch = "sgleam-0
     "disable-erlang", "disable-hide-internal",
 ] }
 
-[build-dependencies]
-# Compiles static/dlshim.c when SGLEAM_STATIC_LIBS names the static libraries.
-cc = "1"
-
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
