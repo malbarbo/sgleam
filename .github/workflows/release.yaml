@@ -22,11 +22,11 @@ jobs:
         include:
           - os: ubuntu-24.04
             target: x86_64-unknown-linux-musl
-            setup: sudo apt-get install musl-tools
+            setup: sudo apt-get install musl-tools xvfb
 
           - os: ubuntu-24.04-arm
             target: aarch64-unknown-linux-musl
-            setup: sudo apt-get install musl-tools
+            setup: sudo apt-get install musl-tools xvfb
 
           - os: windows-2022
             target: x86_64-pc-windows-msvc
@@ -70,6 +70,31 @@ jobs:
         if: matrix.setup != ''
         run: ${{ matrix.setup }}
 
+      # The static libraries of X11 and Wayland go into the Linux binary,
+      # which cannot load them with dlopen. Nix builds them from source, so
+      # the cache keeps them until the flake changes.
+      - name: Restore the static libraries
+        if: contains(matrix.target, 'linux-musl')
+        id: static-libs
+        uses: actions/cache@v4
+        with:
+          path: static-libs
+          key: static-libs-${{ matrix.target }}-${{ hashFiles('static/flake.nix', 'static/flake.lock') }}
+
+      - name: Install Nix
+        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
+        uses: cachix/install-nix-action@v31
+
+      - name: Build the static libraries
+        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
+        run: |
+          nix build ./static#default
+          cp -rL result static-libs
+
+      - name: Link the static libraries
+        if: contains(matrix.target, 'linux-musl')
+        run: echo "SGLEAM_STATIC_LIBS=$PWD/static-libs/lib" >> "$GITHUB_ENV"
+
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
 
@@ -110,6 +135,22 @@ jobs:
               tar -xvzf "$ASSET"
               ./sgleam --version ;;
           esac
+
+      - name: Ensure the binary opens a window
+        if: contains(matrix.target, 'linux-musl')
+        run: |
+          cat > window.gleam <<'EOF'
+          import sgleam/fill
+          import sgleam/image
+          import sgleam/world
+
+          pub fn smain() {
+            world.create(0, fn(_) { image.square(10, fill.red) })
+            |> world.on_tick(fn(n) { n + 1 })
+            |> world.stop_when(fn(n) { n == 3 })
+          }
+          EOF
+          xvfb-run -a ./sgleam run -d window window.gleam
 
       - name: Hand the archive to the publish job
         uses: actions/upload-artifact@v7
