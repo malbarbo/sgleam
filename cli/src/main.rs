@@ -30,7 +30,7 @@ use gleam_core::{
     javascript::set_bigint_enabled,
 };
 use repl_reader::Theme;
-use std::{cell::Cell, collections::HashSet, num::NonZeroU32, rc::Rc};
+use std::{cell::Cell, num::NonZeroU32, rc::Rc};
 
 fn number_arg() -> impl bpaf::Parser<bool> {
     bpaf::short('n')
@@ -270,14 +270,10 @@ fn run() -> Result<(), SgleamError> {
         Command::Test {
             files, no_coverage, ..
         } => {
-            let mut user_files = files
+            let user_files = files
                 .into_iter()
                 .map(user_module)
                 .collect::<Result<Vec<_>, _>>()?;
-            // A file given twice would run its examples twice, and coverage
-            // would mark it twice.
-            let mut seen = HashSet::new();
-            user_files.retain(|file| seen.insert(file.clone()));
             let files = find_imports(user_files.clone())?;
             if no_coverage {
                 run_test(&user_files, &files, options)

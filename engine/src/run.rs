@@ -163,25 +163,23 @@ fn run_marked(
     (Ok(files), result)
 }
 
-/// The module of each file in `user_files`. A file that did not become a
-/// module is an error, since a run that skips it would pass without
-/// running its examples.
+/// The modules that `user_files` became, with their paths, in the order of
+/// `paths`. A file that did not become a module is an error, since a run
+/// that skips it would pass without running its examples.
 fn user_modules<'a>(
     user_files: &[Utf8PathBuf],
     paths: &'a [Utf8PathBuf],
     built: &'a Built,
 ) -> Result<Vec<(&'a Utf8Path, &'a Module)>, SgleamError> {
-    let modules = built.with_paths(paths);
-    user_files
+    let mut modules = built.with_paths(paths);
+    modules.retain(|(path, _)| user_files.iter().any(|file| file == path));
+    match user_files
         .iter()
-        .map(|file| {
-            modules
-                .iter()
-                .find(|(path, _)| *path == file)
-                .copied()
-                .ok_or_else(|| SgleamError::NoModuleToRun { path: file.clone() })
-        })
-        .collect()
+        .find(|file| !modules.iter().any(|(path, _)| path == file))
+    {
+        Some(file) => Err(SgleamError::NoModuleToRun { path: file.clone() }),
+        None => Ok(modules),
+    }
 }
 
 fn names<'a>(modules: &[(&Utf8Path, &'a Module)]) -> Vec<&'a str> {
