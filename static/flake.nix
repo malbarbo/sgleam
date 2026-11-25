@@ -14,10 +14,10 @@
           s = pkgs.pkgsStatic;
           lib = pkgs.lib;
 
-          # The libraries read data at run time from paths that the build
-          # writes into them. In nixpkgs these paths are in /nix/store, which
-          # the machine of a student does not have, so they point to the
-          # places that the other distributions use.
+          # The build writes the paths of the data files into the libraries.
+          # In nixpkgs these paths are in /nix/store, and the machine of a
+          # student has no /nix/store, so they point to /usr/share, as in
+          # the other distributions.
           libx11 = s.libx11.overrideAttrs (old: {
             # XCreateFontCursor would open libXcursor with dlopen, which a
             # static binary does not have.
@@ -65,8 +65,8 @@
             for p in ${lib.concatMapStringsSep " " (p: "${lib.getLib p}") libs}; do
               cp -n $p/lib/*.a $out/lib/
             done
-            # The builtins of gcc that the libraries call, such as
-            # __popcountdi2, from the compiler that built them.
+            # The gcc builtins of the libraries, such as __popcountdi2, from
+            # the compiler of the libraries.
             cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
             # The build scripts of wayland-sys and tiny-xlib ask pkg-config
             # for these. build.rs of sgleam links the libraries, so a file

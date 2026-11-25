@@ -76,9 +76,9 @@ fn static_libs() {
         println!("cargo:rustc-link-arg-bins=-l:lib{lib}.a");
     }
     // The link arguments come after the libc of the target, so the group
-    // names it again for what the libraries call. The libgcc of the
-    // directory, from the compiler that built the libraries, has the
-    // builtins they call, such as __popcountdi2.
+    // names libc again for the libraries. The libgcc of the directory comes
+    // from the compiler of the libraries and has their builtins, such as
+    // __popcountdi2.
     println!("cargo:rustc-link-arg-bins=-lc");
     let libgcc = Path::new(&dir).join("libgcc.a");
     assert!(libgcc.exists(), "no {}", libgcc.display());
