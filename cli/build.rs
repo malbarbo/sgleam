@@ -28,7 +28,7 @@ fn main() {
     static_libs(Path::new(&out));
 }
 
-/// The libraries that winit and softbuffer open, in the order of the link.
+/// The libraries that winit and softbuffer open.
 const STATIC_LIBS: &[&str] = &[
     "X11-xcb",
     "X11",
