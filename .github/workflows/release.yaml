@@ -71,8 +71,8 @@ jobs:
         run: ${{ matrix.setup }}
 
       # The static libraries of X11 and Wayland go into the Linux binary,
-      # which cannot load them with dlopen. Nix builds them from source, so
-      # the cache keeps them until the flake changes.
+      # which cannot load them with dlopen. The cache comes from the last run
+      # of ci.yaml on main.
       - name: Build the static libraries
         if: contains(matrix.target, 'linux-musl')
         uses: ./.github/actions/static-libs
