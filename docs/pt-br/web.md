@@ -43,6 +43,10 @@ O layout inicial é escolhido automaticamente com base nas dimensões da tela: h
 
 O botão **Run** (ou `Ctrl+r`) formata o código, executa os testes (funções `_examples`{.gleam}) e carrega as definições no REPL. Depois disso, você pode chamar as funções definidas no editor diretamente no REPL.
 
+Depois dos testes, o editor marca o código que nenhum exemplo executou, como o `sgleam test` lista no terminal. O ponteiro sobre uma marca mostra o motivo, como uma função que nenhum exemplo chama ou um braço de `case` que nenhum exemplo alcança. Uma marca no lado direito de `a && b`{.gleam} quer dizer que `a`{.gleam} nunca foi verdadeiro, e no lado direito de `a || b`{.gleam}, que `a`{.gleam} nunca foi falso. A primeira edição tira as marcas, pois uma mudança pode tornar qualquer uma delas falsa. Um programa sem exemplos não recebe marcas.
+
+Código executado não é código certo. Um braço que só um exemplo que falha alcança conta como executado, e uma função auxiliar executa pelos exemplos das funções que a chamam, mesmo sem exemplos próprios.
+
 O REPL funciona como o REPL da linha de comando: você pode digitar expressões, definições de variáveis, funções e tipos.
 
 
