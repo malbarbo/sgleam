@@ -2,9 +2,10 @@
 //
 // The dlopen of a static musl is a stub that always fails, so winit and
 // softbuffer find no X11 and no Wayland, and every window falls back to the
-// terminal. The build links the libraries they open into the binary, and these
-// two functions answer from a table of their symbols. musl declares dlopen and
-// __dlsym weak, so these take their place, and its dlsym calls __dlsym.
+// terminal. The build links the libraries they open into the binary, and
+// dlopen and __dlsym answer from a table of their symbols. musl declares both
+// weak, so these take their place, and its dlsym calls __dlsym. Its dlclose is
+// strong, and the link takes it from libc.a only when nothing defines it.
 
 #include <stddef.h>
 #include <string.h>
@@ -43,6 +44,13 @@ void *dlopen(const char *file, int mode) {
         return &handle;
     }
     return NULL;
+}
+
+// In a static musl, dlclose reports every handle as invalid, and the next
+// dlerror returns that message.
+int dlclose(void *p) {
+    (void)p;
+    return 0;
 }
 
 void *__dlsym(void *restrict p, const char *restrict name, void *restrict ra) {
