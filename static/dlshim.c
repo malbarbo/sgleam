@@ -1,4 +1,4 @@
-// dlopen and dlsym for a static musl binary.
+// dlopen, dlsym and dlclose for a static musl binary.
 //
 // The dlopen of a static musl is a stub that always fails, so winit and
 // softbuffer find no X11 and no Wayland, and every window falls back to the
