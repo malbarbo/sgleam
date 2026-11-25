@@ -8,6 +8,7 @@
 // strong, and the link takes it from libc.a only when nothing defines it.
 
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 struct dlshim_symbol {
@@ -52,21 +53,14 @@ int dlclose(void *p) {
     return 0;
 }
 
+static int compare(const void *name, const void *symbol) {
+    return strcmp(name, ((const struct dlshim_symbol *)symbol)->name);
+}
+
 void *__dlsym(void *restrict p, const char *restrict name, void *restrict ra) {
     (void)p;
     (void)ra;
-    size_t lo = 0, hi = LEN(dlshim_symbols);
-    while (lo < hi) {
-        size_t mid = lo + (hi - lo) / 2;
-        int cmp = strcmp(name, dlshim_symbols[mid].name);
-        if (cmp == 0) {
-            return dlshim_symbols[mid].address;
-        }
-        if (cmp < 0) {
-            hi = mid;
-        } else {
-            lo = mid + 1;
-        }
-    }
-    return NULL;
+    const struct dlshim_symbol *symbol = bsearch(
+        name, dlshim_symbols, LEN(dlshim_symbols), sizeof *dlshim_symbols, compare);
+    return symbol ? symbol->address : NULL;
 }
