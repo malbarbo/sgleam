@@ -61,6 +61,7 @@ fn static_libs(out: &Path) {
     let mut names = std::collections::BTreeSet::new();
     for lib in STATIC_LIBS {
         let path = Path::new(&dir).join(format!("lib{lib}.a"));
+        println!("cargo:rerun-if-changed={}", path.display());
         let nm = std::process::Command::new("nm")
             .args(["-g", "--defined-only", "-P"])
             .arg(&path)
