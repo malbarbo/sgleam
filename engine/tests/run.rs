@@ -17,7 +17,7 @@ fn an_absolute_path_names_no_module() {
 
     assert!(matches!(
         run_main(&[path], HostOptions::default(), vec![]),
-        Err(SgleamError::NoModuleToRun { .. })
+        Err(SgleamError::NotAModule { .. })
     ));
 }
 

@@ -46,8 +46,8 @@ pub enum SgleamError {
 
     /// A path to run or to test did not become a module. The build turned it
     /// down and said why, or nothing compiled it.
-    #[error("no module to run")]
-    NoModuleToRun { path: Utf8PathBuf },
+    #[error("not a module")]
+    NotAModule { path: Utf8PathBuf },
 
     /// A display that `-d` names and the terminal does not show, such as
     /// `kitty`.
@@ -171,8 +171,8 @@ pub fn show_error(err: &SgleamError) {
         )
         .write(&mut buffer),
 
-        SgleamError::NoModuleToRun { path } => error_diagnostic(
-            "no module to run",
+        SgleamError::NotAModule { path } => error_diagnostic(
+            "not a module",
             format!("`{path}` was not compiled into a module."),
             "A module is named after the path of its file, which has to be a `.gleam` file \
              under the current directory."

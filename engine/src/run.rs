@@ -29,7 +29,7 @@ pub fn run_main(
     let program = paths.first().expect("a path to run");
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
-    let module = built.module(0).ok_or_else(|| SgleamError::NoModuleToRun {
+    let module = built.module(0).ok_or_else(|| SgleamError::NotAModule {
         path: program.clone(),
     })?;
     run_module(&project, module, program, options, args)
@@ -177,7 +177,7 @@ fn user_modules<'a>(
         .iter()
         .find(|file| !modules.iter().any(|(path, _)| path == file))
     {
-        Some(file) => Err(SgleamError::NoModuleToRun { path: file.clone() }),
+        Some(file) => Err(SgleamError::NotAModule { path: file.clone() }),
         None => Ok(modules),
     }
 }

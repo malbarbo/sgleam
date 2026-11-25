@@ -12,7 +12,7 @@ Hint: Rename `.invalid.gleam` to be valid, or remove this file from the
 project
 source.
 
-error: no module to run
+error: not a module
 
 `.invalid.gleam` was not compiled into a module.
 

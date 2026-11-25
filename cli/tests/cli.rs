@@ -3429,7 +3429,7 @@ fn test_of_a_file_that_is_not_a_module_fails() {
     let err = String::from_utf8_lossy(&output.stderr);
 
     assert!(!output.status.success(), "expected a nonzero exit code");
-    assert!(err.contains("no module to run"), "got: {err}");
+    assert!(err.contains("not a module"), "got: {err}");
 }
 
 #[test]

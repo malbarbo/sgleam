@@ -4,7 +4,7 @@ source: cli/tests/integration.rs
 STDOUT
 STDERR
 Ignoring `gleam.gleam`: `gleam` is a reserved module name.
-error: no module to run
+error: not a module
 
 `gleam.gleam` was not compiled into a module.
 
