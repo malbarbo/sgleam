@@ -93,7 +93,16 @@ jobs:
 
       - name: Link the static libraries
         if: contains(matrix.target, 'linux-musl')
-        run: echo "SGLEAM_STATIC_LIBS=$PWD/static-libs/lib" >> "$GITHUB_ENV"
+        # --cfg no_dlopen links X11 and Wayland in winit and softbuffer, and
+        # their build scripts find the libraries through pkg-config.
+        run: |
+          {
+            echo "SGLEAM_STATIC_LIBS=$PWD/static-libs/lib"
+            echo "RUSTFLAGS=--cfg no_dlopen"
+            echo "PKG_CONFIG_ALLOW_CROSS=1"
+            echo "PKG_CONFIG_ALL_STATIC=1"
+            echo "PKG_CONFIG_LIBDIR=$PWD/static-libs/lib/pkgconfig"
+          } >> "$GITHUB_ENV"
 
       - name: Build release
         run: cargo build --release --target ${{ matrix.target }}
