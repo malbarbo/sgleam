@@ -102,12 +102,12 @@ fn graphics(mode: DisplayMode) -> Option<TerminalGraphics> {
     }
 }
 
-/// Fails when `mode` asks for the graphics of a terminal that does not show
-/// them, or for a window in a session with no window system. A mode of
-/// blocks goes on, because a terminal with true color often does not say
-/// so.
-pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
-    match mode {
+/// Fails when the display of `options` is the graphics of a terminal that
+/// does not show them, or a window in a session with no window system. A
+/// mode of blocks goes on, because a terminal with true color often does
+/// not say so.
+pub fn check_display(options: HostOptions) -> Result<(), SgleamError> {
+    match options.display {
         DisplayMode::Kitty if !TerminalGraphics::Kitty.is_supported() => {
             Err(SgleamError::DisplayNotSupported { mode: "kitty" })
         }
@@ -116,6 +116,7 @@ pub fn check_display(mode: DisplayMode) -> Result<(), SgleamError> {
         }
         DisplayMode::Window => check_window_system().map_err(|e| SgleamError::NoWindow {
             cause: e.cause().to_string(),
+            several_players: options.players.is_some_and(|players| players.get() > 1),
         }),
         _ => Ok(()),
     }

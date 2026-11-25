@@ -3678,6 +3678,24 @@ fn run_with_a_window_and_no_display_says_how_to_use_the_terminal() {
     );
 }
 
+/// The terminal shows one player only, so several players with `-d window`
+/// get no hint about the terminal.
+#[test]
+#[cfg(target_os = "linux")]
+fn run_with_several_players_and_no_display_says_that_each_needs_a_window() {
+    let out = run_without_display(
+        "hello.gleam",
+        "pub fn main() { Nil }",
+        &["run", "--players", "2", "-d", "window", "hello.gleam"],
+    );
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success());
+    assert!(
+        stderr.contains("Each player needs a window") && !stderr.contains("terminal"),
+        "{stderr}"
+    );
+}
+
 /// The binary run on `name` in a fresh directory, with none of the
 /// variables that name a graphical display.
 #[cfg(target_os = "linux")]

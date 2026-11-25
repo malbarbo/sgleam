@@ -55,9 +55,14 @@ pub enum SgleamError {
     DisplayNotSupported { mode: &'static str },
 
     /// `-d window` in a session where no window opens. `cause` says why, such
-    /// as a session with no graphical display.
+    /// as a session with no graphical display. `several_players` is `true`
+    /// when `--players` asks for more than one, and the terminal shows one
+    /// player only.
     #[error("no window")]
-    NoWindow { cause: String },
+    NoWindow {
+        cause: String,
+        several_players: bool,
+    },
 
     /// A failure of the Gleam compiler, shown as the diagnostics it carries,
     /// over the paths the user gave and not the ones the project holds.
@@ -191,12 +196,20 @@ pub fn show_error(err: &SgleamError) {
             "Use another value for `-d`, or leave `-d` out so sgleam picks one.".into(),
         )
         .write(&mut buffer),
-        SgleamError::NoWindow { cause } => error_diagnostic(
+        SgleamError::NoWindow {
+            cause,
+            several_players,
+        } => error_diagnostic(
             "no window",
             sentence(cause),
-            "Leave out `-d window` to show the images in the terminal, if the terminal \
-             supports them."
-                .into(),
+            if *several_players {
+                "Each player needs a window, so run sgleam in a session with a graphical \
+                 display."
+            } else {
+                "Leave out `-d window` to show the images in the terminal, if the terminal \
+                 supports them."
+            }
+            .into(),
         )
         .write(&mut buffer),
         SgleamError::CoverageCompile => error_diagnostic(

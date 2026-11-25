@@ -243,7 +243,7 @@ fn run() -> Result<(), SgleamError> {
         },
         _ => HostOptions::default(),
     };
-    check_display(options.display)?;
+    check_display(options)?;
 
     match command {
         Command::Help { command: None } => {
