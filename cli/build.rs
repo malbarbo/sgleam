@@ -121,7 +121,10 @@ fn static_libs(out: &Path) {
     // directory, from the compiler that built the libraries, has the
     // builtins they call, such as __popcountdi2.
     println!("cargo:rustc-link-arg-bins=-lc");
-    println!("cargo:rustc-link-arg-bins=-l:libgcc.a");
+    let libgcc = Path::new(&dir).join("libgcc.a");
+    assert!(libgcc.exists(), "no {}", libgcc.display());
+    println!("cargo:rerun-if-changed={}", libgcc.display());
+    println!("cargo:rustc-link-arg-bins={}", libgcc.display());
     println!("cargo:rustc-link-arg-bins=-Wl,--end-group");
 }
 
