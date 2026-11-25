@@ -126,12 +126,7 @@ pub fn run_modules_coverage(
 ) -> (Coverage, Result<(), SgleamError>) {
     let compiled = match coverage::compile(project, modules) {
         Ok(compiled) => compiled,
-        Err(err) => {
-            let result = coverage::restore(project, modules)
-                .and_then(|()| Ok(project.compile_quietly()?))
-                .and_then(|_| run_modules_tests(project, modules, options));
-            return (Err(err), result);
-        }
+        Err(err) => return (Err(err), run_modules_tests(project, modules, options)),
     };
     let (coverage, result) = run_marked(project, modules, options, compiled);
     let restored = coverage::restore(project, modules);

@@ -93,11 +93,21 @@ pub struct File {
 /// Rewrites `modules` with the coverage marks, and compiles `project` again.
 /// Each module comes with the path the user gave for it. The compile drops
 /// its warnings, as the first compile already showed them for the source the
-/// user wrote.
+/// user wrote. On an error, `project` holds the code the user wrote again,
+/// built, so the examples can run without the marks.
 pub fn compile(
     project: &mut Project,
     modules: &[(&Utf8Path, &Module)],
 ) -> Result<Vec<File>, SgleamError> {
+    let marked = mark(project, modules);
+    if marked.is_err() {
+        restore(project, modules)?;
+        project.compile_quietly()?;
+    }
+    marked
+}
+
+fn mark(project: &mut Project, modules: &[(&Utf8Path, &Module)]) -> Result<Vec<File>, SgleamError> {
     let mut files = vec![];
     let mut first = 0;
     for &(path, module) in modules {
