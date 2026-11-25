@@ -43,7 +43,7 @@ The initial layout is automatically chosen based on the screen dimensions: horiz
 
 The **Run** button (or `Ctrl+r`) formats the code, runs the tests (`_examples`{.gleam} functions), and loads the definitions into the REPL. After that, you can call the functions defined in the editor directly in the REPL.
 
-After the tests, the editor marks the code that no example ran, as `sgleam test` lists it in the terminal. The pointer over a mark shows the reason, such as a function that no example calls or a `case` clause that no example reaches. A mark on the right side of `a && b`{.gleam} means that `a`{.gleam} was never true, and on the right side of `a || b`{.gleam} that `a`{.gleam} was never false. The first edit takes the marks away, since a change can make any of them false. A program with no examples gets no marks.
+After the tests, the editor marks the code that no example ran, as `sgleam test` lists it in the terminal. The pointer over a mark shows the reason, such as a function that no example calls or a `case` clause that no example reaches. A mark on the right side of `a && b`{.gleam} means that `a`{.gleam} was never true, and a mark on the right side of `a || b`{.gleam} means that `a`{.gleam} was never false. The first edit takes the marks away, since a change can make any of them false. A program with no examples gets no marks.
 
 Code that ran is not code that is right. A clause that only a failed example reaches still counts as run, and a helper function runs through the examples of the functions that call it, even with no examples of its own.
 
