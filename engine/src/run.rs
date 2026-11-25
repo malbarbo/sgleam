@@ -163,8 +163,6 @@ fn run_marked(
     (Ok(files), result)
 }
 
-/// The modules that `user_files` became, with their paths, in the order of
-/// `paths`.
 /// The module of each file in `user_files`. A file that did not become a
 /// module is an error, since a run that skips it would pass without
 /// running its examples.
