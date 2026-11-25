@@ -68,11 +68,11 @@
             # The gcc builtins of the libraries, such as __popcountdi2, from
             # the compiler of the libraries.
             cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
-            # The build scripts of wayland-sys and tiny-xlib ask pkg-config
-            # for these. build.rs of sgleam links the libraries, so a file
-            # only has to exist.
+            # The build script of tiny-xlib asks pkg-config for these.
+            # build.rs of sgleam links the libraries, so a file only has to
+            # exist.
             mkdir $out/lib/pkgconfig
-            for pc in x11 x11-xcb wayland-client; do
+            for pc in x11 x11-xcb; do
               printf 'Name: %s\nDescription: %s\nVersion: 0\n' $pc $pc > $out/lib/pkgconfig/$pc.pc
             done
             # The licenses ask for their notices in every copy of the binary.
