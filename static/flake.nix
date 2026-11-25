@@ -12,10 +12,9 @@
       packages = forSystems (pkgs:
         let
           s = pkgs.pkgsStatic;
-          x = s.xorg;
           libs = [
-            x.libX11 x.libxcb x.libXau x.libXdmcp x.libXcursor x.libXrender
-            x.libXfixes x.libXi x.libXext s.libxkbcommon s.wayland s.libffi
+            s.libx11 s.libxcb s.libxau s.libxdmcp s.libxcursor s.libxrender
+            s.libxfixes s.libxi s.libxext s.libxkbcommon s.wayland s.libffi
           ];
         in
         {
