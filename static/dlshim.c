@@ -15,11 +15,10 @@ struct dlshim_symbol {
     void *address;
 };
 
-// Sorted by name. The build writes them in dltable.c.
-extern const struct dlshim_symbol dlshim_symbols[];
-extern const size_t dlshim_symbols_len;
-extern const char *const dlshim_libraries[];
-extern const size_t dlshim_libraries_len;
+// The symbols sorted by name, and the names of the libraries, from build.rs.
+#include "dltable.inc"
+
+#define LEN(a) (sizeof(a) / sizeof *(a))
 
 static char handle;
 
@@ -30,7 +29,7 @@ static int linked(const char *file) {
     base = base ? base + 1 : file;
     const char *so = strstr(base, ".so");
     size_t len = so ? (size_t)(so - base) : strlen(base);
-    for (size_t i = 0; i < dlshim_libraries_len; i++) {
+    for (size_t i = 0; i < LEN(dlshim_libraries); i++) {
         if (strlen(dlshim_libraries[i]) == len && memcmp(dlshim_libraries[i], base, len) == 0) {
             return 1;
         }
@@ -56,7 +55,7 @@ int dlclose(void *p) {
 void *__dlsym(void *restrict p, const char *restrict name, void *restrict ra) {
     (void)p;
     (void)ra;
-    size_t lo = 0, hi = dlshim_symbols_len;
+    size_t lo = 0, hi = LEN(dlshim_symbols);
     while (lo < hi) {
         size_t mid = lo + (hi - lo) / 2;
         int cmp = strcmp(name, dlshim_symbols[mid].name);

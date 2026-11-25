@@ -79,34 +79,27 @@ fn static_libs(out: &Path) {
             names.insert(name.to_string());
         }
     }
-    let mut table = String::from("#include <stddef.h>\n");
-    for name in &names {
-        writeln!(table, "extern char {name};").expect("write to a String");
-    }
-    table.push_str("const struct { const char *name; void *address; } dlshim_symbols[] = {\n");
-    for name in &names {
-        writeln!(table, "    {{\"{name}\", &{name}}},").expect("write to a String");
-    }
-    table.push_str("};\n");
-    writeln!(table, "const size_t dlshim_symbols_len = {};", names.len())
-        .expect("write to a String");
-    table.push_str("const char *const dlshim_libraries[] = {\n");
-    for lib in STATIC_LIBS {
-        writeln!(table, "    \"lib{lib}\",").expect("write to a String");
-    }
-    table.push_str("};\n");
-    writeln!(
-        table,
-        "const size_t dlshim_libraries_len = {};",
-        STATIC_LIBS.len()
-    )
-    .expect("write to a String");
-    let table_path = out.join("dltable.c");
-    fs::write(&table_path, table).expect("write dltable.c");
+    let externs: String = names
+        .iter()
+        .map(|n| format!("extern char {n};\n"))
+        .collect();
+    let symbols: String = names
+        .iter()
+        .map(|n| format!("    {{\"{n}\", &{n}}},\n"))
+        .collect();
+    let libraries: String = STATIC_LIBS
+        .iter()
+        .map(|l| format!("    \"lib{l}\",\n"))
+        .collect();
+    let table = format!(
+        "{externs}static const struct dlshim_symbol dlshim_symbols[] = {{\n{symbols}}};\n\
+         static const char *const dlshim_libraries[] = {{\n{libraries}}};\n"
+    );
+    fs::write(out.join("dltable.inc"), table).expect("write dltable.inc");
 
     cc::Build::new()
         .file("../static/dlshim.c")
-        .file(&table_path)
+        .include(out)
         .warnings(false)
         // The weak dlopen of libc.a must not win over this one.
         .link_lib_modifier("+whole-archive")
