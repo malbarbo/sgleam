@@ -47,6 +47,9 @@ change is more than one, and it becomes more than one commit.
   non-empty `FORCE_COLOR` asks for them where no terminal is watching.
 - `gleam-core` and `rustyline` come from forks under `malbarbo/`. Prefer a
   change in `engine` or `cli` to a change in a fork.
+- `dlib`, `x11-dl` and `x11rb` come from the `no-dlopen` branch of forks
+  under `malbarbo/`. Under `--cfg no_dlopen`, they link X11 and Wayland into
+  the static musl binary, which has no dlopen.
 
 # Writing
 
