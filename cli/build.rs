@@ -58,26 +58,29 @@ fn static_libs(out: &Path) {
     if env::var("CARGO_CFG_TARGET_ENV").as_deref() != Ok("musl") {
         return;
     }
-    let mut names = std::collections::BTreeSet::new();
-    for lib in STATIC_LIBS {
-        let path = Path::new(&dir).join(format!("lib{lib}.a"));
+    let paths: Vec<_> = STATIC_LIBS
+        .iter()
+        .map(|lib| Path::new(&dir).join(format!("lib{lib}.a")))
+        .collect();
+    for path in &paths {
         println!("cargo:rerun-if-changed={}", path.display());
-        let nm = std::process::Command::new("nm")
-            .args(["-g", "--defined-only", "-P"])
-            .arg(&path)
-            .output()
-            .expect("run nm");
-        assert!(nm.status.success(), "nm {}", path.display());
-        for line in String::from_utf8_lossy(&nm.stdout).lines() {
-            let mut fields = line.split_whitespace();
-            let (Some(name), Some(kind)) = (fields.next(), fields.next()) else {
-                continue;
-            };
-            if name.ends_with(':') || !"TDBRVWC".contains(kind) {
-                continue;
-            }
-            names.insert(name.to_string());
+    }
+    let nm = std::process::Command::new("nm")
+        .args(["-g", "--defined-only", "-P"])
+        .args(&paths)
+        .output()
+        .expect("run nm");
+    assert!(nm.status.success(), "nm {dir}");
+    let mut names = std::collections::BTreeSet::new();
+    for line in String::from_utf8_lossy(&nm.stdout).lines() {
+        let mut fields = line.split_whitespace();
+        let (Some(name), Some(kind)) = (fields.next(), fields.next()) else {
+            continue;
+        };
+        if name.ends_with(':') || !"TDBRVWC".contains(kind) {
+            continue;
         }
+        names.insert(name.to_string());
     }
     let externs: String = names
         .iter()
