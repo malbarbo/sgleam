@@ -3384,6 +3384,30 @@ fn test_runs_the_examples_of_every_file() {
     assert!(out.contains("2 tests, 2 successes"), "got: {out}");
 }
 
+#[test]
+fn test_of_a_file_given_twice_runs_it_once() {
+    let out = out_in_dir(
+        &[(
+            "a.gleam",
+            indoc! {"
+                import sgleam/check
+
+                pub fn a_examples() {
+                  check.eq(1 + 1, 2)
+                }
+            "},
+        )],
+        &["test", "a.gleam", "./a.gleam"],
+        None,
+    );
+
+    assert!(out.contains("1 test, 1 success"), "got: {out}");
+    assert!(
+        out.contains("Every part of the code ran in some example."),
+        "got: {out}"
+    );
+}
+
 /// The build skips a file whose path is not a module name, so a test run
 /// of it would pass with no example run.
 #[test]
