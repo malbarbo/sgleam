@@ -65,6 +65,19 @@
             # The builtins of gcc that the libraries call, such as
             # __popcountdi2, from the compiler that built them.
             cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
+            # The build scripts of wayland-sys and tiny-xlib ask pkg-config
+            # for these. The files name the directory relative to their own,
+            # so they still work after a copy of $out.
+            mkdir $out/lib/pkgconfig
+            for pc in x11:X11 x11-xcb:X11-xcb wayland-client:wayland-client; do
+              cat > $out/lib/pkgconfig/''${pc%%:*}.pc <<EOF
+            libdir=\''${pcfiledir}/..
+            Name: ''${pc%%:*}
+            Description: ''${pc%%:*}
+            Version: 0
+            Libs: -L\''${libdir} -l''${pc#*:}
+            EOF
+            done
             # The licenses ask for their notices in every copy of the binary.
             ${lib.concatMapStringsSep "\n" (p: ''
               dir=$out/share/licenses/${p.pname}
