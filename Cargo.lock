@@ -5568,7 +5568,7 @@ dependencies = [
 [[package]]
 name = "x11-dl"
 version = "2.21.0"
-source = "git+https://github.com/malbarbo/x11-rs?branch=no-dlopen#7a73fc1f780b4f2a033118ea97e3a9598a83984f"
+source = "git+https://github.com/malbarbo/x11-rs?branch=no-dlopen#ed6248eff844dfb390b29e753bc4c59a2a5bc839"
 dependencies = [
  "libc",
  "once_cell",
