@@ -3650,21 +3650,28 @@ fn mworld_of_several_players_fails_with_no_display() {
           })
         }
     "};
-    let dir = tempfile::tempdir().expect("a temporary directory");
-    std::fs::write(dir.path().join("game.gleam"), source).expect("write the module");
-    let out = sgleam()
-        .current_dir(dir.path())
-        .env_remove("DISPLAY")
-        .env_remove("WAYLAND_DISPLAY")
-        .env_remove("WAYLAND_SOCKET")
-        .args(["run", "game.gleam"])
-        .output()
-        .expect("run sgleam");
+    let out = run_without_display("game.gleam", source, &["run", "game.gleam"]);
     assert!(!out.status.success());
     assert_eq!(
         String::from_utf8_lossy(&out.stdout),
         "Error: the game takes at least 2 players, and the terminal shows one, so they need a window each\n"
     );
+}
+
+/// The binary run on `name` in a fresh directory, with none of the
+/// variables that name a graphical display.
+#[cfg(target_os = "linux")]
+fn run_without_display(name: &str, source: &str, args: &[&str]) -> std::process::Output {
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    std::fs::write(dir.path().join(name), source).expect("write the module");
+    sgleam()
+        .current_dir(dir.path())
+        .env_remove("DISPLAY")
+        .env_remove("WAYLAND_DISPLAY")
+        .env_remove("WAYLAND_SOCKET")
+        .args(args)
+        .output()
+        .expect("run sgleam")
 }
 
 /// A project of its own: the files written into a fresh directory, and the
