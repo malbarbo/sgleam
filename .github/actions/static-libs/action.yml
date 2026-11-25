@@ -1,0 +1,39 @@
+name: Static libraries
+description: >
+  Builds the static musl libraries of static/flake.nix into static-libs, or
+  restores them from the cache.
+
+inputs:
+  target:
+    description: The target of the Rust build, which names the cache.
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Restore the static libraries
+      id: restore
+      uses: actions/cache/restore@v4
+      with:
+        path: static-libs
+        key: static-libs-${{ inputs.target }}-${{ hashFiles('static/flake.nix', 'static/flake.lock') }}
+
+    - name: Install Nix
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: cachix/install-nix-action@v31
+
+    - name: Build the static libraries
+      if: steps.restore.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        nix build ./static#default
+        cp -rL --no-preserve=mode result static-libs
+
+    # A step that fails later in the job would leave the save of
+    # actions/cache out, and the next run would build the libraries again.
+    - name: Save the static libraries
+      if: steps.restore.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: static-libs
+        key: ${{ steps.restore.outputs.cache-primary-key }}

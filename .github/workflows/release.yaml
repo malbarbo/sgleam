@@ -73,32 +73,11 @@ jobs:
       # The static libraries of X11 and Wayland go into the Linux binary,
       # which cannot load them with dlopen. Nix builds them from source, so
       # the cache keeps them until the flake changes.
-      - name: Restore the static libraries
-        if: contains(matrix.target, 'linux-musl')
-        id: static-libs
-        uses: actions/cache/restore@v4
-        with:
-          path: static-libs
-          key: static-libs-${{ matrix.target }}-${{ hashFiles('static/flake.nix', 'static/flake.lock') }}
-
-      - name: Install Nix
-        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
-        uses: cachix/install-nix-action@v31
-
       - name: Build the static libraries
-        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
-        run: |
-          nix build ./static#default
-          cp -rL --no-preserve=mode result static-libs
-
-      # A step that fails later in the job would leave the save of
-      # actions/cache out, and the next run would build the libraries again.
-      - name: Save the static libraries
-        if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        if: contains(matrix.target, 'linux-musl')
+        uses: ./.github/actions/static-libs
         with:
-          path: static-libs
-          key: ${{ steps.static-libs.outputs.cache-primary-key }}
+          target: ${{ matrix.target }}
 
       - name: Link the static libraries
         if: contains(matrix.target, 'linux-musl')
