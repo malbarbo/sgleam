@@ -193,7 +193,7 @@ pub fn show_error(err: &SgleamError) {
         .write(&mut buffer),
         SgleamError::NoWindow { cause } => error_diagnostic(
             "no window",
-            format!("The window did not open: {cause}."),
+            sentence(cause),
             "Leave out `-d window` to show the images in the terminal, if the terminal \
              supports them."
                 .into(),
@@ -226,6 +226,17 @@ pub fn show_error(err: &SgleamError) {
 
 /// An error of sgleam itself, in the shape the compiler reports its own.
 /// Nothing here happened at a place in a file, so there is no location.
+/// `text` with a capital letter and one period at the end, for a message
+/// of another crate in the text of a diagnostic.
+fn sentence(text: &str) -> String {
+    let text = text.trim_end().trim_end_matches('.');
+    let mut chars = text.chars();
+    match chars.next() {
+        Some(first) => format!("{}{}.", first.to_uppercase(), chars.as_str()),
+        None => String::new(),
+    }
+}
+
 fn error_diagnostic(title: &str, text: String, hint: String) -> Diagnostic {
     Diagnostic {
         title: title.into(),

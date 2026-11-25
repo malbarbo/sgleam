@@ -3672,7 +3672,7 @@ fn run_with_a_window_and_no_display_says_how_to_use_the_terminal() {
     assert!(!out.status.success());
     assert!(out.stdout.is_empty());
     assert!(
-        stderr.contains("The window did not open: this session has no graphical display.")
+        stderr.contains("This session has no graphical display.")
             && stderr.contains("Leave out `-d window` to show the images in the terminal"),
         "{stderr}"
     );
