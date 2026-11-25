@@ -3351,6 +3351,40 @@ fn passing_tests_exit_with_zero() {
 }
 
 #[test]
+fn test_runs_the_examples_of_every_file() {
+    let out = out_in_dir(
+        &[
+            (
+                "a.gleam",
+                indoc! {"
+                    import sgleam/check
+
+                    pub fn a_examples() {
+                      check.eq(1 + 1, 2)
+                    }
+                "},
+            ),
+            (
+                "b.gleam",
+                indoc! {"
+                    import sgleam/check
+
+                    pub fn b_examples() {
+                      check.eq(2 + 2, 4)
+                    }
+                "},
+            ),
+        ],
+        &["test", "a.gleam", "b.gleam"],
+        None,
+    );
+
+    assert!(out.contains("  a.gleam/a_examples\n"), "got: {out}");
+    assert!(out.contains("  b.gleam/b_examples\n"), "got: {out}");
+    assert!(out.contains("2 tests, 2 successes"), "got: {out}");
+}
+
+#[test]
 fn runtime_error_exits_with_nonzero() {
     let input = concat!(
         env!("CARGO_MANIFEST_DIR"),

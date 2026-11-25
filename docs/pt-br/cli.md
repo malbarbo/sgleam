@@ -244,7 +244,7 @@ Importações são suportadas e mescladas automaticamente:
 
 # Testes
 
-Para executar os testes de um arquivo:
+Para executar os testes de um ou mais arquivos:
 
 ```sh
 sgleam test arquivo.gleam

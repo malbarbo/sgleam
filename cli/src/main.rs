@@ -112,9 +112,9 @@ enum Command {
         /// Do not show the code that no example ran.
         #[bpaf(long("no-coverage"))]
         no_coverage: bool,
-        /// Gleam file to test.
-        #[bpaf(positional("FILE"))]
-        file: String,
+        /// Gleam files to test.
+        #[bpaf(positional("FILE"), some("expected a file to test"))]
+        files: Vec<String>,
     },
     /// Format source code (reads stdin if no files given).
     #[bpaf(command)]
@@ -268,10 +268,12 @@ fn run() -> Result<(), SgleamError> {
         Command::Run { file, args, .. } => run_file(file, options, args),
         Command::Server { file, .. } => run_file(file, options, vec![]),
         Command::Test {
-            file, no_coverage, ..
+            files, no_coverage, ..
         } => {
-            let file = user_module(file)?;
-            let user_files = vec![file];
+            let user_files = files
+                .into_iter()
+                .map(user_module)
+                .collect::<Result<Vec<_>, _>>()?;
             let files = find_imports(user_files.clone())?;
             if no_coverage {
                 run_test(&user_files, &files, options)

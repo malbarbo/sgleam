@@ -242,7 +242,7 @@ Imports are supported and automatically merged:
 
 # Tests
 
-To run the tests of a file:
+To run the tests of one or more files:
 
 ```sh
 sgleam test file.gleam
