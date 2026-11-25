@@ -117,10 +117,11 @@ fn static_libs(out: &Path) {
         println!("cargo:rustc-link-arg-bins=-l:lib{lib}.a");
     }
     // The link arguments come after the libc of the target, so the group
-    // names it again for what the libraries call, and libgcc for the
-    // builtins of gcc, such as __popcountdi2.
+    // names it again for what the libraries call. The libgcc of the
+    // directory, from the compiler that built the libraries, has the
+    // builtins they call, such as __popcountdi2.
     println!("cargo:rustc-link-arg-bins=-lc");
-    println!("cargo:rustc-link-arg-bins=-lgcc");
+    println!("cargo:rustc-link-arg-bins=-l:libgcc.a");
     println!("cargo:rustc-link-arg-bins=-Wl,--end-group");
 }
 

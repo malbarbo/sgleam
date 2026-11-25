@@ -58,6 +58,9 @@
             for p in ${lib.concatMapStringsSep " " (p: "${lib.getLib p}") libs}; do
               cp -n $p/lib/*.a $out/lib/
             done
+            # The builtins of gcc that the libraries call, such as
+            # __popcountdi2, from the compiler that built them.
+            cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
             ls $out/lib
           '';
         });
