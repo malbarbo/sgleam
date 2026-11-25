@@ -49,8 +49,8 @@ const STATIC_LIBS: &[&str] = &[
 
 /// Links the libraries of `SGLEAM_STATIC_LIBS` into a static musl binary,
 /// which has no dlopen. The forks of dlib, x11-dl and x11rb refer to their
-/// functions under `cfg(no_dlopen)`. Only the binary links them, so a test
-/// that opens a window does not build under the cfg.
+/// functions under `cfg(no_dlopen)`. Only the binary links them, so `cargo
+/// test` does not link under the cfg.
 fn static_libs() {
     if env::var_os("CARGO_CFG_NO_DLOPEN").is_none() {
         return;
