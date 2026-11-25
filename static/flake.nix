@@ -69,17 +69,11 @@
             # __popcountdi2, from the compiler that built them.
             cp ${s.stdenv.cc.cc}/lib/gcc/*/*/libgcc.a $out/lib/
             # The build scripts of wayland-sys and tiny-xlib ask pkg-config
-            # for these. The files name the directory relative to their own,
-            # so they still work after a copy of $out.
+            # for these. build.rs of sgleam links the libraries, so a file
+            # only has to exist.
             mkdir $out/lib/pkgconfig
-            for pc in x11:X11 x11-xcb:X11-xcb wayland-client:wayland-client; do
-              cat > $out/lib/pkgconfig/''${pc%%:*}.pc <<EOF
-            libdir=\''${pcfiledir}/..
-            Name: ''${pc%%:*}
-            Description: ''${pc%%:*}
-            Version: 0
-            Libs: -L\''${libdir} -l''${pc#*:}
-            EOF
+            for pc in x11 x11-xcb wayland-client; do
+              printf 'Name: %s\nDescription: %s\nVersion: 0\n' $pc $pc > $out/lib/pkgconfig/$pc.pc
             done
             # The licenses ask for their notices in every copy of the binary.
             ${lib.concatMapStringsSep "\n" (p: ''
