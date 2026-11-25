@@ -152,7 +152,7 @@ pub fn not_run(files: &[File]) -> Vec<(&File, Vec<&Region>)> {
         .collect()
 }
 
-/// The section of `sgleam test --coverage` that lists the regions of
+/// The section of `sgleam test` that lists the regions of
 /// `not_run`. Each region shows its line without the indentation, then `^`
 /// under the shown span and the reason, in the colour of a warning when
 /// `color` is `true`. A span that goes on to the next line is underlined up

@@ -110,7 +110,8 @@ pub fn run_test_coverage(
 /// Runs the examples of `modules`, which `project` built, with the coverage
 /// marks. The regions keep what ran also when an example fails or a panic
 /// stops the run. When the marks do not compile, the examples run without
-/// them. `project` ends with the sources the user wrote.
+/// them. `project` ends with the sources the user wrote, but the code that
+/// it built still has the marks until the next compile.
 pub fn run_modules_coverage(
     project: &mut Project,
     modules: &[(&Utf8Path, &Module)],
