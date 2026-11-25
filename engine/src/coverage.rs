@@ -498,9 +498,10 @@ impl Marker<'_> {
                 }
                 // A capture has no body in the source. Its body is the call
                 // that it replaces.
-                FunctionLiteralKind::Capture { .. } | FunctionLiteralKind::Use { .. } => {
-                    self.statements(body);
-                }
+                FunctionLiteralKind::Capture { .. } => self.statements(body),
+                // Only the type checker makes a function of a `use`. The
+                // parser leaves it as a statement, which `statements` marks.
+                FunctionLiteralKind::Use { .. } => {}
             },
 
             UntypedExpr::List { elements, tail, .. } => {
