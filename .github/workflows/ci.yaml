@@ -96,9 +96,10 @@ jobs:
         run: ${{ matrix.setup }}
 
       # A tag sees only its own caches and those of main, so a run on main
-      # leaves the static libraries for the release.
+      # leaves the static libraries for the release. The tests do not use
+      # them.
       - name: Build the static libraries
-        if: contains(matrix.target, 'linux-musl')
+        if: contains(matrix.target, 'linux-musl') && github.ref == 'refs/heads/main'
         uses: ./.github/actions/static-libs
         with:
           target: ${{ matrix.target }}
