@@ -33,6 +33,9 @@ pub enum RegionKind {
     AnonymousFunction,
     /// The expression of a `case` clause.
     Clause,
+    /// The code after a `use`, which runs only when the function of the
+    /// `use` calls it.
+    Use,
     /// The right operand of `&&`, which runs only when `left` is true.
     And { left: SrcSpan },
     /// The right operand of `||`, which runs only when `left` is false.
@@ -45,6 +48,7 @@ impl RegionKind {
         match self {
             RegionKind::Function | RegionKind::AnonymousFunction => "function",
             RegionKind::Clause => "clause",
+            RegionKind::Use => "use",
             RegionKind::And { .. } => "and",
             RegionKind::Or { .. } => "or",
         }
@@ -229,6 +233,7 @@ fn reason(kind: RegionKind, source: &str) -> String {
             "no example calls this function".into()
         }
         RegionKind::Clause => "no example reaches this clause".into(),
+        RegionKind::Use => "no example reaches this code".into(),
         RegionKind::And { left: span } => format!("{} was never true", left(span)),
         RegionKind::Or { left: span } => format!("{} was never false", left(span)),
     }
@@ -393,9 +398,19 @@ impl Marker<'_> {
         self.statements(statements);
     }
 
+    /// The statements after a `use` are the body of its callback, which the
+    /// parser leaves in the block.
     fn statements(&mut self, statements: &[UntypedStatement]) {
-        for statement in statements {
+        for (i, statement) in statements.iter().enumerate() {
             self.statement(statement);
+            if let Statement::Use(_) = statement
+                && let Some(rest) = statements.get(i + 1..)
+                && let (Some(first), Some(last)) = (rest.first(), rest.last())
+            {
+                let span = SrcSpan::new(first.location().start, last.location().end);
+                self.body(RegionKind::Use, span, span, rest);
+                return;
+            }
         }
     }
 
@@ -651,6 +666,14 @@ mod tests {
     }
 
     #[test]
+    fn the_code_after_a_use() {
+        assert_eq!(
+            rewritten("fn f() {\n  use x <- g()\n  x\n}"),
+            "fn f() {\n  hit(0.0) use x <- g()\n  hit(1.0) x\n}"
+        );
+    }
+
+    #[test]
     fn function_body() {
         assert_eq!(rewritten("fn f(x) { x * 2 }"), "fn f(x) { hit(0.0) x * 2 }");
     }
@@ -812,7 +835,7 @@ mod tests {
     fn use_() {
         assert_eq!(
             rewritten("fn f() {\n  use x <- g(a && b)\n  x\n}"),
-            "fn f() {\n  hit(0.0) use x <- g(a && hit_true(1.0) && b)\n  x\n}"
+            "fn f() {\n  hit(0.0) use x <- g(a && hit_true(1.0) && b)\n  hit(2.0) x\n}"
         );
     }
 
@@ -1013,6 +1036,18 @@ mod tests {
             report_of("fn g() { fn(x) { x } }", &[0], false),
             "Code that no example ran:\n\n  \
              a.gleam:1, in g\n    fn g() { fn(x) { x } }\n             ^^^^^ no example calls this function\n"
+        );
+    }
+
+    /// An operand after a `use` that never called its callback did not see
+    /// its left side, so the report shows the code after the `use` instead.
+    #[test]
+    fn report_hides_an_operand_after_a_use_that_did_not_run() {
+        let src = "fn f() {\n  use n <- g()\n  n > 0 && n < 9\n}";
+        assert_eq!(
+            report_of(src, &[0], false),
+            "Code that no example ran:\n\n  \
+             a.gleam:3, in f\n    n > 0 && n < 9\n    ^^^^^^^^^^^^^^ no example reaches this code\n"
         );
     }
 
