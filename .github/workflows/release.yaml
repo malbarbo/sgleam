@@ -89,7 +89,7 @@ jobs:
         if: contains(matrix.target, 'linux-musl') && steps.static-libs.outputs.cache-hit != 'true'
         run: |
           nix build ./static#default
-          cp -rL result static-libs
+          cp -rL --no-preserve=mode result static-libs
 
       - name: Link the static libraries
         if: contains(matrix.target, 'linux-musl')
