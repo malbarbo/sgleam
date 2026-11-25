@@ -20,9 +20,13 @@
           # places that the other distributions use.
           libx11 = s.libx11.overrideAttrs (old: {
             postConfigure = (old.postConfigure or "") + ''
-              grep -rlE "$out/(share|lib)/X11" --include='*.h' --include=Makefile . \
+              grep -rlE "$out/(share|lib)/X11" --include='*.h' . \
                 | xargs sed -i -e "s|$out/share/X11|/usr/share/X11|g" \
                   -e "s|$out/lib/X11/locale|/usr/share/X11/locale|g"
+              # The install of XCMS.txt goes to $(X11dir), so only the define
+              # changes.
+              sed -i 's|-DXCMSDIR=\\"$(X11dir)\\"|-DXCMSDIR=\\"/usr/share/X11\\"|' src/xcms/Makefile
+              grep -q 'DXCMSDIR=\\"/usr/share/X11' src/xcms/Makefile
             '';
           });
           libxkbcommon = s.libxkbcommon.overrideAttrs (old: {
