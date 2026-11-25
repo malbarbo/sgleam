@@ -19,6 +19,9 @@
           # the machine of a student does not have, so they point to the
           # places that the other distributions use.
           libx11 = s.libx11.overrideAttrs (old: {
+            # XCreateFontCursor would open libXcursor with dlopen, which a
+            # static binary does not have.
+            configureFlags = (old.configureFlags or [ ]) ++ [ "--disable-loadable-xcursor" ];
             postConfigure = (old.postConfigure or "") + ''
               grep -rlE "$out/(share|lib)/X11" --include='*.h' . \
                 | xargs sed -i -e "s|$out/share/X11|/usr/share/X11|g" \
