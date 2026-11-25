@@ -135,19 +135,7 @@ jobs:
         if: contains(matrix.target, 'linux-musl')
         # A window that never closes would hold the job for six hours.
         timeout-minutes: 2
-        run: |
-          cat > window.gleam <<'EOF'
-          import sgleam/fill
-          import sgleam/image
-          import sgleam/world
-
-          pub fn smain() {
-            world.create(0, fn(_) { image.square(10, fill.red) })
-            |> world.on_tick(fn(n) { n + 1 })
-            |> world.stop_when(fn(n) { n == 3 })
-          }
-          EOF
-          xvfb-run -a ./sgleam run -d window window.gleam
+        run: xvfb-run -a ./sgleam run -d window cli/tests/inputs/world_on_tick.gleam
 
       - name: Hand the archive to the publish job
         uses: actions/upload-artifact@v7
