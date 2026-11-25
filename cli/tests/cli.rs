@@ -3384,6 +3384,30 @@ fn test_runs_the_examples_of_every_file() {
     assert!(out.contains("2 tests, 2 successes"), "got: {out}");
 }
 
+/// The build skips a file whose path is not a module name, so a test run
+/// of it would pass with no example run.
+#[test]
+fn test_of_a_file_that_is_not_a_module_fails() {
+    let output = run_in_dir(
+        &[(
+            "dir-1/ok.gleam",
+            indoc! {"
+                import sgleam/check
+
+                pub fn add_examples() {
+                  check.eq(1 + 1, 2)
+                }
+            "},
+        )],
+        &["test", "dir-1/ok.gleam"],
+        None,
+    );
+    let err = String::from_utf8_lossy(&output.stderr);
+
+    assert!(!output.status.success(), "expected a nonzero exit code");
+    assert!(err.contains("no module to run"), "got: {err}");
+}
+
 #[test]
 fn runtime_error_exits_with_nonzero() {
     let input = concat!(

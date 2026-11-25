@@ -44,8 +44,9 @@ pub enum SgleamError {
     #[error("path is a directory")]
     PathIsADirectory { path: Utf8PathBuf },
 
-    /// The first path given did not become a module, either because the build
-    /// turned it down — saying why as it did — or because nothing compiled it.
+    /// A path to run or to test did not become a module, either because the
+    /// build turned it down — saying why as it did — or because nothing
+    /// compiled it.
     #[error("no module to run")]
     NoModuleToRun { path: Utf8PathBuf },
 

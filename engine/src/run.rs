@@ -79,7 +79,7 @@ pub fn run_test(
 ) -> Result<(), SgleamError> {
     let mut project = Project::default();
     let built = copy_files_and_build(&mut project, paths)?;
-    run_modules_tests(&project, &user_modules(user_files, paths, &built), options)
+    run_modules_tests(&project, &user_modules(user_files, paths, &built)?, options)
 }
 
 /// Runs the examples of `modules`, which `project` built.
@@ -110,7 +110,10 @@ pub fn run_test_coverage(
         Ok(built) => built,
         Err(err) => return (Ok(vec![]), Err(SgleamError::Gleam(err))),
     };
-    let user_modules = user_modules(user_files, paths, &built);
+    let user_modules = match user_modules(user_files, paths, &built) {
+        Ok(user_modules) => user_modules,
+        Err(err) => return (Ok(vec![]), Err(err)),
+    };
     run_modules_coverage(&mut project, &user_modules, options)
 }
 
@@ -162,14 +165,25 @@ fn run_marked(
 
 /// The modules that `user_files` became, with their paths, in the order of
 /// `paths`.
+/// The module of each file in `user_files`. A file that did not become a
+/// module is an error, since a run that skips it would pass without
+/// running its examples.
 fn user_modules<'a>(
     user_files: &[Utf8PathBuf],
     paths: &'a [Utf8PathBuf],
     built: &'a Built,
-) -> Vec<(&'a Utf8Path, &'a Module)> {
-    let mut modules = built.with_paths(paths);
-    modules.retain(|(path, _)| user_files.iter().any(|file| file == path));
-    modules
+) -> Result<Vec<(&'a Utf8Path, &'a Module)>, SgleamError> {
+    let modules = built.with_paths(paths);
+    user_files
+        .iter()
+        .map(|file| {
+            modules
+                .iter()
+                .find(|(path, _)| *path == file)
+                .copied()
+                .ok_or_else(|| SgleamError::NoModuleToRun { path: file.clone() })
+        })
+        .collect()
 }
 
 fn names<'a>(modules: &[(&Utf8Path, &'a Module)]) -> Vec<&'a str> {
